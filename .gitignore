@@ -1,0 +1,23 @@
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+.idea/
+*.iml
+.vscode/
+.DS_Store
+logs/
+node_modules/
+frontend/dist/
+frontend/node_modules/
+application-local.yml
+
+# 部署包与运行时二进制
+*.zip
+tools/docker-compose/
+
+# 预览图与临时文件
+sofa-*-preview*
+A_high_fidelity_UI_mockup_*.png
+_pack_tmp.ps1
+.preview/

@@ -1,0 +1,241 @@
+package com.zing.doctor.module.antibiotic.service.impl;
+
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.zing.doctor.common.BizException;
+import com.zing.doctor.icu.dto.IcuPatientAssessment;
+import com.zing.doctor.icu.dto.IcuPatientBrief;
+import com.zing.doctor.icu.service.IcuPatientService;
+import com.zing.doctor.module.antibiotic.dto.AdviceItem;
+import com.zing.doctor.module.antibiotic.dto.PatientAssessmentView;
+import com.zing.doctor.module.antibiotic.entity.AdviceLog;
+import com.zing.doctor.module.antibiotic.entity.DecisionRecord;
+import com.zing.doctor.module.antibiotic.mapper.AdviceLogMapper;
+import com.zing.doctor.module.antibiotic.mapper.DecisionRecordMapper;
+import com.zing.doctor.module.antibiotic.service.AntibioticDecisionService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+/**
+ * 第一维度：经验性抗感染治疗决策实现。
+ *
+ * <p>方案推荐为可解释规则引擎（P0），覆盖「脓毒性休克 / 无休克」分层与 MRSA、真菌风险加量，
+ * 依据 SSC 2021 与国内指南/共识。规则后续迁移到数据库规则表，支持医院本地化配置。
+ */
+@Service
+@RequiredArgsConstructor
+public class AntibioticDecisionServiceImpl implements AntibioticDecisionService {
+
+    private final IcuPatientService icuPatientService;
+    private final DecisionRecordMapper decisionRecordMapper;
+    private final AdviceLogMapper adviceLogMapper;
+
+    @Override
+    public List<IcuPatientBrief> listSuspectPatients() {
+        return icuPatientService.listSuspectInfections();
+    }
+
+    @Override
+    public PatientAssessmentView getAssessmentView(String patientId) {
+        IcuPatientAssessment assessment = icuPatientService.getAssessment(patientId);
+        // 患者信息直接取自评估结果（含基础信息 + 检验/风险增强），不依赖“疑似感染列表”过滤，
+        // 使 ICU 外链可打开任意在科患者的决策页。
+        IcuPatientBrief patient = assessment.getPatient();
+
+        List<AdviceItem> advice = generateAdvice(patient);
+        PatientAssessmentView view = new PatientAssessmentView();
+        view.setPatient(patient);
+        view.setAssessment(assessment);
+        view.setAdviceList(advice);
+        view.setPlanSummary(advice.stream()
+                .map(AdviceItem::getDrugName)
+                .distinct()
+                .collect(Collectors.joining(" + ")));
+        return view;
+    }
+
+    @Override
+    public List<AdviceItem> generateAdvice(IcuPatientBrief p) {
+        List<AdviceItem> list = new ArrayList<>();
+        boolean shock = Boolean.TRUE.equals(p.getSepticShock());
+        boolean mrsa = Boolean.TRUE.equals(p.getMrsaRisk());
+        boolean mdr = Boolean.TRUE.equals(p.getMdrRisk());
+        boolean fungal = Boolean.TRUE.equals(p.getFungalRisk());
+
+        if (shock) {
+            // 脓毒性休克：1 小时内广谱经验性覆盖
+            String gramNegative = mdr
+                    ? advice(list, "美罗培南", "1g q8h（延长输注 3h）", "IV", "强",
+                    "MDR 高风险脓毒性休克，覆盖 ESBL/耐药革兰阴性菌",
+                    "SSC 2021：脓毒性休克 1h 内给予广谱抗菌药物；MDR 高风险可选用碳青霉烯类")
+                    : advice(list, "哌拉西林/他唑巴坦", "4.5g q6h 静脉输注", "IV", "强",
+                    "脓毒性休克一线广谱覆盖（抗铜绿假单胞菌）",
+                    "SSC 2021：脓毒性休克 1h 内给予广谱抗菌药物");
+            if (mrsa) {
+                advice(list, "万古霉素", "负荷 25-30mg/kg 后按肾功能调整（AUC 400-600 目标）", "IV", "强",
+                        "MRSA 高风险，需经验性覆盖",
+                        "中国万古霉素 TDM 指南 2020 更新版：AUC/MIC 400-600");
+            }
+            if (fungal) {
+                advice(list, "棘白菌素类（如卡泊芬净）", "负荷 70mg 后 50mg qd", "IV", "弱",
+                        "真菌高风险（长期广谱/免疫抑制/留置导管），考虑覆盖念珠菌",
+                        "中国念珠菌病诊断与治疗指南：危重患者经验性抗真菌治疗");
+            }
+        } else {
+            // 无休克：按感染部位分层
+            String type = p.getInfectionType() == null ? "" : p.getInfectionType();
+            if (type.contains("肺炎")) {
+                if (type.contains("院内") || type.contains("呼吸机") || type.contains("医院")) {
+                    String base = mdr
+                            ? advice(list, "美罗培南", "1g q8h", "IV", "强",
+                            "HAP/VAP，MDR 高风险", "SSC 2021 / 中国 HAP-VAP 指南")
+                            : advice(list, "哌拉西林/他唑巴坦", "4.5g q6h", "IV", "强",
+                            "HAP/VAP 一线覆盖", "中国 HAP-VAP 指南");
+                    if (mrsa) {
+                        advice(list, "万古霉素", "负荷 25-30mg/kg 后按肾功能调整", "IV", "强",
+                                "HAP/VAP 合并 MRSA 高风险", "IDSA 2023 HAP-VAP 指南");
+                    }
+                } else {
+                    advice(list, "头孢曲松", "2g qd", "IV", "强",
+                            "社区获得性肺炎经验性覆盖", "中国 CAP 指南：住院 CAP 一线");
+                    if (mrsa) {
+                        advice(list, "万古霉素", "负荷 25-30mg/kg 后按肾功能调整", "IV", "弱",
+                                "CAP 合并 MRSA 高风险", "IDSA/ATS 2019 CAP 指南");
+                    }
+                }
+            } else if (type.contains("腹腔")) {
+                advice(list, "哌拉西林/他唑巴坦", "4.5g q6h", "IV", "强",
+                        "腹腔感染：覆盖肠道需氧兼性/厌氧菌", "中国腹腔感染诊治指南（2024）");
+                if (fungal) {
+                    advice(list, "棘白菌素类（如卡泊芬净）", "负荷 70mg 后 50mg qd", "IV", "弱",
+                            "重症腹腔感染伴真菌高风险，经验性覆盖念珠菌",
+                            "中国念珠菌病诊断与治疗指南");
+                }
+            } else {
+                advice(list, "哌拉西林/他唑巴坦", "4.5g q6h", "IV", "强",
+                        "感染部位待明确的广谱初始覆盖", "SSC 2021：初始广谱覆盖，48-72h 依据培养降阶梯");
+                if (mrsa) {
+                    advice(list, "万古霉素", "负荷 25-30mg/kg 后按肾功能调整", "IV", "弱",
+                            "MRSA 高风险", "中国万古霉素 TDM 指南 2020");
+                }
+            }
+        }
+
+        // 通用建议
+        advice(list, "48-72 小时复评", "依据培养药敏与 PCT 趋势评估降阶梯/停药", "—", "强",
+                "经验性治疗启动 48-72h 后必须复评",
+                "SSC 2021：每日评估降阶梯；PCT 指导停药");
+        return list;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long saveDecision(String patientId, String doctorDecision, String decisionStatus,
+                             String doctorId, String doctorName) {
+        // 仅需患者基本信息（patientNo/感染类型/风险标记）即可生成方案与留痕；
+        // 用轻量单患者查询，避免触发全院疑似感染列表扫描（大表慢查询导致保存转圈）。
+        IcuPatientBrief patient = icuPatientService.getPatientBrief(patientId);
+        if (patient == null) {
+            throw new BizException(404, "未找到患者：" + patientId);
+        }
+
+        List<AdviceItem> advice = generateAdvice(patient);
+
+        DecisionRecord record = new DecisionRecord();
+        record.setPatientId(patientId);
+        record.setPatientNo(patient.getPatientNo());
+        record.setPageCode("abx-decision");
+        record.setSourceSystem("icu");
+        record.setInfectionType(patient.getInfectionType());
+        record.setSepticShock(boolToInt(patient.getSepticShock()));
+        record.setMrsaRisk(boolToInt(patient.getMrsaRisk()));
+        record.setMdrRisk(boolToInt(patient.getMdrRisk()));
+        record.setFungalRisk(boolToInt(patient.getFungalRisk()));
+        record.setRecommendedPlan(advice.stream()
+                .map(AdviceItem::getDrugName).distinct().collect(Collectors.joining(" + ")));
+        record.setDoctorDecision(doctorDecision);
+        record.setDecisionStatus(StrUtil.isBlank(decisionStatus) ? "pending" : decisionStatus);
+        record.setDoctorId(doctorId);
+        record.setDoctorName(doctorName);
+        decisionRecordMapper.insert(record);
+
+        for (AdviceItem item : advice) {
+            if ("48-72 小时复评".equals(item.getDrugName())) {
+                continue;
+            }
+            AdviceLog log = new AdviceLog();
+            log.setDecisionRecordId(record.getId());
+            log.setDrugName(item.getDrugName());
+            log.setDosePlan(item.getDosePlan());
+            log.setRoute(item.getRoute());
+            log.setAdviceLevel(item.getAdviceLevel());
+            log.setReason(item.getReason());
+            log.setEvidence(item.getEvidence());
+            adviceLogMapper.insert(log);
+        }
+        return record.getId();
+    }
+
+    /** 查询某患者的决策历史（供前端展示） */
+    public List<DecisionRecord> listByPatient(String patientId) {
+        return decisionRecordMapper.selectList(new LambdaQueryWrapper<DecisionRecord>()
+                .eq(DecisionRecord::getPatientId, patientId)
+                .orderByDesc(DecisionRecord::getCreateTime));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long updateDecisionRecord(Long id, String doctorDecision, String decisionStatus,
+                                     String doctorId, String doctorName) {
+        DecisionRecord record = decisionRecordMapper.selectById(id);
+        if (record == null) {
+            throw new BizException(404, "决策记录不存在：" + id);
+        }
+        record.setDoctorDecision(doctorDecision);
+        if (StrUtil.isNotBlank(decisionStatus)) {
+            record.setDecisionStatus(decisionStatus);
+        }
+        record.setDoctorId(doctorId);
+        record.setDoctorName(doctorName);
+        record.setUpdateTime(LocalDateTime.now());
+        decisionRecordMapper.updateById(record);
+        return record.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteDecisionRecord(Long id) {
+        DecisionRecord record = decisionRecordMapper.selectById(id);
+        if (record == null) {
+            throw new BizException(404, "决策记录不存在：" + id);
+        }
+        decisionRecordMapper.deleteById(id);
+        // 级联删除该记录的推荐明细
+        adviceLogMapper.delete(new LambdaQueryWrapper<AdviceLog>()
+                .eq(AdviceLog::getDecisionRecordId, id));
+    }
+
+    private String advice(List<AdviceItem> list, String drug, String dose, String route,
+                          String level, String reason, String evidence) {
+        AdviceItem item = new AdviceItem();
+        item.setDrugName(drug);
+        item.setDosePlan(dose);
+        item.setRoute(route);
+        item.setAdviceLevel(level);
+        item.setReason(reason);
+        item.setEvidence(evidence);
+        list.add(item);
+        return drug;
+    }
+
+    private Integer boolToInt(Boolean b) {
+        return Boolean.TRUE.equals(b) ? 1 : 0;
+    }
+}

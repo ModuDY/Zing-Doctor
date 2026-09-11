@@ -1,0 +1,71 @@
+import request from './request'
+
+/** 单患者 SOFA 评估（按 patientId） */
+export function fetchSofaAssessment(patientId, startTime, endTime) {
+  return request.get(`/sofa/assessment/${patientId}`, { params: { startTime, endTime } })
+}
+
+/** 单患者 SOFA 评估（按 ICU 外链住院号） */
+export function fetchSofaAssessmentByNo(inHospitalNo, startTime, endTime) {
+  return request.get('/sofa/assessment/by-no', { params: { inHospitalNo, startTime, endTime } })
+}
+
+/** 保存评分记录 */
+export function saveSofaRecord(record, startTime, endTime) {
+  return request.post('/sofa/record', record, { params: { startTime, endTime } })
+}
+
+/** 患者历史评分 */
+export function fetchSofaRecords(inHospitalNo) {
+  return request.get('/sofa/records', { params: { inHospitalNo } })
+}
+
+/** 逻辑删除评分记录 */
+export function deleteSofaRecord(id) {
+  return request.post('/sofa/record/delete', null, { params: { id } })
+}
+
+/** 科室总览 */
+export function fetchSofaOverview(departCode, startTime, endTime) {
+  return request.get('/sofa/overview', { params: { departCode, startTime, endTime } })
+}
+
+/** 单指标趋势（resp/coag/liver/cardio/neuro/renal/total） */
+export function fetchSofaTrend(patientId, metricKey, startTime, endTime) {
+  return request.get(`/sofa/metric-trend/${patientId}`, { params: { metricKey, startTime, endTime } })
+}
+
+/** 取某条记录的文书 PDF（Base64 + 文件名） */
+export function fetchSofaRecordPdf(id) {
+  return request.get(`/sofa/record/${id}/pdf`)
+}
+
+/** 补传文书 PDF（与主体保存解耦） */
+export function attachSofaRecordPdf(id, pdfData, pdfName) {
+  return request.post(`/sofa/record/${id}/pdf`, { pdfData, pdfName })
+}
+
+/** 手动触发自动初评（幂等） */
+export function autoGenerateSofa(departCode, overHours) {
+  return request.post('/sofa/auto-generate', null, { params: { departCode, overHours } })
+}
+
+/** 配置列表（含停用项；configType 为空返回全部） */
+export function fetchSofaConfig(configType) {
+  return request.get(configType ? `/sofa/config/${configType}` : '/sofa/config')
+}
+
+/** 配置保存（id 为空新增，否则更新） */
+export function saveSofaConfig(body) {
+  return request.post('/sofa/config/save', body)
+}
+
+/** 配置删除（逻辑删除） */
+export function deleteSofaConfig(id) {
+  return request.post('/sofa/config/delete', null, { params: { id } })
+}
+
+/** 配置启用/停用 */
+export function toggleSofaConfig(id, status) {
+  return request.post('/sofa/config/toggle', null, { params: { id, status } })
+}

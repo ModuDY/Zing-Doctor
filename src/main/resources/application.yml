@@ -1,0 +1,80 @@
+server:
+  port: 8081
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: zing-doctor
+  datasource:
+    dynamic:
+      primary: doctor
+      strict: true
+      # 数据源懒加载：应用启动时不强制初始化连接池，便于无库环境下启动与容错
+      lazy: true
+      # 数据库：达梦 DM8。schema（模式）在 SQL 中显式引用（如 "zing_icu_db_prod"."patient_info"），
+      # 因此 URL 不带 schema 参数，仅需连接账号具备目标 schema 的访问权限。
+      # P0 直接使用 SYSDBA（默认模式即 SYSDBA，表建于此）；生产可改用独立账号（见 docs/04-安装部署手册.md）。
+      # 连接信息可用环境变量覆盖（Docker 部署在 docker-compose.yml 中注入）。
+      datasource:
+        doctor:
+          driver-class-name: dm.jdbc.driver.DmDriver
+          url: jdbc:dm://${DM_DOCTOR_HOST:100.120.1.102}:${DM_DOCTOR_PORT:14236}
+          username: ${DM_DOCTOR_USER:SYSDBA}
+          password: ${DM_DOCTOR_PASSWORD:Sa_20250815}
+          # 显式连接池：拿连接最多等10s即快速失败（默认30s干等会放大“保存一直转圈”），避免慢操作占满池后无限排队
+          hikari:
+            connection-timeout: 10000
+            maximum-pool-size: 10
+            minimum-idle: 2
+            max-lifetime: 1800000
+            connection-test-query: SELECT 1
+        icu:
+          driver-class-name: dm.jdbc.driver.DmDriver
+          url: jdbc:dm://${DM_ICU_HOST:100.120.1.102}:${DM_ICU_PORT:14236}
+          username: ${DM_ICU_USER:SYSDBA}
+          password: ${DM_ICU_PASSWORD:Sa_20250815}
+          read-only: true
+          hikari:
+            connection-timeout: 10000
+            maximum-pool-size: 10
+            minimum-idle: 2
+            max-lifetime: 1800000
+            connection-test-query: SELECT 1
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.zing.doctor.module.**.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    # 不使用 StdOutImpl：它会把含约1MB pdf_data 的整条 insert SQL 同步打印到控制台，
+    # 大字段保存时被日志IO拖慢、甚至撑爆容器日志。需要排查SQL时可临时改 org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# 医生系统自身配置
+zing:
+  doctor:
+    # 外链免登录签名配置
+    external-link:
+      # 签名密钥（生产必须通过环境变量 EXTERNAL_LINK_SECRET 注入，不要写死）
+      secret: ${EXTERNAL_LINK_SECRET:zing-doctor-dev-secret-change-me}
+      # ICU 明文外链静态密钥（URL 参数名 extToken；ICU 系统配外链模板时写死该值，生产用环境变量 ICU_LINK_TOKEN 注入）
+      icu-token: ${ICU_LINK_TOKEN:zing-icu-link-token-2026}
+      # 签名有效期（毫秒），默认 10 分钟
+      expire-ms: 600000
+      # 允许免登录访问的页面 code 白名单（逗号分隔），留空表示放行已注册页面
+      allow-page-codes: ""
+      # 医生系统对外基础地址（含端口），如 http://10.10.97.119:2001；
+      # 配置后外链 302 强制跳转到该地址，避免外部系统（ICU 从 80 端口等）端口差异导致 404；留空用相对路径
+      base-url: ${EXTERNAL_LINK_BASE_URL:}
+    # 第一维度：经验性抗感染治疗决策 - ICU 数据提供方式
+    # mock：内置示例数据（P0 默认，无需真实 ICU 库即可跑通流程）
+    # sql ：基于 ICU 系统真实表结构只读查询 zing_icu_db_prod（SqlIcuPatientServiceImpl）
+    #       切换后需保证 ICU 只读数据源连接与 zing_icu_db_prod 表结构可用
+    icu-data-provider: ${ICU_DATA_PROVIDER:mock}

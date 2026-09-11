@@ -1,0 +1,26 @@
+{
+  "name": "zing-doctor-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "医生系统 - ICU 抗菌药物管理与临床决策（多维度）",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "axios": "^1.6.8",
+    "echarts": "^5.5.1",
+    "element-plus": "^2.7.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1",
+    "vue": "^3.4.21",
+    "vue-router": "^4.3.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "vite": "^5.2.0"
+  }
+}
