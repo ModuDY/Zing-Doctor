@@ -154,7 +154,6 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { ArrowLeft, Refresh, ArrowDown, Document, FirstAidKit, Warning } from '@element-plus/icons-vue'
 import request from '../api/request'
 
@@ -227,7 +226,7 @@ async function loadData() {
     patients.value = res || []
     expandedIds.value.clear()
   } catch (e) {
-    ElMessage.error('数据加载失败: ' + (e.message || e))
+    console.warn('数据加载失败: ', e.message || e)
   } finally {
     loading.value = false
   }

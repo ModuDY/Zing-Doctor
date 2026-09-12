@@ -96,7 +96,6 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { fetchSofaOverview } from '../api/sofa'
 
 const route = useRoute()
@@ -157,7 +156,7 @@ async function load() {
     summary.scoreDistribution = res.scoreDistribution || {}
     summary.records = res.records || []
   } catch (e) {
-    ElMessage.error('总览查询失败：' + (e.message || e))
+    console.warn('总览查询失败：', e.message || e)
   }
 }
 </script>

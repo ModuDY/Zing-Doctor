@@ -189,7 +189,7 @@ async function loadData() {
       ElMessage.error(res.message || '加载失败')
     }
   } catch (e) {
-    ElMessage.error('加载失败: ' + e.message)
+    console.warn('加载失败: ', e.message)
   }
 }
 
@@ -213,7 +213,7 @@ async function manualAutoGenerate() {
     ElMessage.success(`扫描 ${res.scanned} 人，新增 ${res.created} 份，跳过 ${res.skipped} 人，失败 ${res.failed} 人`)
     loadData()
   } catch (e) {
-    ElMessage.error('自动生成失败: ' + (e.message || ''))
+    console.warn('自动生成失败: ', e.message || '')
   } finally {
     autoGenerating.value = false
   }

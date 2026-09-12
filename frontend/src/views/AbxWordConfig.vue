@@ -183,7 +183,7 @@ async function loadList() {
     configList.value = listRes || []
     allCategories.value = catsRes || []
   } catch (e) {
-    ElMessage.error('加载失败: ' + (e.message || e))
+    console.warn('加载失败: ', e.message || e)
   } finally {
     loading.value = false
   }
@@ -236,7 +236,7 @@ async function submitForm() {
     dialogVisible.value = false
     loadList()
   } catch (e) {
-    ElMessage.error('操作失败: ' + (e.message || e))
+    console.warn('操作失败: ', e.message || e)
   } finally {
     submitting.value = false
   }

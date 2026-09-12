@@ -118,7 +118,7 @@ async function loadData() {
     patients.value = data || []
   } catch (e) {
     console.error('加载出科统计失败', e)
-    ElMessage.error('加载失败: ' + (e.message || e))
+    console.warn('加载失败: ', e.message || e)
   } finally {
     loading.value = false
   }

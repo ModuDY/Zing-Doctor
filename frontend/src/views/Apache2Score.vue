@@ -1366,7 +1366,7 @@ async function saveRecord() {
       ElMessage.warning('评分已保存，但文书PDF归档失败，可重新编辑该记录后再次保存')
     }
   } catch (e) {
-    ElMessage.error('保存失败: ' + (e && e.message ? e.message : e))
+    console.warn('保存失败: ', e && e.message ? e.message : e)
   } finally {
     saving.value = false
   }
@@ -1383,7 +1383,7 @@ async function deleteCurrentRecord() {
       loadRecords()
     }
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error('删除失败: ' + e.message)
+    if (e !== 'cancel') console.warn('删除失败: ', e.message)
   }
 }
 
@@ -1412,7 +1412,7 @@ async function loadSystemGcs(silent) {
       ElMessage.info('重症系统暂无该患者的 GCS 评估记录')
     }
   } catch (e) {
-    if (!silent) ElMessage.error('拉取重症系统GCS记录失败：' + (e.message || ''))
+    if (!silent) console.warn('拉取重症系统GCS记录失败：', e.message || '')
   } finally {
     gcsSyncLoading.value = false
   }
@@ -1841,7 +1841,7 @@ async function downloadReportPdf() {
     pdf.save(reportFileName())
   } catch (e) {
     console.error(e)
-    ElMessage.error('导出PDF失败: ' + e.message)
+    console.warn('导出PDF失败: ', e.message)
   }
 }
 

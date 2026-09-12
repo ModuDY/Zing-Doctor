@@ -2,23 +2,31 @@
   <div class="sofa-page">
     <div class="app">
       <!-- ============ 左侧：评分记录 ============ -->
-      <aside class="sidebar">
-        <div class="side-title">评分记录 <span class="count">{{ sortedRecords.length }}</span></div>
-        <button class="btn-add" @click="addRecord">＋ 新增评分</button>
+      <aside class="side">
+        <div class="side-head">
+          <span>评分记录</span>
+          <span class="count">{{ sortedRecords.length }}</span>
+        </div>
+        <div class="side-add">
+          <button class="add-record-btn" @click="addRecord">
+            <span class="plus">＋</span>
+            新增评分
+          </button>
+        </div>
         <div class="record-list">
           <div v-for="r in sortedRecords" :key="r.id"
-               :class="['rec-card', { active: currentRecordId === r.id }]"
+               :class="['record-item', { active: currentRecordId === r.id }]"
                @click="selectRecord(r)">
-            <div class="rec-row">
-              <span class="rec-time">{{ fmtTime(r.scoreTime) }}</span>
-              <span :class="['score-badge', scoreBadgeClass(r.totalScore)]">{{ r.totalScore }}</span>
+            <div class="record-top">
+              <span class="record-time">{{ fmtTime(r.scoreTime) }}</span>
+              <span :class="['record-score', scoreBadgeClass(r.totalScore)]">{{ r.totalScore }}</span>
             </div>
-            <div class="tag-row">
-              <span class="tag gray">{{ r.createBy || '—' }}</span>
-              <span :class="['tag', recTagClass(r)]">{{ scoreTypeLabel(r) }}</span>
-              <span v-if="r.hasPdf === 1" class="tag orange" @click.stop="viewPdf(r)">PDF文书</span>
-              <span v-if="isAutoRecord(r)" class="tag blue" @click.stop="reviewRecord(r)">复核</span>
-              <span class="tag gray" @click.stop="removeRecord(r)">删除</span>
+            <div class="record-meta">
+              <span>{{ r.createBy || '—' }}</span>
+              <span :class="['record-tag', recTagClass(r)]">{{ scoreTypeLabel(r) }}</span>
+              <span v-if="r.hasPdf === 1" class="record-tag pdf-tag" @click.stop="viewPdf(r)">PDF文书</span>
+              <span v-if="isAutoRecord(r)" class="record-tag review-tag" @click.stop="reviewRecord(r)">复核</span>
+              <span class="record-tag del-tag" @click.stop="removeRecord(r)">删除</span>
             </div>
           </div>
           <div v-if="!sortedRecords.length" class="record-empty">暂无评分记录</div>
@@ -49,23 +57,12 @@
           <div class="t-foot">体重 {{ weightUsed || '—' }} kg</div>
         </div>
         <div class="ov-organs">
-          <div v-for="it in items" :key="it.key" :class="['ov-card', { overridden: isOverridden(it) }]">
-            <div class="ov-line">
-              <span :class="['ov-box', boxClass(scoreOf(it))]">{{ scoreOf(it) }}</span>
-              <span class="ov-name">{{ it.label }}</span>
-              <button class="ov-src" @click="openSource(it)" title="查看数据来源">来源</button>
-            </div>
-            <div class="ov-line">
-              <span class="ov-plain" :title="it.valueText || ''">{{ it.valueText || '未取到' }}</span>
-              <select class="ov-sel" v-model.number="scoreOverrides[it.key]" @change="recalcTotal"
-                      :title="isOverridden(it) ? '已手工修正（自动 ' + (it.score || 0) + ' 分）' : '手工修正分值'">
-                <option v-for="n in SCORE_OPTIONS" :key="n" :value="n">{{ n }}</option>
-              </select>
-            </div>
-            <div class="ov-sub">
-              <span :class="['ov-chip', { missing: it.missing }]">{{ it.missing ? '未取到' : (it.rangeText || '—') }}</span>
-              <span class="ov-time" v-if="it.dataTime">{{ fmtTime(it.dataTime) }}</span>
-              <button v-if="isOverridden(it)" class="ov-reset" @click="resetOverride(it.key)">恢复</button>
+          <div v-for="it in items" :key="it.key" class="ov-card">
+            <span class="ov-pic" :class="boxClass(scoreOf(it))" v-html="ORGAN_SVG[it.key] || ''"></span>
+            <span class="ov-name">{{ it.label }}</span>
+            <div class="ov-foot">
+              <span :class="['ov-num', boxClass(scoreOf(it))]">{{ scoreOf(it) }}</span>
+              <span class="ov-unit">分</span>
             </div>
           </div>
         </div>
@@ -80,7 +77,7 @@
         <button :class="['rbtn', { active: activeRange === 24 }]" @click="quickRange(24)">24小时</button>
         <button :class="['rbtn', { active: activeRange === 48 }]" @click="quickRange(48)">48小时</button>
         <button :class="['rbtn', { active: activeRange === 72 }]" @click="quickRange(72)">72小时</button>
-        <button class="rbtn solid" @click="loadAssessment">自动获取并计算</button>
+        <button class="rbtn solid" :disabled="loading" @click="loadAssessment">{{ loading ? '取数中…' : '自动获取并计算' }}</button>
         <span class="range-logic">取数逻辑：范围内最差值（偏离正常最远）</span>
       </div>
 
@@ -89,11 +86,11 @@
         <div class="table-title">器官功能评分表</div>
         <table class="score">
           <colgroup>
-            <col style="width:9%"><col style="width:16%"><col style="width:15%"><col style="width:9%">
-            <col style="width:10.2%"><col style="width:10.2%"><col style="width:10.2%"><col style="width:10.2%"><col style="width:10.2%">
+            <col style="width:9%"><col style="width:16%"><col style="width:15%"><col style="width:8%">
+            <col style="width:10.4%"><col style="width:10.4%"><col style="width:10.4%"><col style="width:10.4%"><col style="width:10.4%">
           </colgroup>
           <thead>
-            <tr><th>器官系统</th><th>评估指标</th><th>输入值</th><th>近五次</th>
+            <tr><th>器官系统</th><th>评估指标</th><th>输入值</th><th>操作</th>
               <th>0</th><th>1</th><th>2</th><th>3</th><th>4</th></tr>
           </thead>
           <tbody>
@@ -102,13 +99,12 @@
               <td class="sys" rowspan="2">呼吸系统</td>
               <td class="ind">呼吸机支持</td>
               <td><div class="inp drop">{{ respiratorySupport === 1 ? '是' : '否' }}<span class="caret">▾</span></div></td>
-              <td class="near" v-html="nearFive('resp')"></td>
+              <td class="act" rowspan="2"><button class="btn-src" @click="openSource(itemOf('resp'))">来源</button></td>
               <td class="dim">—</td><td class="dim">—</td><td class="dim">—</td><td></td><td></td>
             </tr>
             <tr>
               <td class="ind">PaO₂/F.iO₂ (mmHg)</td>
               <td><div class="inp">{{ num(rawOf('resp').oxygenationIndex, 1) }}</div></td>
-              <td class="near" v-html="nearFive('resp')"></td>
               <td :class="cellCls(hitCol('resp', 0))">≥400</td>
               <td :class="cellCls(hitCol('resp', 1))">&lt;400</td>
               <td :class="cellCls(hitCol('resp', 2))">&lt;300</td>
@@ -120,7 +116,7 @@
               <td class="sys">血液系统</td>
               <td class="ind">血小板 (10⁹/L)</td>
               <td><div class="inp">{{ num(rawOf('coag').platelet, 0) }}</div></td>
-              <td class="near" v-html="nearFive('coag')"></td>
+              <td class="act"><button class="btn-src" @click="openSource(itemOf('coag'))">来源</button></td>
               <td :class="cellCls(hitCol('coag', 0))">≥150</td>
               <td :class="cellCls(hitCol('coag', 1))">&lt;150</td>
               <td :class="cellCls(hitCol('coag', 2))">&lt;100</td>
@@ -132,7 +128,7 @@
               <td class="sys">肝脏</td>
               <td class="ind">胆红素 (μmol/L)</td>
               <td><div class="inp">{{ num(rawOf('liver').totalBilirubinUmol, 1) }}</div></td>
-              <td class="near" v-html="nearFive('liver')"></td>
+              <td class="act"><button class="btn-src" @click="openSource(itemOf('liver'))">来源</button></td>
               <td :class="cellCls(hitCol('liver', 0))">&lt;20.5</td>
               <td :class="cellCls(hitCol('liver', 1))">≤34.1</td>
               <td :class="cellCls(hitCol('liver', 2))">≤102.5</td>
@@ -144,7 +140,7 @@
               <td class="sys" rowspan="5">循环系统</td>
               <td class="ind">平均动脉压 (mmHg)</td>
               <td><div class="inp">{{ num(rawOf('cardio').map, 0) }}</div></td>
-              <td class="near" v-html="nearFive('cardio')"></td>
+              <td class="act" rowspan="5"><button class="btn-src" @click="openSource(itemOf('cardio'))">来源</button></td>
               <td :class="cellCls(hitRaw('cardio', 'mapScore', 0))">≥70</td>
               <td :class="cellCls(hitRaw('cardio', 'mapScore', 1))">&lt;70</td>
               <td class="dim">—</td><td class="dim">—</td><td class="dim">—</td>
@@ -152,7 +148,6 @@
             <tr>
               <td class="ind">多巴胺 (μg·kg⁻¹·min⁻¹)</td>
               <td><div class="inp">{{ num(vasoOf('多巴胺'), 3) }}</div></td>
-              <td class="near">—</td>
               <td class="dim">—</td><td class="dim">—</td>
               <td :class="cellCls(vasoHit('多巴胺', 2))">≤5</td>
               <td :class="cellCls(vasoHit('多巴胺', 3))">5~15</td>
@@ -161,7 +156,6 @@
             <tr>
               <td class="ind">肾上腺素 (μg·kg⁻¹·min⁻¹)</td>
               <td><div class="inp">{{ num(vasoOf('肾上腺素'), 3) }}</div></td>
-              <td class="near">—</td>
               <td class="dim">—</td><td class="dim">—</td><td class="dim">—</td>
               <td :class="cellCls(vasoHit('肾上腺素', 3))">≤0.1</td>
               <td :class="cellCls(vasoHit('肾上腺素', 4))">&gt;0.1</td>
@@ -169,7 +163,6 @@
             <tr>
               <td class="ind">去甲肾上腺素 (μg·kg⁻¹·min⁻¹)</td>
               <td><div class="inp">{{ num(vasoOf('去甲肾上腺素'), 3) }}</div></td>
-              <td class="near">—</td>
               <td class="dim">—</td><td class="dim">—</td><td class="dim">—</td>
               <td :class="cellCls(vasoHit('去甲肾上腺素', 3))">≤0.1</td>
               <td :class="cellCls(vasoHit('去甲肾上腺素', 4))">&gt;0.1</td>
@@ -177,7 +170,6 @@
             <tr>
               <td class="ind">多巴酚丁胺 (μg·kg⁻¹·min⁻¹)</td>
               <td><div class="inp">{{ num(vasoOf('多巴酚丁胺'), 3) }}</div></td>
-              <td class="near">—</td>
               <td class="dim">—</td>
               <td :class="cellCls(vasoHit('多巴酚丁胺', 2))">任何剂量</td>
               <td class="dim">—</td><td class="dim">—</td>
@@ -187,7 +179,7 @@
               <td class="sys">神经系统</td>
               <td class="ind">GCS 评分</td>
               <td><div class="inp">{{ gcsInputText }}</div></td>
-              <td class="near" v-html="nearFive('neuro')"></td>
+              <td class="act"><button class="btn-src" @click="openSource(itemOf('neuro'))">来源</button></td>
               <td :class="cellCls(hitCol('neuro', 0))">15</td>
               <td :class="cellCls(hitCol('neuro', 1))">13~14</td>
               <td :class="cellCls(hitCol('neuro', 2))">10~12</td>
@@ -199,7 +191,7 @@
               <td class="sys" rowspan="2">肾脏</td>
               <td class="ind">肌酐 (μmol/L)</td>
               <td><div class="inp">{{ num(rawOf('renal').creatinineUmol, 1) }}</div></td>
-              <td class="near" v-html="nearFive('renal')"></td>
+              <td class="act" rowspan="2"><button class="btn-src" @click="openSource(itemOf('renal'))">来源</button></td>
               <td :class="cellCls(hitRaw('renal', 'creatinineScore', 0))">&lt;106</td>
               <td :class="cellCls(hitRaw('renal', 'creatinineScore', 1))">≤176</td>
               <td :class="cellCls(hitRaw('renal', 'creatinineScore', 2))">≤308</td>
@@ -209,7 +201,6 @@
             <tr>
               <td class="ind">24h 尿量 (ml)</td>
               <td><div class="inp">{{ urineInputText }}</div></td>
-              <td class="near">—</td>
               <td class="dim">—</td><td class="dim">—</td><td class="dim">—</td>
               <td :class="cellCls(hitRaw('renal', 'urineScore', 3))">≤500</td>
               <td :class="cellCls(hitRaw('renal', 'urineScore', 4))">≤200</td>
@@ -232,17 +223,17 @@
       </div>
 
       <!-- ===== 底部操作行 ===== -->
-      <div class="foot">
-        <div class="foot-info">
+      <div class="footer-bar">
+        <div class="footer-info">
           评分医师：{{ realname || username || '—' }}<br>
           创建时间：{{ fmtTimeNow() }}
         </div>
-        <input class="foot-note" v-model="doctorRemark" placeholder="备注（可选）" />
-        <button class="fbtn ghost" @click="loadAssessment">重置</button>
-        <button class="fbtn ghost" :disabled="saving || pdfGenerating" @click="saveWithPdf">
+        <input class="footer-note" v-model="doctorRemark" placeholder="备注（可选）" />
+        <button class="btn" @click="loadAssessment">重置</button>
+        <button class="btn" :disabled="saving || pdfGenerating" @click="saveWithPdf">
           {{ pdfGenerating ? '生成文书…' : '保存并生成文书' }}
         </button>
-        <button class="fbtn solid" :disabled="saving" @click="save">
+        <button class="btn btn-success" :disabled="saving" @click="save">
           {{ saving ? '保存中…' : (reviewingId ? '保存复核' : '保存评分') }}
         </button>
       </div>
@@ -618,7 +609,7 @@ async function loadAssessment() {
     urineMl.value = res.urineMl
     if (res.patient && res.patient.inHospitalNo) inHospitalNo.value = res.patient.inHospitalNo
   } catch (e) {
-    ElMessage.error('SOFA 取数失败：' + (e.message || e))
+    console.warn('SOFA 取数失败：', e.message || e)
   } finally {
     loading.value = false
   }
@@ -757,7 +748,7 @@ async function doSave(withPdf) {
       }
     }
   } catch (e) {
-    ElMessage.error('保存失败：' + (e.message || e))
+    console.warn('保存失败：', e.message || e)
   } finally {
     saving.value = false
     pdfGenerating.value = false
@@ -808,7 +799,7 @@ async function removeRecord(r) {
     await loadAssessment()
     await loadRecords()
   } catch (e) {
-    ElMessage.error('删除失败：' + (e.message || e))
+    console.warn('删除失败：', e.message || e)
   }
 }
 
@@ -926,6 +917,61 @@ function scoreBadgeClass(s) {
 
 // ---------------- 评分表：取值与命中列 ----------------
 
+/** 按 key 定位器官项（表格「操作」列的来源弹窗入口） */
+function itemOf(key) {
+  return items.value.find(x => x.key === key) || null
+}
+
+/** 器官图形（内联 SVG，随分值着色，仅用于只读展示） */
+const ORGAN_SVG = {
+  // 肺：气管 + 支气管分叉 + 左右肺叶（含叶间裂）
+  resp: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M24 5.5V13"/><path d="M24 13c0 1.9-1.4 3-3.2 3.6"/><path d="M24 13c0 1.9 1.4 3 3.2 3.6"/>' +
+    '<path d="M20.8 16.6c-4.5 1.1-7.5 4.8-8.3 10.1-.8 5.3.5 10.4 3.1 13.5 1.3 1.6 4.3 1.5 5.4-.2.8-1.2.7-2.7 1.6-3.9.9-1.2 2.8-1.3 3.8-.2.8.9.9 2 1.6 2.8 1.2 1 3.1.7 3.8-.6.6-1.1.3-2.3.3-3.5 0-1.8-.2-3.7-.2-5.5 0-5.7 2.1-9.6 6.3-10.8" fill="currentColor" fill-opacity=".15"/>' +
+    '<path d="M13.6 24.8c2.5.6 5 .7 7.5.3" stroke-width="1.2" opacity=".6"/>' +
+    '<path d="M12.9 32.4c2.7 1 5.5 1.4 8.4 1.1" stroke-width="1.2" opacity=".6"/>' +
+    '<path d="M27.2 16.6c4.5 1.1 7.5 4.8 8.3 10.1.8 5.3-.5 10.4-3.1 13.5-1.3 1.6-4.3 1.5-5.4-.2-.8-1.2-.7-2.7-1.6-3.9-.9-1.2-2.8-1.3-3.8-.2-.8.9-.9 2-1.6 2.8-1.2 1-3.1.7-3.8-.6-.6-1.1-.3-2.3-.3-3.5 0-1.8.2-3.7.2-5.5 0-5.7-2.1-9.6-6.3-10.8" fill="currentColor" fill-opacity=".15"/>' +
+    '<path d="M34.4 24.8c-2.5.6-5 .7-7.5.3" stroke-width="1.2" opacity=".6"/>' +
+    '<path d="M35.1 32.4c-2.7 1-5.5 1.4-8.4 1.1" stroke-width="1.2" opacity=".6"/></svg>',
+  // 凝血：血滴 + 高光 + 卫星小滴
+  coag: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M24 6c7.7 9.5 12.6 16 12.6 21.7 0 7-5.7 12.7-12.6 12.7S11.4 34.7 11.4 27.7C11.4 22 16.3 15.5 24 6z" fill="currentColor" fill-opacity=".15"/>' +
+    '<path d="M17.2 29c.7 3.6 3.5 6.3 7.2 6.7" stroke-width="1.4" opacity=".7"/>' +
+    '<circle cx="37" cy="35.6" r="2.9" fill="currentColor" fill-opacity=".22" stroke-width="1.5"/>' +
+    '<circle cx="11" cy="37.6" r="2" fill="currentColor" fill-opacity=".18" stroke-width="1.3"/></svg>',
+  // 肝：膈面圆隆 + 右叶宽大下缘波状 + 镰状韧带 + 胆囊
+  liver: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M6 16.4c0-.7.3-1.4.9-1.8C9.4 12.8 14 11.9 18.9 12.4c8.7.9 15.7 6.3 17.8 13.4.6 2-.3 4.3-2.2 5.3-2.4 1.3-5.3.8-7.9-.4-2.6-1.2-5.5-1.8-8.4-1.8h-3.7C9.4 28.9 6 25.5 6 20.4v-4z" fill="currentColor" fill-opacity=".15"/>' +
+    '<path d="M26.2 14.3c1.1 7.2 1.2 14.5.3 21.7" stroke-width="1.3" opacity=".55"/>' +
+    '<path d="M10.5 20.5c4.6 1.2 9.4 1.3 14.2.4" stroke-width="1.2" opacity=".5"/>' +
+    '<path d="M34.8 32.2c1.9-.7 4-.3 5.5 1.1" stroke-width="1.4" opacity=".8"/>' +
+    '<path d="M36.3 33.1c1.4-1.2 3.5-1 4.7.4.7.9.9 2.1.4 3.1-1.3.7-2.8.5-3.9-.4-.7-.6-1-1.9-1.2-3.1z" fill="currentColor" fill-opacity=".25" stroke-width="1.2" opacity=".85"/></svg>',
+  // 循环：解剖心脏 + 心底三血管（腔静脉/主动脉弓/肺动脉）+ 室间沟 + 冠状动脉
+  cardio: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M17.5 12V6.5"/>' +
+    '<path d="M25 11.5c0-3 1.5-5.6 4-6.9"/>' +
+    '<path d="M31 11.8c.3-2.4 1.6-4.4 3.6-5.4"/>' +
+    '<path d="M15.5 9.8c-4.3 1.6-7 5.6-6.6 10 .3 3.7 2.5 6.4 4.6 9.3 2.4 3.3 5.2 6.9 8.9 9.4 2.5 1.7 5.9 1.3 8-.9 3-3.2 6-7.9 7.6-12.5 1.5-4.3 1.1-9-1.7-12.3-2.7-3.2-7-4.2-10.7-2.6-1.6.7-3.4.7-5 0-.6-.3-1.2-.5-1.9-.4z" fill="currentColor" fill-opacity=".15"/>' +
+    '<path d="M22.5 13.5c1.5 5.5.8 11.5-2 17.3" stroke-width="1.3" opacity=".6"/>' +
+    '<path d="M21.8 19.5c-2.2.4-4 1.9-4.9 4" stroke-width="1.2" opacity=".55"/></svg>',
+  // 神经：脑双半球（俯视）+ 纵裂 + 脑沟
+  neuro: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M24 6.5c-5.5 0-10 3.7-11.2 8.8-.3 1.3-.2 2.5.2 3.6.7 2 0 4.3-1.5 5.9-1.6 1.8-2.2 4.4-1.6 6.8.7 3.1 3.3 5.4 6.5 5.9 2.4.4 4.9-.3 6.9-1.9.7-.5 1.5-.8 2.4-.8h.6c.9 0 1.7.3 2.4.8 2 1.6 4.5 2.3 6.9 1.9 3.2-.5 5.8-2.8 6.5-5.9.6-2.4 0-5-1.6-6.8-1.5-1.6-2.2-3.9-1.5-5.9.4-1.1.5-2.3.2-3.6C34 10.2 29.5 6.5 24 6.5z" fill="currentColor" fill-opacity=".15"/>' +
+    '<path d="M24 6.8v30.4" stroke-width="1.3" opacity=".6"/>' +
+    '<path d="M18.4 11.6c-1.7 2.1-1.6 4.8.3 6.7" stroke-width="1.2" opacity=".6"/>' +
+    '<path d="M14.8 22c-.6 3.1.3 6.2 2.5 8.5" stroke-width="1.2" opacity=".6"/>' +
+    '<path d="M29.6 11.6c1.7 2.1 1.6 4.8-.3 6.7" stroke-width="1.2" opacity=".6"/>' +
+    '<path d="M33.2 22c.6 3.1-.3 6.2-2.5 8.5" stroke-width="1.2" opacity=".6"/></svg>',
+  // 肾：豆形肾体 + 肾门动静脉 + 输尿管
+  renal: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M19 19A 12.6 12.6 0 0 1 39.6 23A 12.6 12.6 0 0 1 24 35A 8.5 8.5 0 0 1 19 19Z" fill="currentColor" fill-opacity=".15"/>' +
+    '<path d="M20.4 24.4h-5.6" stroke-width="1.5"/>' +
+    '<path d="M14.8 24.4c-2.2 0-3.7-1.4-3.7-3.2" stroke-width="1.4"/>' +
+    '<path d="M20.6 27.8h-4.4" stroke-width="1.5"/>' +
+    '<path d="M16.2 27.8c-2 .5-3.2 2-3.1 3.9" stroke-width="1.4"/>' +
+    '<path d="M21 30c-.8 4.3-2 7.5-4.2 10.1" stroke-width="1.5"/></svg>'
+}
+
 /** 解析某项的原始指标 JSON */
 function rawOf(key) {
   const it = items.value.find(x => x.key === key)
@@ -990,22 +1036,6 @@ const urineInputText = computed(() => {
   const u = rawOf('renal').urineMl
   return (u === null || u === undefined) ? '窗口<24h' : num(u, 0)
 })
-
-/** 近五次该器官分值（最新在前），无记录显示 — */
-function nearFive(key) {
-  const field = {
-    resp: 'respScore', coag: 'coagScore', liver: 'liverScore',
-    cardio: 'cardioScore', neuro: 'neuroScore', renal: 'renalScore'
-  }[key]
-  const list = sortedRecords.value.slice(0, 5)
-    .map(r => r[field])
-    .filter(v => v !== null && v !== undefined)
-  if (!list.length) return '<span class="nf-none">—</span>'
-  return list.map(v => {
-    const n = Number(v) || 0
-    return `<span class="nf nf-${n}">${n}</span>`
-  }).join('')
-}
 
 /** 器官分值方块配色 */
 function boxClass(s) {
@@ -1182,7 +1212,7 @@ async function viewPdf(r) {
     window.open(url, '_blank')
     setTimeout(() => URL.revokeObjectURL(url), 60000)
   } catch (e) {
-    ElMessage.error('文书打开失败：' + (e.message || e))
+    console.warn('文书打开失败：', e.message || e)
   }
 }
 
@@ -1211,39 +1241,44 @@ function base64ToBlob(base64, type) {
 
 /* ===== 页面骨架：左侧记录栏 + 右侧主区 ===== */
 .app { display: flex; min-height: 100vh; align-items: stretch; }
-.sidebar { width: 288px; flex: 0 0 288px; background: #fff; border-right: 1px solid #e4e7ed; padding: 14px 16px 20px; overflow-y: auto; }
-.side-title { display: flex; align-items: center; gap: 8px; font-size: 21px; font-weight: 700; color: #1F2733; margin-bottom: 13px; }
-.side-title .count { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 10px; background: #ecf5ff; color: #409eff; font-size: 15px; font-weight: 700; box-sizing: border-box; }
-.btn-add { width: 100%; height: 48px; border: none; border-radius: 11px; cursor: pointer; background: linear-gradient(135deg,#409eff,#66b1ff); color: #fff; font-size: 18px; font-weight: 700; letter-spacing: 2px; box-shadow: 0 2px 6px rgba(64,158,255,.3); margin-bottom: 14px; }
-.btn-add:hover { background: linear-gradient(135deg,#66b1ff,#409eff); }
-.record-list { display: flex; flex-direction: column; gap: 11px; }
-.rec-card { background: #fff; border: 1px solid #ebeef5; border-radius: 12px; padding: 11px 13px 10px; margin-bottom: 0; cursor: pointer; transition: all .2s; box-sizing: border-box; }
-.rec-card:hover { border-color: #c6e2ff; background: #f5f9ff; }
-.rec-card.active { border-color: #409eff; background: #ecf5ff; padding: 10px 12px 9px; box-shadow: 0 2px 10px rgba(64,158,255,.14); }
-.rec-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
-.rec-time { font-size: 17px; font-weight: 600; color: #303133; }
-.score-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 33px; height: 33px; padding: 0 10px; border-radius: 6px; font-size: 18px; font-weight: 700; box-sizing: border-box; }
-.score-badge.green { background: #f0f9eb; color: #67c23a; }
-.score-badge.orange { background: #fdf6ec; color: #e6a23c; }
-.score-badge.red { background: #fef0f0; color: #f56c6c; }
-.tag-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.tag { font-size: 13px; padding: 3px 10px; border-radius: 6px; line-height: 1.5; background: #f4f4f5; color: #909399; }
-.tag.gray { background: #f4f4f5; color: #909399; }
-.tag.blue { background: #ecf5ff; color: #409eff; cursor: pointer; }
-.tag.green { background: #e1f3d8; color: #389e0d; }
-.tag.orange { background: #fdf6ec; color: #e6a23c; cursor: pointer; }
-.tag.auto { background: #ecf5ff; color: #409eff; }
-.tag.manual { background: #fdf6ec; color: #e6a23c; }
-.tag.reviewed { background: #e1f3d8; color: #389e0d; }
-.record-empty { text-align: center; color: #c0c4cc; font-size: 14px; padding: 24px 0; }
+.side { width: 280px; min-width: 280px; display: flex; flex-direction: column; background: #fff; border-right: 1px solid #e4e7ed; height: 100vh; position: sticky; top: 0; }
+.side-head { height: 52px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #ebeef5; font-weight: 600; font-size: 15px; }
+.side-head .count { background: #ecf5ff; color: #409eff; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+.side-add { padding: 10px; border-bottom: 1px solid #ebeef5; }
+.add-record-btn { width: 100%; height: 36px; background: linear-gradient(135deg, #409eff, #66b1ff); color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 6px rgba(64,158,255,0.3); }
+.add-record-btn:hover { background: linear-gradient(135deg, #66b1ff, #409eff); }
+.add-record-btn .plus { font-size: 18px; line-height: 1; }
+.record-list { flex: 1; overflow-y: auto; padding: 8px; }
+.record-item { padding: 12px; margin-bottom: 8px; border: 1px solid #ebeef5; border-radius: 6px; cursor: pointer; transition: all .2s; background: #fff; }
+.record-item:hover { border-color: #c6e2ff; background: #f5f9ff; }
+.record-item.active { border-color: #409eff; background: #ecf5ff; }
+.record-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.record-time { font-size: 13px; color: #606266; font-weight: 500; }
+.record-score { font-size: 20px; font-weight: 700; padding: 2px 10px; border-radius: 4px; }
+.record-score.green { background: #f0f9eb; color: #67c23a; }
+.record-score.orange { background: #fdf6ec; color: #e6a23c; }
+.record-score.red { background: #fef0f0; color: #f56c6c; }
+.record-meta { font-size: 12px; color: #909399; }
+.record-meta span { margin-right: 8px; }
+.record-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; background: #f4f4f5; color: #909399; }
+.record-tag.auto { background: #ecf5ff; color: #409eff; }
+.record-tag.manual { background: #fdf6ec; color: #e6a23c; }
+.record-tag.reviewed { background: #e1f3d8; color: #389e0d; }
+.record-tag.pdf-tag { background: #e1f3d8; color: #389e0d; cursor: pointer; }
+.record-tag.pdf-tag:hover { background: #d3f0c0; }
+.record-tag.review-tag { background: #ecf5ff; color: #409eff; cursor: pointer; }
+.record-tag.review-tag:hover { background: #d9ecff; }
+.record-tag.del-tag { cursor: pointer; }
+.record-tag.del-tag:hover { background: #fef0f0; color: #f56c6c; }
+.record-empty { text-align: center; color: #c0c4cc; font-size: 13px; padding: 40px 0; }
 
 .main { flex: 1; min-width: 0; padding: 12px 18px 24px; }
 
 /* ===== 患者信息行 ===== */
 .patient-row { display: flex; align-items: center; gap: 16px; margin-bottom: 11px; flex-wrap: wrap; }
-.patient-row .bed-tag { background: #409eff; color: #fff; font-size: 15px; font-weight: 700; padding: 4px 11px; border-radius: 8px; }
-.patient-row .patient-name { font-size: 24px; font-weight: 700; color: #303133; }
-.patient-meta { font-size: 14px; color: #606266; }
+.patient-row .bed-tag { background: #409eff; color: #fff; font-size: 13px; font-weight: 500; padding: 2px 10px; border-radius: 4px; }
+.patient-row .patient-name { font-size: 18px; font-weight: 700; color: #303133; }
+.patient-meta { font-size: 13px; color: #606266; }
 .patient-meta b { color: #303133; font-weight: 600; }
 .patient-row .resp-flag { font-size: 13px; padding: 3px 11px; border-radius: 14px; background: #f4f4f5; color: #909399; }
 .patient-row .resp-flag.on { background: #ecf5ff; color: #409eff; }
@@ -1251,33 +1286,30 @@ function base64ToBlob(base64, type) {
 .btn-trend:hover { color: #409eff; border-color: #c6e2ff; background: #ecf5ff; }
 
 /* ===== 总览条：总分卡 + 6 器官小卡 ===== */
-.overview { display: flex; gap: 13px; background: #fafafa; border: 1px solid #ebeef5; border-radius: 8px; padding: 12px; margin-top: 12px; margin-bottom: 12px; }
-.ov-total { width: 224px; flex-shrink: 0; border-radius: 11px; color: #fff; padding: 13px 16px; background: linear-gradient(135deg,#409eff,#66b1ff); box-shadow: 0 2px 6px rgba(64,158,255,.3); display: flex; flex-direction: column; box-sizing: border-box; }
-.ov-total .t-label { font-size: 14px; opacity: .92; }
-.ov-total .t-num { font-size: 50px; font-weight: 700; line-height: 1.05; margin: 1px 0 7px; }
-.ov-total .t-pill { align-self: flex-start; font-size: 13px; color: #fff; background: rgba(255,255,255,.20); border: 1px solid rgba(255,255,255,.28); padding: 3px 11px; border-radius: 16px; }
+.overview { display: flex; gap: 12px; background: #fafafa; border: 1px solid #ebeef5; border-radius: 6px; padding: 12px; margin-top: 12px; margin-bottom: 12px; }
+.ov-total { width: 200px; flex-shrink: 0; border-radius: 8px; color: #fff; padding: 12px 14px; background: linear-gradient(135deg,#409eff,#66b1ff); box-shadow: 0 2px 6px rgba(64,158,255,.3); display: flex; flex-direction: column; box-sizing: border-box; }
+.ov-total .t-label { font-size: 12px; opacity: .92; }
+.ov-total .t-num { font-size: 36px; font-weight: 700; line-height: 1.2; margin: 0 0 6px; }
+.ov-total .t-pill { align-self: flex-start; font-size: 12px; color: #fff; background: rgba(255,255,255,.20); border: 1px solid rgba(255,255,255,.28); padding: 3px 11px; border-radius: 16px; }
 .ov-total .t-delta { margin-top: 7px; font-size: 12px; opacity: .95; }
 .ov-total .t-delta b { color: #FFE7A8; }
 .ov-total .t-foot { margin-top: auto; padding-top: 6px; font-size: 12px; opacity: .82; }
-.ov-organs { flex: 1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 13px; min-width: 0; }
-.ov-card { background: #fff; border: 1px solid #ebeef5; border-radius: 6px; padding: 11px 12px; display: flex; flex-direction: column; gap: 9px; justify-content: center; min-width: 0; box-sizing: border-box; }
-.ov-card.overridden { box-shadow: inset 0 0 0 2px #e6a23c; }
-.ov-line { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.ov-box { width: 30px; height: 28px; flex: 0 0 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; box-sizing: border-box; }
-.ov-box.green { background: #f0f9eb; color: #67c23a; }
-.ov-box.blue { background: #ecf5ff; color: #409eff; }
-.ov-box.orange { background: #fdf6ec; color: #e6a23c; }
-.ov-box.red { background: #fef0f0; color: #f56c6c; }
-.ov-name { font-size: 19px; font-weight: 700; color: #303133; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.ov-src { flex: 0 0 auto; border: none; background: transparent; color: #409eff; font-size: 12px; cursor: pointer; padding: 0; }
-.ov-src:hover { text-decoration: underline; }
-.ov-plain { flex: 1; min-width: 0; font-size: 17px; font-weight: 500; color: #303133; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.ov-sel { flex: 0 0 auto; width: 46px; height: 26px; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; font-size: 14px; font-weight: 700; color: #303133; padding: 0 2px; text-align: center; cursor: pointer; }
-.ov-sub { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.ov-chip { font-size: 11px; color: #909399; background: #fff; border: 1px solid #ebeef5; border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
-.ov-chip.missing { background: #fef0f0; color: #f56c6c; border-color: #fde2e2; }
-.ov-time { font-size: 11px; color: #909399; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ov-reset { margin-left: auto; border: none; background: transparent; color: #409eff; font-size: 11px; cursor: pointer; padding: 0; }
+.ov-organs { flex: 1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; min-width: 0; }
+.ov-card { background: #fff; border: 1px solid #ebeef5; border-radius: 6px; padding: 12px 8px 0; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; box-sizing: border-box; }
+.ov-pic { width: 46px; height: 46px; display: inline-flex; align-items: center; justify-content: center; }
+.ov-pic svg { width: 100%; height: 100%; display: block; }
+.ov-pic.green { color: #67c23a; }
+.ov-pic.blue { color: #409eff; }
+.ov-pic.orange { color: #e6a23c; }
+.ov-pic.red { color: #f56c6c; }
+.ov-name { font-size: 13px; font-weight: 500; color: #606266; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ov-foot { margin-top: auto; width: 100%; display: flex; align-items: baseline; justify-content: center; gap: 2px; padding: 7px 0 9px; border-top: 1px dashed #eef1f6; }
+.ov-unit { font-size: 11px; color: #909399; }
+.ov-num { font-size: 22px; font-weight: 700; line-height: 1; color: #303133; }
+.ov-num.green { color: #67c23a; }
+.ov-num.blue { color: #409eff; }
+.ov-num.orange { color: #e6a23c; }
+.ov-num.red { color: #f56c6c; }
 
 /* ===== 取数时间范围 ===== */
 .range-row { display: flex; align-items: center; gap: 10px; margin: 12px 0 11px; flex-wrap: wrap; }
@@ -1293,48 +1325,40 @@ function base64ToBlob(base64, type) {
 
 /* ===== 器官功能评分表 ===== */
 .table-panel { background: #fff; border-radius: 8px; border: 1px solid #ebeef5; padding: 11px 14px 4px; }
-.table-title { display: flex; align-items: center; gap: 9px; font-size: 18px; font-weight: 700; color: #303133; margin-bottom: 9px; }
-.table-title::before { content: ''; width: 4px; height: 18px; border-radius: 2px; background: #409eff; }
+.table-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #303133; margin-bottom: 9px; }
+.table-title::before { content: ''; width: 3px; height: 15px; border-radius: 2px; background: #409eff; }
 table.score { width: 100%; border-collapse: collapse; table-layout: fixed; }
-table.score th, table.score td { border: 1px solid #ebeef5; text-align: center; padding: 0; height: 39px; font-size: 13.5px; vertical-align: middle; color: #606266; }
+table.score th, table.score td { border: 1px solid #ebeef5; text-align: center; padding: 0; height: 38px; font-size: 13px; vertical-align: middle; color: #606266; }
 table.score thead th { background: #f5f8fc; color: #728096; font-weight: 600; height: 36px; }
-table.score td.sys { font-weight: 700; color: #303133; background: #fafafa; font-size: 14.5px; }
+table.score td.sys { font-weight: 600; color: #303133; background: #fafafa; font-size: 13px; }
 table.score td.ind { text-align: left; padding-left: 13px; color: #303133; background: #fff; }
 table.score td.dim { color: #c0c4cc; }
 table.score td.cell-hit { background: #ecf5ff; color: #409eff; font-weight: 600; }
-table.score .inp { display: flex; align-items: center; justify-content: space-between; height: 30px; margin: 0 auto; width: 88%; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; padding: 0 10px; color: #303133; font-size: 13.5px; font-weight: 500; box-sizing: border-box; overflow: hidden; white-space: nowrap; }
+table.score .inp { display: flex; align-items: center; justify-content: space-between; height: 30px; margin: 0 auto; width: 88%; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; padding: 0 10px; color: #303133; font-size: 13px; font-weight: 500; box-sizing: border-box; overflow: hidden; white-space: nowrap; }
 table.score .inp.drop { background: #fafafa; border-color: #dcdfe6; }
 table.score .inp .caret { color: #c0c4cc; font-size: 12px; flex-shrink: 0; }
-table.score td.near { padding: 4px 6px; height: auto; }
-.nf { display: inline-block; min-width: 20px; height: 20px; line-height: 20px; border-radius: 4px; font-size: 12px; font-weight: 700; margin: 0 1px; box-sizing: border-box; }
-.nf-0 { background: #f0f9eb; color: #67c23a; }
-.nf-1 { background: #ecf5ff; color: #409eff; }
-.nf-2 { background: #fdf6ec; color: #e6a23c; }
-.nf-3 { background: #fdf6ec; color: #e6a23c; }
-.nf-4 { background: #fef0f0; color: #f56c6c; }
-.nf-none { color: #c0c4cc; }
-.score-tag { display: inline-flex; align-items: center; justify-content: center; min-width: 46px; height: 30px; padding: 0 12px; border-radius: 4px; background: #ecf5ff; color: #409eff; font-weight: 700; font-size: 15px; box-sizing: border-box; }
+table.score td.act { padding: 4px 6px; height: auto; }
+.btn-src { min-width: 50px; height: 26px; padding: 0 8px; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; color: #606266; font-size: 12px; cursor: pointer; transition: all .2s; }
+.btn-src:hover { color: #409eff; border-color: #c6e2ff; background: #ecf5ff; }
+.score-tag { display: inline-flex; align-items: center; justify-content: center; min-width: 46px; height: 30px; padding: 0 12px; border-radius: 4px; background: #ecf5ff; color: #409eff; font-weight: 600; font-size: 13px; box-sizing: border-box; }
 
 .tip { display: flex; align-items: center; gap: 8px; margin: 10px 0 8px; padding: 9px 13px; background: #f7fbff; border: 1px solid #edf2f8; border-radius: 6px; color: #40546c; font-size: 13px; line-height: 1.6; }
 .tip .ico { flex: 0 0 18px; width: 18px; height: 18px; border-radius: 50%; background: #409eff; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; box-sizing: border-box; }
 .tip b { color: #303133; }
 
 /* ===== 底部操作行 ===== */
-.foot { display: flex; align-items: center; gap: 16px; margin-top: 8px; flex-wrap: wrap; }
-.foot-info { font-size: 13px; color: #909399; line-height: 1.7; flex: 0 0 auto; }
-.foot-note { flex: 1; min-width: 200px; height: 38px; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; padding: 0 13px; font-size: 13px; color: #303133; outline: none; }
-.foot-note:focus { border-color: #409eff; }
-.fbtn { height: 38px; border-radius: 4px; padding: 0 20px; font-size: 14px; cursor: pointer; transition: all .2s; }
-.fbtn.ghost { background: #fff; border: 1px solid #dcdfe6; color: #606266; }
-.fbtn.ghost:hover { color: #409eff; border-color: #c6e2ff; background: #ecf5ff; }
-.fbtn.solid { background: #409eff; border: 1px solid #409eff; color: #fff; font-weight: 600; }
-.fbtn.solid:hover { background: #66b1ff; border-color: #66b1ff; }
-.fbtn:disabled { opacity: .6; cursor: not-allowed; }
+.footer-bar { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.footer-info { font-size: 13px; color: #909399; line-height: 1.7; flex: 0 0 auto; }
+.footer-note { flex: 1; min-width: 200px; height: 32px; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; padding: 0 10px; font-size: 13px; color: #303133; outline: none; }
+.footer-note:focus { border-color: #409eff; }
 
-.btn { height: 32px; padding: 0 14px; border: 1px solid #dcdfe6; background: #fff; border-radius: 4px; font-size: 13px; color: #606266; cursor: pointer; transition: all .2s; }
+.btn { height: 32px; padding: 0 14px; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; color: #606266; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all .2s; }
 .btn:hover { color: #409eff; border-color: #c6e2ff; background: #ecf5ff; }
-.btn-primary { background: #409eff; border: 1px solid #409eff; color: #fff; font-weight: 600; }
-.btn-primary:hover { background: #66b1ff; border-color: #66b1ff; color: #fff; }
+.btn-primary { background: #409eff; color: #fff; border-color: #409eff; font-weight: 600; }
+.btn-primary:hover { background: #66b1ff; color: #fff; border-color: #66b1ff; }
+.btn-success { background: #67c23a; color: #fff; border-color: #67c23a; font-weight: 600; }
+.btn-success:hover { background: #85ce61; color: #fff; border-color: #85ce61; }
+.btn:disabled { opacity: .6; cursor: not-allowed; }
 .btn-primary:disabled { opacity: .6; cursor: not-allowed; }
 .btn-text { border: none; background: transparent; color: #409eff; padding: 0 6px; cursor: pointer; }
 .btn-text.danger { color: #f56c6c; }

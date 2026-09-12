@@ -136,7 +136,7 @@ async function load() {
     const res = await fetchSofaConfig(configType.value)
     list.value = res || []
   } catch (e) {
-    ElMessage.error('配置加载失败：' + (e.message || e))
+    console.warn('配置加载失败：', e.message || e)
   }
 }
 
@@ -173,7 +173,7 @@ async function submit() {
     showDialog.value = false
     await load()
   } catch (e) {
-    ElMessage.error('保存失败：' + (e.message || e))
+    console.warn('保存失败：', e.message || e)
   } finally {
     saving.value = false
   }
@@ -185,7 +185,7 @@ async function toggle(row) {
     ElMessage.success(row.status === 1 ? '已停用' : '已启用')
     await load()
   } catch (e) {
-    ElMessage.error('操作失败：' + (e.message || e))
+    console.warn('操作失败：', e.message || e)
   }
 }
 
@@ -202,7 +202,7 @@ async function remove(row) {
     ElMessage.success('已删除')
     await load()
   } catch (e) {
-    ElMessage.error('删除失败：' + (e.message || e))
+    console.warn('删除失败：', e.message || e)
   }
 }
 </script>

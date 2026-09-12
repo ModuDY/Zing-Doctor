@@ -156,7 +156,6 @@
 
 <script setup>
 import { ref, reactive, onMounted, nextTick, computed } from 'vue'
-import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import request from '../api/request'
@@ -240,7 +239,7 @@ async function loadData() {
     })
   } catch (e) {
     console.error('加载ARDS数据失败', e)
-    ElMessage.error('加载失败: ' + (e.message || e))
+    console.warn('加载失败: ', e.message || e)
   } finally {
     loading.value = false
   }

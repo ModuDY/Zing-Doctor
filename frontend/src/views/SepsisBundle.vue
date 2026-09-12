@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="sepsis-page">
     <div v-if="!inHospitalNo" class="warn-bar">
       <el-alert type="warning" :closable="false" show-icon
@@ -591,7 +591,7 @@ async function onDeleteAssess() {
     loadHistory()
     loadData(null)
   } catch (e) {
-    ElMessage.error('删除失败: ' + (e.message || e))
+    console.warn('删除失败: ', e.message || e)
   }
 }
 

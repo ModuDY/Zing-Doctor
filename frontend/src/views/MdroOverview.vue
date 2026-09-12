@@ -144,7 +144,6 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { Refresh, User, Setting } from '@element-plus/icons-vue'
 import request from '../api/request'
 import * as echarts from 'echarts'
@@ -211,7 +210,7 @@ async function loadData() {
     await nextTick()
     renderCharts()
   } catch (e) {
-    ElMessage.error('数据加载失败: ' + (e.message || e))
+    console.warn('数据加载失败: ', e.message || e)
   } finally {
     loading.value = false
   }

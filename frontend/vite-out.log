@@ -1,0 +1,29 @@
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m2340[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://10.0.0.165:[1m5173[22m/[39m
+[2m13:01:25[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/PatientList.vue, /src/views/DecisionDetail.vue, /src/views/PkpdDetail.vue, /src/views/DddOverview.vue, /src/views/DddPatients.vue, /src/views/DddConfig.vue, /src/views/MdroOverview.vue, /src/views/MdroPatients.vue, /src/views/MdroConfig.vue, /src/views/SepsisBundle.vue, /src/views/AbxWordConfig.vue, /src/views/HandoverBoard.vue, /src/views/DischargeStats.vue, /src/views/ARDSMonitor.vue, /src/views/Apache2Overview.vue, /src/views/Apache2Score.vue, /src/views/SofaScore.vue, /src/views/SofaOverview.vue, /src/views/SofaConfig.vue[22m
+[2m13:02:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/PatientList.vue, /src/views/DecisionDetail.vue, /src/views/PkpdDetail.vue, /src/views/DddOverview.vue, /src/views/DddPatients.vue, /src/views/DddConfig.vue, /src/views/MdroOverview.vue, /src/views/MdroPatients.vue, /src/views/MdroConfig.vue, /src/views/SepsisBundle.vue, /src/views/AbxWordConfig.vue, /src/views/HandoverBoard.vue, /src/views/DischargeStats.vue, /src/views/ARDSMonitor.vue, /src/views/Apache2Overview.vue, /src/views/Apache2Score.vue, /src/views/SofaScore.vue, /src/views/SofaOverview.vue, /src/views/SofaConfig.vue[22m
+[2m13:02:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/SofaScore.vue[22m
+[2m13:07:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/AbxWordConfig.vue[22m
+[2m13:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/Apache2Overview.vue[22m
+[2m13:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/Apache2Score.vue[22m
+[2m13:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/ARDSMonitor.vue[22m
+[2m13:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/DddConfig.vue[22m
+[2m13:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/DddOverview.vue[22m
+[2m13:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/DddPatients.vue[22m
+[2m13:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/DischargeStats.vue[22m
+[2m13:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/MdroConfig.vue[22m
+[2m13:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/MdroOverview.vue[22m
+[2m13:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/MdroPatients.vue[22m
+[2m13:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/SepsisBundle.vue[22m
+[2m13:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/SofaConfig.vue[22m
+[2m13:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/SofaOverview.vue[22m
+[2m13:07:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/SofaScore.vue[22m
+[2m13:08:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/ARDSMonitor.vue[22m
+[2m13:08:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/DddOverview.vue[22m
+[2m13:08:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/DddPatients.vue[22m
+[2m13:08:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/MdroPatients.vue[22m
+[2m13:08:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/SofaOverview.vue[22m
+[2m13:08:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/views/MdroOverview.vue[22m

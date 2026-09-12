@@ -210,7 +210,7 @@ async function loadList() {
     const res = await request.get('/antibiotic/mdro/config/list')
     configList.value = res || []
   } catch (e) {
-    ElMessage.error('加载配置列表失败: ' + (e.message || e))
+    console.warn('加载配置列表失败: ', e.message || e)
   } finally {
     loading.value = false
   }
@@ -249,7 +249,7 @@ async function toggleStatus(row, status) {
     loadList()
   } catch (e) {
     if (e !== 'cancel') {
-      ElMessage.error('操作失败: ' + (e.message || e))
+      console.warn('操作失败: ', e.message || e)
     }
   }
 }
@@ -305,7 +305,7 @@ async function submitForm() {
     loadList()
   } catch (e) {
     if (e !== false) {
-      ElMessage.error('提交失败: ' + (e.message || e))
+      console.warn('提交失败: ', e.message || e)
     }
   } finally {
     submitting.value = false
