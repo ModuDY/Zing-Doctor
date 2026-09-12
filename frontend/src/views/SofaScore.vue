@@ -74,15 +74,9 @@
           <button :class="['rbtn', { active: activeRange === 48 }]" @click="quickRange(48)">48小时</button>
           <button :class="['rbtn', { active: activeRange === 'admission_after' }]" @click="setAdmissionRange(true)">入科后24h</button>
           <button :class="['rbtn', { active: activeRange === 'admission_before' }]" @click="setAdmissionRange(false)">入科前24h</button>
-          <span :class="['range-chip', { active: activeRange === 'custom' }]" title="直接修改左侧时间即为自定义区间">自定义</span>
         </span>
         <button class="rbtn solid" :disabled="loading" @click="loadAssessment">{{ loading ? '取数中…' : '自动获取并计算' }}</button>
         <span class="range-logic">取数逻辑：范围内最差值（偏离正常最远）</span>
-      </div>
-      <div class="range-echo">
-        <span class="echo-lbl">当前区间</span><b>{{ rangeText }}</b>
-        <span class="echo-tag" v-if="rangeTag">{{ rangeTag }}</span>
-        <span class="echo-tip" v-if="rangeDirty">已改动，点「自动获取并计算」后生效</span>
       </div>
 
       <!-- ===== 器官功能评分表 ===== -->
@@ -617,9 +611,13 @@
           <div style="margin-top:8px;font-size:11px;line-height:1.8;">
             备注：1.每日评估时应采取每日最差值；2.分数越高，预后越差。
           </div>
-          <!-- 记录时间（白底，去掉参考图的紫色高亮） -->
-          <div style="margin-top:12px;font-size:12px;">
-            记录时间：{{ reportTime || fmtTimeNow() }}
+          <!-- 评分医师（含电子签名）/ 评分时间：右下角一行（导出 PDF 可见） -->
+          <div style="display:flex;justify-content:flex-end;font-size:12px;margin-top:12px;">
+            <div style="margin-right:36px;">
+              <div>评分医师：{{ realname || username || '—' }}</div>
+              <img v-if="doctorSignature" :src="doctorSignature" alt="电子签名" style="height:38px;margin-top:2px;" />
+            </div>
+            <div>评分时间：{{ reportTime || fmtTimeNow() }}</div>
           </div>
         </div>
       </div>
@@ -639,6 +637,7 @@ import {
   fetchSofaTrend, fetchSofaRecordPdf, attachSofaRecordPdf, fetchSofaGcsRecords
 } from '../api/sofa'
 import { isExternalMode } from '../utils/external'
+import { useStaffSignature } from '../utils/staffSignature'
 
 const HOSPITAL_LOGO = '/logo.png'  /* 院徽静态资源：frontend/public/logo.png，构建后随 dist 输出 */
 
@@ -658,6 +657,9 @@ const showReportModal = ref(false)
 const reportGenerating = ref(false)
 const trendChartRef = ref(null)
 let trendChart = null
+
+// 评分医师电子签名（按工号 username 反查 ICU CA 库；取不到则为空，文书不显示签名）
+const { signatureSrc: doctorSignature, load: loadDoctorSignature } = useStaffSignature()
 // 文书用到的汇总值（GCS / 尿量），随评估结果回填
 const gcsTotal = ref(null)
 const gcsDetail = ref('')
@@ -1135,6 +1137,8 @@ onMounted(async () => {
   initRange()
   await loadAssessment()
   await loadRecords()
+  // 电子签名独立于评分流程，放最后加载，不阻塞上面的取数
+  await loadDoctorSignature(username.value)
 })
 
 function initRange() {
@@ -2098,7 +2102,7 @@ table.score td.act { padding: 4px 6px; height: auto; }
 
 /* ===== 底部操作行 ===== */
 .footer-bar { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
-.footer-info { font-size: 13px; color: #909399; line-height: 1.7; flex: 0 0 auto; }
+.footer-info { font-size: 13px; color: #303133; line-height: 1.7; flex: 0 0 auto; }
 .footer-note { flex: 1; min-width: 200px; height: 32px; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; padding: 0 10px; font-size: 13px; color: #303133; outline: none; }
 .footer-note:focus { border-color: #409eff; }
 

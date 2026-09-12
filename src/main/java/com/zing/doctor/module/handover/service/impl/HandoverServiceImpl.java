@@ -3,6 +3,7 @@ package com.zing.doctor.module.handover.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zing.doctor.common.BizException;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
+import com.zing.doctor.module.antibiotic.service.AbxDrugRecognizer;
 import com.zing.doctor.module.handover.dto.HandoverOverview;
 import com.zing.doctor.module.handover.dto.HandoverPatientCard;
 import com.zing.doctor.module.handover.dto.HandoverPatientDetail;
@@ -52,6 +53,10 @@ public class HandoverServiceImpl implements HandoverService {
 
     @Autowired
     private HandoverNoteMapper handoverNoteMapper;
+
+    /** 抗菌药统一识别器（词表 + HIS 药品字典），替代原方法内硬编码的 61 个通用名数组 */
+    @Autowired
+    private AbxDrugRecognizer abxDrugRecognizer;
 
     private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final Pattern NUM_PATTERN = Pattern.compile("-?\\d+(\\.\\d+)?");

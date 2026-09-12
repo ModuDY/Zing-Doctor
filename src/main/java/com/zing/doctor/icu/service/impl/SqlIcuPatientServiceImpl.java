@@ -10,6 +10,7 @@ import com.zing.doctor.icu.dto.LabTrend;
 import com.zing.doctor.icu.dto.TrendPoint;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.service.IcuPatientService;
+import com.zing.doctor.module.antibiotic.service.AbxDrugRecognizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -72,6 +73,12 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
             "转化糖", "果糖", "复方氯化钠", "甘油果糖");
 
     private final IcuPatientMapper icuPatientMapper;
+
+    /**
+     * 抗菌药统一识别器（HIS 药品字典 + 词表白/黑名单）。
+     * 纯内存判定、不产生数据库访问，因此在 {@code @DS("icu")} 的类内调用不会污染数据源上下文。
+     */
+    private final AbxDrugRecognizer abxDrugRecognizer;
 
     @Override
     public List<IcuPatientBrief> listSuspectInfections() {

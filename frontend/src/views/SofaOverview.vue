@@ -21,7 +21,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">平均总分</div>
-        <div class="stat-value">{{ summary.avgScore || 0 }}</div>
+        <div class="stat-value">{{ fmt2(summary.avgScore) }}</div>
         <div class="stat-sub">SOFA 总分（0~24）</div>
       </div>
       <div class="stat-card">
@@ -123,6 +123,12 @@ function quickRange(days) {
   rangeEnd.value = toLocalInput(now)
   rangeStart.value = toLocalInput(new Date(now.getTime() - days * 24 * 3600 * 1000))
   load()
+}
+
+/** 数值统一保留两位小数（空值/非数字按 0.00 显示） */
+function fmt2(v) {
+  const n = Number(v)
+  return isNaN(n) ? '0.00' : n.toFixed(2)
 }
 
 function fmtTime(t) {

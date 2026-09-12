@@ -3,7 +3,7 @@ package com.zing.doctor.module.sepsis.service.impl;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
-import com.zing.doctor.module.antibiotic.service.AbxWordConfigService;
+import com.zing.doctor.module.antibiotic.service.AbxDrugRecognizer;
 import com.zing.doctor.module.sepsis.dto.SepsisBundleView;
 import com.zing.doctor.module.sepsis.entity.SepsisBundleRecord;
 import com.zing.doctor.module.sepsis.mapper.SepsisBundleRecordMapper;
@@ -31,134 +31,11 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
     @Autowired
     private IcuPatientMapper icuPatientMapper;
 
+    /** 抗菌药统一识别器：本模块的广谱/非抗菌药判定全部委托给它，避免维护第三份词表 */
     @Autowired
-    private AbxWordConfigService abxWordConfigService;
+    private AbxDrugRecognizer abxDrugRecognizer;
 
     private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
-    /** 广谱抗菌药物关键词（内置默认，配置表为空时兜底；表有数据则优先用表） */
-    private static final String[] DEFAULT_BROAD_SPECTRUM_KEYWORDS = {
-            "哌拉西林", "头孢哌酮", "头孢他啶", "头孢吡肟", "美罗培南", "亚胺培南",
-            "比阿培南", "厄他培南", "左氧氟沙星", "莫西沙星", "环丙沙星", "万古霉素",
-            "利奈唑胺", "替考拉宁", "达托霉素", "阿米卡星", "妥布霉素", "庆大霉素",
-            "甲硝唑", "替硝唑", "氟康唑", "伏立康唑", "卡泊芬净", "米卡芬净",
-            "两性霉素", "青霉素", "苄星青霉素", "阿莫西林", "阿莫西林克拉维酸", "头孢唑林",
-            "头孢呋辛", "头孢克洛", "头孢丙烯", "头孢克肟", "头孢地尼", "头孢唑肟",
-            "头孢噻肟", "头孢曲松", "头孢美唑", "头孢比罗酯", "氨曲南", "阿奇霉素",
-            "克拉霉素", "罗红霉素", "克林霉素", "多西环素", "替加环素", "依拉环素",
-            "异帕米星", "奥硝唑", "左奥硝唑", "吗啉硝唑", "呋喃妥因", "磷霉素",
-            "利福平", "利福昔明", "伊曲康唑", "氟胞嘧啶", "特比萘芬", "艾沙康唑",
-            "多黏菌素"
-    };
-
-    /** 运行时广谱词表（每次评估从配置表刷新） */
-    private volatile List<String> broadSpectrumKeywords = Arrays.asList(DEFAULT_BROAD_SPECTRUM_KEYWORDS);
-
-    /** 运行时非抗菌药词表（每次评估从配置表刷新） */
-    private volatile List<String> nonAntibioticKeywords = Collections.emptyList();
-
-    /** 非抗菌药内置默认（配置表为空时兜底；表有数据则优先用表） */
-    private static final String[] DEFAULT_NON_ANTIBIOTIC_KEYWORDS = {
-            // 电解质/酸碱
-            "氯化钾", "碳酸氢钠", "葡萄糖酸钙", "硫酸镁", "磷酸钠", "枸橼酸钾",
-            "乳酸钠", "醋酸钠", "甘油磷酸钠", "门冬氨酸钾",
-            // 维生素
-            "维生素", "维C", "VC", "VB", "复合维",
-            // 营养支持
-            "脂肪乳", "氨基酸", "白蛋白", "肠内营养", "安素", "能全力", "百普力",
-            "短肽", "整蛋白", "谷氨酰胺", "丙氨酰", "ω-3", "欧米伽", "鱼油",
-            // 抑酸/胃肠
-            "奥美拉唑", "泮托拉唑", "兰索拉唑", "雷贝拉唑", "艾司奥美拉唑", "埃索美拉唑",
-            "罗沙替丁", "法莫替丁", "西咪替丁", "雷尼替丁", "尼扎替丁",
-            "生长抑素", "奥曲肽", "加贝酯", "乌司他丁",
-            "乳果糖", "开塞露", "蒙脱石", "双歧杆菌", "枯草杆菌", "地衣芽孢",
-            "多潘立酮", "甲氧氯普胺", "莫沙必利", "铝碳酸镁", "碳酸钙", "复方消化酶",
-            // 镇静/麻醉
-            "丙泊酚", "咪达唑仑", "依托咪酯", "七氟烷", "异氟烷", "地氟烷",
-            "右美托咪定", "氯胺酮", "戊巴比妥", "硫喷妥", "水合氯醛", "苯巴比妥",
-            // 镇痛
-            "瑞芬太尼", "芬太尼", "舒芬太尼", "吗啡", "布托啡诺", "地佐辛", "曲马多",
-            "氢吗啡酮", "羟考酮", "纳布啡", "喷他佐辛", "美沙酮", "哌替啶", "可待因",
-            // 肌松
-            "阿曲库铵", "维库溴铵", "罗库溴铵", "泮库溴铵", "琥珀胆碱", "米库溴铵",
-            // 抗凝/抗血小板/溶栓
-            "肝素", "华法林", "利伐沙班", "达比加群", "阿司匹林", "氯吡格雷", "替格瑞洛",
-            "替罗非班", "比伐卢定", "尿激酶", "阿替普酶", "链激酶", "达肝素", "亭扎肝素",
-            "枸橼酸", "枸橼酸钠", "血液滤过", "置换液", "透析", "血液灌流", "血液净化", "血浆置换", "连续性肾脏替代", "CRRT",
-            "磺达肝癸", "阿哌沙班", "替卡格雷",
-            // 血管活性/升压/降压
-            "去甲肾上腺素", "间羟胺", "多巴胺", "多巴酚丁胺", "肾上腺素", "异丙肾上腺素",
-            "去氧肾上腺素", "垂体后叶", "血管加压素", "特利加压素", "硝普钠", "硝酸甘油",
-            "硝酸异山梨酯", "乌拉地尔", "酚妥拉明", "艾司洛尔", "美托洛尔", "比索洛尔",
-            "硝苯地平", "氨氯地平", "非洛地平", "缬沙坦", "氯沙坦", "厄贝沙坦", "贝那普利",
-            "培哚普利", "卡托普利", "依那普利",
-            "多沙唑嗪", "特拉唑嗪", "替米沙坦", "坎地沙坦", "奥美沙坦", "阿利沙坦",
-            "尼卡地平", "尼莫地平", "拉贝洛尔", "卡维地洛", "可乐定", "甲基多巴", "肼屈嗪",
-            // 抗心律失常/强心
-            "胺碘酮", "利多卡因", "普罗帕酮", "维拉帕米", "地尔硫卓", "阿托品",
-            "去乙酰毛花苷", "西地兰", "毒毛花苷", "洋地黄", "多非利特", "伊布利特",
-            // 利尿/脱水
-            "呋塞米", "托拉塞米", "螺内酯", "氢氯噻嗪", "布美他尼", "甘露醇",
-            "乙酰唑胺", "吲达帕胺",
-            // 止吐
-            "昂丹司琼", "格拉司琼", "托烷司琼", "雷莫司琼", "阿扎司琼", "多拉司琼", "甲氧氯普胺",
-            // 解毒/拮抗
-            "纳洛酮", "氟马西尼", "戊乙奎醚", "亚甲蓝", "硫代硫酸钠", "依地酸", "青霉胺", "二巯丙醇", "N-乙酰半胱氨酸",
-            // 化痰平喘
-            "氨溴索", "乙酰半胱氨酸", "溴己新", "氨茶碱", "多索茶碱", "沙丁胺醇",
-            "异丙托溴铵", "布地奈德", "特布他林", "茶碱",
-            // 造影剂
-            "泛影葡胺", "碘海醇", "碘帕醇", "碘佛醇", "碘普罗胺", "碘克沙醇",
-            "钆", "优维显", "欧乃派克", "造影",
-            // 激素
-            "地塞米松", "甲泼尼龙", "氢化可的松", "泼尼松", "泼尼松龙", "倍他米松",
-            "甲强龙", "强的松", "促肾上腺皮质",
-            // 止血/血液制品
-            "氨甲环酸", "凝血酶", "维生素K", "卡络磺钠", "酚磺乙胺", "血凝酶",
-            "纤维蛋白原", "冷沉淀", "血小板",
-            // 内分泌/代谢
-            "胰岛素", "格列", "二甲双胍", "生长激素", "甲状腺", "左甲状腺",
-            "阿卡波糖", "西格列汀", "达格列净", "恩格列净", "利拉鲁肽", "度拉糖肽", "艾塞那肽",
-            // 降脂
-            "阿托伐他汀", "瑞舒伐他汀", "辛伐他汀", "普伐他汀", "氟伐他汀", "匹伐他汀",
-            "依折麦布", "非诺贝特", "吉非罗齐", "普罗布考",
-            // 抗组胺/抗过敏
-            "西替利嗪", "氯雷他定", "异丙嗪", "依巴斯汀", "苯海拉明", "氯苯那敏",
-            "非索非那定", "地氯雷他定", "左西替利嗪", "酮替芬", "赛庚啶", "氯马斯汀",
-            "扑尔敏", "息斯敏",
-            // 血容量扩张（人工胶体）
-            "明胶", "羟乙基淀粉", "聚明胶肽", "右旋糖酐", "佳乐施", "血定安", "万汶",
-            // 胆碱酯酶抑制剂/神经肌肉接头药
-            "新斯的明", "溴吡斯的明", "加兰他敏", "多奈哌齐", "卡巴拉汀", "安贝氯铵",
-            // 抗精神病/抗癫痫/镇静类精神药物
-            "氟哌啶醇", "奥氮平", "喹硫平", "利培酮", "氯氮平", "氟哌噻吨", "奋乃静",
-            "舒必利", "阿立哌唑", "帕利哌酮", "齐拉西酮", "丙戊酸", "卡马西平", "苯妥英",
-            "左乙拉西坦", "拉莫三嗪", "托吡酯", "奥卡西平", "加巴喷丁", "普瑞巴林",
-            "舍曲林", "帕罗西汀", "氟西汀", "艾司西酞普兰", "文拉法辛", "度洛西汀",
-            "阿普唑仑", "地西泮", "劳拉西泮", "艾司唑仑", "氯硝西泮", "丁螺环酮", "米氮平",
-            "曲唑酮", "左旋多巴", "苯海索", "金刚烷胺",
-            // 外用/皮肤科
-            "炉甘石", "氧化锌", "洗剂", "软膏", "乳膏", "栓剂", "贴剂", "滴眼", "滴鼻", "滴耳",
-            // 抗病毒（非抗菌药）
-            "利巴韦林", "奥司他韦", "帕拉米韦", "阿昔洛韦", "更昔洛韦", "伐昔洛韦",
-            "泛昔洛韦", "恩替卡韦", "替诺福韦", "拉米夫定", "阿德福韦", "干扰素",
-            "利托那韦", "奈玛特韦", "玛巴洛沙韦",
-            // 保肝/脑循环/营养神经
-            "甘草酸", "水飞蓟", "双环醇", "多烯磷脂酰胆碱", "胞磷胆碱", "脑苷肌肽",
-            "神经节苷脂", "依达拉奉", "奥拉西坦", "吡拉西坦", "小牛血",
-            // 其他
-            "银杏", "丹参", "血塞通", "疏血通", "醒脑静", "参附", "参麦", "生脉",
-            "磷酸肌酸", "辅酶", "三磷酸腺苷", "门冬氨酸鸟氨酸", "还原型谷胱甘肽",
-            "水溶性维生素", "脂溶性维生素",
-            "丁苯酞", "奥扎格雷", "前列地尔", "左卡尼汀", "果糖二磷酸", "磷酸肌酸钠", "单唾液酸四己糖神经节苷脂",
-            // 局麻/口腔护理/外用消毒
-            "达克罗宁", "布比卡因", "罗哌卡因", "普鲁卡因", "丁卡因", "苯佐卡因", "利多卡因",
-            "含漱", "漱口", "西吡氯铵", "氯己定", "聚维酮碘", "碘伏", "碘甘油", "锡类散", "冰硼散", "西瓜霜",
-            // 中药/外敷
-            "芒硝", "冰片", "金黄散", "青黛", "云南白药", "伤科灵", "正骨水", "红花油",
-            // 微量元素/电解质营养
-            "微量元素", "多种微量元素", "安达美", "门冬氨酸钾镁", "葡萄糖酸锌", "硫酸锌", "硒", "亚硒酸钠", "含D3"
-    };
 
     /** 感染部位关键词映射 */
     private static final Map<String, String> INFECTION_SITE_MAP = new LinkedHashMap<>();
@@ -226,8 +103,8 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
 
     @Override
     public SepsisBundleView getBundleDetail(String inHospitalNo) {
-        // 每次评估前从配置表刷新词库（配置页修改即时生效）；表空时回退内置默认
-        refreshWordConfig();
+        // 每次评估前刷新抗菌药词库快照（配置页修改即时生效；识别器自身也有 5 分钟兜底刷新）
+        abxDrugRecognizer.refresh();
         SepsisBundleView view = new SepsisBundleView();
 
         // 1. 查询已保存的记录
@@ -283,30 +160,6 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
         restoreManualStatus(view, savedBundle1h, savedBundle3h, savedBundle6h);
 
         return view;
-    }
-
-    /**
-     * 从配置表刷新词库；表无数据时回退内置默认（防止删空后失效）
-     */
-    private void refreshWordConfig() {
-        try {
-            List<String> bs = abxWordConfigService.listEnabledKeywords("broad_spectrum");
-            if (bs != null && !bs.isEmpty()) {
-                broadSpectrumKeywords = bs;
-            } else {
-                broadSpectrumKeywords = Arrays.asList(DEFAULT_BROAD_SPECTRUM_KEYWORDS);
-            }
-            List<String> na = abxWordConfigService.listEnabledKeywords("non_antibiotic");
-            if (na != null && !na.isEmpty()) {
-                nonAntibioticKeywords = na;
-            } else {
-                nonAntibioticKeywords = Arrays.asList(DEFAULT_NON_ANTIBIOTIC_KEYWORDS);
-            }
-        } catch (Exception e) {
-            log.warn("刷新抗菌药物词库失败，使用内置默认: {}", e.getMessage());
-            broadSpectrumKeywords = Arrays.asList(DEFAULT_BROAD_SPECTRUM_KEYWORDS);
-            nonAntibioticKeywords = Arrays.asList(DEFAULT_NON_ANTIBIOTIC_KEYWORDS);
-        }
     }
 
     /**
@@ -1118,34 +971,18 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
     }
 
     /**
-     * 判断是否为广谱抗菌药物（命中广谱白名单词表）。
-     * 词表来自 zing_abx_word_config 配置（broad_spectrum），表空回退内置默认。
+     * 判断是否为广谱抗菌药物。委托统一识别器 {@link AbxDrugRecognizer#isBroadSpectrum(String)}，
+     * 词表口径 = zing_abx_word_config(broad_spectrum)，表空回退内置默认；与全系统保持一致。
      */
     private boolean isBroadSpectrum(String name) {
-        if (name == null || name.isEmpty()) {
-            return false;
-        }
-        for (String kw : broadSpectrumKeywords) {
-            if (name.contains(kw)) {
-                return true;
-            }
-        }
-        return false;
+        return abxDrugRecognizer.isBroadSpectrum(name);
     }
 
     /**
-     * 判断是否为非抗菌药物（电解质/维生素/营养/抑酸/镇静/镇痛/麻醉/肌松/抗凝/升压/抗心律/利尿/化痰/造影剂/激素等）。
+     * 判断是否为非抗菌药物。委托统一识别器 {@link AbxDrugRecognizer#isNonAntibiotic(String)}，
      * 用于"抗菌药物"列表与时间节点的抗菌药识别，剔除不是抗菌药的医嘱。
      */
     private boolean isNonAntibiotic(String name) {
-        if (name == null || name.isEmpty()) {
-            return true;
-        }
-        for (String kw : nonAntibioticKeywords) {
-            if (name.contains(kw)) {
-                return true;
-            }
-        }
-        return false;
+        return abxDrugRecognizer.isNonAntibiotic(name);
     }
 }

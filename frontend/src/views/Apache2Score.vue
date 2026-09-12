@@ -60,7 +60,7 @@
         <div class="total-score-card">
           <div class="label">APACHE II 总分</div>
           <div class="value">{{ scoreResult.totalScore || 0 }}</div>
-          <div class="mortality">预计死亡率 <b style="font-size:14px">{{ scoreResult.mortalityRate || 0 }}%</b></div>
+          <div class="mortality">预计死亡率 <b style="font-size:14px">{{ fmt2(scoreResult.mortalityRate) }}%</b></div>
         </div>
         <div class="score-cards">
           <div class="score-card">
@@ -95,15 +95,9 @@
           <button :class="['btn', { active: fetchPreset === '48h' }]" @click="setRangePreset('48h')">48小时</button>
           <button :class="['btn', { active: fetchPreset === 'admission_after' }]" @click="setRangePreset('admission_after')">入科后24h</button>
           <button :class="['btn', { active: fetchPreset === 'admission_before' }]" @click="setRangePreset('admission_before')">入科前24h</button>
-          <span :class="['range-chip', { active: fetchPreset === 'custom' }]" title="直接修改左侧时间即为自定义区间">自定义</span>
         </span>
         <button class="btn btn-primary" @click="autoFetchAndCalc">自动获取并计算</button>
         <span style="margin-left:auto;color:#909399;font-size:12px">取数逻辑：范围内最差值（偏离正常最远）</span>
-      </div>
-      <div class="range-echo">
-        <span class="echo-lbl">当前区间</span><b>{{ rangeText }}</b>
-        <span class="echo-tag" v-if="rangeTag">{{ rangeTag }}</span>
-        <span class="echo-tip" v-if="rangeDirty">已改动，点「自动获取并计算」后生效</span>
       </div>
 
       <!-- 内容区 -->
@@ -226,7 +220,7 @@
           <div class="mortality-head">
             <div class="mortality-result">
               <div class="label">预测院内死亡率</div>
-              <div class="value">{{ scoreResult.mortalityRate || 0 }}%</div>
+              <div class="value">{{ fmt2(scoreResult.mortalityRate) }}%</div>
               <div class="note">基于APACHE II总分 + 诊断权重</div>
             </div>
             <div class="equation-box">
@@ -554,13 +548,21 @@
     <teleport to="body">
     <div class="report-offscreen" aria-hidden="true">
       <div ref="reportRef" class="report-page" style="width:794px;background:#ffffff;padding:30px 36px 34px;color:#000000;font-family:'SimSun','宋体',serif;font-size:12px;line-height:1.6;box-sizing:border-box;">
+        <!-- 医院抬头：logo + 三行院名（与 SOFA 评分文书保持一致） -->
+        <div style="display:flex;align-items:center;justify-content:center;margin-bottom:8px;">
+          <img :src="HOSPITAL_LOGO" style="width:60px;height:60px;margin-right:16px;" />
+          <div style="text-align:center;">
+            <div style="font-family:'SimHei','黑体',sans-serif;font-size:20px;font-weight:700;letter-spacing:2px;">福州市第二总医院</div>
+            <div style="font-family:'SimHei','黑体',sans-serif;font-size:18px;font-weight:700;letter-spacing:2px;">福州市第二医院</div>
+            <div style="font-family:'SimHei','黑体',sans-serif;font-size:16px;font-weight:700;letter-spacing:2px;">福建省福州中西医结合医院</div>
+          </div>
+        </div>
+        <!-- 大标题 -->
         <div style="text-align:center;margin-bottom:12px;">
           <div style="font-family:'SimHei','黑体',sans-serif;font-size:23px;font-weight:700;letter-spacing:2px;">危重患者 APACHE II 评分表</div>
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;line-height:1.8;">
-          <span>姓名：{{ patientInfo.name || '—' }}　　床号：{{ patientInfo.bedCode || '—' }}　　住院号：{{ patientInfo.inHospitalNo || inHospitalNo || '—' }}</span>
-          <span>Fi值：{{ fmtReportVal(form.fio2) }}%</span>
-          <span>评分时间：{{ formatDisplayTime(form.scoreTime) }}</span>
+        <div style="font-size:12px;margin-bottom:3px;line-height:1.8;">
+          姓名：{{ patientInfo.name || '—' }}　　床号：{{ patientInfo.bedCode || '—' }}　　住院号：{{ patientInfo.inHospitalNo || inHospitalNo || '—' }}
         </div>
         <div style="font-size:12px;margin-bottom:6px;">诊断：{{ selectedDiagnosisName !== '—' ? selectedDiagnosisName : (patientInfo.diagnosis || '—') }}</div>
 
@@ -668,6 +670,15 @@
           6. 呼吸频率应记录为病人的自主呼吸频率<br>
           7. 如果病人急性肾功能衰竭，则血清肌酐一项分值应在原基础上加倍（*2）
         </div>
+
+        <!-- 评分医师（含电子签名）/ 评分时间：右下角一行（导出 PDF 可见） -->
+        <div style="display:flex;justify-content:flex-end;font-size:12px;margin-top:16px;">
+          <div style="margin-right:36px;">
+            <div>评分医师：{{ realname || username || '—' }}</div>
+            <img v-if="doctorSignature" :src="doctorSignature" alt="电子签名" style="height:38px;margin-top:2px;" />
+          </div>
+          <div>评分时间：{{ formatDisplayTime(form.scoreTime) }}</div>
+        </div>
       </div>
     </div>
     </teleport>
@@ -684,6 +695,7 @@ import html2canvas from 'html2canvas'
 import axios from 'axios'
 import request from '../api/request'
 import { getExternalHeaders, isExternalMode } from '../utils/external'
+import { useStaffSignature } from '../utils/staffSignature'
 
 const route = useRoute()
 const inHospitalNo = ref(route.query.inHospitalNo || '')
@@ -694,6 +706,9 @@ const realname = ref(route.query.realname || '')
 
 // 是否外链访问：外链下隐藏系统内重复的患者信息条（外层重症系统已展示）
 const isExternal = isExternalMode()
+
+/** 院徽静态资源：frontend/public/logo.png，构建后随 dist 输出（文书抬头用，与 SOFA 一致） */
+const HOSPITAL_LOGO = '/logo.png'
 
 const patientInfo = reactive({
   patientId: '',
@@ -761,6 +776,9 @@ const reportRef = ref(null)
 const reportViewRef = ref(null)
 const reportGenerating = ref(false)
 const saving = ref(false)
+
+// 评分医师电子签名（按工号 username 反查 ICU CA 库；取不到则为空，文书不显示签名）
+const { signatureSrc: doctorSignature, load: loadDoctorSignature } = useStaffSignature()
 
 const apsItems = [
   { key: 'temperature', label: '体温', unit: '℃', step: 0.1, itemCode: 'oi_tiwen', dataType: 'observe' },
@@ -837,9 +855,6 @@ const diagnosisWeight = computed(() => {
 })
 
 // ============ 评分文书 ============
-function fmtReportVal(v) {
-  return (v === null || v === undefined || v === '') ? '—' : v
-}
 function num(v) {
   if (v === null || v === undefined || v === '') return null
   const n = Number(v)
@@ -949,6 +964,11 @@ const selectedDiagnosisName = computed(() => {
   return '—'
 })
 const chronicText = computed(() => ({ none: '无慢性器官功能不全', nonoperative: '非手术/急诊手术后（+5）', elective: '择期手术后（+2）' }[form.chronicHealth] || '—'))
+/** 数值统一保留两位小数（空值/非数字按 0.00 显示） */
+function fmt2(v) {
+  const n = Number(v)
+  return isNaN(n) ? '0.00' : n.toFixed(2)
+}
 const scoreTypeText = computed(() => ({ admission: '入科时', '24h': '入科24小时', '48h': '入科48小时', custom: '自定义' }[currentRecord.value?.scoreType] || '自定义'))
 const clinicalAdvice = computed(() => {
   const t = scoreResult.totalScore || 0
@@ -959,7 +979,7 @@ const clinicalAdvice = computed(() => {
   else if (t >= 20) level = '病情较重，建议加强监护、及时处理异常生理指标，警惕器官功能恶化。'
   else if (t >= 10) level = '病情中等，建议按重症规范监护治疗，关注各项生理指标变化趋势。'
   else level = '病情相对平稳，预计死亡风险较低，继续常规监护与对症治疗。'
-  return `APACHE II 总分 ${t} 分，模型预计院内死亡率约 ${Number(m).toFixed(1)}%。${level}`
+  return `APACHE II 总分 ${t} 分，模型预计院内死亡率约 ${Number(m).toFixed(2)}%。${level}`
 })
 
 const showGcsModal = ref(false)
@@ -1003,6 +1023,8 @@ onMounted(async () => {
   applyFetchPreset()
   await loadRecords()
   calculateScore()
+  // 电子签名独立于评分流程，放最后加载，不阻塞上面的取数
+  await loadDoctorSignature(username.value)
 })
 
 async function loadPatientInfo() {
@@ -2037,7 +2059,7 @@ async function viewSavedPdf(rec) {
 .total-score-card .mortality { font-size: 12px; opacity: 0.9; margin-top: 2px; background: rgba(255,255,255,0.2); border-radius: 10px; padding: 2px 8px; display: inline-block; }
 .score-cards { display: flex; gap: 10px; flex: 1; }
 .score-card { flex: 1; min-width: 0; padding: 10px 14px; border: 1px solid #ebeef5; border-radius: 6px; background: #fafafa; display: flex; align-items: center; gap: 10px; }
-.score-card .code { width: 28px; height: 28px; border-radius: 6px; background: #ecf5ff; color: #409eff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+.score-card .code { width: 32px; height: 32px; border-radius: 7px; background: #ecf5ff; color: #409eff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; flex-shrink: 0; }
 .score-card .info { min-width: 0; flex: 1; }
 .score-card .name { font-size: 12px; color: #909399; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .score-card .val { font-size: 22px; font-weight: 700; color: #303133; line-height: 1.2; }

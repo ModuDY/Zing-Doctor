@@ -36,12 +36,12 @@
         </div>
         <div class="stat-card">
           <div class="stat-label">平均总分</div>
-          <div class="stat-value">{{ summary.avgScore }}</div>
+          <div class="stat-value">{{ fmt2(summary.avgScore) }}</div>
           <div class="stat-sub">APACHE II 总分</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">平均死亡率</div>
-          <div class="stat-value">{{ summary.avgMortality }}%</div>
+          <div class="stat-value">{{ fmt2(summary.avgMortality) }}%</div>
           <div class="stat-sub">预测院内死亡率</div>
         </div>
         <div class="stat-card stat-card-warning">
@@ -80,7 +80,7 @@
                     <div class="score-item"><span class="score-label">C GCS分</span><span class="score-val">{{ row.gcsScore }}</span></div>
                     <div class="score-item"><span class="score-label">D 急性生理分</span><span class="score-val">{{ row.physiologyScore }}</span></div>
                     <div class="score-item score-total"><span class="score-label">总分</span><span class="score-val">{{ row.totalScore }}</span></div>
-                    <div class="score-item score-mortality"><span class="score-label">预测死亡率</span><span class="score-val">{{ row.mortalityRate }}%</span></div>
+                    <div class="score-item score-mortality"><span class="score-label">预测死亡率</span><span class="score-val">{{ fmt2(row.mortalityRate) }}%</span></div>
                   </div>
                 </div>
                 <div class="detail-section">
@@ -115,7 +115,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="mortalityRate" label="死亡率" width="90" align="center">
-            <template #default="{ row }">{{ row.mortalityRate }}%</template>
+            <template #default="{ row }">{{ fmt2(row.mortalityRate) }}%</template>
           </el-table-column>
           <el-table-column prop="scoreTime" label="评分时间" width="170" />
         </el-table>
@@ -249,6 +249,12 @@ function renderDistributionChart() {
 
 function handleRowClick(row) {
   // 展开/收起由el-table自动处理
+}
+
+/** 数值统一保留两位小数（空值/非数字按 0.00 显示） */
+function fmt2(v) {
+  const n = Number(v)
+  return isNaN(n) ? '0.00' : n.toFixed(2)
 }
 
 function scoreTypeText(type) {
