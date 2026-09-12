@@ -37,12 +37,12 @@
       <main class="main">
     <!-- 患者信息行（外链访问时外层已展示，故隐藏） -->
     <div class="patient-row" v-if="!isExternal">
-      <span class="bed-tag">{{ patient.bedCode || '—' }}</span>
+      <span class="bed-tag">{{ patient.departCode || patient.bedCode || '—' }}</span>
       <span class="patient-name">{{ patient.name || '—' }}</span>
       <span class="patient-meta"><b>{{ patient.gender || '—' }}</b> / {{ patient.age || '—' }}{{ patient.ageUnit || '岁' }}</span>
       <span class="patient-meta">住院号：<b>{{ patient.inHospitalNo || inHospitalNo || '—' }}</b></span>
       <span class="patient-meta">入科时间：<b>{{ fmtTime(patient.inDepartTime) }}</b></span>
-      <span :class="['resp-flag', { on: respiratorySupport === 1 }]">{{ respiratorySupport === 1 ? '有呼吸支持' : '无呼吸支持' }}</span>
+      <span :class="['resp-flag', { on: respiratorySupport === 1 }]">{{ respiratorySupport === 1 ? '有创呼吸支持' : '无呼吸支持' }}</span>
       <button class="btn-trend" @click="openTotalTrend">评分历史趋势</button>
     </div>
       <!-- ===== 总览条：SOFA 总分 + 6 器官当前分值 ===== -->
@@ -1074,7 +1074,7 @@ function isAutoRecord(r) {
 function scoreTypeLabel(r) {
   if (!r) return ''
   if (r.scoreType === 'reviewed') return '已复核'
-  if (isAutoRecord(r)) return '自动初评'
+  if (isAutoRecord(r)) return '自动评分'
   return '手工评分'
 }
 
@@ -1198,24 +1198,24 @@ function base64ToBlob(base64, type) {
 .app { display: flex; min-height: 100vh; align-items: stretch; }
 .side { width: 280px; min-width: 280px; display: flex; flex-direction: column; background: #fff; border-right: 1px solid #e4e7ed; height: 100vh; position: sticky; top: 0; }
 .side-head { height: 52px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #ebeef5; font-weight: 600; font-size: 15px; }
-.side-head .count { background: #ecf5ff; color: #409eff; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+.side-head .count { background: #ecf5ff; color: #409eff; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
 .side-add { padding: 10px; border-bottom: 1px solid #ebeef5; }
 .add-record-btn { width: 100%; height: 36px; background: linear-gradient(135deg, #409eff, #66b1ff); color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 6px rgba(64,158,255,0.3); }
 .add-record-btn:hover { background: linear-gradient(135deg, #66b1ff, #409eff); }
 .add-record-btn .plus { font-size: 18px; line-height: 1; }
 .record-list { flex: 1; overflow-y: auto; padding: 8px; }
-.record-item { padding: 12px; margin-bottom: 8px; border: 1px solid #ebeef5; border-radius: 6px; cursor: pointer; transition: all .2s; background: #fff; }
+.record-item { padding: 12px 14px; margin-bottom: 8px; border: 1px solid #ebeef5; border-radius: 8px; cursor: pointer; transition: all .2s; background: #fff; }
 .record-item:hover { border-color: #c6e2ff; background: #f5f9ff; }
 .record-item.active { border-color: #409eff; background: #ecf5ff; }
-.record-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.record-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .record-time { font-size: 13px; color: #606266; font-weight: 500; }
-.record-score { font-size: 20px; font-weight: 700; padding: 2px 10px; border-radius: 4px; }
+.record-score { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; border-radius: 50%; }
 .record-score.green { background: #f0f9eb; color: #67c23a; }
 .record-score.orange { background: #fdf6ec; color: #e6a23c; }
 .record-score.red { background: #fef0f0; color: #f56c6c; }
-.record-meta { font-size: 12px; color: #909399; }
-.record-meta span { margin-right: 8px; }
-.record-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; background: #f4f4f5; color: #909399; }
+.record-meta { font-size: 12px; color: #909399; line-height: 1.8; }
+.record-meta span { margin-right: 6px; }
+.record-tag { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; background: #f4f4f5; color: #909399; }
 .record-tag.auto { background: #ecf5ff; color: #409eff; }
 .record-tag.manual { background: #fdf6ec; color: #e6a23c; }
 .record-tag.reviewed { background: #e1f3d8; color: #389e0d; }
@@ -1230,13 +1230,13 @@ function base64ToBlob(base64, type) {
 .main { flex: 1; min-width: 0; padding: 12px 18px 24px; }
 
 /* ===== 患者信息行 ===== */
-.patient-row { display: flex; align-items: center; gap: 16px; margin-bottom: 11px; flex-wrap: wrap; }
-.patient-row .bed-tag { background: #409eff; color: #fff; font-size: 13px; font-weight: 500; padding: 2px 10px; border-radius: 4px; }
+.patient-row { display: flex; align-items: center; gap: 16px; margin-bottom: 11px; flex-wrap: wrap; background: #fff; border: 1px solid #ebeef5; border-radius: 6px; padding: 10px 16px; }
+.patient-row .bed-tag { background: #409eff; color: #fff; font-size: 13px; font-weight: 500; padding: 3px 12px; border-radius: 14px; }
 .patient-row .patient-name { font-size: 18px; font-weight: 700; color: #303133; }
 .patient-meta { font-size: 13px; color: #606266; }
 .patient-meta b { color: #303133; font-weight: 600; }
-.patient-row .resp-flag { font-size: 13px; padding: 3px 11px; border-radius: 14px; background: #f4f4f5; color: #909399; }
-.patient-row .resp-flag.on { background: #ecf5ff; color: #409eff; }
+.patient-row .resp-flag { font-size: 13px; padding: 3px 12px; border-radius: 14px; background: #f4f4f5; color: #909399; }
+.patient-row .resp-flag.on { background: #e1f3d8; color: #389e0d; }
 .btn-trend { margin-left: auto; height: 32px; border: 1px solid #dcdfe6; background: #fff; color: #606266; font-size: 13px; padding: 0 14px; border-radius: 4px; cursor: pointer; transition: all .2s; }
 .btn-trend:hover { color: #409eff; border-color: #c6e2ff; background: #ecf5ff; }
 
@@ -1250,13 +1250,13 @@ function base64ToBlob(base64, type) {
 .ov-total .t-delta b { color: #FFE7A8; }
 .ov-total .t-foot { margin-top: auto; padding-top: 6px; font-size: 12px; opacity: .82; }
 .ov-organs { flex: 1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; min-width: 0; }
-.ov-card { background: #fff; border: 1px solid #ebeef5; border-radius: 6px; padding: 12px 8px 0; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; box-sizing: border-box; }
-.ov-pic { width: 46px; height: 46px; display: inline-flex; align-items: center; justify-content: center; }
-.ov-pic svg { width: 100%; height: 100%; display: block; }
-.ov-pic.green { color: #67c23a; }
-.ov-pic.blue { color: #409eff; }
-.ov-pic.orange { color: #e6a23c; }
-.ov-pic.red { color: #f56c6c; }
+.ov-card { background: #fff; border: 1px solid #ebeef5; border-radius: 8px; padding: 14px 8px 0; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; box-sizing: border-box; }
+.ov-pic { width: 54px; height: 54px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.04); }
+.ov-pic svg { width: 32px; height: 32px; display: block; }
+.ov-pic.green { color: #67c23a; background: rgba(103,194,58,0.12); }
+.ov-pic.blue { color: #409eff; background: rgba(64,158,255,0.12); }
+.ov-pic.orange { color: #e6a23c; background: rgba(230,162,60,0.12); }
+.ov-pic.red { color: #f56c6c; background: rgba(245,108,108,0.12); }
 .ov-name { font-size: 13px; font-weight: 500; color: #606266; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ov-foot { margin-top: auto; width: 100%; display: flex; align-items: baseline; justify-content: center; gap: 2px; padding: 7px 0 9px; border-top: 1px dashed #eef1f6; }
 .ov-unit { font-size: 11px; color: #909399; }
@@ -1279,16 +1279,16 @@ function base64ToBlob(base64, type) {
 .range-logic { margin-left: auto; font-size: 13px; color: #909399; }
 
 /* ===== 器官功能评分表 ===== */
-.table-panel { background: #fff; border-radius: 8px; border: 1px solid #ebeef5; padding: 11px 14px 4px; }
-.table-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #303133; margin-bottom: 9px; }
+.table-panel { background: #fff; border-radius: 8px; border: 1px solid #ebeef5; padding: 14px 16px 8px; }
+.table-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #303133; margin-bottom: 10px; }
 .table-title::before { content: ''; width: 3px; height: 15px; border-radius: 2px; background: #409eff; }
 table.score { width: 100%; border-collapse: collapse; table-layout: fixed; }
-table.score th, table.score td { border: 1px solid #ebeef5; text-align: center; padding: 0; height: 38px; font-size: 13px; vertical-align: middle; color: #606266; }
-table.score thead th { background: #f5f8fc; color: #728096; font-weight: 600; height: 36px; }
+table.score th, table.score td { border: 1px solid #ebeef5; text-align: center; padding: 0; height: 40px; font-size: 13px; vertical-align: middle; color: #606266; }
+table.score thead th { background: #f5f8fc; color: #728096; font-weight: 600; height: 38px; }
 table.score td.sys { font-weight: 600; color: #303133; background: #fafafa; font-size: 13px; }
 table.score td.ind { text-align: left; padding-left: 13px; color: #303133; background: #fff; }
 table.score td.dim { color: #c0c4cc; }
-table.score td.cell-hit { background: #ecf5ff; color: #409eff; font-weight: 600; }
+table.score td.cell-hit { background: #dcecfc; color: #2b7de1; font-weight: 600; }
 table.score .inp { display: flex; align-items: center; justify-content: space-between; height: 30px; margin: 0 auto; width: 88%; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; padding: 0 10px; color: #303133; font-size: 13px; font-weight: 500; box-sizing: border-box; overflow: hidden; white-space: nowrap; }
 table.score .inp.drop { background: #fafafa; border-color: #dcdfe6; }
 table.score .inp .caret { color: #c0c4cc; font-size: 12px; flex-shrink: 0; }
