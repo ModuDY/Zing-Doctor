@@ -66,14 +66,23 @@
       <!-- ===== 取数时间范围 ===== -->
       <div class="range-row">
         <span class="lbl">取数时间范围：</span>
-        <input class="sel" type="datetime-local" v-model="rangeStart" @change="onRangeInput">
+        <input class="sel" :class="{ custom: activeRange === 'custom' }" type="datetime-local" v-model="rangeStart" @change="onRangeInput">
         <span class="tilde">至</span>
-        <input class="sel" type="datetime-local" v-model="rangeEnd" @change="onRangeInput">
-        <button :class="['rbtn', { active: activeRange === 24 }]" @click="quickRange(24)">24小时</button>
-        <button :class="['rbtn', { active: activeRange === 48 }]" @click="quickRange(48)">48小时</button>
-        <button :class="['rbtn', { active: activeRange === 72 }]" @click="quickRange(72)">72小时</button>
+        <input class="sel" :class="{ custom: activeRange === 'custom' }" type="datetime-local" v-model="rangeEnd" @change="onRangeInput">
+        <span class="range-presets">
+          <button :class="['rbtn', { active: activeRange === 24 }]" @click="quickRange(24)">24小时</button>
+          <button :class="['rbtn', { active: activeRange === 48 }]" @click="quickRange(48)">48小时</button>
+          <button :class="['rbtn', { active: activeRange === 'admission_after' }]" @click="setAdmissionRange(true)">入科后24h</button>
+          <button :class="['rbtn', { active: activeRange === 'admission_before' }]" @click="setAdmissionRange(false)">入科前24h</button>
+          <span :class="['range-chip', { active: activeRange === 'custom' }]" title="直接修改左侧时间即为自定义区间">自定义</span>
+        </span>
         <button class="rbtn solid" :disabled="loading" @click="loadAssessment">{{ loading ? '取数中…' : '自动获取并计算' }}</button>
         <span class="range-logic">取数逻辑：范围内最差值（偏离正常最远）</span>
+      </div>
+      <div class="range-echo">
+        <span class="echo-lbl">当前区间</span><b>{{ rangeText }}</b>
+        <span class="echo-tag" v-if="rangeTag">{{ rangeTag }}</span>
+        <span class="echo-tip" v-if="rangeDirty">已改动，点「自动获取并计算」后生效</span>
       </div>
 
       <!-- ===== 器官功能评分表 ===== -->
@@ -212,6 +221,7 @@
               <td>
                 <input class="inp" :class="{ dirty: touched('gcs') }" type="number" step="1" min="3" max="15" placeholder="无数据"
                        :title="gcsHint" :value="inputs.gcs" @input="onNumInput('gcs', $event)">
+                <button class="gcs-open" @click="openGcsModal">同步/手录 GCS</button>
               </td>
               <td class="act"><button class="btn-src" @click="openSource(itemOf('neuro'))">来源</button></td>
               <td :class="cellCls(hitCol('neuro', 0))">15</td>
@@ -281,6 +291,91 @@
       </main>
     </div>
 
+    <!-- GCS 弹窗（与 APACHE II 同款：自动同步最新 / 手动选择系统记录 / 手工新建评估） -->
+    <div class="modal-mask" v-if="showGcsModal" @click.self="showGcsModal = false">
+      <div class="modal gcs-modal">
+        <div class="modal-head">
+          <h3>GCS 评分（神经系统）</h3>
+          <button class="modal-close" @click="showGcsModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="gcs-tabs">
+            <button :class="['gcs-tab', { active: gcsTab === 'sys' }]" @click="gcsTab = 'sys'">选择系统已有记录</button>
+            <button :class="['gcs-tab', { active: gcsTab === 'manual' }]" @click="gcsTab = 'manual'">手工新建评估</button>
+          </div>
+
+          <template v-if="gcsTab === 'sys'">
+            <div class="gcs-sys-bar">
+              <div class="gcs-sys-tip">记录来自重症系统 GCS 评估文书（Z_ICU_GCS）。选定一条后，其睁眼 / 言语 / 运动三项合计将填入 SOFA 神经系统评分。</div>
+              <button class="gcs-mini-primary" :disabled="gcsSyncLoading" @click="syncLatestGcs">
+                {{ gcsSyncLoading ? '同步中…' : '自动同步最新记录' }}
+              </button>
+            </div>
+            <div class="gcs-sys-table">
+              <table>
+                <thead>
+                  <tr><th>评分时间</th><th>记录者</th><th>GCS</th><th>睁眼(E)</th><th>言语(V)</th><th>运动(M)</th><th>选择</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-if="gcsSyncLoading"><td colspan="7" class="gcs-empty">正在拉取重症系统记录…</td></tr>
+                  <tr v-else-if="!systemGcsList.length"><td colspan="7" class="gcs-empty">重症系统暂无该患者的 GCS 评估记录，可切换到「手工新建评估」录入</td></tr>
+                  <template v-else>
+                    <tr v-for="(rec, i) in systemGcsList" :key="i"
+                        :class="{ selected: selectedSysIndex === i }" @click="selectedSysIndex = i">
+                      <td>{{ fmtTime(rec.recordTime) }}</td>
+                      <td>{{ rec.recordStaffName || '—' }}</td>
+                      <td>{{ gcsRowTotal(rec) }}</td>
+                      <td>{{ rec.eye === null || rec.eye === undefined ? '—' : rec.eye }}</td>
+                      <td>
+                        <span v-if="rec.intubated" class="et-tag">ET 插管</span>
+                        <span v-else>{{ rec.verbal === null || rec.verbal === undefined ? '—' : rec.verbal }}</span>
+                      </td>
+                      <td>{{ rec.motor === null || rec.motor === undefined ? '—' : rec.motor }}</td>
+                      <td><a class="pick-link" @click.stop="selectedSysIndex = i">{{ selectedSysIndex === i ? '已选' : '选择' }}</a></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="gcs-total-bar">
+              <span>GCS 总分</span><strong>{{ gcsModalTotalText }}</strong>
+              <em v-if="gcsModalComplete">神经系统得分 {{ gcsModalScore }} 分</em>
+              <em v-else class="gcs-warn">请在睁眼 / 言语 / 运动三项中各选一档，评全后自动计分</em>
+            </div>
+            <div class="gcs-row">
+              <div class="gcs-row-title">睁眼反应（E）</div>
+              <div class="gcs-options">
+                <button v-for="opt in GCS_EYE_OPTIONS" :key="opt.value" :class="{ active: gcsForm.eye === opt.value }"
+                        @click="gcsForm.eye = opt.value">{{ opt.value }} {{ opt.label }}</button>
+              </div>
+            </div>
+            <div class="gcs-row">
+              <div class="gcs-row-title">言语反应（V）</div>
+              <div class="gcs-options">
+                <button v-for="opt in GCS_VERBAL_OPTIONS" :key="opt.value" :class="{ active: gcsForm.verbal === opt.value }"
+                        @click="gcsForm.verbal = opt.value">{{ opt.value }} {{ opt.label }}</button>
+              </div>
+            </div>
+            <div class="gcs-row">
+              <div class="gcs-row-title">运动反应（M）</div>
+              <div class="gcs-options">
+                <button v-for="opt in GCS_MOTOR_OPTIONS" :key="opt.value" :class="{ active: gcsForm.motor === opt.value }"
+                        @click="gcsForm.motor = opt.value">{{ opt.value }} {{ opt.label }}</button>
+              </div>
+            </div>
+          </template>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" @click="showGcsModal = false">取消</button>
+          <button v-if="gcsTab === 'sys'" class="btn btn-primary" :disabled="selectedSysIndex < 0" @click="confirmPickSystemGcs">确定选择</button>
+          <button v-else class="btn btn-primary" @click="confirmGcs">确认评估</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 来源弹窗 -->
     <div class="modal-mask" v-if="showSource" @click.self="showSource = false">
       <div class="modal">
@@ -314,8 +409,6 @@
           <div class="src-note" v-if="sourceItem && sourceItem.key === 'cardio'">
             注：循环趋势仅展示 MAP 序列；血管活性药剂量见上方「当前值」。
           </div>
-          <div class="src-title">原始数据（落库 JSON）</div>
-          <pre class="src-json">{{ prettyJson(sourceItem && sourceItem.rawJson) }}</pre>
           <div class="src-title">取数说明</div>
           <div class="src-desc">
             取数窗口内<b>最差值</b>：呼吸/凝血/MAP 取最低，肝/肌酐取最高；循环（MAP 与血管活性药）与肾（肌酐与尿量）<b>二选一取高分</b>。
@@ -543,7 +636,7 @@ import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import {
   fetchSofaAssessment, fetchSofaAssessmentByNo, saveSofaRecord, fetchSofaRecords, deleteSofaRecord,
-  fetchSofaTrend, fetchSofaRecordPdf, attachSofaRecordPdf
+  fetchSofaTrend, fetchSofaRecordPdf, attachSofaRecordPdf, fetchSofaGcsRecords
 } from '../api/sofa'
 import { isExternalMode } from '../utils/external'
 
@@ -570,6 +663,17 @@ const gcsTotal = ref(null)
 const gcsDetail = ref('')
 const urineMl = ref(null)
 
+// GCS 弹窗（与 APACHE II 同款：自动同步最新 / 手动选择系统记录 / 手工新建评估）
+const showGcsModal = ref(false)
+const gcsTab = ref('sys')
+const systemGcsList = ref([])
+const gcsSyncLoading = ref(false)
+const selectedSysIndex = ref(-1)
+/** 手工新建评估的临时选择（确认后才写入 inputs.gcs，取消不影响已填值） */
+const gcsForm = reactive({ eye: null, verbal: null, motor: null })
+/** 本次由弹窗带入的 E/V/M 文案（与总分一致时才作为落库明细） */
+const gcsLocalDetail = ref('')
+
 const patient = reactive({ patientId: '', inHospitalNo: '', name: '', bedCode: '', age: '', ageUnit: '岁', gender: '', departCode: '', departName: '', inDepartTime: '' })
 const items = ref([])
 const totalScore = ref(0)
@@ -588,8 +692,10 @@ const loading = ref(false)
 
 const rangeStart = ref('')
 const rangeEnd = ref('')
-/** 当前选中的快捷区间（24/48/72 小时，手动改时间后清空） */
+/** 当前选中的快捷区间（24/48 小时 或 入科后/入科前 24h，手动改时间后为 custom） */
 const activeRange = ref(null)
+/** 手改时间后尚未重新取数的标记（仅作提示，不阻断操作） */
+const rangeDirty = ref(false)
 const showSource = ref(false)
 const sourceItem = ref(null)
 /** 来源弹窗趋势图点数（>0 时在标题上提示） */
@@ -826,6 +932,8 @@ function applyInputChange() {
 function onNumInput(field, ev) {
   const raw = ev && ev.target ? ev.target.value : ''
   inputs[field] = isEmptyNum(raw) ? null : Number(raw)
+  // 手工直接改总分：弹窗带入的 E/V/M 明细不再对应，清空避免误导
+  if (field === 'gcs') gcsLocalDetail.value = ''
   applyInputChange()
 }
 
@@ -860,6 +968,156 @@ const gcsHint = computed(() => {
 })
 
 const urinePh = computed(() => ((rawOf('renal').urineMl === null || rawOf('renal').urineMl === undefined) ? '窗口<24h' : '无数据'))
+
+// ---------------- GCS 弹窗（自动同步最新 / 手动选择 / 手工新建，与 APACHE II 同口径） ----------------
+
+const GCS_EYE_OPTIONS = [
+  { value: 4, label: '自发睁眼' },
+  { value: 3, label: '语言命令睁眼' },
+  { value: 2, label: '疼痛刺激睁眼' },
+  { value: 1, label: '无反应' }
+]
+const GCS_VERBAL_OPTIONS = [
+  { value: 5, label: '定向力正常' },
+  { value: 4, label: '意识模糊' },
+  { value: 3, label: '言语不当' },
+  { value: 2, label: '难以理解' },
+  { value: 1, label: '无反应' }
+]
+const GCS_MOTOR_OPTIONS = [
+  { value: 6, label: '遵嘱活动' },
+  { value: 5, label: '定位疼痛' },
+  { value: 4, label: '躲避疼痛' },
+  { value: 3, label: '异常屈曲' },
+  { value: 2, label: '异常伸展' },
+  { value: 1, label: '无反应' }
+]
+
+const gcsIn = (v, lo, hi) => { const n = Number(v); return Number.isInteger(n) && n >= lo && n <= hi }
+const gcsModalComplete = computed(() => gcsIn(gcsForm.eye, 1, 4) && gcsIn(gcsForm.verbal, 1, 5) && gcsIn(gcsForm.motor, 1, 6))
+const gcsModalTotal = computed(() => gcsModalComplete.value
+  ? Number(gcsForm.eye) + Number(gcsForm.verbal) + Number(gcsForm.motor) : null)
+const gcsModalTotalText = computed(() => (gcsModalComplete.value ? gcsModalTotal.value : '—'))
+const gcsModalScore = computed(() => (gcsModalComplete.value ? scoreNeuro(gcsModalTotal.value) : null))
+
+/** 当前生效的 GCS 明细文案：总分与带入值一致时才展示 E/V/M，否则视为手工录入 */
+const gcsDetailText = computed(() => {
+  if (isEmptyNum(inputs.gcs)) return ''
+  const t = Number(inputs.gcs)
+  if (gcsLocalDetail.value && Number(gcsTotal.value) === t) return gcsLocalDetail.value
+  if (gcsDetail.value && Number(gcsTotal.value) === t) return gcsDetail.value
+  return `手工录入 ${t} 分`
+})
+
+/** 从 "E4V5M6" 解析三项（用于打开弹窗时预填手工页） */
+function parseGcsDetail(text) {
+  const m = /E(\d+)V(\d+)M(\d+)/.exec(String(text || ''))
+  if (!m) return null
+  return { eye: Number(m[1]), verbal: Number(m[2]), motor: Number(m[3]) }
+}
+
+function openGcsModal() {
+  showGcsModal.value = true
+  gcsTab.value = 'sys'
+  selectedSysIndex.value = -1
+  // 用当前生效值预填手工页，便于在自动/已填总分基础上微调
+  const d = parseGcsDetail(gcsLocalDetail.value || gcsDetail.value)
+  gcsForm.eye = d ? d.eye : null
+  gcsForm.verbal = d ? d.verbal : null
+  gcsForm.motor = d ? d.motor : null
+  loadSystemGcs(true)
+}
+
+/** 拉取重症系统 Z_ICU_GCS 评估记录；silent=true 时无记录不弹提示（打开弹窗自动调用） */
+async function loadSystemGcs(silent) {
+  const pid = patient.patientId || patientId.value
+  if (!pid) {
+    if (!silent) ElMessage.warning('未获取到患者信息，无法拉取系统记录')
+    return
+  }
+  gcsSyncLoading.value = true
+  try {
+    const res = await fetchSofaGcsRecords(pid)
+    systemGcsList.value = Array.isArray(res) ? res : []
+    // 默认选中最新一条（后端已按评估时间倒序）
+    selectedSysIndex.value = systemGcsList.value.length ? 0 : -1
+    if (!silent && !systemGcsList.value.length) ElMessage.info('重症系统暂无该患者的 GCS 评估记录')
+  } catch (e) {
+    if (!silent) console.warn('拉取重症系统GCS记录失败：', e.message || '')
+  } finally {
+    gcsSyncLoading.value = false
+  }
+}
+
+/** 表格 GCS 列：非插管三项齐全显示合计，插管显示原始 totalText（如 2+ET+2） */
+function gcsRowTotal(rec) {
+  if (rec.intubated) return rec.totalText || 'ET'
+  if (rec.eye !== null && rec.eye !== undefined && rec.verbal !== null && rec.verbal !== undefined
+    && rec.motor !== null && rec.motor !== undefined) {
+    return Number(rec.eye) + Number(rec.verbal) + Number(rec.motor)
+  }
+  return '—'
+}
+
+/** 把弹窗选定的 E/V/M 合计写入可编辑的 GCS 输入值（自动重算神经项分值与总分） */
+function applyGcsTotal(total, detail) {
+  inputs.gcs = total
+  gcsLocalDetail.value = detail || ''
+  gcsTotal.value = total
+  gcsDetail.value = detail || ''
+  applyInputChange()
+}
+
+/** 「确定选择」：三项齐全直接带入并关闭；插管/缺言语则带入可用项并跳手工页补评 */
+function confirmPickSystemGcs() {
+  const rec = systemGcsList.value[selectedSysIndex.value]
+  if (!rec) {
+    ElMessage.warning('请先在列表中选择一条 GCS 记录')
+    return
+  }
+  const e = (rec.eye === null || rec.eye === undefined) ? null : Number(rec.eye)
+  const v = (!rec.intubated && rec.verbal !== null && rec.verbal !== undefined) ? Number(rec.verbal) : null
+  const m = (rec.motor === null || rec.motor === undefined) ? null : Number(rec.motor)
+  if (e !== null && v !== null && m !== null) {
+    applyGcsTotal(e + v + m, `E${e}V${v}M${m}`)
+    ElMessage.success(`已从重症系统同步 GCS ${e + v + m} 分（E${e}V${v}M${m}）`)
+    showGcsModal.value = false
+    return
+  }
+  // 插管/缺项：带入可用项，转到手工页补评
+  gcsForm.eye = e
+  gcsForm.verbal = v
+  gcsForm.motor = m
+  gcsTab.value = 'manual'
+  ElMessage.warning(rec.intubated
+    ? '该患者气管插管/气切（ET），言语(V) 无法从系统获取，已带入睁眼(E)、运动(M)，请人工评定言语'
+    : '该记录存在缺项，已带入可用项，请在「手工新建评估」中补选')
+}
+
+/** 「自动同步最新记录」：拉取后直接带入最新一条（插管/缺 V 时跳手工页补评） */
+async function syncLatestGcs() {
+  await loadSystemGcs(false)
+  if (systemGcsList.value.length) {
+    selectedSysIndex.value = 0
+    confirmPickSystemGcs()
+  } else {
+    ElMessage.info('重症系统暂无 GCS 记录，请切换到「手工新建评估」录入')
+  }
+}
+
+/** 手工新建评估：三项齐全后写入 GCS 总分 */
+function confirmGcs() {
+  if (!gcsModalComplete.value) {
+    ElMessage.warning('请在睁眼、言语、运动三项中各选一档')
+    return
+  }
+  const e = Number(gcsForm.eye)
+  const v = Number(gcsForm.verbal)
+  const m = Number(gcsForm.motor)
+  applyGcsTotal(e + v + m, `E${e}V${v}M${m}`)
+  ElMessage.success(`已填入 GCS ${e + v + m} 分（E${e}V${v}M${m}）`)
+  showGcsModal.value = false
+}
 
 /** 趋势图高亮值：肝/肾趋势按 mg/dL（与后端同口径），其余取输入值 */
 function chartMarkValue(it) {
@@ -897,18 +1155,103 @@ function toBackend(v) {
   return v.replace('T', ' ') + (v.length === 16 ? ':00' : '')
 }
 
+/** 当前区间回显（MM-dd HH:mm ~ MM-dd HH:mm） */
+const rangeText = computed(() => {
+  const s = fmtRangeInput(rangeStart.value)
+  const e = fmtRangeInput(rangeEnd.value)
+  return (s && e) ? `${s} ~ ${e}` : '—'
+})
+
+/** 快捷区间标签：让医生一眼看到当前区间是怎么来的 */
+const rangeTag = computed(() => {
+  if (activeRange.value === 24) return '最近24小时'
+  if (activeRange.value === 48) return '最近48小时'
+  if (activeRange.value === 'admission_after') return '入科后24h'
+  if (activeRange.value === 'admission_before') return '入科前24h'
+  if (activeRange.value === 'custom') return '自定义'
+  return ''
+})
+
+function fmtRangeInput(v) {
+  const s = String(v || '')
+  return s.length >= 16 ? `${s.slice(5, 10)} ${s.slice(11, 16)}` : s
+}
+
+function parseLocalInput(v) {
+  if (!v) return null
+  const d = new Date(String(v).replace(' ', 'T'))
+  return isNaN(d.getTime()) ? null : d
+}
+
+/**
+ * 取数窗口校验：起止必须完整且 start < end；跨度 > 7 天二次确认（避免误选后长时间取数）。
+ * @return {Promise<boolean>} 通过校验为 true
+ */
+async function validateRange() {
+  const s = parseLocalInput(rangeStart.value)
+  const e = parseLocalInput(rangeEnd.value)
+  if (!s || !e) {
+    ElMessage.warning('请先选择完整的取数起止时间')
+    return false
+  }
+  if (s.getTime() >= e.getTime()) {
+    ElMessage.warning('取数开始时间必须早于结束时间，请重新选择')
+    return false
+  }
+  const days = (e.getTime() - s.getTime()) / 86400000
+  if (days > 7) {
+    try {
+      await ElMessageBox.confirm(`当前取数跨度约 ${days.toFixed(1)} 天，数据量大时取数会明显变慢，确认继续？`,
+        '取数范围偏大', { confirmButtonText: '继续取数', cancelButtonText: '重新选择', type: 'warning' })
+    } catch (err) {
+      return false
+    }
+  }
+  return true
+}
+
+/** 快捷区间：改时间后立即重新取数（无需再点按钮），并标记选中态 */
 function quickRange(hours) {
   const now = new Date()
   rangeEnd.value = toLocalInput(now)
   rangeStart.value = toLocalInput(new Date(now.getTime() - hours * 3600 * 1000))
   activeRange.value = hours
+  rangeDirty.value = false
   loadAssessment()
 }
 
-/** 手动修改时间输入后清除快捷区间高亮 */
-function onRangeInput() {
-  activeRange.value = null
+/**
+ * 按入科时间取 24h 窗口（after=true 为「入科后24h」，false 为「入科前24h」），与 APACHE II 同口径。
+ * 入科时间缺失或格式异常时提示并保持当前范围不变。
+ */
+function setAdmissionRange(after) {
+  const t = patient.inDepartTime
+  if (!t) {
+    ElMessage.warning('未获取到入科时间，无法按入科时间取数')
+    return
+  }
+  const base = new Date(String(t).replace(' ', 'T'))
+  if (isNaN(base.getTime())) {
+    ElMessage.warning('入科时间格式异常，无法按入科时间取数')
+    return
+  }
+  if (after) {
+    rangeStart.value = toLocalInput(base)
+    rangeEnd.value = toLocalInput(new Date(base.getTime() + 24 * 3600 * 1000))
+    activeRange.value = 'admission_after'
+  } else {
+    rangeStart.value = toLocalInput(new Date(base.getTime() - 24 * 3600 * 1000))
+    rangeEnd.value = toLocalInput(base)
+    activeRange.value = 'admission_before'
+  }
+  rangeDirty.value = false
   loadAssessment()
+}
+
+/** 手动修改时间：切到「自定义」态并标记待取数（不自动请求，避免输入过程中反复打后端） */
+function onRangeInput() {
+  activeRange.value = 'custom'
+  rangeDirty.value = true
 }
 
 function fmtTime(t) {
@@ -925,12 +1268,10 @@ function scoreClass(s) {
   return 'low'
 }
 
-function prettyJson(s) {
-  if (!s) return '—'
-  try { return JSON.stringify(JSON.parse(s), null, 2) } catch (e) { return s }
-}
-
 async function loadAssessment() {
+  // 统一入口校验：所有取数（快捷区间 / 按入科时间 / 手动点按钮）都走这里
+  if (!(await validateRange())) return
+  rangeDirty.value = false
   const startTime = toBackend(rangeStart.value)
   const endTime = toBackend(rangeEnd.value)
   loading.value = true
@@ -1085,7 +1426,13 @@ async function renderSourceTrend(it) {
         symbolSize: 40,
         itemStyle: { color: '#f56c6c' },
         label: { fontSize: 10, color: '#fff', formatter: '评分取值' },
-        data: points.filter(p => Math.abs(Number(p[1]) - Number(markValue)) < 0.001)
+        // ⚠️ data 项必须是对象，不能写成 [时间, 数值] 数组：
+        // ECharts 的 MarkerModel 会对数组项执行 fillLabel(item[0]) / fillLabel(item[1])，
+        // 即给数组元素本身写 label 属性，字符串元素会抛
+        // "Cannot create property 'label' on string '...'" 并中断整个 setOption（趋势图空白）。
+        data: points
+          .filter(p => Math.abs(Number(p[1]) - Number(markValue)) < 0.001)
+          .map(p => ({ name: '评分取值', coord: [p[0], Number(p[1])], value: Number(p[1]) }))
       }
     }]
   }, true)
@@ -1172,6 +1519,9 @@ function buildRecord() {
     neuroScore: s('neuro'),
     renalScore: s('renal'),
     totalScore: totalScore.value,
+    // GCS 汇总：医生弹窗同步/手工录入后随记录落库，供文书与历史复核（后端仅在缺分值时兜底重算）
+    gcsTotal: isEmptyNum(inputs.gcs) ? null : Number(inputs.gcs),
+    gcsDetail: gcsDetailText.value || null,
     remark: baseRemark,
     createBy: realname.value || username.value || 'doctor'
   }
@@ -1232,6 +1582,8 @@ function recalcTotal() {
 function resetOverridesFromItems() {
   initInputsFromItems()
   restoreAutoScores()
+  // 重新取数后旧的弹窗明细失效，改由后端返回的 gcsDetail 决定展示
+  gcsLocalDetail.value = ''
 }
 
 // ---------------- 左侧评分记录栏 ----------------
@@ -1671,26 +2023,27 @@ function base64ToBlob(base64, type) {
 .btn-trend:hover { color: #409eff; border-color: #c6e2ff; background: #ecf5ff; }
 
 /* ===== 总览条：总分卡 + 6 器官小卡 ===== */
-.overview { display: flex; gap: 12px; background: #fafafa; border: 1px solid #ebeef5; border-radius: 6px; padding: 12px; margin-top: 12px; margin-bottom: 12px; }
-.ov-total { width: 200px; flex-shrink: 0; border-radius: 8px; color: #fff; padding: 12px 14px; background: linear-gradient(135deg,#409eff,#66b1ff); box-shadow: 0 2px 6px rgba(64,158,255,.3); display: flex; flex-direction: column; box-sizing: border-box; }
+.overview { display: flex; gap: 10px; background: #fafafa; border: 1px solid #ebeef5; border-radius: 6px; padding: 10px; margin-top: 12px; margin-bottom: 12px; }
+/* 总分卡：内容像 APACHE II 那样卡内居中（label / 分值 / 底部说明整体垂直居中） */
+.ov-total { width: 190px; flex-shrink: 0; border-radius: 8px; color: #fff; padding: 10px 14px; background: linear-gradient(135deg,#409eff,#66b1ff); box-shadow: 0 2px 6px rgba(64,158,255,.3); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; box-sizing: border-box; }
 .ov-total .t-label { font-size: 12px; opacity: .92; }
-.ov-total .t-num { font-size: 36px; font-weight: 700; line-height: 1.2; margin: 0 0 6px; }
-.ov-total .t-pill { align-self: flex-start; font-size: 12px; color: #fff; background: rgba(255,255,255,.20); border: 1px solid rgba(255,255,255,.28); padding: 3px 11px; border-radius: 16px; }
-.ov-total .t-delta { margin-top: 7px; font-size: 12px; opacity: .95; }
+.ov-total .t-num { font-size: 34px; font-weight: 700; line-height: 1.15; }
+.ov-total .t-pill { margin-top: 4px; font-size: 12px; color: #fff; background: rgba(255,255,255,.20); border: 1px solid rgba(255,255,255,.28); padding: 3px 11px; border-radius: 16px; }
+.ov-total .t-delta { margin-top: 5px; font-size: 12px; opacity: .95; }
 .ov-total .t-delta b { color: #FFE7A8; }
-.ov-total .t-foot { margin-top: auto; padding-top: 6px; font-size: 12px; opacity: .82; }
-.ov-organs { flex: 1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; min-width: 0; }
-.ov-card { background: #fff; border: 1px solid #ebeef5; border-radius: 8px; padding: 14px 8px 0; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; box-sizing: border-box; }
-.ov-pic { width: 54px; height: 54px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.04); }
-.ov-pic svg { width: 32px; height: 32px; display: block; }
+.ov-total .t-foot { margin-top: 5px; font-size: 12px; opacity: .92; background: rgba(255,255,255,.2); border-radius: 10px; padding: 2px 8px; }
+.ov-organs { flex: 1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; min-width: 0; }
+.ov-card { background: #fff; border: 1px solid #ebeef5; border-radius: 8px; padding: 10px 8px 0; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; box-sizing: border-box; }
+.ov-pic { width: 46px; height: 46px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.04); }
+.ov-pic svg { width: 28px; height: 28px; display: block; }
 .ov-pic.green { color: #67c23a; background: rgba(103,194,58,0.12); }
 .ov-pic.blue { color: #409eff; background: rgba(64,158,255,0.12); }
 .ov-pic.orange { color: #e6a23c; background: rgba(230,162,60,0.12); }
 .ov-pic.red { color: #f56c6c; background: rgba(245,108,108,0.12); }
 .ov-name { font-size: 13px; font-weight: 500; color: #606266; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.ov-foot { margin-top: auto; width: 100%; display: flex; align-items: baseline; justify-content: center; gap: 2px; padding: 7px 0 9px; border-top: 1px dashed #eef1f6; }
+.ov-foot { margin-top: auto; width: 100%; display: flex; align-items: baseline; justify-content: center; gap: 2px; padding: 5px 0 7px; border-top: 1px dashed #eef1f6; }
 .ov-unit { font-size: 11px; color: #909399; }
-.ov-num { font-size: 22px; font-weight: 700; line-height: 1; color: #303133; }
+.ov-num { font-size: 20px; font-weight: 700; line-height: 1; color: #303133; }
 .ov-num.green { color: #67c23a; }
 .ov-num.blue { color: #409eff; }
 .ov-num.orange { color: #e6a23c; }
@@ -1780,9 +2133,57 @@ table.score td.act { padding: 4px 6px; height: auto; }
 .src-value { font-size: 20px; font-weight: 700; color: #409eff; margin-top: 4px; }
 .src-section { font-size: 13px; color: #606266; margin-bottom: 6px; }
 .src-title { margin: 12px 0 6px; font-weight: 600; font-size: 13px; color: #303133; border-left: 3px solid #409eff; padding-left: 8px; }
-.src-json { background: #f5f7fa; border: 1px solid #ebeef5; border-radius: 6px; padding: 10px; font-size: 12px; color: #606266; max-height: 220px; overflow: auto; }
 .src-desc { font-size: 13px; color: #606266; line-height: 1.8; }
 .src-count { margin-left: 6px; font-weight: 400; color: #909399; }
 .src-note { margin: 0 0 10px; font-size: 12px; color: #909399; line-height: 1.6; }
 .src-note-warn { color: #e6a23c; }
+
+/* ===== 取数时间范围：快捷按钮组 / 自定义态 / 区间回显 ===== */
+.range-presets { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.range-row .sel.custom { border-color: #409eff; background: #f2f8ff; }
+.range-chip { height: 32px; display: inline-flex; align-items: center; padding: 0 12px; border: 1px dashed #dcdfe6; border-radius: 4px; color: #a8abb2; font-size: 13px; cursor: default; }
+.range-chip.active { border-style: solid; border-color: #409eff; background: #ecf5ff; color: #409eff; font-weight: 600; }
+.range-echo { display: flex; align-items: center; gap: 8px; margin: 6px 0 10px; padding: 6px 12px; background: #f7fbff; border: 1px solid #edf2f8; border-radius: 6px; font-size: 12.5px; color: #40546c; }
+.range-echo .echo-lbl { color: #909399; }
+.range-echo b { font-weight: 600; color: #303133; }
+.range-echo .echo-tag { padding: 1px 8px; border-radius: 10px; background: #ecf5ff; color: #409eff; font-size: 11.5px; }
+.range-echo .echo-tip { margin-left: auto; color: #e6a23c; }
+
+/* ===== GCS 行弹窗入口 ===== */
+.score .gcs-open { display: block; margin: 4px auto 0; padding: 0 6px; height: 22px; line-height: 20px; border: 1px solid #c6e2ff; border-radius: 4px; background: #f2f8ff; color: #409eff; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+.score .gcs-open:hover { background: #ecf5ff; border-color: #409eff; }
+
+/* ===== GCS 弹窗（自动同步最新 / 手动选择 / 手工新建） ===== */
+.gcs-modal { width: min(780px, calc(100vw - 40px)); max-height: 86vh; display: flex; flex-direction: column; overflow: hidden; }
+.gcs-modal .modal-body { flex: 1; overflow-y: auto; }
+.gcs-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.gcs-tab { height: 34px; padding: 0 16px; border: 1px solid #dcdfe6; border-radius: 6px; background: #fff; color: #606266; font-size: 13px; cursor: pointer; }
+.gcs-tab.active { border-color: #409eff; background: #ecf5ff; color: #409eff; font-weight: 600; }
+.gcs-sys-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.gcs-sys-tip { font-size: 12px; color: #728096; line-height: 1.5; }
+.gcs-mini-primary { flex: 0 0 auto; height: 30px; padding: 0 14px; border: none; border-radius: 6px; background: #409eff; color: #fff; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.gcs-mini-primary:disabled { opacity: .6; cursor: not-allowed; }
+.gcs-sys-table { max-height: 340px; overflow-y: auto; border: 1px solid #e8edf4; border-radius: 8px; }
+.gcs-sys-table table { width: 100%; border-collapse: collapse; }
+.gcs-sys-table th, .gcs-sys-table td { padding: 9px 8px; text-align: center; font-size: 12.5px; color: #40546c; border-bottom: 1px solid #eef2f7; white-space: nowrap; }
+.gcs-sys-table th { position: sticky; top: 0; background: #f5f8fc; color: #728096; font-weight: 600; z-index: 1; }
+.gcs-sys-table tbody tr { cursor: pointer; }
+.gcs-sys-table tbody tr:hover { background: #f2f8ff; }
+.gcs-sys-table tbody tr.selected { background: #e8f3ff; }
+.gcs-sys-table td.gcs-empty { text-align: center; color: #94a3b8; padding: 24px 8px; cursor: default; white-space: normal; }
+.gcs-sys-table .pick-link { color: #409eff; font-weight: 600; cursor: pointer; }
+.et-tag { display: inline-block; padding: 1px 7px; border-radius: 4px; background: #fff1ea; color: #c2410c; font-size: 11px; font-weight: 600; }
+.gcs-total-bar { padding: 14px; background: #f2f8ff; border-radius: 8px; text-align: center; margin-bottom: 14px; }
+.gcs-total-bar span { font-size: 13px; color: #409eff; font-weight: 600; }
+.gcs-total-bar strong { font-size: 32px; color: #409eff; margin: 0 8px; }
+.gcs-total-bar em { font-size: 13px; color: #337ecc; font-style: normal; }
+.gcs-total-bar em.gcs-warn { color: #c2410c; }
+.gcs-row { margin-bottom: 14px; }
+.gcs-row-title { font-size: 14px; font-weight: 600; color: #34445b; margin-bottom: 8px; }
+.gcs-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.gcs-options button { min-width: 150px; height: 36px; padding: 0 14px; border: 1px solid #d9e2ef; border-radius: 6px; background: #fff; color: #334155; font-size: 13px; cursor: pointer; text-align: left; }
+.gcs-options button.active { border-color: #409eff; background: #409eff; color: #fff; }
+@media (max-width: 900px) {
+  .gcs-options button { min-width: 100%; }
+}
 </style>

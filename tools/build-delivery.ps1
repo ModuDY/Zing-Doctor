@@ -117,6 +117,8 @@ $lines = New-Object System.Collections.ArrayList
 [void]$lines.Add('生成时间：' + (Get-Date -Format 'yyyy-MM-dd HH:mm'))
 [void]$lines.Add('形态：' + $formDesc)
 [void]$lines.Add('')
+[void]$lines.Add('解压后顶层目录就是 zing-doctor/（可直接覆盖上一次的部署目录）。')
+[void]$lines.Add('')
 [void]$lines.Add('## 目录')
 [void]$lines.Add('- app/zing-doctor.jar   后端可执行 jar（JDK 8+，8081，已含达梦驱动）')
 [void]$lines.Add('- frontend/dist/        前端静态产物')
@@ -126,34 +128,74 @@ $lines = New-Object System.Collections.ArrayList
 [void]$lines.Add('- lib/                  达梦 JDBC 驱动')
 [void]$lines.Add('- docs/                 架构、外链规范、部署手册、产品设计')
 [void]$lines.Add('')
-[void]$lines.Add('## 全新部署')
+[void]$lines.Add('## 全新部署（在部署目录的父目录执行，例如 /data）')
 [void]$lines.Add('```')
+[void]$lines.Add('cd /data')
+[void]$lines.Add('unzip -o zing-doctor-deploy-<日期>-lite.zip     # 解出 /data/zing-doctor')
 [void]$lines.Add('cd zing-doctor')
 [void]$lines.Add('# 修改 docker-compose.yml：DOCTOR_URL / DOCTOR_USERNAME / DOCTOR_PASSWORD / EXTERNAL_LINK_BASE_URL')
-[void]$lines.Add('docker compose up -d --build')
+[void]$lines.Add('bash install.sh                                 # 无外网走内网直连；有外网也可 docker compose up -d --build')
 [void]$lines.Add('```')
 [void]$lines.Add('')
-[void]$lines.Add('## 增量更新（后端 jar 变了需重建镜像；前端为 volume 挂载，覆盖即可）')
+[void]$lines.Add('## 增量更新（推荐：整包覆盖，一步到位）')
+[void]$lines.Add('在部署目录的【父目录】执行，解压会自动覆盖 zing-doctor/ 里的旧文件：')
 [void]$lines.Add('```')
-[void]$lines.Add('cp -f app/zing-doctor.jar <部署目录>/app/zing-doctor.jar')
-[void]$lines.Add('rm -rf <部署目录>/frontend/dist && cp -r frontend/dist <部署目录>/frontend/')
-[void]$lines.Add('docker compose build backend && docker compose up -d backend && docker compose restart frontend')
+[void]$lines.Add('cd /data                       # 部署目录 /data/zing-doctor 的父目录')
+[void]$lines.Add('unzip -o zing-doctor-deploy-<日期>-lite.zip')
+[void]$lines.Add('cd zing-doctor && bash install.sh')
 [void]$lines.Add('```')
-[void]$lines.Add('注意：不要整目录覆盖，会还原已修改的 docker-compose.yml。')
+[void]$lines.Add('只想零星替换文件时：')
+[void]$lines.Add('```')
+[void]$lines.Add('cp -f <新包>/app/zing-doctor.jar <部署目录>/app/zing-doctor.jar')
+[void]$lines.Add('cp -r <新包>/frontend/dist/. <部署目录>/frontend/dist/    # 覆盖目录内容')
+[void]$lines.Add('rm -f <部署目录>/backend.pid && bash <部署目录>/install.sh')
+[void]$lines.Add('```')
+[void]$lines.Add('')
+[void]$lines.Add('## 常见坑')
+[void]$lines.Add('- 前端 dist 是 bind mount：**不要 `rm -rf frontend/dist`**（目录 inode 变化后容器仍挂旧空目录，表现为 403/500 或页面不更新），要用覆盖内容的方式。')
+[void]$lines.Add('- **不要在部署目录内部解压**新包（会多出一层 zing-doctor/zing-doctor，install.sh 部署的还是里面那份）。')
+[void]$lines.Add('- 不要整目录覆盖 docker-compose.yml（会还原你改过的达梦地址 / EXTERNAL_LINK_BASE_URL）。')
+[void]$lines.Add('- 更新后核对版本：`docker exec zing-doctor-frontend grep -o "SofaScore-[A-Za-z0-9_-]*\.js" /usr/share/nginx/html/index.html`')
+[void]$lines.Add('- 浏览器仍显示旧页面时先 Ctrl+F5：index.html 已配 no-cache，正常发版即可生效。')
 [IO.File]::WriteAllLines((Join-Path $work 'DEPLOY.md'), $lines, (New-Object Text.UTF8Encoding($false)))
 
+# ---------- 行尾归一化：CRLF -> LF ----------
+# ⚠️ Windows 工作区里的 install.sh / docker-compose.yml / nginx.conf / *.sql 都是 CRLF。
+# 直接打进 zip 后，Linux 上按 shebang 执行 install.sh 会报：
+#   /usr/bin/env: “bash\r”: 没有那个文件或目录
+# YAML/nginx 配置虽多数场景容忍 CRLF，但统一成 LF 最省事。
+# 注意：jar / png 等二进制不动（按扩展名白名单处理）。
+$lfExt = @('.sh', '.sql', '.yml', '.yaml', '.conf', '.md', '.java', '.properties', '.xml', '.txt', '.cfg', '.ini', '.env')
+$lfFiles = Get-ChildItem $work -Recurse -File | Where-Object {
+    ($lfExt -contains $_.Extension.ToLower()) -or ($_.Name -eq 'Dockerfile') -or ($_.Name -like 'Dockerfile.*')
+}
+$lfCount = 0
+foreach ($f in $lfFiles) {
+    $text = [IO.File]::ReadAllText($f.FullName)
+    if ($text.Contains("`r`n") -or $text.Contains("`r")) {
+        $text = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+        [IO.File]::WriteAllText($f.FullName, $text, (New-Object Text.UTF8Encoding($false)))
+        $lfCount++
+    }
+}
+Write-Host (">>> 行尾归一化（CRLF -> LF）：$lfCount 个文本文件") -ForegroundColor Cyan
+
 # ---------- 压缩 ----------
+# ⚠️ 条目必须以 zing-doctor/ 开头（以 $stage 为基准，而不是 $work）：
+# 交付包解压出来应得到 zing-doctor/ 目录，用户在父目录 unzip 即可直接覆盖上次的部署目录，
+# 然后 cd zing-doctor && bash install.sh。若剥掉这一层，用户在 /data 下解压会把文件散落到
+# /data 根目录，而 install.sh 仍部署 /data/zing-doctor（旧目录）→ 每次"更新"都不生效。
 # ⚠️ 不用 Compress-Archive：Windows 上它把条目名写成 "frontend\dist\index.html"（反斜杠），
 # Linux 的 unzip 不把 "\" 当路径分隔符，会解出一个名为 "frontend\dist\index.html" 的单文件，
 # 目录结构整体丢失（install.sh 随即报缺 frontend/dist/index.html）。这里显式用 "/" 写条目。
 if (Test-Path $zip) { Remove-Item $zip -Force }
-Write-Host '>>> 压缩中（条目统一用 / 分隔，兼容 Linux unzip）…' -ForegroundColor Cyan
+Write-Host '>>> 压缩中（条目统一用 / 分隔并保留 zing-doctor/ 顶层目录，兼容 Linux unzip）…' -ForegroundColor Cyan
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zipArchive = [IO.Compression.ZipFile]::Open($zip, [IO.Compression.ZipArchiveMode]::Create)
 try {
-    Get-ChildItem $work -Recurse -File | ForEach-Object {
-        $entryName = $_.FullName.Substring($work.Length + 1).Replace('\', '/')
+    Get-ChildItem $stage -Recurse -File | ForEach-Object {
+        $entryName = $_.FullName.Substring($stage.Length + 1).Replace('\', '/')
         [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
             $zipArchive, $_.FullName, $entryName, [IO.Compression.CompressionLevel]::Optimal)
     }

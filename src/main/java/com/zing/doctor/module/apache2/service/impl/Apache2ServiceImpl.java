@@ -232,6 +232,17 @@ public class Apache2ServiceImpl implements Apache2Service {
             result.put("pao2", pao2Worst);
             result.put("aado2", aado2Worst);
 
+            // GCS：同步「取数范围内最新一条评全（非插管）」的系统 GCS，供前端回填 E/V/M 三项。
+            // 之前此处漏了返回，前端虽有回填代码但 data.gcsEye 永远 undefined，
+            // 导致手工「自动获取 / 自动获取并计算」都同步不到系统 GCS。
+            Map<String, Object> gcs = latestSystemGcs(patientId, startTime, endTime);
+            if (gcs != null) {
+                result.put("gcsEye", gcs.get("eye"));
+                result.put("gcsVerbal", gcs.get("verbal"));
+                result.put("gcsMotor", gcs.get("motor"));
+                result.put("gcsRecordTime", gcs.get("recordTime"));
+            }
+
         } catch (Exception e) {
             log.error("自动获取生理数据失败: patientId={}", patientId, e);
         }
@@ -1206,6 +1217,13 @@ public class Apache2ServiceImpl implements Apache2Service {
                 // 仅落客观生理原始值，供医生打开回填复核
                 Map<String, Object> aps = new LinkedHashMap<>();
                 for (String k : apsKeys) if (fetched.get(k) != null) aps.put(k, fetched.get(k));
+                // 同步到的系统 GCS 一并落进 apsData：否则医生打开这条自动初评记录时
+                // E/V/M 三项为空白（看上去像「没同步到 GCS」），也无法复核 C 项分值。
+                if (gcs != null) {
+                    aps.put("gcsEye", gcs.get("eye"));
+                    aps.put("gcsVerbal", gcs.get("verbal"));
+                    aps.put("gcsMotor", gcs.get("motor"));
+                }
                 r.setApsData(om.writeValueAsString(aps));
                 r.setDataStartTime(inTime != null ? inTime : now.minusHours(overHours));
                 r.setDataEndTime(now);

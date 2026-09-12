@@ -35,6 +35,11 @@ export function fetchSofaTrend(patientId, metricKey, startTime, endTime) {
   return request.get(`/sofa/metric-trend/${patientId}`, { params: { metricKey, startTime, endTime } })
 }
 
+/** 重症系统已评估的 GCS 记录（GCS 弹窗：自动同步最新 / 手动选择用） */
+export function fetchSofaGcsRecords(patientId) {
+  return request.get(`/sofa/patient/${patientId}/gcs-records`)
+}
+
 /** 取某条记录的文书 PDF（Base64 + 文件名） */
 export function fetchSofaRecordPdf(id) {
   return request.get(`/sofa/record/${id}/pdf`)

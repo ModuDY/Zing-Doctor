@@ -809,6 +809,21 @@ public class SofaServiceImpl implements SofaService {
     }
 
     /**
+     * 患者在重症系统（Z_ICU_GCS）已评估的 GCS 记录（时间倒序，含插管/未评全记录）。
+     * <p>供评分页 GCS 弹窗的「选择已有记录 / 自动同步最新」使用；与 APACHE II 同源同口径。
+     */
+    @Override
+    public List<Map<String, Object>> listSystemGcs(String patientId) {
+        if (patientId == null || patientId.trim().isEmpty()) return new ArrayList<>();
+        try {
+            return parseGcsRows(safe(icuPatientMapper.selectGcsDocRecords(patientId)));
+        } catch (Exception e) {
+            log.warn("SOFA 查询重症系统 GCS 记录失败: patientId={}", patientId, e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
      * 解析系统 GCS 文书原始行 → 结构化的 E/V/M 记录（保持 SQL 的 record_time 倒序）。
      * <p>item1=睁眼 / item2=言语 / item3=运动；item4=ET（气管插管或气切）时言语反应无法评估，
      * 即使 item2 带数值也不取 V，该条记录不可用于自动同步。
@@ -829,6 +844,7 @@ public class SofaServiceImpl implements SofaService {
 
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("recordTime", row.get("record_time") == null ? null : row.get("record_time").toString());
+                item.put("recordStaffName", row.get("record_staff_name") == null ? null : row.get("record_staff_name").toString());
                 item.put("eye", eye);
                 item.put("verbal", verbal);
                 item.put("motor", motor);

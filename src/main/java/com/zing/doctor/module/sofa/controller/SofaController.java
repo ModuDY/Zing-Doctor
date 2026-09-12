@@ -190,6 +190,20 @@ public class SofaController {
     }
 
     /**
+     * 患者在重症系统（Z_ICU_GCS）已评估的 GCS 记录，供评分页 GCS 弹窗同步/选择。
+     * <p>返回按评估时间倒序的 E/V/M 记录（含插管/未评全记录，由前端决定是否可带入）。
+     */
+    @GetMapping("/patient/{patientId}/gcs-records")
+    public Result<List<Map<String, Object>>> gcsRecords(@PathVariable String patientId) {
+        try {
+            return Result.ok(sofaService.listSystemGcs(patientId));
+        } catch (Exception e) {
+            log.error("SOFA 获取重症系统GCS记录失败: patientId={}", patientId, e);
+            return Result.fail("获取失败: " + e.getMessage());
+        }
+    }
+
+    /**
      * 手动触发自动初评（与每日定时任务同一套逻辑，幂等）。
      * <p>为在科超 {@code overHours}（默认 24）小时且当日无评分的患者生成初评。
      */

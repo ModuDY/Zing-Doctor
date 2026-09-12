@@ -70,6 +70,12 @@ public interface SofaService {
      */
     List<Map<String, Object>> getMetricTrend(String patientId, String metricKey, String startTime, String endTime);
 
+    /**
+     * 患者在重症系统（Z_ICU_GCS）已评估的 GCS 记录，按评估时间倒序（含插管/未评全记录）。
+     * <p>供评分页 GCS 弹窗的「自动同步最新 / 手动选择已有记录」使用，与 APACHE II 同源同口径。
+     */
+    List<Map<String, Object>> listSystemGcs(String patientId);
+
     /** 配置保存：id 为空新增，否则更新 */
     boolean saveConfig(Map<String, Object> body);
 

@@ -27,6 +27,8 @@
             <span>{{ rec.createBy || '—' }}</span>
             <span :class="['record-tag', rec.scoreType === 'auto' ? 'auto' : 'manual']">{{ rec.scoreType === 'auto' ? '自动初评' : '手动评分' }}</span>
             <span v-if="rec.hasPdf === 1" class="record-tag pdf-tag" @click.stop="viewSavedPdf(rec)">PDF文书</span>
+            <!-- 删除按钮与 SOFA 一致，直接放在记录条里；@click.stop 防止连带触发 selectRecord -->
+            <span class="record-tag del-tag" @click.stop="deleteRecord(rec)">删除</span>
           </div>
         </div>
         <div v-if="records.length === 0" class="record-empty">暂无评分记录</div>
@@ -83,15 +85,25 @@
       <!-- 工具栏 -->
       <div class="toolbar">
         <span class="toolbar-label">取数时间范围：</span>
-        <input type="datetime-local" v-model="fetchStartTime" style="height:32px">
+        <input type="datetime-local" class="dt-input" :class="{ 'dt-custom': fetchPreset === 'custom' }"
+               v-model="fetchStartTime" @change="onFetchTimeChange">
         <span style="color:#c0c4cc">至</span>
-        <input type="datetime-local" v-model="fetchEndTime" style="height:32px">
-        <button class="btn" @click="quickRange(24)">24小时</button>
-        <button class="btn" @click="quickRange(48)">48小时</button>
-        <button class="btn" @click="setAdmissionTime(true)">入科后24h</button>
-        <button class="btn" @click="setAdmissionTime(false)">入科前24h</button>
+        <input type="datetime-local" class="dt-input" :class="{ 'dt-custom': fetchPreset === 'custom' }"
+               v-model="fetchEndTime" @change="onFetchTimeChange">
+        <span class="range-presets">
+          <button :class="['btn', { active: fetchPreset === '24h' }]" @click="setRangePreset('24h')">24小时</button>
+          <button :class="['btn', { active: fetchPreset === '48h' }]" @click="setRangePreset('48h')">48小时</button>
+          <button :class="['btn', { active: fetchPreset === 'admission_after' }]" @click="setRangePreset('admission_after')">入科后24h</button>
+          <button :class="['btn', { active: fetchPreset === 'admission_before' }]" @click="setRangePreset('admission_before')">入科前24h</button>
+          <span :class="['range-chip', { active: fetchPreset === 'custom' }]" title="直接修改左侧时间即为自定义区间">自定义</span>
+        </span>
         <button class="btn btn-primary" @click="autoFetchAndCalc">自动获取并计算</button>
         <span style="margin-left:auto;color:#909399;font-size:12px">取数逻辑：范围内最差值（偏离正常最远）</span>
+      </div>
+      <div class="range-echo">
+        <span class="echo-lbl">当前区间</span><b>{{ rangeText }}</b>
+        <span class="echo-tag" v-if="rangeTag">{{ rangeTag }}</span>
+        <span class="echo-tip" v-if="rangeDirty">已改动，点「自动获取并计算」后生效</span>
       </div>
 
       <!-- 内容区 -->
@@ -312,7 +324,6 @@
         <textarea v-model="form.remark" placeholder="备注（可选）"></textarea>
         <div class="footer-total">总分：{{ scoreResult.totalScore || 0 }} 分</div>
         <button class="btn" @click="openReport" :disabled="reportGenerating">预览文书</button>
-        <button v-if="currentRecord && currentRecord.id" class="btn btn-danger" @click="deleteCurrentRecord">删除</button>
         <button class="btn btn-success" @click="saveRecord" :disabled="saving">{{ saving ? '保存中…' : '保存评分' }}</button>
       </div>
     </main>
@@ -741,6 +752,8 @@ const scoreResult = reactive({
 const fetchStartTime = ref('')
 const fetchEndTime = ref('')
 const fetchPreset = ref('admission_after')
+/** 手改时间后尚未重新取数的标记（仅作提示，不阻断操作） */
+const rangeDirty = ref(false)
 
 // 文书预览/导出
 const showReportModal = ref(false)
@@ -1172,6 +1185,74 @@ function applyFetchPreset() {
   }
 }
 
+/** 当前区间回显（MM-dd HH:mm ~ MM-dd HH:mm） */
+const rangeText = computed(() => {
+  const s = fmtRangeInput(fetchStartTime.value)
+  const e = fmtRangeInput(fetchEndTime.value)
+  return (s && e) ? `${s} ~ ${e}` : '—'
+})
+
+/** 快捷区间标签：让医生一眼看到当前区间是怎么来的 */
+const rangeTag = computed(() => {
+  if (fetchPreset.value === '24h') return '最近24小时'
+  if (fetchPreset.value === '48h') return '最近48小时'
+  if (fetchPreset.value === 'admission_after') return '入科后24h'
+  if (fetchPreset.value === 'admission_before') return '入科前24h'
+  if (fetchPreset.value === 'custom') return '自定义'
+  return ''
+})
+
+function fmtRangeInput(v) {
+  const s = String(v || '')
+  return s.length >= 16 ? `${s.slice(5, 10)} ${s.slice(11, 16)}` : s
+}
+
+function parseLocalInput(v) {
+  if (!v) return null
+  const d = new Date(String(v).replace(' ', 'T'))
+  return isNaN(d.getTime()) ? null : d
+}
+
+/**
+ * 取数窗口校验：起止必须完整且 start < end；跨度 > 7 天二次确认（避免误选后长时间取数）。
+ * @return {Promise<boolean>} 通过校验为 true
+ */
+async function validateRange() {
+  const s = parseLocalInput(fetchStartTime.value)
+  const e = parseLocalInput(fetchEndTime.value)
+  if (!s || !e) {
+    ElMessage.warning('请先选择完整的取数起止时间')
+    return false
+  }
+  if (s.getTime() >= e.getTime()) {
+    ElMessage.warning('取数开始时间必须早于结束时间，请重新选择')
+    return false
+  }
+  const days = (e.getTime() - s.getTime()) / 86400000
+  if (days > 7) {
+    try {
+      await ElMessageBox.confirm(`当前取数跨度约 ${days.toFixed(1)} 天，数据量大时取数会明显变慢，确认继续？`,
+        '取数范围偏大', { confirmButtonText: '继续取数', cancelButtonText: '重新选择', type: 'warning' })
+    } catch (err) {
+      return false
+    }
+  }
+  return true
+}
+
+/** 快捷区间按钮：设置时间范围后立即重新取数（与 SOFA 统一），并高亮当前选中项 */
+async function setRangePreset(key) {
+  fetchPreset.value = key
+  applyFetchPreset()
+  await autoFetchAndCalc()
+}
+
+/** 手动修改时间：切到「自定义」态并标记待取数（不自动请求，避免输入过程中反复打后端） */
+function onFetchTimeChange() {
+  fetchPreset.value = 'custom'
+  rangeDirty.value = true
+}
+
 async function autoFetchData() {
   if (!patientInfo.patientId) {
     ElMessage.warning('未获取到患者ID，请刷新页面重试')
@@ -1203,10 +1284,15 @@ async function autoFetchData() {
       // 患者信息
       if (data.age) form.age = data.age
       // GCS：取数范围内最新一条评全（非插管）的系统 GCS，同步到睁眼/言语/运动三项
-      if (data.gcsEye !== null && data.gcsEye !== undefined) form.gcsEye = data.gcsEye
-      if (data.gcsVerbal !== null && data.gcsVerbal !== undefined) form.gcsVerbal = data.gcsVerbal
-      if (data.gcsMotor !== null && data.gcsMotor !== undefined) form.gcsMotor = data.gcsMotor
-      ElMessage.success('自动取数完成')
+      const gcsSynced = data.gcsEye != null && data.gcsVerbal != null && data.gcsMotor != null
+      if (gcsSynced) {
+        form.gcsEye = data.gcsEye
+        form.gcsVerbal = data.gcsVerbal
+        form.gcsMotor = data.gcsMotor
+      }
+      ElMessage.success(gcsSynced
+        ? `自动取数完成，已同步系统 GCS（E${data.gcsEye}V${data.gcsVerbal}M${data.gcsMotor}${data.gcsRecordTime ? '，' + formatDisplayTime(data.gcsRecordTime) : ''}）`
+        : '自动取数完成；取数范围内无「评全且非插管」的系统 GCS，C 项请手工评定')
       calculateScore()
     } else {
       ElMessage.warning('自动取数返回空，请手动填写')
@@ -1217,6 +1303,9 @@ async function autoFetchData() {
 }
 
 async function autoFetchAndCalc() {
+  // 统一入口校验：快捷区间 / 手动点按钮都走这里
+  if (!(await validateRange())) return
+  rangeDirty.value = false
   await autoFetchData()
 }
 
@@ -1373,15 +1462,19 @@ async function saveRecord() {
   }
 }
 
-async function deleteCurrentRecord() {
-  if (!currentRecord.value || !currentRecord.value.id) return
+/** 删除指定记录（左侧记录条内的「删除」，与 SOFA 一致） */
+async function deleteRecord(rec) {
+  if (!rec || !rec.id) return
   try {
-    await ElMessageBox.confirm('确定删除这条评分记录吗？', '确认删除', { type: 'warning' })
-    const res = await request.delete(`/apache2/record/${currentRecord.value.id}`,
+    await ElMessageBox.confirm(`确定删除 ${formatDisplayTime(rec.scoreTime)} 的评分记录吗？`, '确认删除', { type: 'warning' })
+    const res = await request.delete(`/apache2/record/${rec.id}`,
       { params: { operator: 'doctor' }, silentError: true })
     if (res) {
       ElMessage.success('删除成功')
-      currentRecord.value = null
+      // 删掉的正是当前打开的那条时清空选中，避免之后保存误更新到已删记录
+      if (currentRecord.value && currentRecord.value.id === rec.id) {
+        currentRecord.value = null
+      }
       loadRecords()
     }
   } catch (e) {
@@ -2114,6 +2207,9 @@ async function viewSavedPdf(rec) {
 /* 历史记录 PDF 标签 */
 .record-tag.pdf-tag { background: #e1f3d8; color: #389e0d; cursor: pointer; }
 .record-tag.pdf-tag:hover { background: #d3f0c0; }
+/* 记录条内删除按钮（与 SOFA 记录条一致） */
+.record-tag.del-tag { cursor: pointer; }
+.record-tag.del-tag:hover { background: #fef0f0; color: #f56c6c; }
 
 /* 离屏文书渲染源：移出视口但保留真实尺寸供 html2canvas 渲染 */
 .report-offscreen { position: absolute; left: -9999px; top: 0; width: 794px; pointer-events: none; }
@@ -2129,4 +2225,17 @@ async function viewSavedPdf(rec) {
   .factor-grid { grid-template-columns: 1fr; }
   .bottom-row { grid-template-columns: 1fr; }
 }
+
+/* ===== 取数时间范围：快捷按钮组 / 自定义态 / 区间回显 ===== */
+.range-presets { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.toolbar .dt-input { height: 32px; border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 10px; font-size: 13px; outline: none; background: #fff; }
+.toolbar .dt-input.dt-custom { border-color: #409eff; background: #f2f8ff; }
+.btn.active { border-color: #409eff; background: #ecf5ff; color: #409eff; font-weight: 600; }
+.range-chip { height: 32px; display: inline-flex; align-items: center; padding: 0 12px; border: 1px dashed #dcdfe6; border-radius: 4px; color: #a8abb2; font-size: 13px; cursor: default; }
+.range-chip.active { border-style: solid; border-color: #409eff; background: #ecf5ff; color: #409eff; font-weight: 600; }
+.range-echo { display: flex; align-items: center; gap: 8px; padding: 6px 20px; background: #f7fbff; border-bottom: 1px solid #edf2f8; font-size: 12.5px; color: #40546c; }
+.range-echo .echo-lbl { color: #909399; }
+.range-echo b { font-weight: 600; color: #303133; }
+.range-echo .echo-tag { padding: 1px 8px; border-radius: 10px; background: #ecf5ff; color: #409eff; font-size: 11.5px; }
+.range-echo .echo-tip { margin-left: auto; color: #e6a23c; }
 </style>
