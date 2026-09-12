@@ -14,7 +14,11 @@ application-local.yml
 
 # 部署包与运行时二进制
 *.zip
+*.tar.gz
 tools/docker-compose/
+
+# 本地打包工具链（Node/Maven 等临时安装，不入库）
+.tools/
 
 # 预览图与临时文件（frontend/public/logo.png 为源码资源，不受影响）
 sofa-*.png

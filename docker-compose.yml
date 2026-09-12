@@ -30,7 +30,9 @@ services:
       ICU_LINK_TOKEN: zing-icu-link-token-2026
       EXTERNAL_LINK_SECRET: zing-doctor-prod-secret-change-me
       # 外链跳转基础地址（部署机实际访问地址，外部系统跳回时用）
-      EXTERNAL_LINK_BASE_URL: http://10.10.97.119:2001
+      # ⚠️ 必须与浏览器实际访问地址完全一致（含端口 :2001）；留空则跟随请求 Host
+      # （跟随 Host 依赖 nginx 配置 $http_host 透传端口，install.sh 已处理）
+      EXTERNAL_LINK_BASE_URL: http://100.120.1.104:2001
       # ===== 达梦连接（install.sh 从此处提取 DOCTOR_URL 用于数据库初始化）=====
       DOCTOR_URL: jdbc:dm://100.120.1.102:14236
       DOCTOR_USERNAME: SYSDBA

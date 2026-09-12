@@ -190,6 +190,23 @@ else
 fi
 
 # ---------- 3. 构建并启动 ----------
+# ⚠️ 前置校验：前端静态产物必须存在。
+# frontend/dist 以 bind mount 挂成 nginx 的 /usr/share/nginx/html；若它为空（缺 index.html），
+# nginx 的 try_files 会回退到不存在的 /index.html，触发
+#   "rewrite or internal redirection cycle while internally redirecting to /index.html"
+# 表现为：GET / 返回 403、GET /page/xxx 返回 500。
+# （线上曾因交付包中 frontend/dist 为空，出现"部分页面能打开、其余 500"的假象——
+#   能打开的其实只是浏览器缓存里的旧 index.html，与页面本身无关。）
+if [ ! -f "$ROOT/frontend/dist/index.html" ]; then
+  err "缺少前端静态产物：$ROOT/frontend/dist/index.html 不存在（frontend/dist 为空）"
+  err "nginx 会对所有页面返回 403/500，已中止部署。修复方式："
+  err "  1) 交付包已含 frontend/dist，请确认解压完整；增量更新用"
+  err "     cp -r <新包>/frontend/dist/. $ROOT/frontend/dist/"
+  err "     （不要 rm -rf frontend/dist，bind mount 换 inode 后容器仍看到旧空目录）"
+  err "  2) 或本机构建后同步：cd frontend && npm install && npm run build"
+  exit 1
+fi
+
 # 内网直连部署：后端 java -jar（复用服务器 Java 8）+ 前端 nginx stable 容器（复用已有镜像）
 # 适用：服务器无外网 / 无法拉取 Docker Hub 基础镜像（openjdk/maven/node）时自动使用
 direct_deploy() {
@@ -214,7 +231,7 @@ direct_deploy() {
   [ -z "$HOST_IP" ] && HOST_IP="127.0.0.1"
   # 外链跳转地址默认取外链请求自带的 Host（跟随外部系统访问地址，不依赖本机网卡 IP）；
   # 仅当需要强制固定跳转地址时才显式设置 EXTERNAL_LINK_BASE_URL，例如：
-  #   EXTERNAL_LINK_BASE_URL=http://10.10.97.119:2001 ./install.sh
+  #   EXTERNAL_LINK_BASE_URL=http://100.120.1.104:2001 ./install.sh
   info "启动后端：java -jar $JAR（ICU_DATA_PROVIDER=sql，连接真实 ICU 库）..."
   ICU_DATA_PROVIDER=sql \
   EXTERNAL_LINK_SECRET="${EXTERNAL_LINK_SECRET:-zing-doctor-prod-secret-change-me}" \
@@ -239,20 +256,52 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # 放开请求体上限：评分文书 PDF（base64，单页约 1MB）随保存接口提交，
+    # 默认 1m 会 413，前端表现为保存一直转圈/失败
+    client_max_body_size 20m;
+    client_body_timeout 120s;
+
     location /api/ {
         proxy_pass http://$HOST_IP:8081;
-        proxy_set_header Host \$host;
+        # 用 \$http_host（带端口）：\$host 会丢端口，后端 /entry 的 302 会跳到
+        # http://<IP>/page/...（80 端口），依赖 80 是否也映射到本前端
+        proxy_set_header Host \$http_host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host \$http_host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        # 大字段（PDF base64）写入与回传需要更长超时
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+        proxy_request_buffering off;
+        proxy_buffering off;
     }
     location /entry/ {
         proxy_pass http://$HOST_IP:8081;
-        proxy_set_header Host \$host;
+        proxy_set_header Host \$http_host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host \$http_host;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
     location / {
         try_files \$uri \$uri/ /index.html;
+    }
+
+    # 入口 HTML 禁止缓存：否则发版后浏览器/外层 iframe 仍跑旧 JS。
+    # 注意："旧页面还能打开、没访问过的页面 500"的假象正来自这里——
+    # index.html 被浏览器缓存住，服务器端其实早已 500。
+    location = /index.html {
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+        expires -1;
+    }
+
+    # 带内容 hash 的静态资源：文件名随内容变化，可安全长缓存
+    location /assets/ {
+        expires 30d;
+        add_header Cache-Control "public, max-age=2592000" always;
     }
 }
 EOF
@@ -303,15 +352,20 @@ server {
 
     location /api/ {
         proxy_pass http://backend:8081;
-        proxy_set_header Host $host;
+        # \$host 不含端口，外链 302 会跳到 80 端口；用 \$http_host 保留 ":2001"
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
     location /entry/ {
         proxy_pass http://backend:8081;
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
     location / {
         try_files $uri $uri/ /index.html;

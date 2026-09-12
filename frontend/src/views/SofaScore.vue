@@ -25,7 +25,6 @@
               <span>{{ r.createBy || '—' }}</span>
               <span :class="['record-tag', recTagClass(r)]">{{ scoreTypeLabel(r) }}</span>
               <span v-if="r.hasPdf === 1" class="record-tag pdf-tag" @click.stop="viewPdf(r)">PDF文书</span>
-              <span v-if="isAutoRecord(r)" class="record-tag review-tag" @click.stop="reviewRecord(r)">复核</span>
               <span class="record-tag del-tag" @click.stop="removeRecord(r)">删除</span>
             </div>
           </div>
@@ -42,7 +41,7 @@
       <span class="patient-meta"><b>{{ patient.gender || '—' }}</b> / {{ patient.age || '—' }}{{ patient.ageUnit || '岁' }}</span>
       <span class="patient-meta">住院号：<b>{{ patient.inHospitalNo || inHospitalNo || '—' }}</b></span>
       <span class="patient-meta">入科时间：<b>{{ fmtTime(patient.inDepartTime) }}</b></span>
-      <span :class="['resp-flag', { on: respiratorySupport === 1 }]">{{ respiratorySupport === 1 ? '有创呼吸支持' : '无呼吸支持' }}</span>
+      <span :class="['resp-flag', { on: inputs.respSupport === 1 }]">{{ inputs.respSupport === 1 ? '有创呼吸支持' : '无呼吸支持' }}</span>
       <button class="btn-trend" @click="openTotalTrend">评分历史趋势</button>
     </div>
       <!-- ===== 总览条：SOFA 总分 + 6 器官当前分值 ===== -->
@@ -50,10 +49,6 @@
         <div class="ov-total">
           <div class="t-label">SOFA 总分</div>
           <div class="t-num">{{ totalScore }}</div>
-          <div class="t-pill">6 项合计 (0~24)</div>
-          <div class="t-delta" v-if="deltaSofa !== null && deltaSofa !== undefined">
-            较上次 <b>{{ deltaSofa > 0 ? '+' : '' }}{{ deltaSofa }}</b>（上次 {{ lastScore }} 分）
-          </div>
           <div class="t-foot">体重 {{ weightUsed || '—' }} kg</div>
         </div>
         <div class="ov-organs">
@@ -83,7 +78,11 @@
 
       <!-- ===== 器官功能评分表 ===== -->
       <div class="table-panel">
-        <div class="table-title">器官功能评分表</div>
+        <div class="table-title">
+          器官功能评分表
+          <span class="tt-hint">输入值可直接修改，改后自动重算该器官分值与总分</span>
+          <button v-if="manualEditCount > 0" class="btn-mini" @click="resetOverridesFromItems">恢复自动值</button>
+        </div>
         <table class="score">
           <colgroup>
             <col style="width:9%"><col style="width:16%"><col style="width:15%"><col style="width:8%">
@@ -98,13 +97,24 @@
             <tr>
               <td class="sys" rowspan="2">呼吸系统</td>
               <td class="ind">呼吸机支持</td>
-              <td><div class="inp drop">{{ respiratorySupport === 1 ? '是' : '否' }}<span class="caret">▾</span></div></td>
+              <td>
+                <select class="inp" :class="{ dirty: touched('respSupport') }" :value="inputs.respSupport"
+                        :title="inputHint('resp', '呼吸机支持')" @change="onSupportChange">
+                  <option :value="0">否</option>
+                  <option :value="1">是</option>
+                </select>
+              </td>
               <td class="act" rowspan="2"><button class="btn-src" @click="openSource(itemOf('resp'))">来源</button></td>
-              <td class="dim">—</td><td class="dim">—</td><td class="dim">—</td><td></td><td></td>
+              <td class="dim">—</td><td class="dim">—</td><td class="dim">—</td>
+              <td>{{ inputs.respSupport === 1 ? '是' : '' }}</td>
+              <td>{{ inputs.respSupport === 1 ? '是' : '' }}</td>
             </tr>
             <tr>
               <td class="ind">PaO₂/F.iO₂ (mmHg)</td>
-              <td><div class="inp">{{ num(rawOf('resp').oxygenationIndex, 1) }}</div></td>
+              <td>
+                <input class="inp" :class="{ dirty: touched('pf') }" type="number" step="0.1" min="0" placeholder="无数据"
+                       :title="inputHint('resp', 'PaO₂/F.iO₂')" :value="inputs.pf" @input="onNumInput('pf', $event)">
+              </td>
               <td :class="cellCls(hitCol('resp', 0))">≥400</td>
               <td :class="cellCls(hitCol('resp', 1))">&lt;400</td>
               <td :class="cellCls(hitCol('resp', 2))">&lt;300</td>
@@ -115,7 +125,10 @@
             <tr>
               <td class="sys">血液系统</td>
               <td class="ind">血小板 (10⁹/L)</td>
-              <td><div class="inp">{{ num(rawOf('coag').platelet, 0) }}</div></td>
+              <td>
+                <input class="inp" :class="{ dirty: touched('plt') }" type="number" step="1" min="0" placeholder="无数据"
+                       :title="inputHint('coag', '血小板 (10⁹/L)')" :value="inputs.plt" @input="onNumInput('plt', $event)">
+              </td>
               <td class="act"><button class="btn-src" @click="openSource(itemOf('coag'))">来源</button></td>
               <td :class="cellCls(hitCol('coag', 0))">≥150</td>
               <td :class="cellCls(hitCol('coag', 1))">&lt;150</td>
@@ -127,7 +140,10 @@
             <tr>
               <td class="sys">肝脏</td>
               <td class="ind">胆红素 (μmol/L)</td>
-              <td><div class="inp">{{ num(rawOf('liver').totalBilirubinUmol, 1) }}</div></td>
+              <td>
+                <input class="inp" :class="{ dirty: touched('bili') }" type="number" step="0.1" min="0" placeholder="无数据"
+                       :title="inputHint('liver', '总胆红素 (μmol/L)')" :value="inputs.bili" @input="onNumInput('bili', $event)">
+              </td>
               <td class="act"><button class="btn-src" @click="openSource(itemOf('liver'))">来源</button></td>
               <td :class="cellCls(hitCol('liver', 0))">&lt;20.5</td>
               <td :class="cellCls(hitCol('liver', 1))">≤34.1</td>
@@ -139,7 +155,10 @@
             <tr>
               <td class="sys" rowspan="5">循环系统</td>
               <td class="ind">平均动脉压 (mmHg)</td>
-              <td><div class="inp">{{ num(rawOf('cardio').map, 0) }}</div></td>
+              <td>
+                <input class="inp" :class="{ dirty: touched('map') }" type="number" step="1" min="0" placeholder="无数据"
+                       :title="inputHint('cardio', '平均动脉压 (mmHg)')" :value="inputs.map" @input="onNumInput('map', $event)">
+              </td>
               <td class="act" rowspan="5"><button class="btn-src" @click="openSource(itemOf('cardio'))">来源</button></td>
               <td :class="cellCls(hitRaw('cardio', 'mapScore', 0))">≥70</td>
               <td :class="cellCls(hitRaw('cardio', 'mapScore', 1))">&lt;70</td>
@@ -147,7 +166,10 @@
             </tr>
             <tr>
               <td class="ind">多巴胺 (μg·kg⁻¹·min⁻¹)</td>
-              <td><div class="inp">{{ num(vasoOf('多巴胺'), 3) }}</div></td>
+              <td>
+                <input class="inp" :class="{ dirty: touched('dopamine') }" type="number" step="0.01" min="0" placeholder="未使用"
+                       :title="drugHint('多巴胺')" :value="inputs.dopamine" @input="onNumInput('dopamine', $event)">
+              </td>
               <td class="dim">—</td><td class="dim">—</td>
               <td :class="cellCls(vasoHit('多巴胺', 2))">≤5</td>
               <td :class="cellCls(vasoHit('多巴胺', 3))">5~15</td>
@@ -155,21 +177,30 @@
             </tr>
             <tr>
               <td class="ind">肾上腺素 (μg·kg⁻¹·min⁻¹)</td>
-              <td><div class="inp">{{ num(vasoOf('肾上腺素'), 3) }}</div></td>
+              <td>
+                <input class="inp" :class="{ dirty: touched('epinephrine') }" type="number" step="0.01" min="0" placeholder="未使用"
+                       :title="drugHint('肾上腺素')" :value="inputs.epinephrine" @input="onNumInput('epinephrine', $event)">
+              </td>
               <td class="dim">—</td><td class="dim">—</td><td class="dim">—</td>
               <td :class="cellCls(vasoHit('肾上腺素', 3))">≤0.1</td>
               <td :class="cellCls(vasoHit('肾上腺素', 4))">&gt;0.1</td>
             </tr>
             <tr>
               <td class="ind">去甲肾上腺素 (μg·kg⁻¹·min⁻¹)</td>
-              <td><div class="inp">{{ num(vasoOf('去甲肾上腺素'), 3) }}</div></td>
+              <td>
+                <input class="inp" :class="{ dirty: touched('norepinephrine') }" type="number" step="0.01" min="0" placeholder="未使用"
+                       :title="drugHint('去甲肾上腺素')" :value="inputs.norepinephrine" @input="onNumInput('norepinephrine', $event)">
+              </td>
               <td class="dim">—</td><td class="dim">—</td><td class="dim">—</td>
               <td :class="cellCls(vasoHit('去甲肾上腺素', 3))">≤0.1</td>
               <td :class="cellCls(vasoHit('去甲肾上腺素', 4))">&gt;0.1</td>
             </tr>
             <tr>
               <td class="ind">多巴酚丁胺 (μg·kg⁻¹·min⁻¹)</td>
-              <td><div class="inp">{{ num(vasoOf('多巴酚丁胺'), 3) }}</div></td>
+              <td>
+                <input class="inp" :class="{ dirty: touched('dobutamine') }" type="number" step="0.01" min="0" placeholder="未使用"
+                       :title="drugHint('多巴酚丁胺')" :value="inputs.dobutamine" @input="onNumInput('dobutamine', $event)">
+              </td>
               <td class="dim">—</td>
               <td :class="cellCls(vasoHit('多巴酚丁胺', 2))">任何剂量</td>
               <td class="dim">—</td><td class="dim">—</td>
@@ -178,7 +209,10 @@
             <tr>
               <td class="sys">神经系统</td>
               <td class="ind">GCS 评分</td>
-              <td><div class="inp">{{ gcsInputText }}</div></td>
+              <td>
+                <input class="inp" :class="{ dirty: touched('gcs') }" type="number" step="1" min="3" max="15" placeholder="无数据"
+                       :title="gcsHint" :value="inputs.gcs" @input="onNumInput('gcs', $event)">
+              </td>
               <td class="act"><button class="btn-src" @click="openSource(itemOf('neuro'))">来源</button></td>
               <td :class="cellCls(hitCol('neuro', 0))">15</td>
               <td :class="cellCls(hitCol('neuro', 1))">13~14</td>
@@ -190,7 +224,10 @@
             <tr>
               <td class="sys" rowspan="2">肾脏</td>
               <td class="ind">肌酐 (μmol/L)</td>
-              <td><div class="inp">{{ num(rawOf('renal').creatinineUmol, 1) }}</div></td>
+              <td>
+                <input class="inp" :class="{ dirty: touched('creatinine') }" type="number" step="0.1" min="0" placeholder="无数据"
+                       :title="inputHint('renal', '肌酐 (μmol/L)')" :value="inputs.creatinine" @input="onNumInput('creatinine', $event)">
+              </td>
               <td class="act" rowspan="2"><button class="btn-src" @click="openSource(itemOf('renal'))">来源</button></td>
               <td :class="cellCls(hitRaw('renal', 'creatinineScore', 0))">&lt;106</td>
               <td :class="cellCls(hitRaw('renal', 'creatinineScore', 1))">≤176</td>
@@ -200,7 +237,10 @@
             </tr>
             <tr>
               <td class="ind">24h 尿量 (ml)</td>
-              <td><div class="inp">{{ urineInputText }}</div></td>
+              <td>
+                <input class="inp" :class="{ dirty: touched('urine') }" type="number" step="10" min="0" :placeholder="urinePh"
+                       :title="inputHint('renal', '24h 尿量 (ml)')" :value="inputs.urine" @input="onNumInput('urine', $event)">
+              </td>
               <td class="dim">—</td><td class="dim">—</td><td class="dim">—</td>
               <td :class="cellCls(hitRaw('renal', 'urineScore', 3))">≤500</td>
               <td :class="cellCls(hitRaw('renal', 'urineScore', 4))">≤200</td>
@@ -213,28 +253,29 @@
           <span class="ico">!</span>
           <span><b>提示：</b>{{ remark }}</span>
         </div>
-        <div class="tip" v-if="reviewingId" style="background:#EAF1FC;border-color:#C9DCF6;color:#2560C8;">
-          <span class="ico" style="background:#4485DB">i</span>
-          <span><b>复核中：</b>已载入 {{ fmtTime(reviewingScoreTime) }} 的自动初评（记录 #{{ reviewingId }}），
-            保存后将覆盖该条记录并标记「已复核」。
-            <button class="btn btn-text" @click="cancelReview">取消复核</button>
+        <!-- 手工修正提示：让医生一眼看到哪些项被改过，以及可一键回退 -->
+        <div class="tip tip-manual" v-if="manualEditCount > 0">
+          <span class="ico" style="background:#e6a23c">✎</span>
+          <span>
+            <b>手工修正：</b>已修改 {{ manualEditCount }} 项输入值（{{ manualLabels.join('、') }}），相关器官分值与总分已按 SOFA 标准重算；该内容会随记录一并留痕。
+            <button class="btn-mini" style="margin-left:8px" @click="resetOverridesFromItems">恢复自动值</button>
           </span>
         </div>
       </div>
 
-      <!-- ===== 底部操作行 ===== -->
+      <!-- ===== 底部操作行（与 APACHE II 一致：预览文书 / 删除 / 保存评分） ===== -->
       <div class="footer-bar">
         <div class="footer-info">
           评分医师：{{ realname || username || '—' }}<br>
           创建时间：{{ fmtTimeNow() }}
         </div>
         <input class="footer-note" v-model="doctorRemark" placeholder="备注（可选）" />
-        <button class="btn" @click="loadAssessment">重置</button>
-        <button class="btn" :disabled="saving || pdfGenerating" @click="saveWithPdf">
-          {{ pdfGenerating ? '生成文书…' : '保存并生成文书' }}
+        <button class="btn" :disabled="reportGenerating" @click="openReport">
+          {{ reportGenerating ? '生成中…' : '预览文书' }}
         </button>
-        <button class="btn btn-success" :disabled="saving" @click="save">
-          {{ saving ? '保存中…' : (reviewingId ? '保存复核' : '保存评分') }}
+        <button v-if="currentRecordId" class="btn btn-danger" @click="deleteCurrentRecord">删除</button>
+        <button class="btn btn-success" :disabled="saving" @click="saveRecord">
+          {{ saving ? '保存中…' : '保存评分' }}
         </button>
       </div>
       </main>
@@ -264,8 +305,15 @@
           </div>
           <div class="src-section"><b>取值时间：</b>{{ sourceItem && sourceItem.dataTime ? fmtTime(sourceItem.dataTime) : '—' }}</div>
           <div class="src-section" v-if="sourceItem && sourceItem.note"><b>提示：</b>{{ sourceItem.note }}</div>
-          <div class="src-title">数据趋势（当前取数范围）</div>
-          <div ref="trendChartRef" style="width:100%;height:200px;margin-bottom:12px;"></div>
+          <div class="src-title">数据趋势（当前取数范围）<span class="src-count" v-if="trendCount > 0">共 {{ trendCount }} 个点</span></div>
+          <div ref="trendChartRef" style="width:100%;height:200px;margin-bottom:6px;"></div>
+          <div class="src-note src-note-warn" v-if="trendFallback">{{ trendFallback }}</div>
+          <div class="src-note" v-if="sourceItem && (sourceItem.key === 'liver' || sourceItem.key === 'renal')">
+            注：趋势图按 mg/dL 展示（与评分取值口径一致），表格「输入值」为 μmol/L。
+          </div>
+          <div class="src-note" v-if="sourceItem && sourceItem.key === 'cardio'">
+            注：循环趋势仅展示 MAP 序列；血管活性药剂量见上方「当前值」。
+          </div>
           <div class="src-title">原始数据（落库 JSON）</div>
           <pre class="src-json">{{ prettyJson(sourceItem && sourceItem.rawJson) }}</pre>
           <div class="src-title">取数说明</div>
@@ -289,6 +337,24 @@
         </div>
         <div class="modal-body">
           <div ref="totalTrendRef" style="width:100%;height:280px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 评分文书预览弹窗（与 APACHE II 一致：打印 / 导出 PDF / 关闭） -->
+    <div class="modal-mask" v-if="showReportModal" @click.self="showReportModal = false">
+      <div class="modal report-modal">
+        <div class="modal-head">
+          <h3>SOFA 评分文书预览</h3>
+          <button class="modal-close" @click="showReportModal = false">×</button>
+        </div>
+        <div class="modal-body report-scroll">
+          <div ref="reportViewRef" class="report-view-host"></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" @click="printReport">打印</button>
+          <button class="btn btn-primary" @click="downloadReportPdf">导出 PDF</button>
+          <button class="btn" @click="showReportModal = false">关闭</button>
         </div>
       </div>
     </div>
@@ -349,8 +415,8 @@
                 <td style="border:1px solid #000;padding:4px;"></td>
                 <td style="border:1px solid #000;padding:4px;"></td>
                 <td style="border:1px solid #000;padding:4px;"></td>
-                <td style="border:1px solid #000;padding:4px;text-align:center;">{{ respiratorySupport === 1 ? '是' : '' }}</td>
-                <td style="border:1px solid #000;padding:4px;text-align:center;">{{ respiratorySupport === 1 ? '是' : '' }}</td>
+                <td style="border:1px solid #000;padding:4px;text-align:center;">{{ inputs.respSupport === 1 ? '是' : '' }}</td>
+                <td style="border:1px solid #000;padding:4px;text-align:center;">{{ inputs.respSupport === 1 ? '是' : '' }}</td>
               </tr>
               <!-- 凝血 1行 -->
               <tr>
@@ -491,10 +557,12 @@ const patientId = ref(route.query.patientId || '')
 const username = ref(route.query.username || '')
 const realname = ref(route.query.realname || '')
 
-// 文书 PDF / 来源趋势图
+// 文书 PDF / 文书预览弹窗 / 来源趋势图
 const reportRef = ref(null)
+const reportViewRef = ref(null)
 const reportTime = ref('')
-const pdfGenerating = ref(false)
+const showReportModal = ref(false)
+const reportGenerating = ref(false)
 const trendChartRef = ref(null)
 let trendChart = null
 // 文书用到的汇总值（GCS / 尿量），随评估结果回填
@@ -524,6 +592,286 @@ const rangeEnd = ref('')
 const activeRange = ref(null)
 const showSource = ref(false)
 const sourceItem = ref(null)
+/** 来源弹窗趋势图点数（>0 时在标题上提示） */
+const trendCount = ref(0)
+/** 趋势范围内无记录、回退展示「本次评分取值点」时的提示文案 */
+const trendFallback = ref('')
+
+// =============== 手工修正：输入值可编辑 + 前端按 SOFA 标准重算 ===============
+
+/**
+ * 可手工编辑的输入值，初始值 = 自动取数结果。
+ * 医生改动任意一项后，相关器官分值 / 命中列 / 总分立即按 SOFA 标准重算，
+ * 保存时以重算结果落库；改回自动值则自动恢复自动分（不留手工痕迹）。
+ *
+ * ⚠ 计分规则必须与后端 SofaServiceImpl 保持一致，改一处必须同步改两处。
+ */
+const inputs = reactive({
+  respSupport: 0,   // 呼吸机支持 0/1
+  pf: null,         // PaO2/FiO2 mmHg
+  plt: null,        // 血小板 10⁹/L
+  bili: null,       // 总胆红素 μmol/L
+  map: null,        // 平均动脉压 mmHg
+  dopamine: null,   // 多巴胺 μg·kg⁻¹·min⁻¹
+  epinephrine: null,      // 肾上腺素
+  norepinephrine: null,   // 去甲肾上腺素
+  dobutamine: null,       // 多巴酚丁胺
+  gcs: null,        // GCS 总分
+  creatinine: null, // 肌酐 μmol/L
+  urine: null       // 24h 尿量 ml
+})
+
+/** 自动取数结果快照（JSON），用于判断哪些项被手工改过 */
+const autoSnapshot = ref('{}')
+/** 子项分（MAP/肌酐/尿量）与逐支血管活性药分值，驱动命中列高亮 */
+const subScores = reactive({ mapScore: null, vasoScore: null, creatinineScore: null, urineScore: null })
+const DRUG_NAMES = ['多巴胺', '肾上腺素', '去甲肾上腺素', '多巴酚丁胺']
+const DRUG_FIELD = { 多巴胺: 'dopamine', 肾上腺素: 'epinephrine', 去甲肾上腺素: 'norepinephrine', 多巴酚丁胺: 'dobutamine' }
+const drugScores = reactive({ 多巴胺: null, 肾上腺素: null, 去甲肾上腺素: null, 多巴酚丁胺: null })
+/** 器官 → 输入项映射（用于手工修正提示与留痕） */
+const ORGAN_INPUTS = [
+  { label: '呼吸', fields: ['respSupport', 'pf'] },
+  { label: '凝血', fields: ['plt'] },
+  { label: '肝', fields: ['bili'] },
+  { label: '循环', fields: ['map', 'dopamine', 'epinephrine', 'norepinephrine', 'dobutamine'] },
+  { label: '神经', fields: ['gcs'] },
+  { label: '肾', fields: ['creatinine', 'urine'] }
+]
+
+function isEmptyNum(v) {
+  return v === null || v === undefined || v === '' || isNaN(Number(v))
+}
+
+function numOrNull(v) {
+  return isEmptyNum(v) ? null : Number(v)
+}
+
+/** 与后端 round(v, 2)（BigDecimal HALF_UP）同口径 */
+function round2(v) {
+  return Math.round((Number(v) + Number.EPSILON) * 100) / 100
+}
+
+/** 归一化后比较，避免 ""/null/数字字符串被判成「改过」 */
+function normVal(v) {
+  return isEmptyNum(v) ? '' : String(Number(v))
+}
+
+function snapshotInputs() {
+  const snap = {}
+  for (const k of Object.keys(inputs)) snap[k] = inputs[k]
+  autoSnapshot.value = JSON.stringify(snap)
+}
+
+/** 该项是否被手工改过（与自动取数结果不同即为改过） */
+function touched(field) {
+  let snap = {}
+  try {
+    snap = JSON.parse(autoSnapshot.value || '{}')
+  } catch (e) {
+    snap = {}
+  }
+  return normVal(snap[field]) !== normVal(inputs[field])
+}
+
+const manualEditCount = computed(() => Object.keys(inputs).filter(f => touched(f)).length)
+const manualLabels = computed(() => ORGAN_INPUTS.filter(o => o.fields.some(f => touched(f))).map(o => o.label))
+
+// ---------------- SOFA 计分规则（与后端同口径） ----------------
+
+function scoreResp(pf, support) {
+  if (isEmptyNum(pf)) return 0
+  const v = Number(pf)
+  if (v >= 400) return 0
+  if (v >= 300) return 1
+  if (v >= 200) return 2
+  if (v >= 100) return support ? 3 : 2
+  return support ? 4 : 2
+}
+
+function scoreCoag(plt) {
+  if (isEmptyNum(plt)) return 0
+  const v = Number(plt)
+  if (v >= 150) return 0
+  if (v >= 100) return 1
+  if (v >= 50) return 2
+  if (v >= 20) return 3
+  return 4
+}
+
+/** 胆红素：入参 μmol/L，按后端 mg/dL 阈值判分（÷17.1 后 <1.2 / <2.0 / <6.0 / <12.0） */
+function scoreLiverUmol(umol) {
+  if (isEmptyNum(umol)) return 0
+  const mgdl = round2(Number(umol) / 17.1)
+  if (mgdl < 1.2) return 0
+  if (mgdl < 2.0) return 1
+  if (mgdl < 6.0) return 2
+  if (mgdl < 12.0) return 3
+  return 4
+}
+
+function scoreCardioMap(map) {
+  if (isEmptyNum(map)) return 0
+  return Number(map) >= 70 ? 0 : 1
+}
+
+/** 单支血管活性药分值；返回 null 表示该药未使用 */
+function scoreVasoDose(field, dose) {
+  if (isEmptyNum(dose)) return null
+  const v = Number(dose)
+  if (field === 'dobutamine') return 2
+  if (field === 'dopamine') return v <= 5 ? 2 : (v <= 15 ? 3 : 4)
+  return v <= 0.1 ? 3 : 4
+}
+
+function scoreNeuro(gcs) {
+  if (isEmptyNum(gcs)) return 0
+  const v = Number(gcs)
+  if (v >= 15) return 0
+  if (v >= 13) return 1
+  if (v >= 10) return 2
+  if (v >= 6) return 3
+  return 4
+}
+
+/** 肌酐：入参 μmol/L，按后端 mg/dL 阈值判分（÷88.4 后 <1.2 / <2.0 / <3.5 / <5.0） */
+function scoreRenalCrUmol(umol) {
+  if (isEmptyNum(umol)) return 0
+  const mgdl = round2(Number(umol) / 88.4)
+  if (mgdl < 1.2) return 0
+  if (mgdl < 2.0) return 1
+  if (mgdl < 3.5) return 2
+  if (mgdl < 5.0) return 3
+  return 4
+}
+
+function scoreRenalUrine(ml) {
+  if (isEmptyNum(ml)) return 0
+  const v = Number(ml)
+  if (v < 200) return 4
+  if (v < 500) return 3
+  return 0
+}
+
+// ---------------- 输入值 ↔ 分值 ----------------
+
+/** 用自动取数结果初始化输入值（载入评估、恢复自动值时调用） */
+function initInputsFromItems() {
+  const resp = rawOf('resp')
+  const coag = rawOf('coag')
+  const liver = rawOf('liver')
+  const cardio = rawOf('cardio')
+  const neuro = rawOf('neuro')
+  const renal = rawOf('renal')
+
+  inputs.respSupport = (resp.respiratorySupport === true || resp.respiratorySupport === 1 || respiratorySupport.value === 1) ? 1 : 0
+  inputs.pf = numOrNull(resp.oxygenationIndex)
+  inputs.plt = numOrNull(coag.platelet)
+  inputs.bili = numOrNull(liver.totalBilirubinUmol)
+  inputs.map = numOrNull(cardio.map)
+  inputs.gcs = numOrNull(neuro.gcsTotal)
+  inputs.creatinine = numOrNull(renal.creatinineUmol)
+  inputs.urine = numOrNull(renal.urineMl)
+  for (const name of DRUG_NAMES) inputs[DRUG_FIELD[name]] = numOrNull(vasoOf(name))
+  snapshotInputs()
+}
+
+/** 命中列回到「自动结果」：未改动或已改回自动值时使用，保证与后端分完全一致 */
+function restoreAutoScores() {
+  for (const k of Object.keys(scoreOverrides)) delete scoreOverrides[k]
+  for (const it of items.value) scoreOverrides[it.key] = it.score || 0
+  const cardio = rawOf('cardio')
+  const renal = rawOf('renal')
+  subScores.mapScore = numOrNull(cardio.mapScore)
+  subScores.vasoScore = numOrNull(cardio.vasoScore)
+  subScores.creatinineScore = numOrNull(renal.creatinineScore)
+  subScores.urineScore = numOrNull(renal.urineScore)
+  for (const name of DRUG_NAMES) {
+    const d = vasoDose(name)
+    drugScores[name] = d ? Number(d.score || 0) : null
+  }
+  recalcTotal()
+}
+
+/** 按当前输入值重算六项分值、子项命中列与总分 */
+function recalcFromInputs() {
+  const mapScore = scoreCardioMap(inputs.map)
+  let vasoScore = 0
+  for (const name of DRUG_NAMES) {
+    const s = scoreVasoDose(DRUG_FIELD[name], inputs[DRUG_FIELD[name]])
+    drugScores[name] = s
+    if (s !== null && s > vasoScore) vasoScore = s
+  }
+  const crScore = scoreRenalCrUmol(inputs.creatinine)
+  const urineScore = scoreRenalUrine(inputs.urine)
+  subScores.mapScore = mapScore
+  subScores.vasoScore = vasoScore
+  subScores.creatinineScore = crScore
+  subScores.urineScore = urineScore
+
+  scoreOverrides.resp = scoreResp(inputs.pf, Number(inputs.respSupport) === 1)
+  scoreOverrides.coag = scoreCoag(inputs.plt)
+  scoreOverrides.liver = scoreLiverUmol(inputs.bili)
+  scoreOverrides.cardio = Math.max(mapScore, vasoScore)
+  scoreOverrides.neuro = scoreNeuro(inputs.gcs)
+  scoreOverrides.renal = Math.max(crScore, urineScore)
+  recalcTotal()
+}
+
+/** 输入变化后：真改过 → 按输入重算；改回自动值 → 恢复自动分 */
+function applyInputChange() {
+  if (manualEditCount.value > 0) recalcFromInputs()
+  else restoreAutoScores()
+}
+
+function onNumInput(field, ev) {
+  const raw = ev && ev.target ? ev.target.value : ''
+  inputs[field] = isEmptyNum(raw) ? null : Number(raw)
+  applyInputChange()
+}
+
+function onSupportChange(ev) {
+  inputs.respSupport = ev && ev.target && Number(ev.target.value) === 1 ? 1 : 0
+  applyInputChange()
+}
+
+// ---------------- 输入框悬浮提示：自动取值 + 取值时间 ----------------
+
+/** @param {string} key 器官 key；@param {string} label 指标名；@param {string} [autoText] 覆盖自动值文案 */
+function inputHint(key, label, autoText) {
+  const it = itemOf(key)
+  const auto = autoText !== undefined ? autoText : (it && it.valueText ? it.valueText : '无数据')
+  const t = it && it.dataTime ? `，取值时间 ${fmtTime(it.dataTime)}` : ''
+  return `${label}：自动取值 ${auto}${t}。可直接修改，改后自动重算分值（清空表示无数据）`
+}
+
+function drugHint(name) {
+  const v = vasoOf(name)
+  const auto = (v === null || v === undefined) ? '未使用' : `${num(v, 3)} μg·kg⁻¹·min⁻¹`
+  return `${name}：自动取值 ${auto}。填写剂量即表示使用（清空表示未使用），改后自动重算分值`
+}
+
+const gcsHint = computed(() => {
+  const r = rawOf('neuro')
+  const auto = (r.gcsTotal === null || r.gcsTotal === undefined)
+    ? '无数据'
+    : `${r.gcsTotal} 分${r.gcsDetail ? '（' + r.gcsDetail + '）' : ''}`
+  const t = r.checkTime ? `，取值时间 ${fmtTime(r.checkTime)}` : ''
+  return `GCS 评分：自动取值 ${auto}${t}。可修改总分（3~15），改后自动重算分值`
+})
+
+const urinePh = computed(() => ((rawOf('renal').urineMl === null || rawOf('renal').urineMl === undefined) ? '窗口<24h' : '无数据'))
+
+/** 趋势图高亮值：肝/肾趋势按 mg/dL（与后端同口径），其余取输入值 */
+function chartMarkValue(it) {
+  if (!it) return null
+  if (it.key === 'liver') return isEmptyNum(inputs.bili) ? null : round2(Number(inputs.bili) / 17.1)
+  if (it.key === 'renal') return isEmptyNum(inputs.creatinine) ? null : round2(Number(inputs.creatinine) / 88.4)
+  if (it.key === 'resp') return numOrNull(inputs.pf)
+  if (it.key === 'coag') return numOrNull(inputs.plt)
+  if (it.key === 'cardio') return numOrNull(inputs.map)
+  if (it.key === 'neuro') return numOrNull(inputs.gcs)
+  return it.value
+}
 
 onMounted(async () => {
   initRange()
@@ -593,7 +941,9 @@ async function loadAssessment() {
     if (!res) return
     Object.assign(patient, res.patient || {})
     items.value = res.items || []
-    // 用自动分初始化各器官项的手工修正值，并按六项当前生效分值之和重算总分
+    // 呼吸支持状态先落地：可编辑输入值要用它初始化
+    respiratorySupport.value = res.respiratorySupport || 0
+    // 用自动取数结果初始化可编辑的输入值与命中列，并按六项当前生效分值之和重算总分
     resetOverridesFromItems()
     lastScore.value = res.lastScore
     lastScoreTime.value = res.lastScoreTime
@@ -601,7 +951,6 @@ async function loadAssessment() {
     weightUsed.value = res.weightUsed
     weightNote.value = res.weightNote || ''
     weightSource.value = res.weightSource || ''
-    respiratorySupport.value = res.respiratorySupport || 0
     remark.value = res.remark || ''
     // 文书用汇总值
     gcsTotal.value = res.gcsTotal
@@ -628,8 +977,27 @@ async function loadRecords() {
 function openSource(it) {
   sourceItem.value = it
   showSource.value = true
+  trendFallback.value = ''
   // 弹窗渲染后再初始化图表（此时容器才有尺寸）
   nextTick(() => renderSourceTrend(it))
+}
+
+/**
+ * 趋势回退点：范围内无序列时，用本次评分实际取用的值 + 取值时间构造单点。
+ * 单位与趋势口径一致（肝/肾转 mg/dL，循环取 MAP），仅供核对。
+ * @returns {[string, number]|null} 无取值时返回 null
+ */
+function fallbackTrendPoint(it) {
+  if (!it) return null
+  let v = null
+  if (it.key === 'liver') v = isEmptyNum(inputs.bili) ? null : round2(Number(inputs.bili) / 17.1)
+  else if (it.key === 'renal') v = isEmptyNum(inputs.creatinine) ? null : round2(Number(inputs.creatinine) / 88.4)
+  else if (it.key === 'cardio') v = numOrNull(inputs.map)
+  else if (it.key === 'neuro') v = numOrNull(inputs.gcs)
+  else if (it.key === 'coag') v = numOrNull(inputs.plt)
+  else v = numOrNull(inputs.pf)
+  if (v === null || v === undefined) return null
+  return [it.dataTime ? fmtTime(it.dataTime) : '本次取值', Number(v)]
 }
 
 /** 来源弹窗趋势图：按当前器官项对应的 metricKey 拉取 {time,value} 序列 */
@@ -643,14 +1011,21 @@ async function renderSourceTrend(it) {
   trendChart = echarts.init(el)
   trendChart.showLoading({ text: '加载中...', color: '#409eff', textColor: '#999', maskColor: 'rgba(255,255,255,0.8)' })
 
+  const startTime = toBackend(rangeStart.value)
+  const endTime = toBackend(rangeEnd.value)
   let data = []
+  let errMsg = ''
   try {
     const pid = patient.patientId || patientId.value
-    if (pid) {
-      data = await fetchSofaTrend(pid, it.key, toBackend(rangeStart.value), toBackend(rangeEnd.value))
+    if (!pid) {
+      // 明确区分「没发请求」和「确实没数据」：外链入口必须带 patientId / 住院号
+      errMsg = '缺少患者标识（patientId / 住院号），未发起趋势查询'
+    } else {
+      data = await fetchSofaTrend(pid, it.key, startTime, endTime)
     }
   } catch (e) {
     console.warn('趋势加载失败', e)
+    errMsg = '趋势加载失败：' + (e.message || e)
   }
   trendChart.hideLoading()
 
@@ -658,9 +1033,27 @@ async function renderSourceTrend(it) {
     .filter(p => p && p.time && p.value !== null && p.value !== undefined)
     .map(p => [fmtTime(p.time), Number(p.value)])
 
-  if (!points.length) {
+  // 范围内查不到趋势点、但本次评分确实取到了值：回退展示「本次评分取值点」，
+  // 保证「来源」始终能核对到评分依据，而不是一片空白。
+  if (!errMsg && !points.length) {
+    const fb = fallbackTrendPoint(it)
+    if (fb) {
+      points.push(fb)
+      trendFallback.value = `当前取数范围（${fmtTime(startTime)} ~ ${fmtTime(endTime)}）内无 ${it.label || it.key} 趋势记录，图中仅显示本次评分取值点，供核对（可调整上方时间范围后重试）。`
+    }
+  }
+  trendCount.value = points.length
+
+  if (errMsg || !points.length) {
     trendChart.setOption({
-      title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#999', fontSize: 14, fontWeight: 'normal' } },
+      title: {
+        text: errMsg ? '趋势加载失败' : '暂无数据',
+        subtext: errMsg || `取数范围（${fmtTime(startTime)} ~ ${fmtTime(endTime)}）内无「${it.label || it.key}」记录，可核对下方原始数据或调整时间范围后重试`,
+        left: 'center',
+        top: '35%',
+        textStyle: { color: errMsg ? '#f56c6c' : '#909399', fontSize: 13, fontWeight: 'normal' },
+        subtextStyle: { color: '#a8abb2', fontSize: 11 }
+      },
       xAxis: { show: false },
       yAxis: { show: false },
       series: []
@@ -669,6 +1062,8 @@ async function renderSourceTrend(it) {
   }
 
   const unit = it.unit && it.unit !== 'GCS' ? it.unit : ''
+  // 高亮「本次评分实际取用」的点：手工改过输入值后以输入值为准
+  const markValue = chartMarkValue(it)
   trendChart.setOption({
     tooltip: {
       trigger: 'axis',
@@ -685,73 +1080,65 @@ async function renderSourceTrend(it) {
       lineStyle: { color: '#409eff', width: 2 },
       itemStyle: { color: '#409eff' },
       // 高亮评分实际取用的那个点（窗口内最差值）
-      markPoint: (it.value === null || it.value === undefined) ? undefined : {
+      markPoint: (markValue === null || markValue === undefined) ? undefined : {
         symbol: 'pin',
         symbolSize: 40,
         itemStyle: { color: '#f56c6c' },
         label: { fontSize: 10, color: '#fff', formatter: '评分取值' },
-        data: points.filter(p => Math.abs(Number(p[1]) - Number(it.value)) < 0.001)
+        data: points.filter(p => Math.abs(Number(p[1]) - Number(markValue)) < 0.001)
       }
     }]
   }, true)
   trendChart.resize()
 }
 
-async function save() {
-  return doSave(false)
-}
-
-/** 「保存并生成文书」入口 */
-function saveWithPdf() {
-  return doSave(true)
-}
-
 /**
- * 保存评分；withPdf=true 时在主体落库后补传文书 PDF。
- * 与 APACHE II 同策略：主体（轻量 JSON）优先落库，PDF 大字段单独补传，
- * 文书生成失败/超时都不影响已保存的评分。
+ * 保存评分，并在后台自动生成文书 PDF 归档（与 APACHE II 一致：只保留一个保存按钮）。
+ * 主体（轻量 JSON）优先落库，PDF 大字段单独补传，文书生成失败/超时都不影响已保存的评分。
  */
-async function doSave(withPdf) {
+async function saveRecord() {
   if (!inHospitalNo.value) {
     ElMessage.warning('缺少住院号，无法保存')
     return
   }
+  const cur = currentRecordOf()
   const rec = buildRecord()
   saving.value = true
   let pdfPromise = null
   try {
-    if (withPdf) {
-      pdfGenerating.value = true
-      reportTime.value = fmtTimeNow()
-      await nextTick()
-      // 并行启动文书渲染，不阻塞评分落库这条关键路径；失败兜底 null，稍后再提示
-      pdfPromise = buildSofaPdfBase64().catch(e => { console.error('生成文书PDF失败', e); return null })
-    }
-    const isReview = reviewingId.value !== null
-    const saved = await saveSofaRecord(rec, toBackend(rangeStart.value), toBackend(rangeEnd.value))
-    ElMessage.success(isReview ? '复核已保存' : 'SOFA 评分已保存')
-    doctorRemark.value = ''
-    reviewingId.value = null
-    reviewingScoreTime.value = null
-    const savedId = saved && saved.id ? saved.id : null
-    await loadAssessment()
-    await loadRecords()
+    // 文书里的「记录时间」：覆盖已有记录时与其评分时间一致，新增时为当前时间
+    refreshReportTime()
+    await nextTick()
+    // 并行启动文书渲染，不阻塞评分落库这条关键路径；失败兜底 null，稍后再提示
+    pdfPromise = buildSofaPdfBase64().catch(e => { console.error('生成文书PDF失败', e); return null })
 
-    if (withPdf && savedId) {
+    const saved = await saveSofaRecord(rec, toBackend(rangeStart.value), toBackend(rangeEnd.value))
+    const savedId = saved && saved.id ? saved.id : null
+    ElMessage.success(cur ? '评分已更新，评分文书正在后台归档…' : '评分已保存，评分文书正在后台归档…')
+    doctorRemark.value = ''
+    // 高亮刚落库的记录；不重新载入其分值（当前分值就是刚落库的内容）
+    currentRecordId.value = savedId
+    await loadRecords()
+    saving.value = false
+
+    // 阶段2：后台补传 PDF（与主保存解耦，再慢/失败都不影响已落库的评分）
+    try {
       const pdfBase64 = await pdfPromise
-      if (pdfBase64) {
+      if (pdfBase64 && savedId) {
         await attachSofaRecordPdf(savedId, pdfBase64, reportFileName())
         ElMessage.success('评分文书 PDF 已归档')
-        await loadRecords()
+        await loadRecords() // 刷新该条“PDF文书”标记
       } else {
-        ElMessage.warning('评分已保存，但文书 PDF 生成失败，可稍后重试')
+        ElMessage.warning('评分已保存，但文书 PDF 生成失败，可重新编辑该记录后再次保存')
       }
+    } catch (e) {
+      console.error('文书PDF补传失败', e)
+      ElMessage.warning('评分已保存，但文书 PDF 归档失败，可重新编辑该记录后再次保存')
     }
   } catch (e) {
     ElMessage.error('保存失败：' + (e.message || e))
   } finally {
     saving.value = false
-    pdfGenerating.value = false
   }
 }
 
@@ -761,16 +1148,23 @@ function buildRecord() {
   for (const it of items.value) byKey[it.key] = it
   // 分值取“当前生效值”（含医生手工修正），而非纯自动值
   const s = (k) => (byKey[k] ? scoreOf(byKey[k]) : (scoreOverrides[k] || 0))
-  const baseRemark = doctorRemark.value || remark.value
-  const isReview = reviewingId.value !== null
+  const cur = currentRecordOf()
+  // 手工修正留痕：复核者能看到哪些项被改过；覆盖已有记录时保留其原备注，避免被当前自动提示改写
+  const manualTail = manualEditCount.value > 0 ? `【手工修正】${manualLabels.value.join('、')}` : ''
+  const baseRemark = cur
+    ? [cur.remark, doctorRemark.value, manualTail].filter(Boolean).join('；')
+    : [doctorRemark.value || remark.value, manualTail].filter(Boolean).join('；')
   return {
-    // 复核：覆盖原自动记录并把来源改为 reviewed；否则按新手工评分插入
-    id: isReview ? reviewingId.value : null,
+    // 选中左侧记录后再保存 = 覆盖该条；点「新增评分」清空选中后再保存 = 插入新记录
+    id: cur ? cur.id : null,
+    // 覆盖时沿用原评分时间，避免把历史记录的时间改写成当前时间
+    scoreTime: cur ? cur.scoreTime : null,
     patientId: patient.patientId || patientId.value,
     inHospitalNo: inHospitalNo.value,
     patientName: patient.name,
     departCode: patient.departCode,
-    scoreType: isReview ? 'reviewed' : 'custom',
+    // 统一落库为「手工评分」：覆盖自动初评时同样表示已由医生确认
+    scoreType: 'custom',
     respScore: s('resp'),
     coagScore: s('coag'),
     liverScore: s('liver'),
@@ -784,6 +1178,7 @@ function buildRecord() {
 }
 
 async function removeRecord(r) {
+  if (!r) return
   try {
     await ElMessageBox.confirm(`确认删除 ${fmtTime(r.scoreTime)} 的评分记录？`, '删除确认', {
       confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning'
@@ -794,26 +1189,32 @@ async function removeRecord(r) {
   try {
     await deleteSofaRecord(r.id)
     ElMessage.success('已删除')
-    await loadAssessment()
+    // 被删的是当前选中记录时，清空选中并把分值恢复为当前自动取数
+    if (currentRecordId.value === r.id) {
+      currentRecordId.value = null
+      resetOverridesFromItems()
+    }
     await loadRecords()
   } catch (e) {
     ElMessage.error('删除失败：' + (e.message || e))
   }
 }
 
-// ---------------- 分值状态 / 复核 ----------------
+/** 底部「删除」：删除当前选中的记录（与 APACHE II 一致） */
+async function deleteCurrentRecord() {
+  await removeRecord(currentRecordOf())
+}
+
+// ---------------- 分值状态 ----------------
 
 /**
  * 各器官项「当前生效分值」：
  *  - 载入评估结果时初始化为自动分（resetOverridesFromItems）
- *  - 选中历史记录时填入该记录的分值（selectRecord）
- * 器官卡片为只读展示，页面不提供手工修正入口。
+ *  - 医生手工修改输入值后由前端按 SOFA 标准重算（recalcFromInputs）
+ *  - 选中历史记录时填入该记录的分值（selectRecord），保存即覆盖该条
+ * 器官卡片为只读展示，手工修正入口在评分表的「输入值」列。
  */
 const scoreOverrides = reactive({})
-
-/** 正在复核的自动记录（保存时覆盖该条并标记 reviewed） */
-const reviewingId = ref(null)
-const reviewingScoreTime = ref(null)
 
 /** 某项当前生效分值（默认自动值） */
 function scoreOf(it) {
@@ -827,11 +1228,10 @@ function recalcTotal() {
   totalScore.value = items.value.reduce((sum, it) => sum + scoreOf(it), 0)
 }
 
-/** 载入评估结果后用自动分初始化各项，并清空复核态 */
+/** 载入评估结果后用自动分初始化各项，并重置可编辑输入值 */
 function resetOverridesFromItems() {
-  for (const k of Object.keys(scoreOverrides)) delete scoreOverrides[k]
-  for (const it of items.value) scoreOverrides[it.key] = it.score || 0
-  recalcTotal()
+  initInputsFromItems()
+  restoreAutoScores()
 }
 
 // ---------------- 左侧评分记录栏 ----------------
@@ -841,22 +1241,28 @@ const sortedRecords = computed(() => {
   return [...records.value].sort((a, b) => String(b.scoreTime || '').localeCompare(String(a.scoreTime || '')))
 })
 
-/** 当前选中的记录（仅用于高亮） */
+/** 当前选中的记录：高亮该条，且「保存评分」会覆盖该条 */
 const currentRecordId = ref(null)
 
+/**
+ * 选中某条记录：载入其六项分值作为当前生效值。
+ * 之后点「保存评分」即覆盖该条（与 APACHE II 一致）；点「新增评分」清空选中后再保存则新增一条。
+ */
 function selectRecord(r) {
   if (!r) return
   currentRecordId.value = r.id
-  if (isAutoRecord(r)) ElMessage.info('已选中该条自动初评，点侧栏「复核」可载入修改')
+  scoreOverrides.resp = r.respScore || 0
+  scoreOverrides.coag = r.coagScore || 0
+  scoreOverrides.liver = r.liverScore || 0
+  scoreOverrides.cardio = r.cardioScore || 0
+  scoreOverrides.neuro = r.neuroScore || 0
+  scoreOverrides.renal = r.renalScore || 0
+  recalcTotal()
 }
 
-/** 新增评分：清空复核态并按当前取数范围重新取数 */
+/** 新增评分：清空选中并按当前取数范围重新取数 */
 function addRecord() {
   currentRecordId.value = null
-  if (reviewingId.value) {
-    reviewingId.value = null
-    reviewingScoreTime.value = null
-  }
   doctorRemark.value = ''
   ElMessage.info('已重新取数，可开始新的评分')
   loadAssessment()
@@ -957,20 +1363,21 @@ function vasoOf(name) {
   return d ? d.doseUgKgMin : null
 }
 
+/** 血管活性药命中列：以当前生效分（含手工修正）为准 */
 function vasoHit(name, col) {
-  const d = vasoDose(name)
-  return d ? Number(d.score || 0) === col : false
+  const s = drugScores[name]
+  return s !== null && s !== undefined && Number(s) === col
 }
 
-/** 单项指标命中列（该器官自动分 === col） */
+/** 单项指标命中列（该器官「当前生效分」=== col） */
 function hitCol(key, col) {
   const it = items.value.find(x => x.key === key)
-  return it ? Number(it.score || 0) === col : false
+  return it ? Number(scoreOf(it)) === col : false
 }
 
-/** rawJson 子项命中列（mapScore / creatinineScore / urineScore） */
+/** 子项命中列（mapScore / creatinineScore / urineScore），随手工修正重算 */
 function hitRaw(key, field, col) {
-  const v = rawOf(key)[field]
+  const v = subScores[field]
   if (v === null || v === undefined) return false
   return Number(v) === col
 }
@@ -978,19 +1385,6 @@ function hitRaw(key, field, col) {
 function cellCls(hit) {
   return hit ? 'cell-hit' : ''
 }
-
-/** GCS 输入值 */
-const gcsInputText = computed(() => {
-  const r = rawOf('neuro')
-  if (r.gcsTotal === null || r.gcsTotal === undefined) return '—'
-  return `${r.gcsTotal} 分${r.gcsDetail ? ' (' + r.gcsDetail + ')' : ''}`
-})
-
-/** 24h 尿量输入值 */
-const urineInputText = computed(() => {
-  const u = rawOf('renal').urineMl
-  return (u === null || u === undefined) ? '窗口<24h' : num(u, 0)
-})
 
 /** 器官分值方块配色 */
 function boxClass(s) {
@@ -1084,30 +1478,6 @@ function recTagClass(r) {
   return isAutoRecord(r) ? 'auto' : 'manual'
 }
 
-/** 载入某条自动初评进行复核：分值作为初始生效值，保存时覆盖原记录并标记“已复核” */
-function reviewRecord(r) {
-  if (!r) return
-  for (const k of Object.keys(scoreOverrides)) delete scoreOverrides[k]
-  scoreOverrides.resp = r.respScore || 0
-  scoreOverrides.coag = r.coagScore || 0
-  scoreOverrides.liver = r.liverScore || 0
-  scoreOverrides.cardio = r.cardioScore || 0
-  scoreOverrides.neuro = r.neuroScore || 0
-  scoreOverrides.renal = r.renalScore || 0
-  reviewingId.value = r.id
-  reviewingScoreTime.value = r.scoreTime
-  doctorRemark.value = r.remark || ''
-  recalcTotal()
-  ElMessage.info('已载入该条自动初评，调整后点“保存复核”覆盖')
-}
-
-function cancelReview() {
-  reviewingId.value = null
-  reviewingScoreTime.value = null
-  resetOverridesFromItems()
-  ElMessage.info('已取消复核')
-}
-
 // ---------------- 文书 PDF ----------------
 
 function fmtTimeNow() {
@@ -1119,6 +1489,68 @@ function fmtTimeNow() {
 function reportFileName() {
   const name = patient.name || inHospitalNo.value || 'patient'
   return `SOFA评分表_${name}_${fmtTimeNow().replace(/[: ]/g, '')}.pdf`
+}
+
+/** 当前选中的记录对象（来自左侧记录列表） */
+function currentRecordOf() {
+  return records.value.find(x => x.id === currentRecordId.value) || null
+}
+
+/** 文书里的「记录时间」：覆盖已有记录时与其评分时间一致，新增时取当前时间 */
+function refreshReportTime() {
+  const cur = currentRecordOf()
+  const t = cur && cur.scoreTime ? String(cur.scoreTime).replace('T', ' ') : ''
+  reportTime.value = t ? t.slice(0, 19) : fmtTimeNow()
+}
+
+/** 预览文书：把离屏文书快照到弹窗（与 APACHE II 一致，只预览不保存） */
+async function openReport() {
+  reportGenerating.value = true
+  try {
+    refreshReportTime()
+    await nextTick()
+    showReportModal.value = true
+    await nextTick()
+    // 必须克隆 outerHTML：.report-page 外壳带 A4 固定宽度/内边距/宋体样式，
+    // 只取 innerHTML 会让表格落进弹窗容器被压变形、左侧留大片空白
+    if (reportRef.value && reportViewRef.value) {
+      reportViewRef.value.innerHTML = reportRef.value.outerHTML
+    }
+  } finally {
+    reportGenerating.value = false
+  }
+}
+
+/** 浏览器打印（新窗口写入文书 HTML，矢量清晰） */
+function printReport() {
+  const el = reportRef.value
+  if (!el) return
+  const w = window.open('', '_blank')
+  if (!w) {
+    ElMessage.warning('浏览器拦截了打印窗口，请允许弹窗')
+    return
+  }
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${reportFileName()}</title>
+  <style>
+    body{margin:0;background:#fff;font-family:'Microsoft YaHei','SimSun',sans-serif;color:#000}
+    .report-page{width:190mm;margin:0 auto;padding:4mm 0}
+    @page{size:A4;margin:10mm}
+    table{border-collapse:collapse;width:100%}
+  </style></head><body>${el.innerHTML}</body></html>`)
+  w.document.close()
+  w.focus()
+  setTimeout(() => { w.print() }, 350)
+}
+
+/** 导出 PDF：与保存归档使用的是同一份文书渲染逻辑 */
+async function downloadReportPdf() {
+  try {
+    const pdf = await buildSofaPdf()
+    pdf.save(reportFileName())
+  } catch (e) {
+    console.error(e)
+    ElMessage.warning('导出PDF失败：' + (e.message || e))
+  }
 }
 
 /** 将离屏文书 DOM 渲染为单页 A4 的 jsPDF（整表等比缩放，绝不跨页截断） */
@@ -1221,8 +1653,6 @@ function base64ToBlob(base64, type) {
 .record-tag.reviewed { background: #e1f3d8; color: #389e0d; }
 .record-tag.pdf-tag { background: #e1f3d8; color: #389e0d; cursor: pointer; }
 .record-tag.pdf-tag:hover { background: #d3f0c0; }
-.record-tag.review-tag { background: #ecf5ff; color: #409eff; cursor: pointer; }
-.record-tag.review-tag:hover { background: #d9ecff; }
 .record-tag.del-tag { cursor: pointer; }
 .record-tag.del-tag:hover { background: #fef0f0; color: #f56c6c; }
 .record-empty { text-align: center; color: #c0c4cc; font-size: 13px; padding: 40px 0; }
@@ -1282,6 +1712,9 @@ function base64ToBlob(base64, type) {
 .table-panel { background: #fff; border-radius: 8px; border: 1px solid #ebeef5; padding: 14px 16px 8px; }
 .table-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #303133; margin-bottom: 10px; }
 .table-title::before { content: ''; width: 3px; height: 15px; border-radius: 2px; background: #409eff; }
+.table-title .tt-hint { font-size: 12px; font-weight: 400; color: #909399; }
+.btn-mini { height: 24px; padding: 0 10px; border: 1px solid #f0c78a; border-radius: 4px; background: #fdf6ec; color: #d98b0b; font-size: 12px; cursor: pointer; transition: all .2s; }
+.btn-mini:hover { background: #fbe9d2; }
 table.score { width: 100%; border-collapse: collapse; table-layout: fixed; }
 table.score th, table.score td { border: 1px solid #ebeef5; text-align: center; padding: 0; height: 40px; font-size: 13px; vertical-align: middle; color: #606266; }
 table.score thead th { background: #f5f8fc; color: #728096; font-weight: 600; height: 38px; }
@@ -1289,9 +1722,17 @@ table.score td.sys { font-weight: 600; color: #303133; background: #fafafa; font
 table.score td.ind { text-align: left; padding-left: 13px; color: #303133; background: #fff; }
 table.score td.dim { color: #c0c4cc; }
 table.score td.cell-hit { background: #dcecfc; color: #2b7de1; font-weight: 600; }
-table.score .inp { display: flex; align-items: center; justify-content: space-between; height: 30px; margin: 0 auto; width: 88%; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; padding: 0 10px; color: #303133; font-size: 13px; font-weight: 500; box-sizing: border-box; overflow: hidden; white-space: nowrap; }
-table.score .inp.drop { background: #fafafa; border-color: #dcdfe6; }
-table.score .inp .caret { color: #c0c4cc; font-size: 12px; flex-shrink: 0; }
+/* 输入值列：可直接编辑（手工修正入口），呼吸机支持为下拉 */
+table.score .inp { display: block; height: 30px; margin: 0 auto; width: 88%; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; padding: 0 8px; color: #303133; font-size: 13px; font-weight: 600; box-sizing: border-box; text-align: center; outline: none; transition: border-color .2s, box-shadow .2s, background .2s; }
+table.score .inp::placeholder { color: #c0c4cc; font-weight: 400; }
+table.score .inp:hover { border-color: #c6e2ff; }
+table.score .inp:focus { border-color: #409eff; box-shadow: 0 0 0 2px rgba(64, 158, 255, .12); }
+/* 手工改过的输入项：橙色高亮，改回自动值即恢复 */
+table.score .inp.dirty { border-color: #e6a23c; background: #fdf6ec; color: #d98b0b; }
+/* 数字输入框隐藏原生步进箭头，避免挤占本就很窄的单元格 */
+table.score .inp[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+table.score .inp[type="number"]::-webkit-outer-spin-button,
+table.score .inp[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 table.score td.act { padding: 4px 6px; height: auto; }
 .btn-src { min-width: 50px; height: 26px; padding: 0 8px; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; color: #606266; font-size: 12px; cursor: pointer; transition: all .2s; }
 .btn-src:hover { color: #409eff; border-color: #c6e2ff; background: #ecf5ff; }
@@ -1300,6 +1741,7 @@ table.score td.act { padding: 4px 6px; height: auto; }
 .tip { display: flex; align-items: center; gap: 8px; margin: 10px 0 8px; padding: 9px 13px; background: #f7fbff; border: 1px solid #edf2f8; border-radius: 6px; color: #40546c; font-size: 13px; line-height: 1.6; }
 .tip .ico { flex: 0 0 18px; width: 18px; height: 18px; border-radius: 50%; background: #409eff; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; box-sizing: border-box; }
 .tip b { color: #303133; }
+.tip-manual { background: #fdf6ec; border-color: #f5dab1; color: #8a5a00; }
 
 /* ===== 底部操作行 ===== */
 .footer-bar { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
@@ -1313,6 +1755,8 @@ table.score td.act { padding: 4px 6px; height: auto; }
 .btn-primary:hover { background: #66b1ff; color: #fff; border-color: #66b1ff; }
 .btn-success { background: #67c23a; color: #fff; border-color: #67c23a; font-weight: 600; }
 .btn-success:hover { background: #85ce61; color: #fff; border-color: #85ce61; }
+.btn-danger { background: #f56c6c; color: #fff; border-color: #f56c6c; font-weight: 600; }
+.btn-danger:hover { background: #f78989; color: #fff; border-color: #f78989; }
 .btn:disabled { opacity: .6; cursor: not-allowed; }
 .btn-primary:disabled { opacity: .6; cursor: not-allowed; }
 .btn-text { border: none; background: transparent; color: #409eff; padding: 0 6px; cursor: pointer; }
@@ -1325,6 +1769,11 @@ table.score td.act { padding: 4px 6px; height: auto; }
 .modal-close { border: none; background: transparent; font-size: 20px; cursor: pointer; color: #909399; }
 .modal-body { padding: 16px 20px; }
 .modal-foot { padding: 12px 20px; border-top: 1px solid #ebeef5; text-align: right; }
+/* ===== 文书预览弹窗：A4 原尺寸等比展示，弹窗体内部滚动 ===== */
+.report-modal { width: min(880px, calc(100vw - 40px)); display: flex; flex-direction: column; overflow: hidden; }
+.report-modal .modal-body.report-scroll { flex: 1; overflow: auto; background: #e9edf2; padding: 18px; max-height: calc(100vh - 220px); }
+.report-view-host { display: flex; justify-content: center; }
+.report-view-host .report-page { flex: 0 0 auto; box-shadow: 0 2px 12px rgba(0,0,0,.16); }
 .src-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }
 .src-card { padding: 12px; background: #f5f7fa; border: 1px solid #ebeef5; border-radius: 8px; }
 .src-label { font-size: 12px; color: #909399; }
@@ -1333,4 +1782,7 @@ table.score td.act { padding: 4px 6px; height: auto; }
 .src-title { margin: 12px 0 6px; font-weight: 600; font-size: 13px; color: #303133; border-left: 3px solid #409eff; padding-left: 8px; }
 .src-json { background: #f5f7fa; border: 1px solid #ebeef5; border-radius: 6px; padding: 10px; font-size: 12px; color: #606266; max-height: 220px; overflow: auto; }
 .src-desc { font-size: 13px; color: #606266; line-height: 1.8; }
+.src-count { margin-left: 6px; font-weight: 400; color: #909399; }
+.src-note { margin: 0 0 10px; font-size: 12px; color: #909399; line-height: 1.6; }
+.src-note-warn { color: #e6a23c; }
 </style>

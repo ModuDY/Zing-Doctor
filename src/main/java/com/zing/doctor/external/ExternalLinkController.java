@@ -67,10 +67,15 @@ public class ExternalLinkController {
         if (StrUtil.isNotBlank(baseUrl)) {
             redirect.append(baseUrl.replaceAll("/+$", ""));
         } else {
-            String scheme = request.getScheme();
-            String host = request.getHeader("Host");
+            // 反向代理场景（nginx）优先取 X-Forwarded-*：nginx 用 $http_host 透传可保留 ":2001" 端口。
+            // 若只取 Host 且 nginx 配的是 $host（丢端口），302 会跳到 80 端口而落到外部系统（ICU）的 nginx 上。
+            String scheme = firstToken(request.getHeader("X-Forwarded-Proto"));
+            if (StrUtil.isBlank(scheme)) {
+                scheme = request.getScheme();
+            }
+            String host = firstToken(request.getHeader("X-Forwarded-Host"));
             if (StrUtil.isBlank(host)) {
-                host = request.getHeader("X-Forwarded-Host");
+                host = firstToken(request.getHeader("Host"));
             }
             if (StrUtil.isNotBlank(host)) {
                 redirect.append(scheme).append("://").append(host);
@@ -105,6 +110,15 @@ public class ExternalLinkController {
             // 访问日志失败不影响外链跳转
             log.warn("记录外链访问日志失败", e);
         }
+    }
+
+    /** X-Forwarded-* 可能是逗号分隔的代理链，取第一段。 */
+    private static String firstToken(String value) {
+        if (StrUtil.isBlank(value)) {
+            return value;
+        }
+        int idx = value.indexOf(',');
+        return (idx < 0 ? value : value.substring(0, idx)).trim();
     }
 
     private Map<String, String> collectParams(HttpServletRequest request) {

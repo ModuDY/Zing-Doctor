@@ -24,16 +24,38 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $OutDir) { $OutDir = $root }
 
-$node = 'C:\Users\LDY\.workbuddy\binaries\node\versions\20.18.0\node.exe'
-if (-not (Test-Path $node)) {
+# ---------- 工具链探测：优先项目自带 .tools/，其次 PATH ----------
+# .tools/ 为本地打包工具链（Node/Maven，已在 .gitignore），换机器后脚本仍可用
+$node = $null
+$nodeDir = Get-ChildItem "$root\.tools" -Directory -Filter 'node-v*-win-x64' -ErrorAction SilentlyContinue |
+    Sort-Object Name -Descending | Select-Object -First 1
+if ($nodeDir -and (Test-Path (Join-Path $nodeDir.FullName 'node.exe'))) {
+    $node = Join-Path $nodeDir.FullName 'node.exe'
+} else {
     $cmd = Get-Command node -ErrorAction SilentlyContinue
     if ($cmd) { $node = $cmd.Source }
 }
 
+$mvn = 'mvn'
+$mvnArgs = @()
+$mvnDir = Get-ChildItem "$root\.tools" -Directory -Filter 'apache-maven-*' -ErrorAction SilentlyContinue |
+    Sort-Object Name -Descending | Select-Object -First 1
+if ($mvnDir) {
+    $mvn = Join-Path $mvnDir.FullName 'bin\mvn.cmd'
+    if (Test-Path "$root\.tools\settings.xml") {
+        $mvnArgs += @('-s', "$root\.tools\settings.xml")
+    }
+}
+# mvn 依赖 JAVA_HOME；未设置时从 PATH 上的 java 反推
+if (-not $env:JAVA_HOME) {
+    $javaCmd = Get-Command java -ErrorAction SilentlyContinue
+    if ($javaCmd) { $env:JAVA_HOME = Split-Path -Parent (Split-Path -Parent $javaCmd.Source) }
+}
+
 # ---------- 可选：先构建 ----------
 if ($Build) {
-    Write-Host '>>> 构建后端 mvn package' -ForegroundColor Cyan
-    & mvn -f "$root\pom.xml" package -DskipTests -q
+    Write-Host ">>> 构建后端：$mvn package" -ForegroundColor Cyan
+    & $mvn @mvnArgs -f "$root\pom.xml" package -DskipTests -q
     if ($LASTEXITCODE -ne 0) { throw '后端构建失败' }
 
     Write-Host '>>> 构建前端 vite build' -ForegroundColor Cyan
@@ -121,9 +143,23 @@ $lines = New-Object System.Collections.ArrayList
 [IO.File]::WriteAllLines((Join-Path $work 'DEPLOY.md'), $lines, (New-Object Text.UTF8Encoding($false)))
 
 # ---------- 压缩 ----------
+# ⚠️ 不用 Compress-Archive：Windows 上它把条目名写成 "frontend\dist\index.html"（反斜杠），
+# Linux 的 unzip 不把 "\" 当路径分隔符，会解出一个名为 "frontend\dist\index.html" 的单文件，
+# 目录结构整体丢失（install.sh 随即报缺 frontend/dist/index.html）。这里显式用 "/" 写条目。
 if (Test-Path $zip) { Remove-Item $zip -Force }
-Write-Host '>>> 压缩中…' -ForegroundColor Cyan
-Compress-Archive -Path (Join-Path $work '*') -DestinationPath $zip -CompressionLevel Optimal
+Write-Host '>>> 压缩中（条目统一用 / 分隔，兼容 Linux unzip）…' -ForegroundColor Cyan
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zipArchive = [IO.Compression.ZipFile]::Open($zip, [IO.Compression.ZipArchiveMode]::Create)
+try {
+    Get-ChildItem $work -Recurse -File | ForEach-Object {
+        $entryName = $_.FullName.Substring($work.Length + 1).Replace('\', '/')
+        [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+            $zipArchive, $_.FullName, $entryName, [IO.Compression.CompressionLevel]::Optimal)
+    }
+} finally {
+    $zipArchive.Dispose()
+}
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 
 $size = [math]::Round((Get-Item $zip).Length / 1MB, 2)
