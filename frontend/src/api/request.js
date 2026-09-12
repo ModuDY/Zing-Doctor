@@ -71,6 +71,22 @@ function friendlyMessage(msg) {
   return '操作失败，请稍后重试'
 }
 
+/** 是否为写操作（保存/删除/提交）：失败反馈需更明确，不能只用通用“加载失败”口吻 */
+function isWriteRequest(config) {
+  const m = String((config && config.method) || 'get').toLowerCase()
+  return m === 'post' || m === 'put' || m === 'delete' || m === 'patch'
+}
+
+/**
+ * 统一失败提示。
+ * 调用方可在请求配置里传 silentError: true 关闭全局提示（自行在页面里给出带业务上下文的提示，
+ * 例如“保存失败：xxx”），避免同一错误弹两条。
+ */
+function notifyError(config, friendly) {
+  if (config && config.silentError) return
+  ElMessage.error(isWriteRequest(config) ? '操作未成功：' + friendly : friendly)
+}
+
 // 请求注入外链鉴权头
 request.interceptors.request.use((config) => {
   Object.assign(config.headers, getExternalHeaders())
@@ -89,7 +105,7 @@ request.interceptors.response.use(
     if (res.code !== 0) {
       console.error('[api]', resp.config.url, res.code, res.message)
       const friendly = friendlyMessage(res.message)
-      ElMessage.error(friendly)
+      notifyError(resp.config, friendly)
       // 抛出的 message 用友好文案：各页面 catch 里的 "保存失败：" + e.message
       // 不会再把后端原始堆栈展示给用户
       return Promise.reject(new Error(friendly))
@@ -102,7 +118,7 @@ request.interceptors.response.use(
     const raw = (data && (data.message || data.msg)) || err.message || '网络错误'
     console.error('[api]', err.config && err.config.url, err.response && err.response.status, raw)
     const friendly = friendlyMessage(raw)
-    ElMessage.error(friendly)
+    notifyError(err.config, friendly)
     if (err && typeof err === 'object') {
       try { err.message = friendly } catch (e) { /* 只读属性时忽略 */ }
     }

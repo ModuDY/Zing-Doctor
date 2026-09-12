@@ -10,9 +10,9 @@ export function fetchSofaAssessmentByNo(inHospitalNo, startTime, endTime) {
   return request.get('/sofa/assessment/by-no', { params: { inHospitalNo, startTime, endTime } })
 }
 
-/** 保存评分记录 */
+/** 保存评分记录（失败提示由页面给出，带“保存失败”上下文，故 silentError） */
 export function saveSofaRecord(record, startTime, endTime) {
-  return request.post('/sofa/record', record, { params: { startTime, endTime } })
+  return request.post('/sofa/record', record, { params: { startTime, endTime }, silentError: true })
 }
 
 /** 患者历史评分 */
@@ -20,9 +20,9 @@ export function fetchSofaRecords(inHospitalNo) {
   return request.get('/sofa/records', { params: { inHospitalNo } })
 }
 
-/** 逻辑删除评分记录 */
+/** 逻辑删除评分记录（失败提示由页面给出，带“删除失败”上下文，故 silentError） */
 export function deleteSofaRecord(id) {
-  return request.post('/sofa/record/delete', null, { params: { id } })
+  return request.post('/sofa/record/delete', null, { params: { id }, silentError: true })
 }
 
 /** 科室总览 */

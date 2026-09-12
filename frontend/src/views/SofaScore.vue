@@ -748,7 +748,7 @@ async function doSave(withPdf) {
       }
     }
   } catch (e) {
-    console.warn('保存失败：', e.message || e)
+    ElMessage.error('保存失败：' + (e.message || e))
   } finally {
     saving.value = false
     pdfGenerating.value = false
@@ -761,7 +761,6 @@ function buildRecord() {
   for (const it of items.value) byKey[it.key] = it
   // 分值取“当前生效值”（含医生手工修正），而非纯自动值
   const s = (k) => (byKey[k] ? scoreOf(byKey[k]) : (scoreOverrides[k] || 0))
-  const adjusted = adjustmentsText()
   const baseRemark = doctorRemark.value || remark.value
   const isReview = reviewingId.value !== null
   return {
@@ -779,8 +778,7 @@ function buildRecord() {
     neuroScore: s('neuro'),
     renalScore: s('renal'),
     totalScore: totalScore.value,
-    // 手工修正明细自动记入备注，便于事后追溯
-    remark: [adjusted, baseRemark].filter(Boolean).join('；'),
+    remark: baseRemark,
     createBy: realname.value || username.value || 'doctor'
   }
 }
@@ -799,16 +797,18 @@ async function removeRecord(r) {
     await loadAssessment()
     await loadRecords()
   } catch (e) {
-    console.warn('删除失败：', e.message || e)
+    ElMessage.error('删除失败：' + (e.message || e))
   }
 }
 
-// ---------------- 手工修正 / 复核 ----------------
+// ---------------- 分值状态 / 复核 ----------------
 
-/** SOFA 每项分值范围 0~4 */
-const SCORE_OPTIONS = [0, 1, 2, 3, 4]
-
-/** 各器官项“当前生效分值”：载入评估时用自动分初始化，医生可直接改 */
+/**
+ * 各器官项「当前生效分值」：
+ *  - 载入评估结果时初始化为自动分（resetOverridesFromItems）
+ *  - 选中历史记录时填入该记录的分值（selectRecord）
+ * 器官卡片为只读展示，页面不提供手工修正入口。
+ */
 const scoreOverrides = reactive({})
 
 /** 正在复核的自动记录（保存时覆盖该条并标记 reviewed） */
@@ -822,42 +822,7 @@ function scoreOf(it) {
   return (ov === null || ov === undefined || ov === '') ? (it.score || 0) : Number(ov)
 }
 
-/** 是否被手工改过（与自动值不一致） */
-function isOverridden(it) {
-  if (!it) return false
-  const ov = scoreOverrides[it.key]
-  if (ov === null || ov === undefined || ov === '') return false
-  return Number(ov) !== (it.score || 0)
-}
-
-function scoreColor(s) {
-  if (s >= 4) return '#f56c6c'
-  if (s >= 3) return '#e6a23c'
-  if (s >= 1) return '#409eff'
-  return '#67c23a'
-}
-
-/** 器官小卡左侧标识方块：底色/文字随分值风险等级（对齐 APACHE II 分值徽章） */
-function codeStyle(s) {
-  const m = {
-    0: ['#f0f9eb', '#529b2e'],
-    1: ['#f0f9eb', '#529b2e'],
-    2: ['#fdf6ec', '#b88230'],
-    3: ['#fdf6ec', '#b88230'],
-    4: ['#fef0f0', '#c45656']
-  }
-  const [background, color] = m[s] || ['#ecf5ff', '#409eff']
-  return { background, color }
-}
-
-/** 恢复某项为自动取值 */
-function resetOverride(key) {
-  const it = items.value.find(x => x.key === key)
-  if (it) scoreOverrides[key] = it.score || 0
-  recalcTotal()
-}
-
-/** 总分 = 六项当前生效分值之和（含手工修正） */
+/** 总分 = 六项当前生效分值之和 */
 function recalcTotal() {
   totalScore.value = items.value.reduce((sum, it) => sum + scoreOf(it), 0)
 }
@@ -867,16 +832,6 @@ function resetOverridesFromItems() {
   for (const k of Object.keys(scoreOverrides)) delete scoreOverrides[k]
   for (const it of items.value) scoreOverrides[it.key] = it.score || 0
   recalcTotal()
-}
-
-/** 手工修正说明，写入备注便于事后追溯（谁把哪项从几分改到几分） */
-function adjustmentsText() {
-  const parts = []
-  for (const it of items.value) {
-    if (!isOverridden(it)) continue
-    parts.push(`${it.label} ${it.score || 0}→${scoreOf(it)}`)
-  }
-  return parts.length ? `手工修正：${parts.join('、')}` : ''
 }
 
 // ---------------- 左侧评分记录栏 ----------------

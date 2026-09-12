@@ -1333,7 +1333,8 @@ async function saveRecord() {
       pdfData: null,
       pdfName: null
     }
-    const saved = await request.post('/apache2/save', record)
+    // silentError：失败提示由下面的 catch 统一给出“保存失败：xxx”，避免弹两条
+    const saved = await request.post('/apache2/save', record, { silentError: true })
     if (!saved) {
       ElMessage.error('保存失败')
       return
@@ -1366,7 +1367,7 @@ async function saveRecord() {
       ElMessage.warning('评分已保存，但文书PDF归档失败，可重新编辑该记录后再次保存')
     }
   } catch (e) {
-    console.warn('保存失败: ', e && e.message ? e.message : e)
+    ElMessage.error('保存失败：' + (e && e.message ? e.message : e))
   } finally {
     saving.value = false
   }
@@ -1376,14 +1377,15 @@ async function deleteCurrentRecord() {
   if (!currentRecord.value || !currentRecord.value.id) return
   try {
     await ElMessageBox.confirm('确定删除这条评分记录吗？', '确认删除', { type: 'warning' })
-    const res = await request.delete(`/apache2/record/${currentRecord.value.id}`, { params: { operator: 'doctor' } })
+    const res = await request.delete(`/apache2/record/${currentRecord.value.id}`,
+      { params: { operator: 'doctor' }, silentError: true })
     if (res) {
       ElMessage.success('删除成功')
       currentRecord.value = null
       loadRecords()
     }
   } catch (e) {
-    if (e !== 'cancel') console.warn('删除失败: ', e.message)
+    if (e !== 'cancel') ElMessage.error('删除失败：' + (e.message || e))
   }
 }
 
