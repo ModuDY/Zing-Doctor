@@ -25,7 +25,7 @@
           </div>
           <div class="record-meta">
             <span>{{ rec.createBy || '—' }}</span>
-            <span :class="['record-tag', rec.scoreType === 'auto' ? 'auto' : 'manual']">{{ rec.scoreType === 'auto' ? '自动初评' : '手动评分' }}</span>
+            <span :class="['record-tag', recTagClass(rec)]">{{ scoreTypeLabel(rec) }}</span>
             <span v-if="rec.hasPdf === 1" class="record-tag pdf-tag" @click.stop="viewSavedPdf(rec)">PDF文书</span>
             <!-- 删除按钮与 SOFA 一致，直接放在记录条里；@click.stop 防止连带触发 selectRecord -->
             <span class="record-tag del-tag" @click.stop="deleteRecord(rec)">删除</span>
@@ -562,7 +562,7 @@
           <div style="font-family:'SimHei','黑体',sans-serif;font-size:23px;font-weight:700;letter-spacing:2px;">危重患者 APACHE II 评分表</div>
         </div>
         <div style="font-size:12px;margin-bottom:3px;line-height:1.8;">
-          姓名：{{ patientInfo.name || '—' }}　　床号：{{ patientInfo.bedCode || '—' }}　　住院号：{{ patientInfo.inHospitalNo || inHospitalNo || '—' }}
+          姓名：{{ patientInfo.name || '—' }}　　性别：{{ patientInfo.gender || '—' }}　　年龄：{{ patientInfo.age || '—' }}岁　　床号：{{ patientInfo.bedCode || '—' }}　　住院号：{{ patientInfo.inHospitalNo || inHospitalNo || '—' }}
         </div>
         <div style="font-size:12px;margin-bottom:6px;">诊断：{{ selectedDiagnosisName !== '—' ? selectedDiagnosisName : (patientInfo.diagnosis || '—') }}</div>
 
@@ -672,10 +672,11 @@
         </div>
 
         <!-- 评分医师（含电子签名）/ 评分时间：右下角一行（导出 PDF 可见） -->
-        <div style="display:flex;justify-content:flex-end;font-size:12px;margin-top:16px;">
-          <div style="margin-right:36px;">
-            <div>评分医师：{{ realname || username || '—' }}</div>
-            <img v-if="doctorSignature" :src="doctorSignature" alt="电子签名" style="height:38px;margin-top:2px;" />
+        <div style="display:flex;justify-content:flex-end;align-items:center;font-size:12px;margin-top:16px;">
+          <div style="margin-right:36px;display:flex;align-items:center;">
+            <span>评分医师：</span>
+            <img v-if="doctorSignature" :src="doctorSignature" alt="电子签名" style="height:38px;" />
+            <span v-else>{{ realname || username || '—' }}</span>
           </div>
           <div>评分时间：{{ formatDisplayTime(form.scoreTime) }}</div>
         </div>
@@ -1085,6 +1086,26 @@ function selectRecord(rec) {
   calculateScore()
 }
 
+// ---- 来源三态（自动评分 / 已复核 / 手工评分）：显示口径与 SOFA 完全一致 ----
+
+/** 自动类来源：自动初评 auto、每日定时 daily */
+function isAutoRecord(r) {
+  return !!r && (r.scoreType === 'auto' || r.scoreType === 'daily')
+}
+
+function scoreTypeLabel(r) {
+  if (!r) return ''
+  if (r.scoreType === 'reviewed') return '已复核'
+  if (isAutoRecord(r)) return '自动评分'
+  return '手工评分'
+}
+
+function recTagClass(r) {
+  if (!r) return 'manual'
+  if (r.scoreType === 'reviewed') return 'reviewed'
+  return isAutoRecord(r) ? 'auto' : 'manual'
+}
+
 function addRecord() {
   currentRecord.value = null
   form.age = patientInfo.age ? parseInt(patientInfo.age) : null
@@ -1412,7 +1433,8 @@ async function saveRecord() {
       patientName: patientInfo.name,
       departCode: departCode.value,
       scoreTime: toBackendDateTime(form.scoreTime) || new Date().toISOString().slice(0, 19).replace('T', ' '),
-      scoreType: currentRecord.value ? currentRecord.value.scoreType : 'custom',
+      // 统一落库为「手工评分」：选中自动评分记录后再保存即视为医生已确认（与 SOFA 一致）
+      scoreType: 'custom',
       ageScore: scoreResult.ageScore,
       chronicScore: scoreResult.chronicScore,
       gcsScore: scoreResult.gcsScore,
@@ -2034,6 +2056,7 @@ async function viewSavedPdf(rec) {
 .record-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; background: #f4f4f5; color: #909399; }
 .record-tag.auto { background: #ecf5ff; color: #409eff; }
 .record-tag.manual { background: #fdf6ec; color: #e6a23c; }
+.record-tag.reviewed { background: #e1f3d8; color: #389e0d; }
 .record-empty { text-align: center; color: #c0c4cc; font-size: 13px; padding: 40px 0; }
 .add-record-btn { width: 100%; height: 36px; background: linear-gradient(135deg, #409eff, #66b1ff); color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 6px rgba(64,158,255,0.3); }
 .add-record-btn:hover { background: linear-gradient(135deg, #66b1ff, #409eff); }

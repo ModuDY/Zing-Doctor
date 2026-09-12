@@ -1227,7 +1227,7 @@ public class Apache2ServiceImpl implements Apache2Service {
                 r.setApsData(om.writeValueAsString(aps));
                 r.setDataStartTime(inTime != null ? inTime : now.minusHours(overHours));
                 r.setDataEndTime(now);
-                r.setRemark("系统自动初评：基于入科以来客观监护/检验数据取最差值计算；GCS、慢性健康、诊断分类需主管医生复核确认。");
+                r.setRemark("自动评分：基于入科以来客观监护/检验数据取最差值计算；GCS、慢性健康、诊断分类需主管医生复核确认。");
                 r.setCreateBy("系统自动");
                 r.setCreateTime(now);
                 r.setStatus(1);

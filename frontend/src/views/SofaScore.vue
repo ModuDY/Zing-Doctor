@@ -612,10 +612,11 @@
             备注：1.每日评估时应采取每日最差值；2.分数越高，预后越差。
           </div>
           <!-- 评分医师（含电子签名）/ 评分时间：右下角一行（导出 PDF 可见） -->
-          <div style="display:flex;justify-content:flex-end;font-size:12px;margin-top:12px;">
-            <div style="margin-right:36px;">
-              <div>评分医师：{{ realname || username || '—' }}</div>
-              <img v-if="doctorSignature" :src="doctorSignature" alt="电子签名" style="height:38px;margin-top:2px;" />
+          <div style="display:flex;justify-content:flex-end;align-items:center;font-size:12px;margin-top:12px;">
+            <div style="margin-right:36px;display:flex;align-items:center;">
+              <span>评分医师：</span>
+              <img v-if="doctorSignature" :src="doctorSignature" alt="电子签名" style="height:38px;" />
+              <span v-else>{{ realname || username || '—' }}</span>
             </div>
             <div>评分时间：{{ reportTime || fmtTimeNow() }}</div>
           </div>
