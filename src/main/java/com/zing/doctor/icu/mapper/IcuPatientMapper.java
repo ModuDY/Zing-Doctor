@@ -222,11 +222,31 @@ public interface IcuPatientMapper {
 
     /**
      * 患者出科统计：按出科时间范围和科室查询已出科患者。
-     * 字段：患者姓名、床号、住院号、入科诊断、入科时间、出科时间、出院时间、主管医生。
+     * 字段：患者姓名、床号、住院号、入科诊断、入科时间、出科时间、出科诊断、出科转归、出院时间、主管医生。
+     *
+     * <p>出科诊断：关联 patient_info_diagnosis（patient_id），取离出科时间最近的一条 diag_name。
+     * 排序口径不做时间减法（避免 TIMESTAMP 相减得到 INTERVAL 导致 ABS 报错）：
+     * 1) 出科时间之前（含）的诊断优先；
+     * 2) 其中 diag_time 最大的即离出科最近；
+     * 3) 若该患者所有诊断都晚于出科时间或时间缺失，兜底取时间最早的一条。
+     *
+     * <p>出科转归：patient_info.out_vest_type 字典转文字（1-转科 2-出院 3-死亡 4-临终 5-自动转院）。
      */
     @Select("SELECT pi.name AS patient_name, pi.bed_code AS bed_code, pi.in_hospital_no AS in_hospital_no, "
             + "CAST(pi.diagnosis_content AS VARCHAR(2000)) AS diagnosis, pi.in_depart_time AS in_depart_time, "
-            + "pi.out_depart_time AS out_depart_time, pi.out_hospital_time AS out_hospital_time, "
+            + "pi.out_depart_time AS out_depart_time, "
+            + "(SELECT dg.diag_name AS diag_name FROM ("
+            + "   SELECT d.diag_name AS diag_name "
+            + "   FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d "
+            + "   WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 "
+            + "     AND d.diag_name IS NOT NULL "
+            + "   ORDER BY CASE WHEN d.diag_time IS NOT NULL AND d.diag_time <= pi.out_depart_time THEN 0 ELSE 1 END ASC, "
+            + "            CASE WHEN d.diag_time IS NOT NULL AND d.diag_time <= pi.out_depart_time THEN d.diag_time END DESC, "
+            + "            d.diag_time ASC"
+            + " ) dg WHERE ROWNUM <= 1) AS out_diagnosis, "
+            + "CASE pi.out_vest_type WHEN 1 THEN '转科' WHEN 2 THEN '出院' WHEN 3 THEN '死亡' "
+            + "  WHEN 4 THEN '临终' WHEN 5 THEN '自动转院' END AS out_vest_type, "
+            + "pi.out_hospital_time AS out_hospital_time, "
             + "pi.charge_doctor_name AS charge_doctor "
             + "FROM \"zing_icu_db_prod\".\"patient_info\" pi "
             + "WHERE pi.del_flag = 0 "

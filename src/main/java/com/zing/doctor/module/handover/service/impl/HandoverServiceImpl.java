@@ -565,7 +565,7 @@ public class HandoverServiceImpl implements HandoverService {
         // UTF-8 BOM，Excel打开中文不乱码
         sb.append("\uFEFF");
         // 表头
-        sb.append("患者姓名,床号,住院号,入科诊断,入科时间,出科时间,出院时间,主管医生\n");
+        sb.append("患者姓名,床号,住院号,入科诊断,入科时间,出科时间,出科诊断,出科转归,出院时间,主管医生\n");
         // 数据行
         for (Map<String, Object> row : list) {
             sb.append(csvCell(str(row.get("patient_name")))).append(",");
@@ -574,6 +574,8 @@ public class HandoverServiceImpl implements HandoverService {
             sb.append(csvCell(str(row.get("diagnosis")))).append(",");
             sb.append(csvCell(str(row.get("in_depart_time")))).append(",");
             sb.append(csvCell(str(row.get("out_depart_time")))).append(",");
+            sb.append(csvCell(str(row.get("out_diagnosis")))).append(",");
+            sb.append(csvCell(str(row.get("out_vest_type")))).append(",");
             sb.append(csvCell(str(row.get("out_hospital_time")))).append(",");
             sb.append(csvCell(str(row.get("charge_doctor")))).append("\n");
         }

@@ -42,21 +42,27 @@
       <!-- 患者出科列表 -->
       <div class="table-wrap">
         <el-table :data="patients" border stripe style="width: 100%" :header-cell-style="{ background: '#f5f7fa', fontWeight: 600 }">
-          <el-table-column type="index" label="序号" width="60" align="center" />
-          <el-table-column prop="patient_name" label="患者姓名" width="100" align="center" />
-          <el-table-column prop="bed_code" label="床号" width="80" align="center" />
-          <el-table-column prop="in_hospital_no" label="住院号" width="150" align="center" />
-          <el-table-column prop="diagnosis" label="入科诊断" width="240" show-overflow-tooltip />
-          <el-table-column prop="in_depart_time" label="入科时间" width="180" align="center">
+          <el-table-column type="index" label="序号" width="55" align="center" />
+          <el-table-column prop="patient_name" label="患者姓名" width="90" align="center" />
+          <el-table-column prop="bed_code" label="床号" width="70" align="center" />
+          <el-table-column prop="in_hospital_no" label="住院号" width="130" align="center" />
+          <el-table-column prop="diagnosis" label="入科诊断" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="in_depart_time" label="入科时间" width="145" align="center">
             <template #default="{ row }">{{ fmtTime(row.in_depart_time) }}</template>
           </el-table-column>
-          <el-table-column prop="out_depart_time" label="出科时间" width="180" align="center">
+          <el-table-column prop="out_depart_time" label="出科时间" width="145" align="center">
             <template #default="{ row }">{{ fmtTime(row.out_depart_time) }}</template>
           </el-table-column>
-          <el-table-column prop="out_hospital_time" label="出院时间" width="180" align="center">
+          <el-table-column prop="out_diagnosis" label="出科诊断" min-width="180" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.out_diagnosis || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="out_vest_type" label="出科转归" width="95" align="center">
+            <template #default="{ row }">{{ row.out_vest_type || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="out_hospital_time" label="出院时间" width="145" align="center">
             <template #default="{ row }">{{ fmtTime(row.out_hospital_time) }}</template>
           </el-table-column>
-          <el-table-column prop="charge_doctor" label="主管医生" width="110" align="center" />
+          <el-table-column prop="charge_doctor" label="主管医生" min-width="95" align="center" />
         </el-table>
 
         <div v-if="!patients.length && !loading" class="empty-tip">
@@ -130,7 +136,7 @@ function exportXlsx() {
     return
   }
   // 表头
-  const headers = ['患者姓名', '床号', '住院号', '入科诊断', '入科时间', '出科时间', '出院时间', '主管医生']
+  const headers = ['患者姓名', '床号', '住院号', '入科诊断', '入科时间', '出科时间', '出科诊断', '出科转归', '出院时间', '主管医生']
   // 数据行
   const rows = patients.value.map(p => [
     p.patient_name || '',
@@ -139,6 +145,8 @@ function exportXlsx() {
     p.diagnosis || '',
     fmtTime(p.in_depart_time),
     fmtTime(p.out_depart_time),
+    p.out_diagnosis || '',
+    p.out_vest_type || '',
     fmtTime(p.out_hospital_time),
     p.charge_doctor || ''
   ])
@@ -148,7 +156,8 @@ function exportXlsx() {
   // 设置列宽
   ws['!cols'] = [
     {wch: 12}, {wch: 8}, {wch: 18}, {wch: 30},
-    {wch: 18}, {wch: 18}, {wch: 18}, {wch: 12}
+    {wch: 18}, {wch: 18}, {wch: 26}, {wch: 10},
+    {wch: 18}, {wch: 12}
   ]
   XLSX.utils.book_append_sheet(wb, ws, '患者出科统计')
   // 导出文件
