@@ -11,9 +11,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.yaml.snakeyaml.Yaml;
 
 import javax.annotation.PostConstruct;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -60,24 +62,31 @@ public class QualityDslLoader {
         }
     }
 
-    /** 重新加载全部 DSL 配置（热生效）。 */
+    /**
+     * 重新加载全部 DSL 配置（热生效）。
+     *
+     * <p>三层配置<b>全部在局部变量中解析完成后才统一赋值</b>，保证「要么整体换成新配置、
+     * 要么保持原来的旧配置」。若边解析边赋值，某一层失败时（如 YAML 语法错误）会留下
+     * 「新数据源 + 旧事实层」这类错配，运行期反复热加载时尤其危险。
+     */
     public synchronized void reload() {
-        SourceConfig sc = readOne(props.getSourceLocation());
-        this.sourceConfig = sc == null ? new SourceConfig() : sc;
+        SourceConfig sc = readOne(resolveLocation(props.getSourceLocation(), "sources.yaml"));
+        SourceConfig newSource = sc == null ? new SourceConfig() : sc;
 
-        List<Map<String, Object>> factNodes = readList(props.getFactLocation(), "facts");
-        Map<String, FactDefinition> fm = new LinkedHashMap<>();
+        List<Map<String, Object>> factNodes =
+                readList(resolveLocation(props.getFactLocation(), "facts/*.yaml"), "facts");
+        Map<String, FactDefinition> newFacts = new LinkedHashMap<>();
         for (Map<String, Object> node : factNodes) {
             FactDefinition f = om.convertValue(node, FactDefinition.class);
             if (f.getFact() == null || f.getFact().trim().isEmpty()) {
                 continue;
             }
-            fm.put(f.getFact(), f);
+            newFacts.put(f.getFact(), f);
         }
-        this.factMap = fm;
 
-        List<Map<String, Object>> metricNodes = readList(props.getMetricLocation(), "metrics");
-        Map<String, MetricDefinition> mm = new LinkedHashMap<>();
+        List<Map<String, Object>> metricNodes =
+                readList(resolveLocation(props.getMetricLocation(), "metrics/*.yaml"), "metrics");
+        Map<String, MetricDefinition> newMetrics = new LinkedHashMap<>();
         for (Map<String, Object> node : metricNodes) {
             MetricDefinition m = om.convertValue(node, MetricDefinition.class);
             if (m.getCode() == null || m.getCode().trim().isEmpty()) {
@@ -86,12 +95,55 @@ public class QualityDslLoader {
             if (m.getSortNo() == null) {
                 m.setSortNo(parseSeq(m.getCode()));
             }
-            mm.put(m.getCode(), m);
+            newMetrics.put(m.getCode(), m);
         }
-        this.metricMap = mm;
+
+        // 三层均解析成功，此处一次性原子替换
+        this.sourceConfig = newSource;
+        this.factMap = newFacts;
+        this.metricMap = newMetrics;
 
         log.info("[质控] DSL 加载完成：数据源 {} 个，事实层 {} 个，指标 {} 条",
-                sourceConfig.getDatasources().size(), fm.size(), mm.size());
+                newSource.getDatasources().size(), newFacts.size(), newMetrics.size());
+    }
+
+    /**
+     * 解析实际使用的配置路径：外部目录优先，缺失则回退 classpath。
+     *
+     * <p>{@code relative} 是相对 {@code zing.quality.config-dir} 的路径：
+     * 单文件（如 {@code sources.yaml}）需真实存在才采用；通配（如 {@code facts/*.yaml}）
+     * 需其所在目录存在且至少含一个 yaml 才采用。采用即「整体覆盖」，不做逐文件合并 ——
+     * 否则外部目录只放一半时，会出现事实层与指标层来源不一致的错配。
+     *
+     * <p>{@code config-dir} 为空时直接返回原 pattern，行为与改造前完全一致。
+     */
+    private String resolveLocation(String classpathPattern, String relative) {
+        if (!StringUtils.hasText(props.getConfigDir())) {
+            return classpathPattern;
+        }
+        File target = new File(props.getConfigDir(), relative);
+        if (relative.endsWith("*.yaml") || relative.endsWith("*.yml")) {
+            File dir = target.getParentFile();
+            if (dir != null && dir.isDirectory() && hasYaml(dir)) {
+                return "file:" + slash(dir.getAbsolutePath()) + "/" + target.getName();
+            }
+        } else if (target.isFile()) {
+            return "file:" + slash(target.getAbsolutePath());
+        }
+        return classpathPattern;
+    }
+
+    private boolean hasYaml(File dir) {
+        File[] files = dir.listFiles((d, n) -> {
+            String s = n.toLowerCase();
+            return s.endsWith(".yaml") || s.endsWith(".yml");
+        });
+        return files != null && files.length > 0;
+    }
+
+    /** 统一为正斜杠：Windows 路径的反斜杠会破坏 Spring 的资源 pattern。 */
+    private String slash(String path) {
+        return path.replace('\\', '/');
     }
 
     public SourceConfig getSourceConfig() {

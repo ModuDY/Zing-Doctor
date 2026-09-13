@@ -18,6 +18,24 @@ public class QualityProperties {
     /** 是否启用质控中台（关闭后不加载 DSL、不注册任务） */
     private boolean enabled = true;
 
+    /**
+     * 外部配置目录（可选，留空则只用 jar 内打包配置，行为与改造前一致）。
+     *
+     * <p>非空时按「外部优先、缺失回退 classpath」读取：
+     * <pre>
+     *   {configDir}/sources.yaml     覆盖数据源定义（该文件存在时生效）
+     *   {configDir}/facts/*.yaml     整体覆盖事实层定义（目录存在且含 yaml 时生效）
+     *   {configDir}/metrics/*.yaml   整体覆盖指标定义（同上）
+     * </pre>
+     *
+     * <p>存在的意义：jar 内的 classpath 资源<b>运行时不可写</b>。若不把配置放到外部目录，
+     * {@code POST /api/quality/sync-index} 触发的 {@code QualityDslLoader#reload()} 重读到的
+     * 仍是打包时的旧文件，「改配置即热生效」无从谈起。
+     *
+     * <p>例：{@code /data/zing-doctor/config/quality}
+     */
+    private String configDir;
+
     /** 数据源定义文件 */
     private String sourceLocation = "classpath*:quality/sources.yaml";
 

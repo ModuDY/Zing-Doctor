@@ -680,7 +680,7 @@ async function doSync() {
   syncing.value = true
   try {
     const count = await syncQualityIndex()
-    ElMessage.success(`指标字典同步完成，共 ${count ?? 0} 条`)
+    ElMessage.success(`配置已重载，指标字典同步 ${count ?? 0} 条`)
     await loadOverview()
   } catch (e) {
     ElMessage.error('同步失败：' + (e.message || e))

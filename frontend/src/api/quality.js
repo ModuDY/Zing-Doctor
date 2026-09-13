@@ -76,7 +76,12 @@ export function saveQualityManual(params) {
   return request.post('/quality/manual', null, { params, silentError: true })
 }
 
-/** 重新同步指标字典（改完 YAML 热生效，不必重启）；silentError 同上 */
+/**
+ * 重读配置并重新同步指标字典（改完 YAML 热生效，不必重启）；silentError 同上。
+ *
+ * 后端是「reload 重读配置 + 落库」两步：仅落库不会让配置文件里的修改生效。
+ * 前提是配置位于 jar 外部目录（zing.quality.config-dir），否则重读的仍是打包时的旧文件。
+ */
 export function syncQualityIndex() {
   return request.post('/quality/sync-index', null, { silentError: true })
 }

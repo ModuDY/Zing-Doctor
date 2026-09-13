@@ -56,6 +56,21 @@ public class QualityIndexSyncService {
         }
     }
 
+    /**
+     * 重读配置文件并同步字典（页面「同步字典」按钮的入口）。
+     *
+     * <p>与 {@link #sync()} 的区别：{@code sync()} 只把<b>内存中已加载</b>的配置落库，
+     * 启动完成后单独调用它并不会让配置文件的修改生效 —— 这正是此前
+     * 「改完 YAML 点同步即热生效」不成立的原因（{@code reload()} 一直无人调用）。
+     *
+     * <p>{@code reload()} 内部是原子替换：解析失败时旧配置原样保留，因此这里直接抛出，
+     * 由调用方提示失败，不会出现「内存是旧配置、字典表已按未变配置重写一遍」的错乱。
+     */
+    public int reloadAndSync() {
+        dsl.reload();
+        return sync();
+    }
+
     /** 全量同步，返回处理条数。 */
     public int sync() {
         List<MetricDefinition> metrics = dsl.sortedMetrics();

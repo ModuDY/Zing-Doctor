@@ -209,11 +209,19 @@ public class QualityController {
         }
     }
 
-    /** 重新同步指标字典（改完 YAML 热生效，不必重启）。 */
+    /**
+     * 重读配置并重新同步指标字典（改完 YAML 热生效，不必重启）。
+     *
+     * <p>这里是「重载 + 同步」两步，缺一不可：只同步字典不会让配置文件里的修改生效，
+     * 因为 {@code sync()} 用的仍是内存中已加载的旧配置；必须先 {@code reload()} 重读文件。
+     *
+     * <p>前提是配置位于 jar 外部目录（见 {@code zing.quality.config-dir}）；
+     * 若仍使用 classpath 打包配置，重读到的还是打包时的旧文件。
+     */
     @PostMapping("/sync-index")
     public Result<Integer> syncIndex() {
         try {
-            return Result.ok(indexSyncService.sync());
+            return Result.ok(indexSyncService.reloadAndSync());
         } catch (Exception e) {
             log.error("[质控] 字典同步失败", e);
             return Result.fail("同步失败: " + e.getMessage());
