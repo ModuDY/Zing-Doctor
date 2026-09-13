@@ -1,5 +1,6 @@
 package com.zing.doctor.module.antibiotic.service.impl;
 
+import com.zing.doctor.common.BizException;
 import com.zing.doctor.icu.dto.AbxCurrentItem;
 import com.zing.doctor.icu.dto.IcuPatientAssessment;
 import com.zing.doctor.icu.dto.IcuPatientBrief;
@@ -54,11 +55,13 @@ public class PkpdServiceImpl implements PkpdService {
     @Override
     public PkpdAssessmentView getPkpdAssessmentByInHospitalNo(String inHospitalNo) {
         if (inHospitalNo == null || inHospitalNo.trim().isEmpty()) {
-            return null;
+            throw new BizException(400, "缺少住院号参数 inHospitalNo");
         }
         String patientId = icuPatientService.resolvePatientIdByInHospitalNo(inHospitalNo);
         if (patientId == null) {
-            return null;
+            // 与第一维度（/patients/by-no/assessment）口径一致：明确报错。
+            // 原实现返回 null → 200 + data:null，前端只渲染出一张空白页，既无提示也无从排查。
+            throw new BizException(404, "未找到住院号对应的在科患者：" + inHospitalNo);
         }
         return getPkpdAssessment(patientId);
     }
@@ -257,7 +260,12 @@ public class PkpdServiceImpl implements PkpdService {
         nutrition.setWeight(weight);
         nutrition.setHeight(height);
 
-        if (weight != null && height != null && height.compareTo(BigDecimal.ZERO) > 0) {
+        // 身高为脏数据（如 0.001）时跳过 BMI/IBW 计算：
+        // 原实现只判 height > 0，而 height.divide(100, 4, HALF_UP) 会把 (0, 0.005) 的身高
+        // 直接舍入成 0.0000，heightM² 为 0 时 BMI 除法抛 ArithmeticException: / by zero，
+        // 导致整个 PK/PD 页面 500（只有身高脏数据的患者会触发）。
+        // 这类身高算出的 BMI/IBW 也不可信，跳过比给出错误剂量建议更安全。
+        if (weight != null && height != null && isPlausibleHeightCm(height)) {
             // BMI = 体重(kg) / 身高(m)²
             BigDecimal heightM = height.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
             BigDecimal bmi = weight.divide(heightM.multiply(heightM), 1, RoundingMode.HALF_UP);
@@ -289,9 +297,17 @@ public class PkpdServiceImpl implements PkpdService {
                     nutrition.setAdjBw(weight);
                 }
             }
+        } else if (weight != null && height != null) {
+            log.warn("身高不在可信范围(30~250cm)，跳过 BMI/IBW 计算: height={}", height);
         }
 
         return nutrition;
+    }
+
+    /** 身高是否为可信的厘米值（30~250cm）。脏数据会让 BMI 除法抛 / by zero。 */
+    private boolean isPlausibleHeightCm(BigDecimal height) {
+        return height.compareTo(new BigDecimal("30")) >= 0
+                && height.compareTo(new BigDecimal("250")) <= 0;
     }
 
     // ==================================================================

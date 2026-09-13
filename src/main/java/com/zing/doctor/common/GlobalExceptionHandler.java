@@ -1,6 +1,8 @@
 package com.zing.doctor.common;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -46,9 +48,54 @@ public class GlobalExceptionHandler {
         return Result.fail(400, hint);
     }
 
+    /**
+     * 数据库访问异常（SQL 语法/表字段不存在/类型转换失败/数据源连接失败等）。
+     *
+     * <p>这类异常的根因几乎总在 SQL 或表结构上（达梦尤其常见：列名不存在、
+     * CAST 自由文本失败、CLOB 超长），但落到下面的兜底 Exception 只会返回
+     * “系统繁忙，请稍后重试”，与代码 NPE 完全无法区分，排障必须翻服务端日志。
+     * 这里单独给出可定位的提示，并把根因（含 SQL 概要）打到日志。
+     */
+    @ExceptionHandler(DataAccessException.class)
+    public Result<Void> handleDataAccess(DataAccessException e) {
+        Throwable root = e;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        log.error("数据库访问异常，根因: {}", root.getMessage(), e);
+        return Result.fail(500, "数据查询失败，请稍后重试（已记录服务端日志）");
+    }
+
     @ExceptionHandler(Exception.class)
     public Result<Void> handleException(Exception e) {
-        log.error("系统异常", e);
-        return Result.fail(500, "系统繁忙，请稍后重试");
+        Throwable root = e;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        log.error("系统异常，根因 {}: {}", root.getClass().getName(), root.getMessage(), e);
+        return Result.fail(500, "系统繁忙，请稍后重试" + rootHint(root));
+    }
+
+    /**
+     * 是否在 500 文案后附带根因摘要。
+     *
+     * <p>默认开启：兜底异常原先只有一句“系统繁忙”，无法与代码 NPE、SQL 异常区分，
+     * 不翻服务端日志就完全无从定位。排查期先打开，定位完成后把
+     * {@code zing.doctor.debug.expose-error-detail} 设为 false 即可关闭。
+     * 附带内容仅为异常类名 + message（已截断），不含堆栈与患者数据。
+     */
+    @Value("${zing.doctor.debug.expose-error-detail:true}")
+    private boolean exposeErrorDetail;
+
+    private String rootHint(Throwable root) {
+        if (!exposeErrorDetail) {
+            return "";
+        }
+        String msg = root.getMessage();
+        if (msg != null && msg.length() > 120) {
+            msg = msg.substring(0, 120) + "…";
+        }
+        return "【" + root.getClass().getSimpleName()
+                + (msg == null || msg.isEmpty() ? "" : ": " + msg) + "】";
     }
 }

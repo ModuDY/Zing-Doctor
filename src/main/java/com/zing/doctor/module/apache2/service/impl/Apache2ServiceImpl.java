@@ -41,9 +41,37 @@ public class Apache2ServiceImpl implements Apache2Service {
     public Map<String, Object> getOverview(String departCode, String startTime, String endTime) {
         Map<String, Object> result = new HashMap<>();
 
-        // 查询该科室在时间范围内的评分记录
+        // 科室参数非法时直接返回空统计，避免退化为全库扫描：
+        // 外链模板未替换的占位符（如 "${departCode}"）也会落到这里，前端据此提示参数缺失。
+        if (departCode == null || departCode.trim().isEmpty() || departCode.contains("${")) {
+            log.warn("APACHE II 总览查询科室参数非法: departCode={}", departCode);
+            result.put("totalCount", 0);
+            result.put("avgScore", 0.0);
+            result.put("avgMortality", 0.0);
+            result.put("highRiskCount", 0L);
+            result.put("scoreDistribution", emptyDistribution());
+            result.put("records", Collections.emptyList());
+            return result;
+        }
+
+        // 查询该科室在时间范围内的评分记录。
+        // 仅取列表与展开明细需要的字段，避免把 aps_data / gcs_detail / remark 等大字段整体传给前端。
         LambdaQueryWrapper<Apache2ScoreRecord> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Apache2ScoreRecord::getDepartCode, departCode)
+        wrapper.select(Apache2ScoreRecord::getId,
+                        Apache2ScoreRecord::getInHospitalNo,
+                        Apache2ScoreRecord::getPatientName,
+                        Apache2ScoreRecord::getDepartCode,
+                        Apache2ScoreRecord::getScoreTime,
+                        Apache2ScoreRecord::getScoreType,
+                        Apache2ScoreRecord::getAgeScore,
+                        Apache2ScoreRecord::getChronicScore,
+                        Apache2ScoreRecord::getGcsScore,
+                        Apache2ScoreRecord::getPhysiologyScore,
+                        Apache2ScoreRecord::getTotalScore,
+                        Apache2ScoreRecord::getMortalityRate,
+                        Apache2ScoreRecord::getDiagnosisType,
+                        Apache2ScoreRecord::getCreateBy)
+                .eq(Apache2ScoreRecord::getDepartCode, departCode)
                 .eq(Apache2ScoreRecord::getStatus, 1)
                 .ge(Apache2ScoreRecord::getScoreTime, startTime)
                 .le(Apache2ScoreRecord::getScoreTime, endTime)
@@ -57,14 +85,7 @@ public class Apache2ServiceImpl implements Apache2Service {
         long highRiskCount = records.stream().filter(r -> r.getTotalScore() != null && r.getTotalScore() >= 20).count();
 
         // 评分分布
-        Map<String, Integer> scoreDistribution = new LinkedHashMap<>();
-        scoreDistribution.put("0-4", 0);
-        scoreDistribution.put("5-9", 0);
-        scoreDistribution.put("10-14", 0);
-        scoreDistribution.put("15-19", 0);
-        scoreDistribution.put("20-24", 0);
-        scoreDistribution.put("25-29", 0);
-        scoreDistribution.put("30+", 0);
+        Map<String, Integer> scoreDistribution = emptyDistribution();
         for (Apache2ScoreRecord r : records) {
             int score = r.getTotalScore() != null ? r.getTotalScore() : 0;
             if (score <= 4) scoreDistribution.merge("0-4", 1, Integer::sum);
@@ -84,6 +105,19 @@ public class Apache2ServiceImpl implements Apache2Service {
         result.put("records", records);
 
         return result;
+    }
+
+    /** APACHE II 评分分布空桶（顺序固定，前端柱状图按此顺序渲染） */
+    private static Map<String, Integer> emptyDistribution() {
+        Map<String, Integer> dist = new LinkedHashMap<>();
+        dist.put("0-4", 0);
+        dist.put("5-9", 0);
+        dist.put("10-14", 0);
+        dist.put("15-19", 0);
+        dist.put("20-24", 0);
+        dist.put("25-29", 0);
+        dist.put("30+", 0);
+        return dist;
     }
 
     @Override

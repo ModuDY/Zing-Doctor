@@ -1,17 +1,22 @@
 <template>
   <MainLayout v-if="!externalMode">
-    <router-view />
+    <PageBoundary>
+      <router-view />
+    </PageBoundary>
   </MainLayout>
-  <router-view v-else />
+  <PageBoundary v-else>
+    <router-view />
+  </PageBoundary>
 </template>
 
 <script>
 import MainLayout from './layouts/MainLayout.vue'
+import PageBoundary from './layouts/PageBoundary.vue'
 import { isExternalMode } from './utils/external'
 
 export default {
   name: 'App',
-  components: { MainLayout },
+  components: { MainLayout, PageBoundary },
   data() {
     return {
       externalMode: isExternalMode()

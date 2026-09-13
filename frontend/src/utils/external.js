@@ -76,3 +76,28 @@ export function hasExternalContext() {
   const token = sessionStorage.getItem(KEY_TOKEN)
   return Boolean((expire && sign) || token)
 }
+
+/**
+ * 把当前外链上下文拼到站内链接上。
+ *
+ * window.open 打开的新标签页并不保证继承当前标签页的 sessionStorage，
+ * 因此站内跳转（如总览 → 评分页）必须把 pageCode/extToken（或 expire+sign）
+ * 显式带在 URL 上，否则新标签页会失去外链鉴权、接口 401。
+ */
+export function appendExternalContext(url) {
+  const pageCode = sessionStorage.getItem(KEY_PAGE)
+  if (!pageCode) return url
+  const token = sessionStorage.getItem(KEY_TOKEN)
+  const expire = sessionStorage.getItem(KEY_EXPIRE)
+  const sign = sessionStorage.getItem(KEY_SIGN)
+  const parts = [`pageCode=${encodeURIComponent(pageCode)}`]
+  if (token) {
+    parts.push(`extToken=${encodeURIComponent(token)}`)
+  } else if (expire && sign) {
+    parts.push(`expire=${encodeURIComponent(expire)}`)
+    parts.push(`sign=${encodeURIComponent(sign)}`)
+  } else {
+    return url
+  }
+  return url + (url.indexOf('?') >= 0 ? '&' : '?') + parts.join('&')
+}
