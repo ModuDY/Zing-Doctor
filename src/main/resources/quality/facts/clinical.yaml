@@ -1,0 +1,167 @@
+# =====================================================================
+# 事实层（DWD）· 临床专项：脓毒症集束化 / 评估依从 / ARDS
+#
+# 这三个事实层都从 patient_info 出发，用 EXISTS 关联「诊断 / 检验 / 医嘱 / 观察项」，
+# 把散落在多张业务表里的「是否发生某事件」收敛成 0/1 列。
+# 指标层因此只需写 where: "lactate_1h = 1 AND culture_1h = 1" 这类布尔组合，
+# 复杂的时间窗判定只在本文件出现一次 —— 这是「口径集中、指标轻量」的落点。
+#
+# 各列的口径关键词如需调整（医院叫法不同），只改本文件，不动 Java。
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# 脓毒症 / 感染性休克
+# 时间基线统一取入 ICU 时间 in_depart_time（1h / 3h / 6h 集束化窗口的起点）。
+# ---------------------------------------------------------------------
+- fact: fact_sepsis_bundle
+  domain: 脓毒症_感染性休克
+  status: ACTIVE
+  source: patient_info
+  alias: pi
+  note: 感染性休克识别 + 1h/3h/6h 集束化要素（乳酸/血培养/抗菌药/血管活性药）
+  select:
+    - "pi.id AS patient_id"
+    - "pi.in_hospital_no AS in_hospital_no"
+    - "pi.name AS patient_name"
+    - "pi.gender AS gender"
+    - "pi.depart_code AS depart_code"
+    - "pi.in_depart_time AS in_depart_time"
+    - "pi.out_depart_time AS out_depart_time"
+  where:
+    - "pi.del_flag = 0"
+    - "pi.in_depart_time IS NOT NULL"
+    - "pi.in_depart_time < :periodEnd"
+    - "(pi.out_depart_time IS NULL OR pi.out_depart_time >= :periodStart)"
+  derive:
+    # ---- 人群识别 ----
+    - "CASE WHEN pi.is_sepsis_shock = 1 THEN 1 ELSE 0 END AS sepsis_shock"
+    # 入 ICU 前已发生：诊断中「感染性休克」的时间早于入 ICU 时间
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND d.diag_name LIKE '%感染性休克%' AND d.diag_time IS NOT NULL AND d.diag_time < pi.in_depart_time) THEN 1 ELSE 0 END AS pre_icu_shock"
+    # 入 ICU 后发生：诊断为感染性休克，且时间不早于入 ICU（门诊带入时间缺失时按入 ICU 后计）
+    - "CASE WHEN pi.is_sepsis_shock = 1 AND NOT EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND d.diag_name LIKE '%感染性休克%' AND d.diag_time IS NOT NULL AND d.diag_time < pi.in_depart_time) THEN 1 ELSE 0 END AS in_icu_shock"
+    # 年龄分段：先用正则确认是可解析的数字，再做数值比较，避免达梦对 "3月""新生儿" 之类
+    # 文本隐式转换报错。若贵院 age 列中存在非数字值且此处仍报错，把本行改为按年龄段字典取值。
+    - "CASE WHEN REGEXP_LIKE(TRIM(pi.age), '^[0-9]{1,3}$') THEN CAST(TRIM(pi.age) AS INT) END AS age_num"
+    # ---- 1h 集束化三要素 ----
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li WHERE li.in_hospital_no = pi.in_hospital_no AND li.del_flag = 0 AND li.lis_item_name LIKE '%乳酸%' AND li.check_time IS NOT NULL AND DATEDIFF(MINUTE, pi.in_depart_time, li.check_time) BETWEEN 0 AND 60) THEN 1 ELSE 0 END AS lactate_1h"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li WHERE li.in_hospital_no = pi.in_hospital_no AND li.del_flag = 0 AND li.lis_item_name LIKE '%血培养%' AND li.check_time IS NOT NULL AND DATEDIFF(MINUTE, pi.in_depart_time, li.check_time) BETWEEN 0 AND 60) THEN 1 ELSE 0 END AS culture_1h"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_advice\" pa WHERE pa.in_hospital_no = pi.in_hospital_no AND pa.del_flag = 0 AND pa.status = '1' AND pa.type_code = 'drug' AND pa.start_time IS NOT NULL AND DATEDIFF(MINUTE, pi.in_depart_time, pa.start_time) BETWEEN 0 AND 60 AND (pa.name LIKE '%头孢%' OR pa.name LIKE '%培南%' OR pa.name LIKE '%万古霉素%' OR pa.name LIKE '%利奈唑胺%' OR pa.name LIKE '%替考拉宁%' OR pa.name LIKE '%达托霉素%' OR pa.name LIKE '%左氧氟沙星%' OR pa.name LIKE '%莫西沙星%' OR pa.name LIKE '%环丙沙星%' OR pa.name LIKE '%阿奇霉素%' OR pa.name LIKE '%阿米卡星%' OR pa.name LIKE '%庆大霉素%' OR pa.name LIKE '%替加环素%' OR pa.name LIKE '%多黏菌素%' OR pa.name LIKE '%氟康唑%' OR pa.name LIKE '%伏立康唑%' OR pa.name LIKE '%卡泊芬净%' OR pa.name LIKE '%米卡芬净%' OR pa.name LIKE '%甲硝唑%' OR pa.name LIKE '%青霉素%' OR pa.name LIKE '%阿莫西林%' OR pa.name LIKE '%氨苄西林%' OR pa.name LIKE '%哌拉西林%' OR pa.name LIKE '%氨曲南%' OR pa.name LIKE '%磷霉素%' OR pa.name LIKE '%利福平%' OR pa.name LIKE '%磺胺%' OR pa.name LIKE '%新诺明%')) THEN 1 ELSE 0 END AS abx_1h"
+    # ---- 3h 集束化三要素 ----
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li WHERE li.in_hospital_no = pi.in_hospital_no AND li.del_flag = 0 AND li.lis_item_name LIKE '%乳酸%' AND li.check_time IS NOT NULL AND DATEDIFF(MINUTE, pi.in_depart_time, li.check_time) BETWEEN 0 AND 180) THEN 1 ELSE 0 END AS lactate_3h"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li WHERE li.in_hospital_no = pi.in_hospital_no AND li.del_flag = 0 AND li.lis_item_name LIKE '%血培养%' AND li.check_time IS NOT NULL AND DATEDIFF(MINUTE, pi.in_depart_time, li.check_time) BETWEEN 0 AND 180) THEN 1 ELSE 0 END AS culture_3h"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_advice\" pa WHERE pa.in_hospital_no = pi.in_hospital_no AND pa.del_flag = 0 AND pa.status = '1' AND pa.type_code = 'drug' AND pa.start_time IS NOT NULL AND DATEDIFF(MINUTE, pi.in_depart_time, pa.start_time) BETWEEN 0 AND 180 AND (pa.name LIKE '%头孢%' OR pa.name LIKE '%培南%' OR pa.name LIKE '%万古霉素%' OR pa.name LIKE '%利奈唑胺%' OR pa.name LIKE '%替考拉宁%' OR pa.name LIKE '%达托霉素%' OR pa.name LIKE '%左氧氟沙星%' OR pa.name LIKE '%莫西沙星%' OR pa.name LIKE '%环丙沙星%' OR pa.name LIKE '%阿奇霉素%' OR pa.name LIKE '%阿米卡星%' OR pa.name LIKE '%庆大霉素%' OR pa.name LIKE '%替加环素%' OR pa.name LIKE '%多黏菌素%' OR pa.name LIKE '%氟康唑%' OR pa.name LIKE '%伏立康唑%' OR pa.name LIKE '%卡泊芬净%' OR pa.name LIKE '%米卡芬净%' OR pa.name LIKE '%甲硝唑%' OR pa.name LIKE '%青霉素%' OR pa.name LIKE '%阿莫西林%' OR pa.name LIKE '%氨苄西林%' OR pa.name LIKE '%哌拉西林%' OR pa.name LIKE '%氨曲南%' OR pa.name LIKE '%磷霉素%' OR pa.name LIKE '%利福平%' OR pa.name LIKE '%磺胺%' OR pa.name LIKE '%新诺明%')) THEN 1 ELSE 0 END AS abx_3h"
+    # ---- 6h：血管活性药（6h bundle 的低血压处理要素） ----
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_advice\" pa WHERE pa.in_hospital_no = pi.in_hospital_no AND pa.del_flag = 0 AND pa.status = '1' AND pa.type_code = 'drug' AND pa.start_time IS NOT NULL AND DATEDIFF(MINUTE, pi.in_depart_time, pa.start_time) BETWEEN 0 AND 360 AND (pa.name LIKE '%去甲肾上腺素%' OR pa.name LIKE '%肾上腺素%' OR pa.name LIKE '%多巴胺%' OR pa.name LIKE '%多巴酚丁胺%' OR pa.name LIKE '%血管加压素%' OR pa.name LIKE '%垂体后叶%')) THEN 1 ELSE 0 END AS vaso_6h"
+    # ---- 感染部位（供 433~447 分型；一处诊断只归一个部位，多部位会重复计入，属口径特性） ----
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%血流感染%' OR d.diag_name LIKE '%菌血症%')) THEN 1 ELSE 0 END AS site_blood"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%导管相关%' OR d.diag_name LIKE '%CRBSI%')) THEN 1 ELSE 0 END AS site_crbsi"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%腹腔感染%' OR d.diag_name LIKE '%腹膜炎%')) THEN 1 ELSE 0 END AS site_abdomen"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%泌尿%' OR d.diag_name LIKE '%尿路%')) THEN 1 ELSE 0 END AS site_urinary"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%中枢神经%' OR d.diag_name LIKE '%颅内感染%' OR d.diag_name LIKE '%脑膜炎%')) THEN 1 ELSE 0 END AS site_cns"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%肺部感染%' OR d.diag_name LIKE '%肺炎%')) THEN 1 ELSE 0 END AS site_lung"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%胆道%' OR d.diag_name LIKE '%胆管炎%' OR d.diag_name LIKE '%胆囊炎%')) THEN 1 ELSE 0 END AS site_biliary"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%胃肠道%' OR d.diag_name LIKE '%肠炎%' OR d.diag_name LIKE '%消化道感染%')) THEN 1 ELSE 0 END AS site_gi"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND d.diag_name LIKE '%骨髓%') THEN 1 ELSE 0 END AS site_marrow"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%皮肤软组织%' OR d.diag_name LIKE '%蜂窝织炎%')) THEN 1 ELSE 0 END AS site_skin"
+    # 「其他部位」= 以上部位一个都没命中。用单条计数子查询表达，避免 11 层 NOT EXISTS
+    - "CASE WHEN (SELECT COUNT(1) FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%血流感染%' OR d.diag_name LIKE '%菌血症%' OR d.diag_name LIKE '%导管相关%' OR d.diag_name LIKE '%CRBSI%' OR d.diag_name LIKE '%腹腔感染%' OR d.diag_name LIKE '%腹膜炎%' OR d.diag_name LIKE '%泌尿%' OR d.diag_name LIKE '%尿路%' OR d.diag_name LIKE '%中枢神经%' OR d.diag_name LIKE '%颅内感染%' OR d.diag_name LIKE '%脑膜炎%' OR d.diag_name LIKE '%肺部感染%' OR d.diag_name LIKE '%肺炎%' OR d.diag_name LIKE '%胆道%' OR d.diag_name LIKE '%胆管炎%' OR d.diag_name LIKE '%胆囊炎%' OR d.diag_name LIKE '%胃肠道%' OR d.diag_name LIKE '%肠炎%' OR d.diag_name LIKE '%消化道感染%' OR d.diag_name LIKE '%骨髓%' OR d.diag_name LIKE '%皮肤软组织%' OR d.diag_name LIKE '%蜂窝织炎%')) = 0 THEN 1 ELSE 0 END AS site_none"
+    # ---- 转归 ----
+    - "CASE WHEN pi.out_vest_type = 3 AND pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS died_in_period"
+    - "CASE WHEN pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS out_in_period"
+
+# ---------------------------------------------------------------------
+# 评估依从：镇静 / 镇痛 / 意识 / 肠内营养
+# 评估项名称取自观察项字典 patient_observe_module_item.item_name。
+# 若贵院字典叫法不同（如把 RASS 记在 item_code 上），只改本文件关键词。
+# ---------------------------------------------------------------------
+- fact: fact_assessment
+  domain: 评估依从
+  status: ACTIVE
+  source: patient_info
+  alias: pi
+  note: 镇静/镇痛/意识评估与 48h 内肠内营养启动
+  select:
+    - "pi.id AS patient_id"
+    - "pi.in_hospital_no AS in_hospital_no"
+    - "pi.name AS patient_name"
+    - "pi.depart_code AS depart_code"
+    - "pi.in_depart_time AS in_depart_time"
+    - "pi.out_depart_time AS out_depart_time"
+  where:
+    - "pi.del_flag = 0"
+    - "pi.in_depart_time IS NOT NULL"
+    - "pi.in_depart_time < :periodEnd"
+    - "(pi.out_depart_time IS NULL OR pi.out_depart_time >= :periodStart)"
+  derive:
+    # 住院超过 48h（未转出按本周期末计算），quality_309/310 的分母
+    - "CASE WHEN DATEDIFF(HOUR, pi.in_depart_time, CASE WHEN (pi.out_depart_time IS NULL OR pi.out_depart_time > :periodEnd) THEN :periodEnd ELSE pi.out_depart_time END) > 48 THEN 1 ELSE 0 END AS stay_gt_48h"
+    - "CASE WHEN pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS out_in_period"
+    - "CASE WHEN pi.out_vest_type = 3 AND pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS died_in_period"
+    # 镇静评估（RASS / SAS 等）
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_observe_module_item\" i WHERE i.patient_id = pi.id AND i.del_flag = 0 AND (i.item_name LIKE '%镇静%' OR i.item_name LIKE '%RASS%' OR i.item_name LIKE '%SAS%')) THEN 1 ELSE 0 END AS sedation_assessed"
+    # 镇痛评估（CPOT / NRS / 疼痛评分）
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_observe_module_item\" i WHERE i.patient_id = pi.id AND i.del_flag = 0 AND (i.item_name LIKE '%镇痛%' OR i.item_name LIKE '%疼痛%' OR i.item_name LIKE '%CPOT%')) THEN 1 ELSE 0 END AS analgesia_assessed"
+    # 意识评估（GCS / 格拉斯哥）
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_observe_module_item\" i WHERE i.patient_id = pi.id AND i.del_flag = 0 AND (i.item_name LIKE '%意识%' OR i.item_name LIKE '%格拉斯哥%' OR i.item_name LIKE '%GCS%')) THEN 1 ELSE 0 END AS consciousness_assessed"
+    # 急性脑损伤（ABI）
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%脑出血%' OR d.diag_name LIKE '%脑梗死%' OR d.diag_name LIKE '%颅脑损伤%' OR d.diag_name LIKE '%脑外伤%' OR d.diag_name LIKE '%蛛网膜下腔出血%' OR d.diag_name LIKE '%缺氧性脑病%')) THEN 1 ELSE 0 END AS abi"
+    # 48h 内启动肠内营养（医嘱名称关键词）
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_advice\" pa WHERE pa.in_hospital_no = pi.in_hospital_no AND pa.del_flag = 0 AND pa.status = '1' AND pa.start_time IS NOT NULL AND DATEDIFF(HOUR, pi.in_depart_time, pa.start_time) BETWEEN 0 AND 48 AND (pa.name LIKE '%肠内营养%' OR pa.name LIKE '%鼻饲%' OR pa.name LIKE '%肠内%' OR pa.name LIKE '%能全力%' OR pa.name LIKE '%百普力%' OR pa.name LIKE '%瑞代%' OR pa.name LIKE '%瑞先%')) THEN 1 ELSE 0 END AS en_48h"
+
+# ---------------------------------------------------------------------
+# ARDS 专项
+# 人群识别：诊断文本含 ARDS / 急性呼吸窘迫。
+# 分度：优先读诊断中的「轻度/中度/重度」标注；若诊断未标注分度，则不计入分度指标
+#       （页面会显示未分度人数），后续接入氧合指数即可改为数值分度。
+# 治疗措施：从医嘱 + 观察项关键词识别，装置类医嘱不限定 type_code。
+# ---------------------------------------------------------------------
+- fact: fact_ards
+  domain: ARDS专项
+  status: ACTIVE
+  source: patient_info
+  alias: pi
+  note: ARDS 人群/分度/病因/呼吸支持方式
+  select:
+    - "pi.id AS patient_id"
+    - "pi.in_hospital_no AS in_hospital_no"
+    - "pi.name AS patient_name"
+    - "pi.gender AS gender"
+    - "pi.depart_code AS depart_code"
+    - "pi.in_depart_time AS in_depart_time"
+    - "pi.out_depart_time AS out_depart_time"
+  where:
+    - "pi.del_flag = 0"
+    - "pi.in_depart_time IS NOT NULL"
+    - "pi.in_depart_time < :periodEnd"
+    - "(pi.out_depart_time IS NULL OR pi.out_depart_time >= :periodStart)"
+  derive:
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%ARDS%' OR d.diag_name LIKE '%急性呼吸窘迫%')) THEN 1 ELSE 0 END AS ards"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%ARDS%' OR d.diag_name LIKE '%急性呼吸窘迫%') AND d.diag_name LIKE '%轻度%') THEN 1 ELSE 0 END AS ards_mild"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%ARDS%' OR d.diag_name LIKE '%急性呼吸窘迫%') AND d.diag_name LIKE '%中度%') THEN 1 ELSE 0 END AS ards_moderate"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%ARDS%' OR d.diag_name LIKE '%急性呼吸窘迫%') AND d.diag_name LIKE '%重度%') THEN 1 ELSE 0 END AS ards_severe"
+    # ---- 呼吸支持方式 ----
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_advice\" pa WHERE pa.in_hospital_no = pi.in_hospital_no AND pa.del_flag = 0 AND pa.status = '1' AND (pa.name LIKE '%气管插管%' OR pa.name LIKE '%机械通气%' OR pa.name LIKE '%呼吸机%')) THEN 1 ELSE 0 END AS intubated"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_advice\" pa WHERE pa.in_hospital_no = pi.in_hospital_no AND pa.del_flag = 0 AND pa.status = '1' AND (pa.name LIKE '%无创%' OR pa.name LIKE '%BiPAP%' OR pa.name LIKE '%CPAP%' OR pa.name LIKE '%无创呼吸机%')) THEN 1 ELSE 0 END AS niv"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_advice\" pa WHERE pa.in_hospital_no = pi.in_hospital_no AND pa.del_flag = 0 AND pa.status = '1' AND (pa.name LIKE '%高流量%' OR pa.name LIKE '%HFNC%' OR pa.name LIKE '%经鼻高流量%')) THEN 1 ELSE 0 END AS hfnc"
+    # 俯卧位通气：装置类医嘱与观察项两条通道任一命中
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_advice\" pa WHERE pa.in_hospital_no = pi.in_hospital_no AND pa.del_flag = 0 AND pa.status = '1' AND pa.name LIKE '%俯卧位%') OR EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_observe_module_item\" i WHERE i.patient_id = pi.id AND i.del_flag = 0 AND i.item_name LIKE '%俯卧位%') THEN 1 ELSE 0 END AS prone"
+    # 肌松药
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_advice\" pa WHERE pa.in_hospital_no = pi.in_hospital_no AND pa.del_flag = 0 AND pa.status = '1' AND pa.type_code = 'drug' AND (pa.name LIKE '%顺阿曲库铵%' OR pa.name LIKE '%阿曲库铵%' OR pa.name LIKE '%维库溴铵%' OR pa.name LIKE '%罗库溴铵%' OR pa.name LIKE '%哌库溴铵%')) THEN 1 ELSE 0 END AS muscle_relaxant"
+    # ECMO
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_advice\" pa WHERE pa.in_hospital_no = pi.in_hospital_no AND pa.del_flag = 0 AND pa.status = '1' AND (pa.name LIKE '%ECMO%' OR pa.name LIKE '%体外膜肺%')) THEN 1 ELSE 0 END AS ecmo"
+    # ---- 病因（诊断文本关键词） ----
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND d.diag_name LIKE '%细菌性肺炎%') THEN 1 ELSE 0 END AS cause_bacterial_pneumonia"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%病毒性肺炎%' OR d.diag_name LIKE '%病毒肺炎%')) THEN 1 ELSE 0 END AS cause_viral_pneumonia"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%真菌性肺炎%' OR d.diag_name LIKE '%肺真菌%')) THEN 1 ELSE 0 END AS cause_fungal_pneumonia"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND d.diag_name LIKE '%吸入性肺炎%') THEN 1 ELSE 0 END AS cause_aspiration"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%肺挫伤%' OR d.diag_name LIKE '%肺挫裂伤%')) THEN 1 ELSE 0 END AS cause_contusion"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%脓毒症%' OR d.diag_name LIKE '%感染性休克%') AND d.diag_name NOT LIKE '%肺炎%') THEN 1 ELSE 0 END AS cause_extrapulmonary_infection"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%多发伤%' OR d.diag_name LIKE '%创伤性休克%')) THEN 1 ELSE 0 END AS cause_extrapulmonary_trauma"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%重症胰腺炎%' OR d.diag_name LIKE '%急性胰腺炎%')) THEN 1 ELSE 0 END AS cause_pancreatitis"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%大量输血%' OR d.diag_name LIKE '%输血相关%')) THEN 1 ELSE 0 END AS cause_massive_transfusion"
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%体外循环%' OR d.diag_name LIKE '%心脏术后%')) THEN 1 ELSE 0 END AS cause_cardiopulmonary_bypass"
+    # ---- 人口学 ----
+    - "CASE WHEN pi.gender = '男' OR pi.gender = '1' OR pi.gender = 'M' THEN 1 ELSE 0 END AS sex_male"
+    - "CASE WHEN REGEXP_LIKE(TRIM(pi.age), '^[0-9]{1,3}$') THEN CAST(TRIM(pi.age) AS INT) END AS age_num"
+    # ---- 转归 ----
+    - "CASE WHEN pi.out_vest_type = 3 AND pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS died_in_period"

@@ -1,0 +1,113 @@
+# =====================================================================
+# 事实层（DWD）· 抗菌药送检 / DVT 预防 / 管路导管
+#
+# 本文件集中承载「待接数据源」的事实层。待接的事实层照旧完整声明，
+# 只是 status=PENDING_SOURCE：引擎不会编译它，页面会明确显示「待接数据源」，
+# 而不是给出一个看起来像真数据的 0 —— 这是与老系统「空壳脚本返回 0」的关键差别。
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# 抗菌药送检
+# 关键设计：把「首次抗菌药医嘱时间」与「首次病原学送检时间」各算一次、
+# 落成两个时间列，比较交给指标层的 where。
+# 好处：时间比较这条口径只写一次，quality_12/13 直接复用；
+# PCT / G 试验 / 白介素 的首检时间列一并备好，供 quality_427~432 接入「治疗性」标识后启用。
+# ---------------------------------------------------------------------
+- fact: fact_abx_culture
+  domain: 抗菌药送检
+  status: ACTIVE
+  source: patient_info
+  alias: pi
+  note: 首次抗菌药使用时间与首次各类病原学送检时间（比较口径在指标层）
+  select:
+    - "pi.id AS patient_id"
+    - "pi.in_hospital_no AS in_hospital_no"
+    - "pi.name AS patient_name"
+    - "pi.depart_code AS depart_code"
+    - "pi.in_depart_time AS in_depart_time"
+    - "pi.out_depart_time AS out_depart_time"
+  where:
+    - "pi.del_flag = 0"
+    - "pi.in_depart_time IS NOT NULL"
+    - "pi.in_depart_time < :periodEnd"
+    - "(pi.out_depart_time IS NULL OR pi.out_depart_time >= :periodStart)"
+  derive:
+    # 是否使用过抗菌药物（医嘱 type_code='drug' + 药名词表）
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_advice\" pa WHERE pa.in_hospital_no = pi.in_hospital_no AND pa.del_flag = 0 AND pa.status = '1' AND pa.type_code = 'drug' AND (pa.name LIKE '%头孢%' OR pa.name LIKE '%培南%' OR pa.name LIKE '%万古霉素%' OR pa.name LIKE '%利奈唑胺%' OR pa.name LIKE '%替考拉宁%' OR pa.name LIKE '%达托霉素%' OR pa.name LIKE '%左氧氟沙星%' OR pa.name LIKE '%莫西沙星%' OR pa.name LIKE '%环丙沙星%' OR pa.name LIKE '%阿奇霉素%' OR pa.name LIKE '%阿米卡星%' OR pa.name LIKE '%庆大霉素%' OR pa.name LIKE '%替加环素%' OR pa.name LIKE '%多黏菌素%' OR pa.name LIKE '%氟康唑%' OR pa.name LIKE '%伏立康唑%' OR pa.name LIKE '%卡泊芬净%' OR pa.name LIKE '%米卡芬净%' OR pa.name LIKE '%甲硝唑%' OR pa.name LIKE '%青霉素%' OR pa.name LIKE '%阿莫西林%' OR pa.name LIKE '%氨苄西林%' OR pa.name LIKE '%哌拉西林%' OR pa.name LIKE '%氨曲南%' OR pa.name LIKE '%磷霉素%' OR pa.name LIKE '%利福平%' OR pa.name LIKE '%磺胺%' OR pa.name LIKE '%新诺明%')) THEN 1 ELSE 0 END AS abx_used"
+    # 首次抗菌药开始时间（无则 NULL，比较时自动排除）
+    - "(SELECT MIN(pa.start_time) FROM \"zing_icu_db_prod\".\"patient_advice\" pa WHERE pa.in_hospital_no = pi.in_hospital_no AND pa.del_flag = 0 AND pa.status = '1' AND pa.type_code = 'drug' AND pa.start_time IS NOT NULL AND (pa.name LIKE '%头孢%' OR pa.name LIKE '%培南%' OR pa.name LIKE '%万古霉素%' OR pa.name LIKE '%利奈唑胺%' OR pa.name LIKE '%替考拉宁%' OR pa.name LIKE '%达托霉素%' OR pa.name LIKE '%左氧氟沙星%' OR pa.name LIKE '%莫西沙星%' OR pa.name LIKE '%环丙沙星%' OR pa.name LIKE '%阿奇霉素%' OR pa.name LIKE '%阿米卡星%' OR pa.name LIKE '%庆大霉素%' OR pa.name LIKE '%替加环素%' OR pa.name LIKE '%多黏菌素%' OR pa.name LIKE '%氟康唑%' OR pa.name LIKE '%伏立康唑%' OR pa.name LIKE '%卡泊芬净%' OR pa.name LIKE '%米卡芬净%' OR pa.name LIKE '%甲硝唑%' OR pa.name LIKE '%青霉素%' OR pa.name LIKE '%阿莫西林%' OR pa.name LIKE '%氨苄西林%' OR pa.name LIKE '%哌拉西林%' OR pa.name LIKE '%氨曲南%' OR pa.name LIKE '%磷霉素%' OR pa.name LIKE '%利福平%' OR pa.name LIKE '%磺胺%' OR pa.name LIKE '%新诺明%')) AS abx_first_time"
+    # 首次病原学标本（培养）送检时间
+    - "(SELECT MIN(li.check_time) FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li WHERE li.in_hospital_no = pi.in_hospital_no AND li.del_flag = 0 AND li.check_time IS NOT NULL AND (li.lis_item_name LIKE '%培养%' OR li.lis_item_name LIKE '%涂片%' OR li.lis_item_name LIKE '%镜检%' OR li.lis_item_name LIKE '%药敏%' OR li.lis_item_name LIKE '%鉴定%')) AS culture_first_time"
+    # 首次 PCT / G 试验/GM 试验 / 白介素 送检时间（备 quality_427~432 接入治疗性标识后使用）
+    - "(SELECT MIN(li.check_time) FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li WHERE li.in_hospital_no = pi.in_hospital_no AND li.del_flag = 0 AND li.check_time IS NOT NULL AND li.lis_item_name LIKE '%降钙素原%') AS pct_first_time"
+    - "(SELECT MIN(li.check_time) FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li WHERE li.in_hospital_no = pi.in_hospital_no AND li.del_flag = 0 AND li.check_time IS NOT NULL AND (li.lis_item_name LIKE '%G试验%' OR li.lis_item_name LIKE '%GM试验%' OR li.lis_item_name LIKE '%半乳甘露聚糖%' OR li.lis_item_name LIKE '%1,3-β-D葡聚糖%')) AS ggm_first_time"
+    - "(SELECT MIN(li.check_time) FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li WHERE li.in_hospital_no = pi.in_hospital_no AND li.del_flag = 0 AND li.check_time IS NOT NULL AND (li.lis_item_name LIKE '%白介素%' OR li.lis_item_name LIKE '%IL-6%' OR li.lis_item_name LIKE '%IL6%')) AS il6_first_time"
+
+# ---------------------------------------------------------------------
+# DVT 预防
+# 当前只有「诊断侧」有可靠数据源，所以本事实层可算的只有诊断与死亡两个维度；
+# 药物预防 / 机械预防 / 下腔静脉滤器 需要医嘱侧数据（老系统 useDvtAdviceList），
+# 对应指标标记为 PENDING_SOURCE，不会给出假 0。
+# 接入时：在本事实层补 prevent_drug / prevent_mech / prevent_filter 三列即可。
+# ---------------------------------------------------------------------
+- fact: fact_dvt
+  domain: DVT预防
+  status: ACTIVE
+  source: patient_info
+  alias: pi
+  note: DVT 由诊断文本识别；预防措施与滤器待接医嘱侧数据源
+  select:
+    - "pi.id AS patient_id"
+    - "pi.in_hospital_no AS in_hospital_no"
+    - "pi.name AS patient_name"
+    - "pi.depart_code AS depart_code"
+    - "pi.in_depart_time AS in_depart_time"
+    - "pi.out_depart_time AS out_depart_time"
+  where:
+    - "pi.del_flag = 0"
+    - "pi.in_depart_time IS NOT NULL"
+    - "pi.in_depart_time < :periodEnd"
+    - "(pi.out_depart_time IS NULL OR pi.out_depart_time >= :periodStart)"
+  derive:
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%深静脉血栓%' OR d.diag_name LIKE '%下肢静脉血栓%' OR d.diag_name LIKE '%肺栓塞%')) THEN 1 ELSE 0 END AS dvt_diag"
+    - "CASE WHEN pi.out_vest_type = 3 AND EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%深静脉血栓%' OR d.diag_name LIKE '%下肢静脉血栓%' OR d.diag_name LIKE '%肺栓塞%')) THEN 1 ELSE 0 END AS dvt_death"
+    - "CASE WHEN pi.out_vest_type = 3 AND pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS died_in_period"
+    - "CASE WHEN pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS out_in_period"
+
+# ---------------------------------------------------------------------
+# 【待接】管路 / 导管
+# 缺这条数据源意味着 9 条指标（非计划拔管率、VAP、CRBSI、导管留置天数等）无法计算。
+# 需要的最小字段集（业务方确认后填入 source 对应物理表）：
+#   patient_id / in_hospital_no / depart_code
+#   device_type     管路类型（气管插管 / 中心静脉导管 / 导尿管）
+#   insert_time     置入时间
+#   remove_time     拔除时间
+#   remove_planned  是否计划拔管
+#   infection_flag  是否发生该管路相关感染
+# ---------------------------------------------------------------------
+- fact: fact_device
+  domain: 导管_管路_院感
+  status: PENDING_SOURCE
+  source: device_record
+  alias: dv
+  note: 待接管路/导管事件表（置入、拔除、是否计划拔管、是否相关感染）
+  select:
+    - "dv.id AS device_id"
+    - "dv.patient_id AS patient_id"
+    - "dv.in_hospital_no AS in_hospital_no"
+    - "dv.patient_name AS patient_name"
+    - "dv.depart_code AS depart_code"
+    - "dv.device_type AS device_type"
+    - "dv.insert_time AS insert_time"
+    - "dv.remove_time AS remove_time"
+    - "dv.remove_planned AS remove_planned"
+    - "dv.infection_flag AS infection_flag"
+  where:
+    - "dv.del_flag = 0"
+    - "dv.insert_time < :periodEnd"
+    - "(dv.remove_time IS NULL OR dv.remove_time >= :periodStart)"
+  derive:
+    - "CASE WHEN dv.remove_time IS NOT NULL AND dv.remove_time >= :periodStart AND dv.remove_time < :periodEnd THEN 1 ELSE 0 END AS removed_in_period"
+    - "CASE WHEN dv.remove_time IS NOT NULL AND dv.remove_planned = 0 THEN 1 ELSE 0 END AS unplanned_removal"
+    - "CASE WHEN dv.infection_flag = 1 AND dv.insert_time >= :periodStart AND dv.insert_time < :periodEnd THEN 1 ELSE 0 END AS device_infection"
+    - "DATEDIFF(DAY, CASE WHEN dv.insert_time < :periodStart THEN :periodStart ELSE dv.insert_time END, CASE WHEN (dv.remove_time IS NULL OR dv.remove_time > :periodEnd) THEN :periodEnd ELSE dv.remove_time END) AS device_days"

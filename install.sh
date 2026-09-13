@@ -111,13 +111,15 @@ init_db() {
          | grep -oE '[0-9]+' | tail -1)"
     if [ "$_exist" = "1" ]; then
       info "检测到 zing_doctor_db_prod.zing_page_config 表已存在，跳过数据库初始化（如需重建请先 DROP SCHEMA）"
+      warn "老库升级：请手动执行增量脚本（只执行一次）sql/06_abx_drug_dict.sql，否则抗菌药识别词库刷新会持续告警“无效的表或视图名[zing_abx_drug_dict]”"
+      warn "老库升级：使用质控指标中台需手动执行 sql/09_quality.sql（幂等），否则质控看板/月度汇总页会因表不存在而报错，且 quality-board / quality-monthly 未注册导致外链被拒"
       return 0
     fi
   fi
 
   if [ -n "$DISQL" ]; then
     info "通道 a：本机 disql 初始化达梦（建模式+建表+种子）..."
-    if cat "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" \
+    if cat "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" "$ROOT/sql/06_abx_drug_dict.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" \
          | "$DISQL" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" >"$logfile" 2>&1; then
       info "达梦初始化完成（本机 disql，模式 zing_doctor_db_prod）"; return 0
     fi
@@ -130,7 +132,7 @@ init_db() {
     info "通道 b：达梦容器 $CID 初始化..."
     for p in /opt/dmdbms/bin/disql /dm8/bin/disql /opt/dm8/bin/disql; do
       if docker exec "$CID" test -x "$p" 2>/dev/null; then
-        if cat "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" \
+        if cat "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" "$ROOT/sql/06_abx_drug_dict.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" \
              | docker exec -i "$CID" "$p" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" >"$logfile" 2>&1; then
           info "达梦初始化完成（容器 $CID，模式 zing_doctor_db_prod）"; return 0
         fi
@@ -160,7 +162,8 @@ init_db() {
       if java -cp "lib/DmJdbcDriver18-8.1.3.140.jar:$_cp" \
               DbInit "jdbc:dm://$DM_HOST_PORT" "$ADMIN_USER" "$ADMIN_PASS" \
               "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" \
-              "$ROOT/sql/03_icu_indexes.sql" "$ROOT/sql/05_apache2_pdf.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql"; then
+              "$ROOT/sql/03_icu_indexes.sql" "$ROOT/sql/05_apache2_pdf.sql" "$ROOT/sql/06_abx_drug_dict.sql" \
+              "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql"; then
         info "达梦初始化完成（JDBC 工具，模式 zing_doctor_db_prod + ICU 库性能索引 + APACHE2 PDF列）"; return 0
       fi
       warn "JDBC 工具执行失败（详见上方日志）"
@@ -177,8 +180,10 @@ init_db() {
   echo "    start $ROOT/sql/02_seed.sql"
   echo "    start $ROOT/sql/03_icu_indexes.sql  # ICU 库性能优化索引（可选，建议执行）"
   echo "    start $ROOT/sql/05_apache2_pdf.sql  # APACHE2 评分文书PDF列（老环境升级执行，幂等可重复）"
+  echo "    start $ROOT/sql/06_abx_drug_dict.sql # 抗菌药物字典表（HIS 抗菌药同步副本，只执行一次）"
   echo "    start $ROOT/sql/07_sofa.sql         # SOFA 评分建表 + 页面注册 + 配置种子"
   echo "    start $ROOT/sql/08_sofa_p1.sql      # SOFA 页面注册与列注释（幂等可重复）"
+  echo "    start $ROOT/sql/09_quality.sql      # 质控指标中台建表 + 页面注册（幂等可重复）"
   exit 1
 }
 

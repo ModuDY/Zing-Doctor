@@ -1,0 +1,15 @@
+# =====================================================================
+# 指标层 · 评分与资源（7 条）
+#
+# 预计病死率是 AVG 类：事实层出「mortality_rate 求和」与「有评分的患者计数」，
+# 值 = 和 / 计数。这样 1-12 月与季度/全年都按 sum(分子)/sum(分母) 汇总，
+# 不会出现「把 12 个月的率再平均一次」的老问题。
+# =====================================================================
+
+- {code: quality_15,  name: "ICU收治患者预计病死率(%)", domain: 评分_资源, fact: fact_score_resource, unit: "%", valueType: AVG, agg: SUM, numerator: "mortality_rate", denominatorWhere: "mortality_rate IS NOT NULL", dims: [depart_code], version: 1, sortNo: 9,  remark: "复用 APACHE II 评分记录，取 mortality_rate 均值；分母为「有评分的患者数」而非全部收治患者"}
+- {code: quality_31,  name: "ICU患者预计病死率(%)", domain: 评分_资源, fact: fact_score_resource, unit: "%", valueType: RATE, scale: 100, implStatus: MANUAL, version: 1, sortNo: 23, remark: "人工录入：与 quality_15 口径待并（来源清单分列两条），暂保留人工上报以免历史口径断档"}
+- {code: quality_32,  name: "APACHEⅡ评分≥15分", domain: 评分_资源, fact: fact_score_resource, unit: "人", valueType: COUNT, where: "apache_ge15 = 1", dims: [depart_code], version: 1, sortNo: 24, remark: "入周期内评分记录 total_score≥15 的患者数"}
+- {code: quality_301, name: "同期ICU实际开放总床日数", domain: 评分_资源, fact: fact_bed, unit: "天", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 26, remark: "待接 bedInfoList（床位开放记录）。缺该源时病死率类指标的标准化分母无法计算"}
+- {code: quality_302, name: "ICU医师总数", domain: 评分_资源, fact: fact_staff, unit: "人", valueType: COUNT, where: "is_doctor = 1", implStatus: PENDING_SOURCE, version: 1, sortNo: 27, remark: "待接 staffInfoList。表达式已就绪：事实层 fact_staff 的计数对象为人（patientKey=user_id），接入后无需改配置"}
+- {code: quality_303, name: "ICU护士总数", domain: 评分_资源, fact: fact_staff, unit: "人", valueType: COUNT, where: "is_nurse = 1", implStatus: PENDING_SOURCE, version: 1, sortNo: 28, remark: "待接 staffInfoList，同 quality_302"}
+- {code: quality_304, name: "ICU实际开放床位数", domain: 评分_资源, fact: fact_bed, unit: "张", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 29, remark: "待接 bedInfoList"}

@@ -1,0 +1,25 @@
+# =====================================================================
+# 指标层 · 患者流转（11 条）
+#
+# 一条指标 = 一行声明。引擎按 fact 取事实层，按 where/numerator 编译聚合 SQL。
+# dims 决定是否按科室拆行：留空只出 'ALL' 全院行；[depart_code] 会额外补一行
+# 全院汇总（率类为分子分母汇总后重算的加权率，不是各科室率的平均）。
+#
+# 值类型速查：
+#   COUNT  数（直接取分子）
+#   RATE   率 = 分子 / 分母 × scale（默认 100）
+#   AVG    均值：用 agg=SUM 让 SQL 出「求和 + 计数」，值 = 和 / 计数；
+#          这样季度/全年汇总时是 sum(分子)/sum(分母)，与月度口径一致
+# =====================================================================
+
+- {code: quality_0,   name: "收治人数（转入+入院）", domain: 患者流转, fact: fact_patient_stay, unit: "人", valueType: COUNT, where: "admitted_in_period = 1", dims: [depart_code], version: 1, sortNo: 1,  remark: "复用 Handover 口径：本周期内入/转入 ICU 的患者数"}
+- {code: quality_2,   name: "ICU收治患者床日数", domain: 患者流转, fact: fact_patient_stay, unit: "天", valueType: COUNT, agg: SUM, numerator: "stay_days", where: "stay_days > 0", dims: [depart_code], version: 1, sortNo: 2,  remark: "跨月按「本周期 ∩ 在院区间」切分；取整数天，不足一天按 0 天不计入"}
+- {code: quality_16,  name: "ICU死亡患者数", domain: 患者流转, fact: fact_patient_stay, unit: "人", valueType: COUNT, where: "died_in_period = 1", dims: [depart_code], version: 1, sortNo: 10, remark: "死亡以转归 out_vest_type=3 且转出时间落在本周期为准"}
+- {code: quality_20,  name: "术后非计划转入例数", domain: 患者流转, fact: fact_patient_stay, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 14, remark: "待接：需要「非计划转入」判定源（手术计划状态/转入来源）。事实层已备好 post_op 派生列，接入后补一条 where 即生效，当前不给出假 0"}
+- {code: quality_21,  name: "术后转入例数", domain: 患者流转, fact: fact_patient_stay, unit: "人", valueType: COUNT, where: "post_op = 1 AND admitted_in_period = 1", dims: [depart_code], version: 1, sortNo: 15, remark: "术后由诊断文本识别；与 quality_20 的差别在「非计划」标识，该标识暂无源"}
+- {code: quality_22,  name: "转出ICU后48h内重返ICU", domain: 患者流转, fact: fact_patient_stay, unit: "人", valueType: COUNT, where: "readmit_48h = 1 AND admitted_in_period = 1", dims: [depart_code], version: 1, sortNo: 16, remark: "同一住院号下若存在更早一次转出且间隔≤48h，则本次转入计为重返"}
+- {code: quality_23,  name: "转出ICU", domain: 患者流转, fact: fact_patient_stay, unit: "人", valueType: COUNT, where: "out_in_period = 1", dims: [depart_code], version: 1, sortNo: 17, remark: "含转科、出院、死亡、临终、自动转院"}
+- {code: quality_30,  name: "ICU实际病死率(%)", domain: 患者流转, fact: fact_patient_stay, unit: "%", valueType: RATE, scale: 100, implStatus: MANUAL, version: 1, sortNo: 22, remark: "人工录入：分母的「ICU 收治患者总数」在院内口径中需人工确认（是否含短时观察/转入转出重复），故不由系统自动算"}
+- {code: quality_401, name: "全院收治人数", domain: 患者流转, fact: fact_patient_stay, unit: "人", valueType: COUNT, implStatus: MANUAL, version: 1, sortNo: 38, remark: "人工录入：数据在 HIS 全院口径，不在 ICU 库"}
+- {code: quality_402, name: "全院实际占用床日数", domain: 患者流转, fact: fact_patient_stay, unit: "天", valueType: COUNT, implStatus: MANUAL, version: 1, sortNo: 39, remark: "人工录入：全院口径，跨月由病案室提供"}
+- {code: quality_403, name: "同期患者总数（转出+出院）", domain: 患者流转, fact: fact_patient_stay, unit: "人", valueType: COUNT, where: "out_in_period = 1", dims: [depart_code], version: 1, sortNo: 40, remark: "作为病死率等率类指标的同期分母"}

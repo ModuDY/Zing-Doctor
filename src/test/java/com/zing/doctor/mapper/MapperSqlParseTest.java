@@ -2,6 +2,13 @@ package com.zing.doctor.mapper;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
+import com.zing.doctor.quality.engine.QualitySqlMapper;
+import com.zing.doctor.quality.mapper.QualityCalcRunMapper;
+import com.zing.doctor.quality.mapper.QualityCalcTraceMapper;
+import com.zing.doctor.quality.mapper.QualityIndexMapper;
+import com.zing.doctor.quality.mapper.QualityMetricPatientMapper;
+import com.zing.doctor.quality.mapper.QualityMetricResultMapper;
+import com.zing.doctor.quality.mapper.QualityMonthlyReportMapper;
 import com.zing.doctor.module.antibiotic.mapper.AbxWordConfigMapper;
 import com.zing.doctor.module.antibiotic.mapper.AdviceLogMapper;
 import com.zing.doctor.module.antibiotic.mapper.DecisionRecordMapper;
@@ -53,7 +60,15 @@ class MapperSqlParseTest {
             DecisionRecordMapper.class,
             DddConfigMapper.class,
             AdviceLogMapper.class,
-            AbxWordConfigMapper.class
+            AbxWordConfigMapper.class,
+            // 质控指标中台（其中 3 个含 <script> 批量插入，块内裸 < / & 会导致启动期解析失败）
+            QualityIndexMapper.class,
+            QualityCalcRunMapper.class,
+            QualityCalcTraceMapper.class,
+            QualityMetricResultMapper.class,
+            QualityMetricPatientMapper.class,
+            QualityMonthlyReportMapper.class,
+            QualitySqlMapper.class
     );
 
     @Test

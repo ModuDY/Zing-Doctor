@@ -124,6 +124,18 @@ const routes = [
     meta: { title: 'SOFA 配置管理' }
   },
   {
+    path: '/page/quality-board',
+    name: 'qualityBoard',
+    component: () => import('../views/QualityBoard.vue'),
+    meta: { title: '质控指标看板' }
+  },
+  {
+    path: '/page/quality-monthly',
+    name: 'qualityMonthly',
+    component: () => import('../views/QualityMonthly.vue'),
+    meta: { title: '质控月度汇总' }
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'notFound',
     component: () => import('../views/NotFound.vue'),

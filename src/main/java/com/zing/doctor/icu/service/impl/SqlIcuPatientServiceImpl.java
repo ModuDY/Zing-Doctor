@@ -251,7 +251,17 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
      */
     private void inferShockType(IcuPatientBrief p, String patientId) {
         List<Map<String, Object>> diagnoses = icuPatientMapper.selectDiagnoses(patientId);
+        // 与 inferInfectionType 保持一致的防御：查询结果可能为 null（无诊断记录），
+        // 列表中也可能出现 null 元素。此处原先未做保护，遍历到 null 元素时
+        // d.get("diag_name") 抛 NPE，并因 getPatientBrief 被 PK/PD 链路独占调用，
+        // 表现为“只有个别患者的 PK/PD 页面 500、其他页面正常”。
+        if (diagnoses == null) {
+            diagnoses = java.util.Collections.emptyList();
+        }
         for (Map<String, Object> d : diagnoses) {
+            if (d == null) {
+                continue;
+            }
             String name = str(d.get("diag_name"));
             if (StrUtil.isBlank(name)) {
                 continue;

@@ -43,6 +43,16 @@
           <span class="nav-icon">💊</span>
           <span class="nav-label">脓毒症集束化治疗</span>
         </router-link>
+
+        <div class="nav-divider">质控中台</div>
+        <router-link to="/page/quality-board" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">📈</span>
+          <span class="nav-label">质控指标看板</span>
+        </router-link>
+        <router-link to="/page/quality-monthly" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">🗓️</span>
+          <span class="nav-label">质控月度汇总</span>
+        </router-link>
       </nav>
 
       <div class="sidebar-footer">
@@ -141,6 +151,15 @@ export default {
 .sidebar-nav {
   flex: 1;
   padding: 12px 10px;
+  /* 菜单项超出可视高度时自身滚动，避免底部入口被裁掉 */
+  overflow-y: auto;
+}
+
+.nav-divider {
+  padding: 14px 14px 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 1px;
 }
 
 .nav-item {

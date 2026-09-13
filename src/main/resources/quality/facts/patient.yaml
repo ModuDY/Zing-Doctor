@@ -1,0 +1,137 @@
+# =====================================================================
+# 事实层（DWD）· 患者流转 + 评分/资源
+#
+# 本文件是「与手写 SQL 建中间表」的关键区别：事实层由 DSL 声明，
+# 引擎编译成 SQL 并物化为物理表（qc_fact_*_yyyyMMdd），同域指标共享一次扫描。
+#
+# 约定：
+#   · :periodStart / :periodEnd 由引擎按周期注入，配置里直接当常量用；
+#   · derive 里的列名就是物化后的列名，指标通过 where/numerator 引用它们；
+#   · 常数比较不用 CAST 数字，避免达梦对非数字串隐式转换报错。
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# 患者流转：ICU 患者主表
+# 床日口径：取「本周期」与「实际在院区间」的交集，跨月自动切分，
+#           因此同一患者的床日会按月分摊，而不是整段记在入院月。
+# ---------------------------------------------------------------------
+- fact: fact_patient_stay
+  domain: 患者流转
+  status: ACTIVE
+  source: patient_info
+  alias: pi
+  note: ICU 患者主表；床日按「本周期 ∩ 在院区间」取交集，跨月自动切分
+  select:
+    - "pi.id AS patient_id"
+    - "pi.in_hospital_no AS in_hospital_no"
+    - "pi.name AS patient_name"
+    - "pi.gender AS gender"
+    - "pi.age AS age"
+    - "pi.depart_code AS depart_code"
+    - "pi.ward_name AS ward_name"
+    - "pi.out_vest_type AS out_vest_type"
+    - "pi.charge_doctor_name AS charge_doctor_name"
+    - "pi.in_depart_time AS in_depart_time"
+    - "pi.out_depart_time AS out_depart_time"
+    - "pi.out_hospital_time AS out_hospital_time"
+  where:
+    - "pi.del_flag = 0"
+    - "pi.in_depart_time IS NOT NULL"
+    - "pi.in_depart_time < :periodEnd"
+    - "(pi.out_depart_time IS NULL OR pi.out_depart_time >= :periodStart)"
+  derive:
+    # 本周期内入院/转入
+    - "CASE WHEN pi.in_depart_time >= :periodStart THEN 1 ELSE 0 END AS admitted_in_period"
+    # 本周期内转出/出院（转科、出院、死亡、临终、自动转院均算离开 ICU）
+    - "CASE WHEN pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS out_in_period"
+    # 死亡：out_vest_type=3（字典：1转科 2出院 3死亡 4临终 5自动转院）
+    - "CASE WHEN pi.out_vest_type = 3 THEN 1 ELSE 0 END AS died"
+    - "CASE WHEN pi.out_vest_type = 3 AND pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS died_in_period"
+    # 存活转出（分母用：转出 + 出院，排除死亡）
+    - "CASE WHEN (pi.out_vest_type IS NULL OR pi.out_vest_type <> 3) AND pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS survived_out_in_period"
+    # 床日数：本周期与在院区间的交集天数（跨月切分的实现点）
+    - "DATEDIFF(DAY, CASE WHEN pi.in_depart_time < :periodStart THEN :periodStart ELSE pi.in_depart_time END, CASE WHEN (pi.out_depart_time IS NULL OR pi.out_depart_time > :periodEnd) THEN :periodEnd ELSE pi.out_depart_time END) AS stay_days"
+    # 术后转入：诊断文本含「术后」。非计划标识（手术计划状态）当前无源，见 quality_20 说明
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%术后%' OR d.diag_name LIKE '%手术后%')) THEN 1 ELSE 0 END AS post_op"
+    # 48h 内重返 ICU：同一住院号下存在更早的一次转出，且与本转入间隔 <= 48h
+    - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info\" p2 WHERE p2.in_hospital_no = pi.in_hospital_no AND p2.id <> pi.id AND p2.del_flag = 0 AND p2.out_depart_time IS NOT NULL AND p2.out_depart_time < pi.in_depart_time AND DATEDIFF(HOUR, p2.out_depart_time, pi.in_depart_time) <= 48) THEN 1 ELSE 0 END AS readmit_48h"
+
+# ---------------------------------------------------------------------
+# 评分/资源：APACHE II 评分记录（医生库）
+# 预计病死率用 mortality_rate 的均值；AVG 类指标在指标层用
+# agg=SUM + valueType=AVG 表达（分子求和 / 分毋计数），使月度与季度口径一致。
+# ---------------------------------------------------------------------
+- fact: fact_score_resource
+  domain: 评分_资源
+  status: ACTIVE
+  source: apache2_score_record
+  alias: a
+  note: APACHE II 评分记录；预计病死率取 mortality_rate 均值
+  select:
+    - "a.patient_id AS patient_id"
+    - "a.in_hospital_no AS in_hospital_no"
+    - "a.patient_name AS patient_name"
+    - "a.depart_code AS depart_code"
+    - "a.total_score AS total_score"
+    - "a.mortality_rate AS mortality_rate"
+    - "a.score_time AS score_time"
+    - "a.score_type AS score_type"
+  where:
+    - "a.status = 1"
+    - "a.score_time >= :periodStart"
+    - "a.score_time < :periodEnd"
+  derive:
+    - "CASE WHEN a.total_score >= 15 THEN 1 ELSE 0 END AS apache_ge15"
+
+# ---------------------------------------------------------------------
+# 【待接】ICU 医护人员花名册
+# quality_302 / quality_303 的表达式已就绪：接入后由它们直接生效，
+# 无需改 Java、无需改指标配置，只需把本事实层的 status 改为 ACTIVE。
+# 注意 patientKey=user_id：资源类指标的计数对象是「人」，不是患者。
+# ---------------------------------------------------------------------
+- fact: fact_staff
+  domain: 评分_资源
+  status: PENDING_SOURCE
+  source: config_staff
+  alias: s
+  patientKey: user_id
+  inHospitalNoKey: work_no
+  patientNameKey: realname
+  departKey: depart_name
+  note: 待接 ICU 医护人员花名册（config_staff：科室 + 岗位）。口径确认后置 ACTIVE 即生效
+  select:
+    - "s.id AS user_id"
+    - "s.realname AS realname"
+    - "s.work_no AS work_no"
+    - "s.depart_name AS depart_name"
+  where:
+    - "s.del_flag = 0"
+  derive:
+    - "CASE WHEN s.post_name LIKE '%医师%' THEN 1 ELSE 0 END AS is_doctor"
+    - "CASE WHEN s.post_name LIKE '%护士%' THEN 1 ELSE 0 END AS is_nurse"
+
+# ---------------------------------------------------------------------
+# 【待接】床位开放记录
+# quality_301（同期 ICU 实际开放总床日数）/ quality_304（实际开放床位数）
+# 依赖此表。床日同样需要按周期切分，接入后沿用 fact_patient_stay 的交集写法。
+# ---------------------------------------------------------------------
+- fact: fact_bed
+  domain: 评分_资源
+  status: PENDING_SOURCE
+  source: bed_record
+  alias: b
+  patientKey: bed_id
+  inHospitalNoKey: ""
+  patientNameKey: ""
+  departKey: depart_name
+  note: 待接床位开放记录。缺该源，因此 quality_301/304 无法计算（页面显示「待接数据源」而非 0）
+  select:
+    - "b.id AS bed_id"
+    - "b.bed_code AS bed_code"
+    - "b.depart_name AS depart_name"
+    - "b.open_date AS open_date"
+    - "b.close_date AS close_date"
+  where:
+    - "b.del_flag = 0"
+  derive:
+    - "CASE WHEN b.close_date IS NULL OR b.close_date > :periodEnd THEN :periodEnd ELSE b.close_date END AS open_to"

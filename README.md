@@ -29,8 +29,12 @@
 | 辅助 | SOFA 评分（序贯器官衰竭评估，6 项 0~24 分；含文书 PDF、指标趋势） | `sofa-score` | `/page/sofa-score` |
 | 辅助 | SOFA 评分总览（总分分布 + ΔSOFA 恶化预警） | `sofa-overview` | `/page/sofa-overview` |
 | 辅助 | SOFA 配置管理（取数项映射 / 升压药阈值 / 换算系数 / 默认体重） | `sofa-config` | `/page/sofa-config` |
+| 质控 | 质控指标看板（127 条指标按域分组，含口径血缘下钻、覆盖率报告、事实层与计算批次） | `quality-board` | `/page/quality-board` |
+| 质控 | 质控月度汇总（1-12 月横排，含季度/全年合计/月均/极值月与 Excel 导出） | `quality-monthly` | `/page/quality-monthly` |
 
-> 共 17 个已注册外链页面；`abx-ddd-patients` / `abx-mdro-patients` 为总览页内部跳转的明细页，不经 `/entry` 外链进入。
+> 共 19 个已注册外链页面；`abx-ddd-patients` / `abx-mdro-patients` 为总览页内部跳转的明细页，不经 `/entry` 外链进入。
+>
+> 质控两个页面由 YAML 配置驱动（`src/main/resources/quality/`），指标增删改只改配置并调一次 `POST /api/quality/sync-index`，不改接口与前端。详见 [质控指标中台 · 产品设计](docs/15-质控指标中台-产品设计.md)。
 
 ## 快速开始
 
@@ -78,6 +82,15 @@ http://<host>:2001/entry/abx-decision?extToken=zing-icu-link-token-2026&inHospit
 - [安装部署手册（达梦，实操）](docs/04-安装部署手册.md)
 - [第二维度 PK/PD 剂量优化 · 产品设计](docs/05-第二维度-PKPD剂量优化-产品设计.md)
 - [SOFA 评分 · 产品设计](docs/06-SOFA评分-产品设计.md)
+- [第一维度 经验性抗感染决策 · 产品设计](docs/07-第一维度-经验性抗感染决策-产品设计.md)
+- [第三维度 抗菌药物使用强度 DDD · 产品设计](docs/08-抗菌药物使用强度DDD-产品设计.md)
+- [第四维度 细菌培养检出监测 MDRO · 产品设计](docs/09-细菌培养检出监测MDRO-产品设计.md)
+- [ARDS 监测 · 产品设计](docs/10-ARDS监测-产品设计.md)
+- [脓毒症休克集束化治疗 · 产品设计](docs/11-脓毒症休克集束化治疗-产品设计.md)
+- [医生交班览表与出科统计 · 产品设计](docs/12-医生交班览表与出科统计-产品设计.md)
+- [APACHE II 评分 · 产品设计](docs/13-APACHEII评分-产品设计.md)
+- [抗菌药物识别词库配置 · 产品设计](docs/14-抗菌药物识别词库配置-产品设计.md)
+- [质控指标中台 · 产品设计](docs/15-质控指标中台-产品设计.md)
 - 一键部署：解压后执行 `bash install.sh`（自动初始化达梦 + 构建启动，支持内网离线）
 
 ## 目录结构
@@ -89,13 +102,14 @@ zing-doctor/
 │   ├── config/                  Web 拦截器注册、MyBatis-Plus 配置
 │   ├── external/                外链免登录：签名工具/服务、/entry 入口、API 拦截器、令牌签发
 │   ├── icu/                     ICU 数据适配层（只读）：接口契约 + Mock/Sql 双实现
-│   └── module/                  业务模块
-│       ├── antibiotic/          维度一~四：抗感染决策、PK/PD、DDD、细菌监测、词库配置
-│       ├── sepsis/              脓毒症休克集束化治疗
-│       ├── apache2/             APACHE II 评分
-│       ├── ards/                ARDS 监测
-│       └── handover/            医生交班览表 / 出科统计
-├── src/main/resources/          application.yml
+│   ├── module/                  业务模块
+│   │   ├── antibiotic/          维度一~四：抗感染决策、PK/PD、DDD、细菌监测、词库配置
+│   │   ├── sepsis/              脓毒症休克集束化治疗
+│   │   ├── apache2/             APACHE II 评分
+│   │   ├── ards/                ARDS 监测
+│   │   └── handover/            医生交班览表 / 出科统计
+│   └── quality/                 质控指标中台：DSL 引擎（YAML 口径 → SQL）+ 查询/计算/月度汇总/导出
+├── src/main/resources/          application.yml、quality/（数据源/事实层/指标 YAML 配置）
 ├── sql/                         建库与初始化脚本（00 建模式 / 01 建表 / 02 种子 / 03+ 增量）
 ├── frontend/                    Vue3 前端（src/views 页面、src/router 路由、src/api 接口）
 ├── docs/                        设计文档
