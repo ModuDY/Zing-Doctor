@@ -6,6 +6,9 @@ import com.zing.doctor.quality.config.QualityProperties;
 import com.zing.doctor.quality.dsl.FactDefinition;
 import com.zing.doctor.quality.dsl.MetricDefinition;
 import com.zing.doctor.quality.dsl.SourceConfig;
+import com.zing.doctor.quality.entity.QualityFactDef;
+import com.zing.doctor.quality.entity.QualityMetricDef;
+import com.zing.doctor.quality.repository.QualityConfigRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
@@ -18,6 +21,7 @@ import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -27,8 +31,12 @@ import java.util.Map;
 /**
  * 质控 DSL 加载器。
  *
- * <p>从 classpath 加载三层配置（数据源 / 事实层 / 指标），并在启动时完成解析。
+ * <p>从 YAML 或配置表加载三层配置（数据源 / 事实层 / 指标），并在启动时完成解析。
  * 这是「改指标不改代码」的入口：配置变更后调用 {@link #reload()} 即可热生效。
+ *
+ * <p>真源由 {@code zing.quality.config-source} 决定：{@code yaml}（默认）读配置文件；
+ * {@code db} 读 {@code quality_metric_def} / {@code quality_fact_def}，使页面编辑成为可能。
+ * 两种模式产出的内存结构完全一致，因此编译与计算链路不受影响。
  */
 @Component
 public class QualityDslLoader {
@@ -36,6 +44,7 @@ public class QualityDslLoader {
     private static final Logger log = LoggerFactory.getLogger(QualityDslLoader.class);
 
     private final QualityProperties props;
+    private final QualityConfigRepository configRepo;
     private final PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
     private final ObjectMapper om = new ObjectMapper();
 
@@ -43,8 +52,9 @@ public class QualityDslLoader {
     private volatile Map<String, FactDefinition> factMap = new LinkedHashMap<>();
     private volatile Map<String, MetricDefinition> metricMap = new LinkedHashMap<>();
 
-    public QualityDslLoader(QualityProperties props) {
+    public QualityDslLoader(QualityProperties props, QualityConfigRepository configRepo) {
         this.props = props;
+        this.configRepo = configRepo;
         this.om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
@@ -73,29 +83,34 @@ public class QualityDslLoader {
         SourceConfig sc = readOne(resolveLocation(props.getSourceLocation(), "sources.yaml"));
         SourceConfig newSource = sc == null ? new SourceConfig() : sc;
 
-        List<Map<String, Object>> factNodes =
-                readList(resolveLocation(props.getFactLocation(), "facts/*.yaml"), "facts");
-        Map<String, FactDefinition> newFacts = new LinkedHashMap<>();
-        for (Map<String, Object> node : factNodes) {
-            FactDefinition f = om.convertValue(node, FactDefinition.class);
-            if (f.getFact() == null || f.getFact().trim().isEmpty()) {
-                continue;
-            }
-            newFacts.put(f.getFact(), f);
-        }
+        Map<String, FactDefinition> newFacts;
+        Map<String, MetricDefinition> newMetrics;
 
-        List<Map<String, Object>> metricNodes =
-                readList(resolveLocation(props.getMetricLocation(), "metrics/*.yaml"), "metrics");
-        Map<String, MetricDefinition> newMetrics = new LinkedHashMap<>();
-        for (Map<String, Object> node : metricNodes) {
-            MetricDefinition m = om.convertValue(node, MetricDefinition.class);
-            if (m.getCode() == null || m.getCode().trim().isEmpty()) {
-                continue;
+        if (useDb()) {
+            Map<String, FactDefinition> dbFacts = null;
+            Map<String, MetricDefinition> dbMetrics = null;
+            try {
+                // 首次切到 db 真源时配置表是空的，此时把 classpath 的 YAML 作为「出厂种子」导入一次，
+                // 免去人工准备上百条数据，也保证 DB 与既有配置逐字段一致。
+                if (configRepo.isEmpty()) {
+                    seedFromYaml();
+                }
+                dbFacts = indexByFact(configRepo.loadFacts());
+                dbMetrics = indexByCode(configRepo.loadMetrics());
+            } catch (Exception e) {
+                // 配置表不可用（表未建 / 连不上库）不能拖垮整个质控：退回 YAML，看板照常有数。
+                log.warn("[质控] 配置表加载失败，本次回退 classpath YAML: {}", e.getMessage());
             }
-            if (m.getSortNo() == null) {
-                m.setSortNo(parseSeq(m.getCode()));
+            if (dbMetrics == null || dbMetrics.isEmpty()) {
+                newFacts = readFactsFromYaml();
+                newMetrics = readMetricsFromYaml();
+            } else {
+                newFacts = dbFacts;
+                newMetrics = dbMetrics;
             }
-            newMetrics.put(m.getCode(), m);
+        } else {
+            newFacts = readFactsFromYaml();
+            newMetrics = readMetricsFromYaml();
         }
 
         // 三层均解析成功，此处一次性原子替换
@@ -103,8 +118,105 @@ public class QualityDslLoader {
         this.factMap = newFacts;
         this.metricMap = newMetrics;
 
-        log.info("[质控] DSL 加载完成：数据源 {} 个，事实层 {} 个，指标 {} 条",
-                newSource.getDatasources().size(), newFacts.size(), newMetrics.size());
+        log.info("[质控] DSL 加载完成（真源 {}）：数据源 {} 个，事实层 {} 个，指标 {} 条",
+                useDb() ? "db" : "yaml", newSource.getDatasources().size(), newFacts.size(), newMetrics.size());
+    }
+
+    /** 当前是否以配置表为真源。表不可用时 {@link #reload()} 内部会临时回退 YAML。 */
+    public boolean useDb() {
+        return props.isEnabled() && "db".equalsIgnoreCase(props.getConfigSource());
+    }
+
+    // ------------------------------------------------------------------
+    // 出厂种子导入
+    // ------------------------------------------------------------------
+
+    /**
+     * 把 classpath 的 YAML 作为「出厂种子」导入配置表（仅在配置表为空时执行一次）。
+     *
+     * <p>注意事实层与指标层都导：指标通过 {@code fact_name} 引用事实层，
+     * 只导指标会让新库上的每一条指标都因找不到事实层而无法编译。
+     */
+    private void seedFromYaml() {
+        Map<String, FactDefinition> facts = readFactsFromYaml();
+        Map<String, MetricDefinition> metrics = readMetricsFromYaml();
+        if (facts.isEmpty() && metrics.isEmpty()) {
+            log.warn("[质控] 配置表为空，且 classpath 未找到 YAML，跳过出厂种子导入");
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        for (FactDefinition f : facts.values()) {
+            QualityFactDef row = new QualityFactDef();
+            configRepo.fillRow(row, f);
+            row.setOperator("seed");
+            row.setCreateTime(now);
+            row.setUpdateTime(now);
+            configRepo.insertFact(row);
+        }
+        for (MetricDefinition m : metrics.values()) {
+            QualityMetricDef row = new QualityMetricDef();
+            configRepo.fillRow(row, m);
+            row.setStatus(1);
+            row.setOperator("seed");
+            row.setCreateTime(now);
+            row.setUpdateTime(now);
+            configRepo.insertMetric(row);
+        }
+        log.info("[质控] 出厂种子导入完成：事实层 {} 条，指标 {} 条", facts.size(), metrics.size());
+    }
+
+    // ------------------------------------------------------------------
+    // 配置读取（YAML 分支）
+    // ------------------------------------------------------------------
+
+    private Map<String, FactDefinition> readFactsFromYaml() {
+        List<Map<String, Object>> nodes =
+                readList(resolveLocation(props.getFactLocation(), "facts/*.yaml"), "facts");
+        Map<String, FactDefinition> map = new LinkedHashMap<>();
+        for (Map<String, Object> node : nodes) {
+            FactDefinition f = om.convertValue(node, FactDefinition.class);
+            if (f.getFact() == null || f.getFact().trim().isEmpty()) {
+                continue;
+            }
+            map.put(f.getFact(), f);
+        }
+        return map;
+    }
+
+    private Map<String, MetricDefinition> readMetricsFromYaml() {
+        List<Map<String, Object>> nodes =
+                readList(resolveLocation(props.getMetricLocation(), "metrics/*.yaml"), "metrics");
+        Map<String, MetricDefinition> map = new LinkedHashMap<>();
+        for (Map<String, Object> node : nodes) {
+            MetricDefinition m = om.convertValue(node, MetricDefinition.class);
+            if (m.getCode() == null || m.getCode().trim().isEmpty()) {
+                continue;
+            }
+            if (m.getSortNo() == null) {
+                m.setSortNo(parseSeq(m.getCode()));
+            }
+            map.put(m.getCode(), m);
+        }
+        return map;
+    }
+
+    private Map<String, FactDefinition> indexByFact(List<FactDefinition> list) {
+        Map<String, FactDefinition> map = new LinkedHashMap<>();
+        for (FactDefinition f : list) {
+            map.put(f.getFact(), f);
+        }
+        return map;
+    }
+
+    private Map<String, MetricDefinition> indexByCode(List<MetricDefinition> list) {
+        Map<String, MetricDefinition> map = new LinkedHashMap<>();
+        for (MetricDefinition m : list) {
+            if (m.getSortNo() == null) {
+                m.setSortNo(parseSeq(m.getCode()));
+            }
+            map.put(m.getCode(), m);
+        }
+        return map;
     }
 
     /**

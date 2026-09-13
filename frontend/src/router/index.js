@@ -136,6 +136,12 @@ const routes = [
     meta: { title: '质控月度汇总' }
   },
   {
+    path: '/page/quality-config',
+    name: 'qualityConfig',
+    component: () => import('../views/QualityConfig.vue'),
+    meta: { title: '质控指标配置' }
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'notFound',
     component: () => import('../views/NotFound.vue'),

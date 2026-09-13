@@ -36,6 +36,19 @@ public class QualityProperties {
      */
     private String configDir;
 
+    /**
+     * 配置真源：
+     * <ul>
+     *   <li>{@code yaml}（默认）从 YAML 读取，行为与改造前完全一致</li>
+     *   <li>{@code db} 从 {@code quality_metric_def} / {@code quality_fact_def} 读取，
+     *       页面可编辑、保存即热生效；配置表为空时自动从 YAML 导入一次出厂种子</li>
+     * </ul>
+     *
+     * <p>注意：数据源层（sources.yaml）不开放页面编辑，两种模式下都从 YAML 读取 ——
+     * 它只声明物理表名，改错会导致整个域查不到数据，而一年也改不了几次。
+     */
+    private String configSource = "yaml";
+
     /** 数据源定义文件 */
     private String sourceLocation = "classpath*:quality/sources.yaml";
 

@@ -44,16 +44,19 @@ public class QualityEngine {
     private final SqlCompiler compiler;
     private final QualitySqlMapper sqlMapper;
     private final QualityProperties props;
+    private final QualitySqlGuard sqlGuard;
 
     /** cacheKey(factName + 周期) → 物化表全限定名 */
     private final Map<String, String> factTableCache = new ConcurrentHashMap<>();
 
     public QualityEngine(QualityDslLoader dsl, SqlCompiler compiler,
-                         QualitySqlMapper sqlMapper, QualityProperties props) {
+                         QualitySqlMapper sqlMapper, QualityProperties props,
+                         QualitySqlGuard sqlGuard) {
         this.dsl = dsl;
         this.compiler = compiler;
         this.sqlMapper = sqlMapper;
         this.props = props;
+        this.sqlGuard = sqlGuard;
     }
 
     /** 清空事实层缓存（新一轮计算前调用，确保按当前周期重建）。 */
@@ -319,7 +322,13 @@ public class QualityEngine {
         return o;
     }
 
-    private BigDecimal computeValue(MetricDefinition m, BigDecimal num, BigDecimal den) {
+    /**
+     * 由分子/分母换算出指标值。
+     *
+     * <p>刻意做成 {@code public static}：配置页的「试算预览」必须与正式计算同源，
+     * 否则页面显示的值和跑批落库的值可能不一致 —— 那种偏差极难被发现，却会直接误导配置者。
+     */
+    public static BigDecimal computeValue(MetricDefinition m, BigDecimal num, BigDecimal den) {
         if (num == null) {
             return null;
         }
@@ -366,15 +375,17 @@ public class QualityEngine {
         }
     }
 
-    /** 危险语句拦截：配置表达式不得注入语句分隔符或注释。 */
+    /**
+     * 运行时防线：拦截非法语句。
+     *
+     * <p>委托给 {@link QualitySqlGuard} 而非在此就地判断 —— 规则只应有一处定义，
+     * 否则「保存前校验」与「执行时拦截」迟早不一致。且比原来的三符号检查更严：
+     * 额外拦下 DML/DDL 与集合运算关键字，堵住 {@code 1=1) UNION SELECT ...} 这类绕过。
+     *
+     * <p>这一层不能省：配置表是可直接改库的，绕过页面写入的表达式同样会被执行。
+     */
     private void guard(String sql) {
-        if (sql == null) {
-            throw new IllegalStateException("SQL 为空");
-        }
-        String lower = sql.toLowerCase();
-        if (lower.contains(";") || lower.contains("--") || lower.contains("/*")) {
-            throw new IllegalStateException("质控配置存在非法字符（; -- /*），已拒绝执行");
-        }
+        sqlGuard.guardStatement(sql);
     }
 
     public boolean hasFact(String factName) {

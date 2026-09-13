@@ -99,6 +99,113 @@ export function rebuildQualityMonthly(year, departCode) {
   })
 }
 
+// ---------------------------------------------------------------------------
+// 可视化配置（QualityConfigController）
+//
+// 与上面读接口分开的原因：这一组会写配置表、改变计算口径，风险等级完全不同。
+// 所有写接口都带 silentError —— 「校验没过」「真源是 YAML」「保存成功」需要三种
+// 截然不同的引导文案，交给页面按业务上下文给出，比统一弹一句「操作未成功」有用得多。
+// 试跑类接口 timeout 放宽：它要真跑一遍达梦，慢的时候不止 60s。
+// ---------------------------------------------------------------------------
+
+/** 配置真源与可写状态：页面打开时先调，据此决定可编辑还是只读预览 */
+export function fetchQualityConfigStatus() {
+  return request.get('/quality/config/status')
+}
+
+/** 指标列表（不含表达式正文） */
+export function fetchConfigMetrics(params) {
+  return request.get('/quality/config/metrics', { params })
+}
+
+/** 指标详情：可直接编辑的口径对象 */
+export function fetchConfigMetric(code) {
+  return request.get('/quality/config/metric', { params: { code } })
+}
+
+/** 只校验不保存（trial=true 时后端会真跑一遍，返回试算值与编译 SQL） */
+export function validateConfigMetric(metric, trial = true) {
+  return request.post('/quality/config/metric/validate', metric, {
+    params: { trial },
+    silentError: true,
+    timeout: 180000
+  })
+}
+
+/** 保存指标：校验 → 落库 → 留快照 → 热生效 */
+export function saveConfigMetric(metric, trial = true, operator = 'admin') {
+  return request.post('/quality/config/metric', metric, {
+    params: { trial, operator },
+    silentError: true,
+    timeout: 180000
+  })
+}
+
+/** 停用指标（不删除，历史结果保留） */
+export function disableConfigMetric(code, operator = 'admin') {
+  return request.post('/quality/config/metric/disable', null, {
+    params: { code, operator },
+    silentError: true
+  })
+}
+
+export function fetchConfigFacts() {
+  return request.get('/quality/config/facts')
+}
+
+export function fetchConfigFact(fact) {
+  return request.get('/quality/config/fact', { params: { fact } })
+}
+
+export function validateConfigFact(fact, trial = true) {
+  return request.post('/quality/config/fact/validate', fact, {
+    params: { trial },
+    silentError: true,
+    timeout: 180000
+  })
+}
+
+export function saveConfigFact(fact, trial = true, operator = 'admin') {
+  return request.post('/quality/config/fact', fact, {
+    params: { trial, operator },
+    silentError: true,
+    timeout: 180000
+  })
+}
+
+/** 事实层可引用列（简单模式的字段下拉数据源；取不到不阻断编辑，退化为手工输入） */
+export function fetchFactFields(fact) {
+  return request.get('/quality/config/fields', { params: { fact }, silentError: true })
+}
+
+/** 影响面：哪些指标引用了该事实层（改事实层前必看） */
+export function fetchFactImpact(fact) {
+  return request.get('/quality/config/impact', { params: { fact } })
+}
+
+/** 当前生效的事实层 SQL */
+export function fetchConfigFactSql(fact) {
+  return request.get('/quality/config/fact/sql', { params: { fact }, silentError: true })
+}
+
+/** 变更历史（每次保存留一份完整快照） */
+export function fetchQualityConfigHistory(params) {
+  return request.get('/quality/config/history', { params })
+}
+
+/** 回滚到指定历史版本 */
+export function rollbackQualityConfig(historyId, operator = 'admin') {
+  return request.post('/quality/config/rollback', null, {
+    params: { historyId, operator },
+    silentError: true
+  })
+}
+
+/** 手动重载配置 + 同步字典（保存时已自动执行，此处用于排查与恢复） */
+export function reloadQualityConfig() {
+  return request.post('/quality/config/reload', null, { silentError: true })
+}
+
 /**
  * 导出某年质控报表（服务端流式 xlsx，3 个 sheet）。
  *
