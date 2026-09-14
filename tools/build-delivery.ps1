@@ -60,9 +60,14 @@ if ($Build) {
 
     Write-Host '>>> 构建前端 vite build' -ForegroundColor Cyan
     if (-not $node) { throw '未找到 node，请先安装或手动构建前端' }
-    $viteArgs = @('node_modules/vite/bin/vite.js', 'build')
-    $proc = Start-Process -FilePath $node -ArgumentList $viteArgs -WorkingDirectory "$root\frontend" -Wait -PassThru -NoNewWindow
-    if ($proc.ExitCode -ne 0) { throw '前端构建失败' }
+    # 用调用运算符同步执行：Start-Process 在本机环境下会在 vite 写盘阶段异常中断构建
+    Push-Location "$root\frontend"
+    try {
+        & $node 'node_modules/vite/bin/vite.js' 'build'
+        if ($LASTEXITCODE -ne 0) { throw '前端构建失败' }
+    } finally {
+        Pop-Location
+    }
 }
 
 # ---------- 同步 jar 到交付约定位置 ----------
