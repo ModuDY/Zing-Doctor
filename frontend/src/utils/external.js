@@ -78,6 +78,24 @@ export function hasExternalContext() {
 }
 
 /**
+ * 读取外链传入的业务参数（departCode / patientId / inHospitalNo …）。
+ *
+ * 两种情况一律按「没传」处理，避免拿着脏值去查——那样表面请求成功，实际永远返回空：
+ *  1) ICU 外链模板变量未被替换，原样传来 ${departCode}；
+ *  2) 空白串。
+ *
+ * 只从当前 URL 读取：外链经 /entry 302 后的最终地址带着这些参数，刷新也仍在。
+ * 与鉴权上下文（存 sessionStorage）不同，业务参数刻意不跨页留存，避免串科室。
+ */
+const RAW_PLACEHOLDER = /\$\{[^}]*\}/
+
+export function externalParam(name) {
+  const raw = new URLSearchParams(window.location.search).get(name)
+  const s = String(raw == null ? '' : raw).trim()
+  return s && !RAW_PLACEHOLDER.test(s) ? s : ''
+}
+
+/**
  * 把当前外链上下文拼到站内链接上。
  *
  * window.open 打开的新标签页并不保证继承当前标签页的 sessionStorage，

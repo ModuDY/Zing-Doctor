@@ -45,8 +45,8 @@
           <el-table-column type="index" label="序号" width="55" align="center" />
           <el-table-column prop="patient_name" label="患者姓名" width="90" align="center" />
           <el-table-column prop="bed_code" label="床号" width="70" align="center" />
-          <el-table-column prop="in_hospital_no" label="住院号" width="130" align="center" />
-          <el-table-column prop="diagnosis" label="入科诊断" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="in_hospital_no" label="住院号" width="140" align="center" />
+          <el-table-column prop="diagnosis" label="入科诊断" min-width="190" show-overflow-tooltip />
           <el-table-column prop="in_depart_time" label="入科时间" width="145" align="center">
             <template #default="{ row }">{{ fmtTime(row.in_depart_time) }}</template>
           </el-table-column>

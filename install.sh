@@ -113,13 +113,14 @@ init_db() {
       info "检测到 zing_doctor_db_prod.zing_page_config 表已存在，跳过数据库初始化（如需重建请先 DROP SCHEMA）"
       warn "老库升级：请手动执行增量脚本（只执行一次）sql/06_abx_drug_dict.sql，否则抗菌药识别词库刷新会持续告警“无效的表或视图名[zing_abx_drug_dict]”"
       warn "老库升级：使用质控指标中台需手动执行 sql/09_quality.sql（幂等），否则质控看板/月度汇总页会因表不存在而报错，且 quality-board / quality-monthly 未注册导致外链被拒"
+      warn "老库升级：使用质控指标「可视化配置」需手动执行 sql/10_quality_config.sql，否则配置真源三张表（quality_metric_def / quality_fact_def / quality_def_history）不存在，且 quality-config 未注册导致 /entry/quality-config 外链报 404「未注册的页面」"
       return 0
     fi
   fi
 
   if [ -n "$DISQL" ]; then
     info "通道 a：本机 disql 初始化达梦（建模式+建表+种子）..."
-    if cat "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" "$ROOT/sql/06_abx_drug_dict.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" \
+    if cat "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" "$ROOT/sql/06_abx_drug_dict.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" "$ROOT/sql/10_quality_config.sql" \
          | "$DISQL" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" >"$logfile" 2>&1; then
       info "达梦初始化完成（本机 disql，模式 zing_doctor_db_prod）"; return 0
     fi
@@ -132,7 +133,7 @@ init_db() {
     info "通道 b：达梦容器 $CID 初始化..."
     for p in /opt/dmdbms/bin/disql /dm8/bin/disql /opt/dm8/bin/disql; do
       if docker exec "$CID" test -x "$p" 2>/dev/null; then
-        if cat "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" "$ROOT/sql/06_abx_drug_dict.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" \
+        if cat "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" "$ROOT/sql/06_abx_drug_dict.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" "$ROOT/sql/10_quality_config.sql" \
              | docker exec -i "$CID" "$p" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" >"$logfile" 2>&1; then
           info "达梦初始化完成（容器 $CID，模式 zing_doctor_db_prod）"; return 0
         fi
@@ -163,7 +164,8 @@ init_db() {
               DbInit "jdbc:dm://$DM_HOST_PORT" "$ADMIN_USER" "$ADMIN_PASS" \
               "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" \
               "$ROOT/sql/03_icu_indexes.sql" "$ROOT/sql/05_apache2_pdf.sql" "$ROOT/sql/06_abx_drug_dict.sql" \
-              "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql"; then
+              "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" \
+              "$ROOT/sql/10_quality_config.sql"; then
         info "达梦初始化完成（JDBC 工具，模式 zing_doctor_db_prod + ICU 库性能索引 + APACHE2 PDF列）"; return 0
       fi
       warn "JDBC 工具执行失败（详见上方日志）"
@@ -184,6 +186,7 @@ init_db() {
   echo "    start $ROOT/sql/07_sofa.sql         # SOFA 评分建表 + 页面注册 + 配置种子"
   echo "    start $ROOT/sql/08_sofa_p1.sql      # SOFA 页面注册与列注释（幂等可重复）"
   echo "    start $ROOT/sql/09_quality.sql      # 质控指标中台建表 + 页面注册（幂等可重复）"
+  echo "    start $ROOT/sql/10_quality_config.sql # 质控配置真源三表 + 注册 quality-config 页（幂等可重复）"
   exit 1
 }
 
@@ -195,6 +198,62 @@ else
 fi
 
 # ---------- 3. 构建并启动 ----------
+
+# 生成后端外部配置文件 $ROOT/config/application.yml
+#
+# Spring Boot 默认加载 jar 同级 ./config/ 下的 application.yml，优先级高于 jar 内配置
+# （直连模式 cwd=$ROOT → 读 $ROOT/config/；容器模式 WORKDIR=/app → 由 compose 挂载到 /app/config）。
+# 因此把「每台服务器都不一样」的项集中放这里：运维可直接改文件，不必动交付包。
+#
+# 幂等策略（避免重装把已配好的白名单清空）：
+#   传了 QUALITY_CONFIG_WRITE_IP_WHITELIST → 写入实际值（原文件先备份为 .bak.<时间戳>）
+#   未传 且 文件已存在                    → 原样保留
+#   未传 且 文件不存在                    → 生成占位符版，行为等同默认（仍由环境变量决定）
+write_backend_config() {
+  local dir="$ROOT/config"
+  local file="$dir/application.yml"
+  mkdir -p "$dir"
+  if [ -n "${QUALITY_CONFIG_WRITE_IP_WHITELIST:-}" ]; then
+    if [ -f "$file" ]; then
+      cp -f "$file" "$file.bak.$(date +%Y%m%d%H%M%S)" && info "已备份原配置：$file.bak.*"
+    fi
+    cat > "$file" <<EOF
+# zing-doctor 后端外部配置（由 install.sh 生成，优先级高于 jar 内 application.yml）
+# 这里只放「每台服务器不同」的项，其余配置见交付包 src/main/resources/application.yml。
+# 改完需重启后端生效：pkill -f zing-doctor.jar && bash install.sh
+zing:
+  quality:
+    # 质控配置写接口白名单（POST /api/quality/config/**：保存指标/事实层、回滚、批量导入、重载）
+    # 逗号分隔、支持前缀匹配：194.1.3. 等价于 194.1.3.*（同网段同事无需再单独加）
+    # 留空 = 这些写请求一律 403（刻意的 fail-closed）；只读看板 GET 请求不受影响。
+    config-write-ip-whitelist: ${QUALITY_CONFIG_WRITE_IP_WHITELIST}
+    # 默认操作人：内网直连打开配置页（无外链 realname）时，变更历史里记录的名字。
+    # 不配则记 unknown，事后无法追溯是谁改的口径。粒度是「这台工作站」不是「这个人」。
+    config-default-operator: \${QUALITY_CONFIG_DEFAULT_OPERATOR:}
+EOF
+    info "已写入 $file（质控配置写白名单：${QUALITY_CONFIG_WRITE_IP_WHITELIST}）"
+  elif [ -f "$file" ]; then
+    info "沿用已有配置 $file（本次未传 QUALITY_CONFIG_WRITE_IP_WHITELIST，不覆盖）"
+  else
+    cat > "$file" <<'EOF'
+# zing-doctor 后端外部配置（install.sh 生成；优先级高于 jar 内 application.yml）
+# 这里只放「每台服务器不同」的项，其余配置见交付包 src/main/resources/application.yml。
+zing:
+  quality:
+    # 质控配置写接口白名单（POST /api/quality/config/**：保存指标/事实层、回滚、批量导入、重载）
+    # 逗号分隔、支持前缀匹配：194.1.3. 等价于 194.1.3.*
+    # 留空 = 这些写请求一律 403（刻意的 fail-closed）；只读看板 GET 请求不受影响。
+    # 下行为占位符：仍由环境变量 QUALITY_CONFIG_WRITE_IP_WHITELIST 决定，也可直接填网段后重启。
+    config-write-ip-whitelist: ${QUALITY_CONFIG_WRITE_IP_WHITELIST:}
+    # 默认操作人：内网直连打开配置页（无外链 realname）时，变更历史里记录的名字。
+    # 不配则记 unknown，事后无法追溯是谁改的口径。粒度是「这台工作站」不是「这个人」。
+    config-default-operator: ${QUALITY_CONFIG_DEFAULT_OPERATOR:}
+EOF
+    info "已生成默认配置 $file（白名单留空 = 写接口 403，需要时填网段后重启后端）"
+  fi
+}
+write_backend_config
+
 # ⚠️ 前置校验：前端静态产物必须存在。
 # frontend/dist 以 bind mount 挂成 nginx 的 /usr/share/nginx/html；若它为空（缺 index.html），
 # nginx 的 try_files 会回退到不存在的 /index.html，触发
@@ -237,11 +296,16 @@ direct_deploy() {
   # 外链跳转地址默认取外链请求自带的 Host（跟随外部系统访问地址，不依赖本机网卡 IP）；
   # 仅当需要强制固定跳转地址时才显式设置 EXTERNAL_LINK_BASE_URL，例如：
   #   EXTERNAL_LINK_BASE_URL=http://100.120.1.104:2001 ./install.sh
+  # 质控配置写接口白名单（POST /api/quality/config/**：保存指标/事实层、回滚、批量导入、重载配置）。
+  # 不配则这些写请求一律 403（刻意的 fail-closed：能改全院质控口径的入口不默认开放）。
+  # 逗号分隔、支持前缀匹配，填质控科/信息科工作站的 IP 或网段，浏览器端无需任何改动，例：
+  #   QUALITY_CONFIG_WRITE_IP_WHITELIST="194.1.3.,100.120.1." ./install.sh
   info "启动后端：java -jar $JAR（ICU_DATA_PROVIDER=sql，连接真实 ICU 库）..."
   ICU_DATA_PROVIDER=sql \
   EXTERNAL_LINK_SECRET="${EXTERNAL_LINK_SECRET:-zing-doctor-prod-secret-change-me}" \
   ICU_LINK_TOKEN="${ICU_LINK_TOKEN:-zing-icu-link-token-2026}" \
   EXTERNAL_LINK_BASE_URL="${EXTERNAL_LINK_BASE_URL:-}" \
+  QUALITY_CONFIG_WRITE_IP_WHITELIST="${QUALITY_CONFIG_WRITE_IP_WHITELIST:-}" \
   nohup java -jar "$JAR" > "$ROOT/logs/backend.log" 2>&1 &
   echo $! > "$ROOT/backend.pid"
   info "后端 PID: $(cat "$ROOT/backend.pid")（日志：logs/backend.log）"
@@ -249,6 +313,11 @@ direct_deploy() {
     info "外链跳转基础地址（显式配置）：EXTERNAL_LINK_BASE_URL=${EXTERNAL_LINK_BASE_URL}"
   else
     info "外链跳转地址：跟随外部系统访问地址（请求 Host），无需配置 EXTERNAL_LINK_BASE_URL"
+  fi
+  if [ -n "${QUALITY_CONFIG_WRITE_IP_WHITELIST:-}" ]; then
+    info "质控配置写接口白名单：${QUALITY_CONFIG_WRITE_IP_WHITELIST}"
+  else
+    warn "未配置 QUALITY_CONFIG_WRITE_IP_WHITELIST：质控配置页的保存/回滚/导入/重载将一律 403"
   fi
 
   # ---- 前端：nginx stable 容器（复用服务器已有镜像，不拉取）----

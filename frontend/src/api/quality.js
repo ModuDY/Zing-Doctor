@@ -64,11 +64,31 @@ export function fetchQualityRuns() {
 /**
  * 触发一次计算（幂等：同周期同科室重算覆盖）。
  *
- * withPatients 默认 false —— 患者明细在下钻时按需生成更快，避免月度批算顺带落库。
+ * 页面请传 async: true —— 批算要重建全部事实层，常以分钟计，同步等会撞上
+ * 60s 超时（用户看到假「失败」而后端还在跑）；异步只返回 runId，随后轮询 fetchQualityRun。
+ * withPatients 默认 false：患者明细在下钻时按需生成更快。
  * silentError：失败提示由页面给出（带「重算失败」上下文），避免两条弹窗。
  */
 export function recalcQuality(params) {
-  return request.post('/quality/recalc', null, { params, silentError: true })
+  return request.post('/quality/recalc', null, { params, silentError: true, timeout: 120000 })
+}
+
+/** 查询批次进度（配合 recalcQuality({ async: true }) 轮询） */
+export function fetchQualityRun(runId) {
+  return request.get('/quality/run', { params: { runId }, silentError: true, timeout: 20000 })
+}
+
+/**
+ * 单指标重算：只算这一条，秒级返回。
+ *
+ * 解决「只改了一条指标的口径，却要等 127 条全跑完」。返回里的 result 可直接就地更新该行。
+ */
+export function recalcQualityMetric(code, params) {
+  return request.post('/quality/recalc/metric', null, {
+    params: { code, ...params },
+    silentError: true,
+    timeout: 180000
+  })
 }
 
 /** 人工录入指标值（MANUAL 类指标）；silentError 同 recalcQuality */

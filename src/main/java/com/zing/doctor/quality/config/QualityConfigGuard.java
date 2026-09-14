@@ -117,14 +117,15 @@ public class QualityConfigGuard {
      * 解析真实操作人，用于变更历史与审计留痕。
      *
      * <p>取值优先级：{@code X-Operator} 请求头（SSO/网关注入）→ 外链业务参数
-     * {@code realname} → {@code username} → {@code userId} → {@code unknown}。
+     * {@code realname} → {@code username} → {@code userId} → 服务端配置的
+     * {@code zing.quality.config-default-operator} → {@code unknown}。
      *
      * <p><b>这是审计归属，不是身份认证</b>：外链参数与请求头都可由调用方伪造，
      * 真正兜底的是上面的写接口访问控制。接入 SSO 后应改为从服务端会话取值。
      */
     public String operator(HttpServletRequest request) {
         if (request == null) {
-            return UNKNOWN_OPERATOR;
+            return fallbackOperator();
         }
         String fromHeader = request.getHeader(HEADER_OPERATOR);
         if (StringUtils.hasText(fromHeader)) {
@@ -140,6 +141,24 @@ public class QualityConfigGuard {
                     return normalize(value);
                 }
             }
+        }
+        return fallbackOperator();
+    }
+
+    /**
+     * 兜底操作人：请求头与外链参数都没有时的最后取值。
+     *
+     * <p>典型场景是信息科在自己工作站上直接打开配置页（内网直连、不经过 ICU 外链，
+     * 自然没有 realname），此时系统无从得知操作者，审计字段会记成 {@code unknown}，
+     * 事后无法追溯是谁改的口径。配置 {@code zing.quality.config-default-operator}
+     * 后可落到具体名字，例如「质控科-信息科工作站」。
+     *
+     * <p>值取自<b>服务端配置文件</b>而非请求，因此使用方无法自行伪造，
+     * 与「不接受前端传 operator」的约定不冲突。
+     */
+    private String fallbackOperator() {
+        if (StringUtils.hasText(properties.getConfigDefaultOperator())) {
+            return normalize(properties.getConfigDefaultOperator());
         }
         return UNKNOWN_OPERATOR;
     }

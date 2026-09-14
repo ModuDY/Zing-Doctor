@@ -49,6 +49,18 @@ public class QualityEngine {
     /** cacheKey(factName + 周期) → 物化表全限定名 */
     private final Map<String, String> factTableCache = new ConcurrentHashMap<>();
 
+    /**
+     * cacheKey → 物化锁。
+     *
+     * <p>原先这里用的是 {@code synchronized (this)}：一次批次里几十张事实表全部串行创建，
+     * 指标层配的并行线程（calc-threads）在物化阶段完全空转，批算耗时基本等于所有事实表建表耗时之和。
+     * 改成按 cacheKey 加锁后，不同事实表可并行建，只有同一张表才互斥（保证只建一次）。
+     *
+     * <p>该 Map 只增不删，条目数 = 事实层数 × 计算过的周期数（每天至多几十个、对象本身极小）；
+     * 重启即释放，不需要额外清理。
+     */
+    private final Map<String, Object> factLocks = new ConcurrentHashMap<>();
+
     public QualityEngine(QualityDslLoader dsl, SqlCompiler compiler,
                          QualitySqlMapper sqlMapper, QualityProperties props,
                          QualitySqlGuard sqlGuard) {
@@ -70,19 +82,35 @@ public class QualityEngine {
      * @return 物理表全限定名（materializeFacts=true）或内联子查询（false）
      */
     public String materializeFact(String factName, LocalDateTime start, LocalDateTime end) {
+        return materializeFact(factName, start, end, false);
+    }
+
+    /**
+     * 物化事实层，返回可直接用于指标 SQL 的 FROM 片段。
+     *
+     * @param refresh true = 忽略缓存强制重建。用于单指标重算：只重建这一条指标依赖的事实表，
+     *                代价远小于整体 {@code resetFacts()}（那会连带丢弃全部已建好的事实表）
+     * @return 物理表全限定名（materializeFacts=true）或内联子查询（false）
+     */
+    public String materializeFact(String factName, LocalDateTime start, LocalDateTime end, boolean refresh) {
         FactDefinition f = dsl.getFacts().get(factName);
         if (f == null) {
             throw new IllegalStateException("未定义的事实层: " + factName);
         }
         String key = cacheKey(factName, start);
-        String cached = factTableCache.get(key);
-        if (cached != null) {
-            return cached;
-        }
-        synchronized (this) {
-            cached = factTableCache.get(key);
+        if (!refresh) {
+            String cached = factTableCache.get(key);
             if (cached != null) {
                 return cached;
+            }
+        }
+        Object lock = factLocks.computeIfAbsent(key, k -> new Object());
+        synchronized (lock) {
+            if (!refresh) {
+                String cached = factTableCache.get(key);
+                if (cached != null) {
+                    return cached;
+                }
             }
             String sql = compiler.compileFact(f, dsl.getSourceConfig(), start, end);
             guard(sql);
@@ -103,13 +131,21 @@ public class QualityEngine {
         }
     }
 
+    public List<MetricOutcome> computeMetric(MetricDefinition m, LocalDateTime start, LocalDateTime end) {
+        return computeMetric(m, start, end, false);
+    }
+
     /**
      * 计算一条指标（维度非空时返回多行）。
      *
+     * @param refreshFact true = 先重建该指标依赖的那一张事实表再算。
+     *                    单指标重算走这条路径：只花「建一张表」的代价就能拿到最新源数据，
+     *                    不必像批次计算那样重建全部事实层
      * <p>除逐科室结果外，额外产出一行 {@code depart_code = 'ALL'}：
      * 由各科室分子/分母汇总后重算，率类因此是加权率而非「各科室率的平均」。
      */
-    public List<MetricOutcome> computeMetric(MetricDefinition m, LocalDateTime start, LocalDateTime end) {
+    public List<MetricOutcome> computeMetric(MetricDefinition m, LocalDateTime start, LocalDateTime end,
+                                             boolean refreshFact) {
         List<MetricOutcome> outcomes = new ArrayList<>();
 
         FactDefinition f = dsl.factOf(m);
@@ -124,7 +160,7 @@ public class QualityEngine {
 
         String factTable;
         try {
-            factTable = materializeFact(m.getFact(), start, end);
+            factTable = materializeFact(m.getFact(), start, end, refreshFact);
         } catch (Exception e) {
             log.error("[质控] 事实层物化失败: metric={}, fact={}", m.getCode(), m.getFact(), e);
             MetricOutcome o = baseOutcome(m);

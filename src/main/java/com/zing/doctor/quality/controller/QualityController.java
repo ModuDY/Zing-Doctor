@@ -143,6 +143,8 @@ public class QualityController {
     /**
      * 触发一次计算（幂等：同周期同科室重算覆盖）。
      *
+     * @param async        true = 立即返回 runId，用 {@code GET /run} 轮询进度（页面请用这个）；
+     *                     false = 同步跑完才返回（定时任务等无人值守场景）
      * @param withPatients 是否顺带预落库患者明细；默认 false，页面下钻时按需生成更快
      */
     @PostMapping("/recalc")
@@ -152,6 +154,7 @@ public class QualityController {
                                               @RequestParam(required = false) String startTime,
                                               @RequestParam(required = false) String endTime,
                                               @RequestParam(required = false, defaultValue = "false") Boolean withPatients,
+                                              @RequestParam(required = false, defaultValue = "false") Boolean async,
                                               @RequestParam(required = false, defaultValue = "MANUAL") String triggerType,
                                               @RequestParam(required = false, defaultValue = "manual") String operator) {
         try {
@@ -159,10 +162,53 @@ public class QualityController {
             LocalDateTime s = startTime == null ? range.getStart() : parse(startTime, range.getStart());
             LocalDateTime e = endTime == null ? range.getEnd() : parse(endTime, range.getEnd());
             String dept = departCode == null ? "ALL" : departCode;
+            if (Boolean.TRUE.equals(async)) {
+                return Result.ok(calcService.submit(range.getPeriodType(), s, e, dept,
+                        triggerType, operator, Boolean.TRUE.equals(withPatients)));
+            }
             return Result.ok(calcService.recalc(range.getPeriodType(), s, e, dept,
                     triggerType, operator, Boolean.TRUE.equals(withPatients)));
         } catch (Exception e) {
             log.error("[质控] 计算触发失败", e);
+            return Result.fail("计算失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 查询批次进度，配合 {@code POST /recalc?async=true} 轮询。
+     *
+     * <p>返回里的 {@code running=false} 即终态，此时 ok/fail/placeholder/durationMs 才是结论。
+     */
+    @GetMapping("/run")
+    public Result<Map<String, Object>> run(@RequestParam String runId) {
+        try {
+            return Result.ok(calcService.getRun(runId));
+        } catch (Exception e) {
+            log.error("[质控] 批次进度查询失败: runId={}", runId, e);
+            return Result.fail("查询失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 单指标重算：只算这一条，秒级返回。
+     *
+     * <p>解决「只改了一条指标的口径，却要等 127 条全跑完」的问题。
+     * 返回里的 result 是该指标在当前筛选科室下的新值，页面可就地更新这一行。
+     * 计算进行中（有批次在跑）时返回 calcStatus=BUSY，页面提示稍后重试即可。
+     */
+    @PostMapping("/recalc/metric")
+    public Result<Map<String, Object>> recalcMetric(@RequestParam String code,
+                                                    @RequestParam(required = false) String periodType,
+                                                    @RequestParam(required = false) String periodStart,
+                                                    @RequestParam(required = false) String departCode,
+                                                    @RequestParam(required = false, defaultValue = "manual") String operator) {
+        try {
+            PeriodRange range = PeriodRange.of(periodType, periodStart);
+            String dept = departCode == null || departCode.trim().isEmpty() ? "ALL" : departCode.trim();
+            return Result.ok(calcService.recalcOne(code, range.getPeriodType(),
+                    range.getStart(), range.getEnd(), dept, operator));
+        } catch (Exception e) {
+            log.error("[质控] 单指标重算失败: code={}", code, e);
             return Result.fail("计算失败: " + e.getMessage());
         }
     }

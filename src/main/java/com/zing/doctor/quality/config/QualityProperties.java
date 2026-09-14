@@ -78,6 +78,24 @@ public class QualityProperties {
      */
     private String configWriteIpWhitelist;
 
+    /**
+     * 默认操作人（可选）：请求头与外链参数都取不到操作人时的兜底值。
+     *
+     * <p>操作人优先取 {@code X-Operator} 请求头（SSO/网关注入）与外链业务参数
+     * {@code realname}；两者都没有时——典型场景是信息科在自己工作站上直接打开配置页，
+     * 不走 ICU 外链——变更历史会记成 {@code unknown}，事后无法追溯谁改的口径。
+     * 配置本项后可落到具体名字。
+     *
+     * <p><b>值来自服务端配置文件，不是请求</b>，因此使用方无法自行伪造，
+     * 与「不接受前端传 operator」的约定不冲突。
+     *
+     * <p>注意粒度是<b>机器</b>不是人：同一台工作站的所有变更都记成同一个名字。
+     * 要精确到人，仍需入口带 realname（外链）或接入 SSO 后由网关注入 X-Operator。
+     *
+     * <p>例：{@code 质控科-信息科工作站} / {@code ${QUALITY_CONFIG_DEFAULT_OPERATOR:}}
+     */
+    private String configDefaultOperator;
+
     /** 数据源定义文件 */
     private String sourceLocation = "classpath*:quality/sources.yaml";
 

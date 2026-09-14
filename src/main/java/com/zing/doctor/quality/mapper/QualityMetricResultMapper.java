@@ -44,6 +44,19 @@ public interface QualityMetricResultMapper extends BaseMapper<QualityMetricResul
                   @Param("periodStart") LocalDateTime periodStart,
                   @Param("departCode") String departCode);
 
+    /**
+     * 删除某指标在某周期下的全部科室结果（单指标重算用）。
+     *
+     * <p>不带 depart_code 是刻意的：一条指标算完会产出「逐科室 + 全院汇总」多行，
+     * 只删当前筛选科室会让其余科室的旧行残留，新旧混在同一周期里。
+     */
+    @Delete("DELETE FROM \"zing_doctor_db_prod\".\"quality_metric_result\" "
+            + "WHERE \"metric_code\" = #{metricCode} AND \"period_type\" = #{periodType} "
+            + "AND \"period_start\" = #{periodStart}")
+    int deleteByMetricPeriod(@Param("metricCode") String metricCode,
+                             @Param("periodType") String periodType,
+                             @Param("periodStart") LocalDateTime periodStart);
+
     /** 取某年全部月度结果，供月度宽表透视。 */
     @Select("SELECT * FROM \"zing_doctor_db_prod\".\"quality_metric_result\" "
             + "WHERE \"period_type\" = 'MONTH' AND \"depart_code\" = #{departCode} "

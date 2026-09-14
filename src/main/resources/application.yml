@@ -97,10 +97,19 @@ zing:
     #
     # 推荐：IP 白名单（浏览器端零改动，只有信息科/质控科的工作站能提交）。
     #       逗号分隔，支持前缀匹配，例：100.120.1.104,10.0.0.
+    # 配置途径（优先级从高到低）：
+    #   ① 部署目录 ./config/application.yml（install.sh 自动生成，运维可直接改，推荐）
+    #   ② 环境变量 QUALITY_CONFIG_WRITE_IP_WHITELIST
+    #   ③ 改本行默认值（会进交付包，换院部署时也生效，一般不建议）
     config-write-ip-whitelist: ${QUALITY_CONFIG_WRITE_IP_WHITELIST:}
     # 可选：写接口令牌。配置后写请求必须带请求头 X-Quality-Config-Token。
     #       前端可用构建变量 VITE_QUALITY_CONFIG_WRITE_TOKEN 注入。
     config-write-token: ${QUALITY_CONFIG_WRITE_TOKEN:}
+    # 默认操作人：内网直连打开配置页（无 X-Operator 头、无外链 realname）时，
+    # 变更历史里记录的名字；不配则记 unknown，事后无法追溯是谁改的口径。
+    # 值取自服务端配置、不接受请求传入，因此不会被使用方伪造。
+    # 粒度是「这台工作站」不是「这个人」：精确到人需外链带 realname 或接 SSO 后网关注入 X-Operator。
+    config-default-operator: ${QUALITY_CONFIG_DEFAULT_OPERATOR:}
     # !! 上面两项都不配时，写接口一律拒绝（403）——刻意的 fail-closed：
     #    宁可让部署方显式开一次口子，也不要默认放开一个能改生产口径的入口。
     #    启动日志会打印当前写保护状态，便于确认是否已生效。

@@ -33,6 +33,11 @@ services:
       # ⚠️ 必须与浏览器实际访问地址完全一致（含端口 :2001）；留空则跟随请求 Host
       # （跟随 Host 依赖 nginx 配置 $http_host 透传端口，install.sh 已处理）
       EXTERNAL_LINK_BASE_URL: http://100.120.1.104:2001
+      # 质控配置写接口白名单（POST /api/quality/config/**：保存/回滚/导入/重载配置）
+      # 留空 = 写接口一律 403（刻意的 fail-closed，与 install.sh 行为一致）。
+      # 需要开放配置编辑时填质控科/信息科工作站的 IP 或网段，逗号分隔、支持前缀匹配，如：
+      #   QUALITY_CONFIG_WRITE_IP_WHITELIST: "194.1.3.,100.120.1."
+      QUALITY_CONFIG_WRITE_IP_WHITELIST: ""
       # ===== 达梦连接（install.sh 从此处提取 DOCTOR_URL 用于数据库初始化）=====
       DOCTOR_URL: jdbc:dm://100.120.1.102:14236
       DOCTOR_USERNAME: SYSDBA
@@ -41,6 +46,9 @@ services:
       JAVA_OPTS: -Xms512m -Xmx1024m
     volumes:
       - ./logs:/app/logs
+      # 后端外部配置：install.sh 生成 ./config/application.yml（容器内 WORKDIR=/app，
+      # Spring Boot 默认加载 /app/config/ 下的 application.yml，优先级高于 jar 内配置）
+      - ./config:/app/config:ro
     networks:
       - zing-doctor-net
     healthcheck:

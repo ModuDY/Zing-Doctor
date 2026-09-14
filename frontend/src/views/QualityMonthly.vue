@@ -175,6 +175,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Cpu, Download } from '@element-plus/icons-vue'
+import { externalParam } from '../utils/external'
 import * as echarts from 'echarts'
 import {
   fetchQualityMonthly,
@@ -189,7 +190,8 @@ const DEFAULT_HEADER = [
 ]
 
 const year = ref(String(new Date().getFullYear()))
-const departCode = ref('')
+// 外链带 departCode 时默认按该科室统计（与看板一致），不再默认跑全院；可手动清空回到全院
+const departCode = ref(externalParam('departCode'))
 const departments = ref([])
 const domainFilter = ref('')
 const onlyWithData = ref(false)

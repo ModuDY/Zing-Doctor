@@ -439,6 +439,12 @@
             </div>
             <details class="sql-box" v-if="checkResult.sql">
               <summary>编译后的 SQL（点开核对取数口径）</summary>
+              <div class="sql-tools">
+                <button type="button" class="btn-copy" :class="{ done: sqlCopied }"
+                        @click="copySql(checkResult.sql)">
+                  {{ sqlCopied ? '已复制' : '复制 SQL' }}
+                </button>
+              </div>
               <pre>{{ checkResult.sql }}</pre>
             </details>
           </div>
@@ -891,6 +897,43 @@ function hasOrGroup(rows) {
 const metricDialog = ref(false)
 const mode = ref('simple')
 const checkResult = ref(null)
+
+/** 「复制 SQL」按钮的短暂反馈态 */
+const sqlCopied = ref(false)
+let copyTimer = null
+
+/**
+ * 复制文本到剪贴板。
+ *
+ * 内网一般是 http://ip:port 访问，属于非安全上下文，`navigator.clipboard` 为 undefined，
+ * 直接调用会抛错、按钮点了没反应。因此这里保留 textarea + execCommand 兜底路径，
+ * 两种路径都失败时提示手动复制，避免用户以为按钮坏了。
+ */
+async function copySql(text) {
+  if (!text) return
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.top = '-9999px'
+      document.body.appendChild(ta)
+      ta.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(ta)
+      if (!ok) throw new Error('execCommand copy 返回 false')
+    }
+    sqlCopied.value = true
+    ElMessage.success('SQL 已复制')
+    clearTimeout(copyTimer)
+    copyTimer = setTimeout(() => { sqlCopied.value = false }, 2000)
+  } catch (e) {
+    ElMessage.error('复制失败，请手动选中 SQL 后复制')
+  }
+}
+
 const metricForm = reactive(blankMetric())
 const simple = reactive({ whereRows: [], numRows: [], numField: '', denRows: [], dims: [] })
 const fieldOptions = ref([])
@@ -1913,6 +1956,26 @@ code { font-family: Consolas, Monaco, monospace; }
   cursor: pointer;
   font-size: 12.5px;
   color: #1d4ed8;
+}
+.sql-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.btn-copy {
+  padding: 3px 10px;
+  font-size: 12px;
+  color: #1d4ed8;
+  background: #fff;
+  border: 1px solid #c7d7fe;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.btn-copy:hover { background: #eef4ff; }
+.btn-copy.done {
+  color: #15803d;
+  border-color: #a7f3d0;
+  background: #f0fdf4;
 }
 .sql,
 pre.sql {

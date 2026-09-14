@@ -72,34 +72,66 @@
       </div>
     </div>
 
-    <!-- 摘要卡 -->
-    <div class="metric-cards">
-      <div class="metric-card info">
-        <div class="metric-label">指标总数</div>
-        <div class="metric-value">{{ summary.total ?? 0 }}</div>
-        <div class="metric-sub">按域分 {{ domainPanels.length }} 组</div>
+    <!-- 总览：先说清「哪段时间、哪个科室、数得怎么样」，再给分布 -->
+    <div class="overview">
+      <div class="ov-head">
+        <div class="ov-title">
+          <span class="ov-title-text">质控指标总览</span>
+          <span class="ov-period">
+            {{ fmtPeriod(overview.periodStart) }} ~ {{ fmtPeriodEnd(overview.periodEnd) }}
+          </span>
+        </div>
+        <div class="ov-tags">
+          <span class="ov-tag"><i class="tag-dot blue"></i>{{ deptName(overview.departCode) }}</span>
+          <span class="ov-tag"><i class="tag-dot gray"></i>{{ domainPanels.length }} 个域</span>
+          <span class="ov-tag strong">出数率 {{ okRate }}%</span>
+        </div>
       </div>
-      <div class="metric-card ok">
-        <div class="metric-label">本期已出数</div>
-        <div class="metric-value">{{ summary.ok ?? 0 }}</div>
-        <div class="metric-sub">calc_status = OK</div>
-      </div>
-      <div class="metric-card warn">
-        <div class="metric-label">本期无数据</div>
-        <div class="metric-value">{{ summary.noData ?? 0 }}</div>
-        <div class="metric-sub">口径成立但本周期无命中</div>
-      </div>
-      <div class="metric-card muted">
-        <div class="metric-label">未出数（含空壳）</div>
-        <div class="metric-value">{{ summary.placeholder ?? 0 }}</div>
-        <div class="metric-sub">待接数据源 / 口径待定 / 未计算 / 人工录入</div>
-      </div>
-    </div>
 
-    <div v-if="overview.periodStart" class="period-hint">
-      统计周期（左闭右开）：{{ overview.periodStart }} ~ {{ overview.periodEnd }}
-      · 科室 {{ overview.departCode }}
-      <span class="hint-note">空壳指标也占据完整行位，数值列显示「—」，页面始终是 127 行</span>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-head">
+            <span class="stat-label">指标总数</span>
+            <span class="stat-ico blue"><el-icon><Grid /></el-icon></span>
+          </div>
+          <div class="stat-value">{{ summary.total ?? 0 }}</div>
+          <div class="stat-foot">口径来自指标字典，空壳一并计入</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-head">
+            <span class="stat-label">本期已出数</span>
+            <span class="stat-ico green"><el-icon><CircleCheck /></el-icon></span>
+          </div>
+          <div class="stat-value green">{{ summary.ok ?? 0 }}</div>
+          <div class="stat-bar"><i class="fill green" :style="{ width: okRate + '%' }"></i></div>
+          <div class="stat-foot">占全部指标 {{ okRate }}%（calc_status = OK）</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-head">
+            <span class="stat-label">本期无数据</span>
+            <span class="stat-ico orange"><el-icon><WarningFilled /></el-icon></span>
+          </div>
+          <div class="stat-value orange">{{ summary.noData ?? 0 }}</div>
+          <div class="stat-bar"><i class="fill orange" :style="{ width: noDataRate + '%' }"></i></div>
+          <div class="stat-foot">口径成立但本周期无命中</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-head">
+            <span class="stat-label">未出数（含空壳）</span>
+            <span class="stat-ico gray"><el-icon><Clock /></el-icon></span>
+          </div>
+          <div class="stat-value gray">{{ summary.placeholder ?? 0 }}</div>
+          <div class="stat-bar"><i class="fill gray" :style="{ width: placeholderRate + '%' }"></i></div>
+          <div class="stat-foot">待接数据源 / 口径待定 / 未计算 / 人工录入</div>
+        </div>
+      </div>
+
+      <div class="ov-note">
+        空壳指标也占据完整行位，数值列显示「—」，页面始终是 {{ summary.total ?? 0 }} 行
+      </div>
     </div>
 
     <el-tabs v-model="activeTab" @tab-change="onTabChange">
@@ -163,8 +195,18 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="150" align="center" fixed="right">
+                <el-table-column label="操作" width="215" align="center" fixed="right">
                   <template #default="{ row }">
+                    <el-button
+                      link
+                      type="success"
+                      size="small"
+                      :loading="rowCalcCode === row.code"
+                      :disabled="!!rowCalcCode && rowCalcCode !== row.code"
+                      @click="calcOne(row)"
+                    >
+                      {{ rowCalcCode === row.code ? '计算中' : '计算' }}
+                    </el-button>
                     <el-button link type="primary" size="small" @click="openMetric(row)">
                       口径血缘
                     </el-button>
@@ -274,9 +316,12 @@
           <el-table :data="runs || []" border size="small" max-height="560">
             <el-table-column prop="runId" label="批次号" width="220" />
             <el-table-column prop="periodType" label="周期类型" width="96" align="center" />
-            <el-table-column prop="periodStart" label="周期开始" width="160" />
-            <el-table-column prop="periodEnd" label="周期结束" width="160" />
-            <el-table-column prop="departCode" label="科室" width="110" />
+            <el-table-column prop="periodStart" label="周期开始" width="160"
+                             :formatter="(row) => fmtPeriod(row.periodStart)" />
+            <el-table-column prop="periodEnd" label="周期结束" width="160"
+                             :formatter="(row) => fmtPeriod(row.periodEnd)" />
+            <el-table-column prop="departCode" label="科室" width="140"
+                             :formatter="(row) => deptName(row.departCode)" />
             <el-table-column prop="triggerType" label="触发" width="96" align="center" />
             <el-table-column label="状态" width="100" align="center">
               <template #default="{ row }">
@@ -296,6 +341,48 @@
       </el-tab-pane>
     </el-tabs>
 
+    <!-- ---------------- 计算进度（异步批次） ---------------- -->
+    <el-dialog
+      v-model="calcVisible"
+      title="指标计算"
+      width="460px"
+      :close-on-click-modal="false"
+      :close-on-press-escape="!calcRunning"
+      :show-close="!calcRunning"
+    >
+      <div class="calc-body">
+        <el-progress
+          :percentage="calcPercent"
+          :stroke-width="14"
+          :status="calcDone
+            ? (calcDone.status === 'SUCCESS' ? 'success' : calcDone.status === 'PARTIAL' ? 'warning' : 'exception')
+            : ''"
+        />
+        <div class="calc-line">
+          <span>已完成 {{ calcProgress.done }} / {{ calcProgress.total }} 条</span>
+          <span class="calc-elapsed">已用时 {{ calcElapsed }}</span>
+        </div>
+        <div class="calc-stat">
+          <span class="s-ok">成功 {{ calcProgress.ok }}</span>
+          <span class="s-fail">失败 {{ calcProgress.fail }}</span>
+          <span class="s-hold">占位 {{ calcProgress.placeholder }}</span>
+        </div>
+        <div v-if="calcRunning" class="calc-tip">
+          计算在服务端进行，可点「后台运行」关闭本窗口；完成后会自动刷新看板。
+        </div>
+        <el-alert
+          v-else-if="calcDone && calcDone.message"
+          :type="calcDone.status === 'SUCCESS' ? 'success' : 'error'"
+          :closable="false"
+          :title="calcDone.message"
+        />
+      </div>
+      <template #footer>
+        <el-button v-if="calcRunning" @click="calcVisible = false">后台运行</el-button>
+        <el-button v-else type="primary" @click="calcVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
     <!-- ---------------- 指标详情抽屉 ---------------- -->
     <el-drawer v-model="detailVisible" :title="detail.name || detail.code || '指标详情'" size="62%">
       <div v-loading="detailLoading" class="detail-body">
@@ -311,7 +398,7 @@
           </el-descriptions-item>
           <el-descriptions-item label="口径版本">v{{ detail.expressionVersion ?? '—' }}</el-descriptions-item>
           <el-descriptions-item label="统计周期" :span="2">
-            {{ detail.periodStart || '—' }} ~ {{ detail.periodEnd || '—' }} · 科室 {{ detail.departCode || 'ALL' }}
+            {{ fmtPeriod(detail.periodStart) }} ~ {{ fmtPeriodEnd(detail.periodEnd) }} · 科室 {{ deptName(detail.departCode) }}
           </el-descriptions-item>
           <el-descriptions-item label="口径说明" :span="2">
             {{ detail.remark || '—' }}
@@ -381,7 +468,8 @@
               <el-table-column prop="patientName" label="姓名" width="100" />
               <el-table-column prop="inHospitalNo" label="住院号" width="150" />
               <el-table-column prop="patientId" label="患者ID" width="130" />
-              <el-table-column prop="departCode" label="科室" width="110" />
+              <el-table-column prop="departCode" label="科室" width="140"
+                               :formatter="(row) => deptName(row.departCode)" />
               <el-table-column label="入分子" width="90" align="center">
                 <template #default="{ row }">
                   <el-tag :type="row.inNumerator === 1 ? 'success' : 'info'" size="small" effect="plain">
@@ -439,9 +527,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, Cpu, Upload } from '@element-plus/icons-vue'
+import { Refresh, Cpu, Upload, Grid, CircleCheck, WarningFilled, Clock } from '@element-plus/icons-vue'
+import { externalParam } from '../utils/external'
 import {
   fetchQualityOverview,
   fetchQualityMetric,
@@ -450,6 +539,8 @@ import {
   fetchQualityRuns,
   fetchQualityDepartments,
   recalcQuality,
+  recalcQualityMetric,
+  fetchQualityRun,
   saveQualityManual,
   syncQualityIndex
 } from '../api/quality'
@@ -502,10 +593,64 @@ function thisYear() {
   return String(new Date().getFullYear())
 }
 
+/** 把后端周期时间解析成 Date；无法解析（如 yyyy-MM、空值）返回 null，由调用方原样显示。 */
+function toDate(v) {
+  if (v === null || v === undefined || v === '') return null
+  // Jackson 被配成时间戳时输出数组 [2026,9,1,0,0]
+  if (Array.isArray(v)) {
+    const [y, m, d = 1, hh = 0, mi = 0, ss = 0] = v
+    return y ? new Date(y, m - 1, d, hh, mi, ss) : null
+  }
+  const s = String(v).trim()
+  if (!s) return null
+  // LocalDateTime 默认序列化成 ISO「2026-09-01T00:00:00」，中间的 T 要去掉
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/)
+  if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3], +iso[4], +iso[5], +(iso[6] || 0))
+  if (/^\d{4}-\d{2}$/.test(s)) {
+    const [y, m] = s.split('-').map(Number)
+    return new Date(y, m - 1, 1)
+  }
+  if (/^\d+$/.test(s)) {
+    const d = new Date(Number(s))
+    return isNaN(d.getTime()) ? null : d
+  }
+  return null
+}
+
+function fmtDate(d) {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} `
+    + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
+/** 周期时间显示格式化：yyyy-MM-dd HH:mm:ss（空值显示 —）。 */
+function fmtPeriod(v) {
+  if (v === null || v === undefined || v === '') return '—'
+  const d = toDate(v)
+  return d ? fmtDate(d) : String(v)
+}
+
+/**
+ * 周期结束显示：回退 1 秒，按闭区间呈现。
+ *
+ * 后端 PeriodRange 是左闭右开，存的是「下月 1 日 00:00:00」（SQL 用 >= start AND < end，
+ * 这样才能完整覆盖 9/30 23:59:59.999 的数据），但业务看的是「9 月 = 9/30 23:59:59」。
+ * 这里只在显示层回退 1 秒；提交给后端的 periodStart、以及引擎的区间判定一律用原值，
+ * 不能把开区间改成闭区间，否则跨周期的边界数据会被前后两期各计一次。
+ */
+function fmtPeriodEnd(v) {
+  if (v === null || v === undefined || v === '') return '—'
+  const d = toDate(v)
+  return d ? fmtDate(new Date(d.getTime() - 1000)) : String(v)
+}
+
 const monthValue = ref(lastMonth())
 const yearValue = ref(thisYear())
 const quarterYear = ref(thisYear())
-const departCode = ref('')
+// 外链进入时 ICU 会把科室编码带在 departCode 上，默认就按该科室查：
+// 否则一进页面就是全院全量计算（127 个指标 × 全院数据），既慢也不是使用者想看的。
+// 下拉仍是 clearable，用户可随时清空回到全院。
+const departCode = ref(externalParam('departCode'))
 const departments = ref([])
 
 /** 周期起始（后端 PeriodRange.of 支持 yyyy-MM / yyyy） */
@@ -539,6 +684,18 @@ const domainPanels = computed(() =>
   }))
 )
 
+/**
+ * 各状态占全部指标的百分比（总览卡进度条用）。
+ * 分母为 0（字典尚未同步）时返回 0 —— 否则页面会显示 NaN%。
+ */
+function rateOf(n) {
+  const t = Number(summary.value.total) || 0
+  return t ? Math.round((Number(n || 0) / t) * 100) : 0
+}
+const okRate = computed(() => rateOf(summary.value.ok))
+const noDataRate = computed(() => rateOf(summary.value.noData))
+const placeholderRate = computed(() => rateOf(summary.value.placeholder))
+
 async function loadOverview() {
   loading.value = true
   try {
@@ -564,6 +721,20 @@ async function loadDepartments() {
     // 科室下拉是锦上添花，取不到不影响看板
     console.warn('科室列表加载失败:', e.message || e)
   }
+}
+
+/**
+ * 科室编码 → 名称。
+ *
+ * 筛选与落库一律用 org_code（它是结果表的主键维度），但页面展示必须用人看得懂的
+ * depart_name —— 临床看「20070131」没有任何意义。
+ * 字典没加载出来时退回编码：宁可显示编码，也不要显示空白让使用者以为查错了科室。
+ */
+function deptName(code) {
+  const c = String(code == null ? '' : code).trim()
+  if (!c || c === 'ALL') return '全院'
+  const hit = departments.value.find((d) => String(d.org_code) === c)
+  return hit ? hit.depart_name : c
 }
 
 // ---------------- 覆盖率 / 事实层 / 批次（按 Tab 懒加载） ----------------
@@ -649,10 +820,34 @@ function noResultReason(implStatus) {
 const recalcing = ref(false)
 const syncing = ref(false)
 
+// 计算进度（异步批次）
+// 批算要重建全部事实层，生产上常以分钟计，远超前端 60s 超时。
+// 旧实现是同步等：超时后前端报「失败」，后端其实还在写库，用户往往以为没跑成又点一次。
+// 改为「提交即返回 + 轮询进度」：既不会假失败，也能看到跑到哪一条。
+const calcVisible = ref(false)
+const calcRunning = ref(false)
+const calcElapsed = ref('0s')
+const calcProgress = reactive({ runId: '', total: 0, done: 0, ok: 0, fail: 0, placeholder: 0 })
+const calcDone = ref(null)
+let calcClock = null
+let calcAbort = false
+
+const calcPercent = computed(() => {
+  if (calcDone.value) return 100
+  const t = calcProgress.total || 0
+  return t ? Math.min(99, Math.round((calcProgress.done / t) * 100)) : 0
+})
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
 async function doRecalc() {
+  if (calcRunning.value) {
+    ElMessage.warning('已有计算任务在执行，请等它跑完再试')
+    return
+  }
   try {
     await ElMessageBox.confirm(
-      `将重算 ${overview.periodStart || periodStart.value} ~ ${overview.periodEnd || ''} 的指标结果（同周期同科室幂等覆盖），是否继续？`,
+      `将重算 ${fmtPeriod(overview.periodStart || periodStart.value)} ~ ${fmtPeriodEnd(overview.periodEnd)} 的指标结果（同周期同科室幂等覆盖），是否继续？`,
       '触发计算',
       { type: 'warning', confirmButtonText: '开始计算', cancelButtonText: '取消' }
     )
@@ -664,15 +859,157 @@ async function doRecalc() {
     const res = await recalcQuality({
       periodType: periodType.value,
       periodStart: periodStart.value,
+      departCode: departCode.value || '',
+      async: true
+    })
+    if (!res || !res.runId) throw new Error('未返回批次号')
+    // 兼容尚未升级的后端：它不认 async 参数，会同步跑完直接返回终态，此时不必轮询
+    if (['SUCCESS', 'PARTIAL', 'FAILED'].includes(res.status)) {
+      Object.assign(calcProgress, {
+        runId: res.runId,
+        total: res.metricTotal || 0,
+        done: res.metricTotal || 0,
+        ok: res.metricOk || 0,
+        fail: res.metricFail || 0,
+        placeholder: res.metricPlaceholder || 0
+      })
+      calcVisible.value = true
+      finishCalc(res)
+      return
+    }
+    startCalcProgress(res.runId, res.metricTotal || 0)
+  } catch (e) {
+    recalcing.value = false
+    ElMessage.error('计算失败：' + (e.message || e))
+  }
+}
+
+/** 打开进度框并开始轮询（只提交、不等结果，因此不会撞上超时） */
+function startCalcProgress(runId, total) {
+  Object.assign(calcProgress, { runId, total, done: 0, ok: 0, fail: 0, placeholder: 0 })
+  calcDone.value = null
+  calcVisible.value = true
+  calcRunning.value = true
+  calcAbort = false
+  const t0 = Date.now()
+  calcElapsed.value = '0s'
+  clearInterval(calcClock)
+  calcClock = setInterval(() => {
+    calcElapsed.value = Math.round((Date.now() - t0) / 1000) + 's'
+  }, 1000)
+  pollCalc(runId, t0)
+}
+
+async function pollCalc(runId, t0) {
+  const MAX_WAIT = 30 * 60 * 1000
+  let miss = 0
+  while (!calcAbort) {
+    await sleep(2000)
+    if (Date.now() - t0 > MAX_WAIT) {
+      stopCalc()
+      recalcing.value = false
+      ElMessage.warning('等待超时（30 分钟），后端仍在计算，请稍后刷新或到「计算批次」查看')
+      return
+    }
+    try {
+      const r = await fetchQualityRun(runId)
+      miss = 0
+      if (!r || !r.exists) throw new Error('批次不存在')
+      Object.assign(calcProgress, {
+        total: r.metricTotal || 0,
+        done: r.done || 0,
+        ok: r.metricOk || 0,
+        fail: r.metricFail || 0,
+        placeholder: r.metricPlaceholder || 0
+      })
+      if (!r.running) {
+        finishCalc(r)
+        return
+      }
+    } catch (e) {
+      // 轮询偶发失败不中断（后端重启、网络抖动都可能），连续 5 次失败才算真失败
+      if (++miss >= 5) {
+        stopCalc()
+        recalcing.value = false
+        ElMessage.error('计算进度获取失败：' + (e.message || e))
+        return
+      }
+    }
+  }
+}
+
+function finishCalc(run) {
+  stopCalc()
+  recalcing.value = false
+  calcDone.value = run
+  const ok = run.metricOk || 0
+  const fail = run.metricFail || 0
+  const sec = ((run.durationMs || 0) / 1000).toFixed(1)
+  if (run.status === 'SUCCESS') {
+    ElMessage.success(`计算完成：成功 ${ok} 条，耗时 ${sec}s`)
+  } else if (run.status === 'PARTIAL') {
+    ElMessage.warning(`计算完成但有失败：成功 ${ok} 条 / 失败 ${fail} 条，耗时 ${sec}s`)
+  } else {
+    ElMessage.error('计算失败：' + (run.message || '请到「计算批次」页查看批次信息'))
+  }
+  loadOverview()
+  if (runs.value.length) loadRuns()
+}
+
+function stopCalc() {
+  calcRunning.value = false
+  calcAbort = true
+  clearInterval(calcClock)
+  calcClock = null
+}
+
+onUnmounted(() => {
+  // 离开页面即停止轮询，避免在后台空转
+  calcAbort = true
+  clearInterval(calcClock)
+})
+
+// ---------------- 单指标计算 ----------------
+// 场景：只改了一条指标的口径，只想重算它 —— 不必等 127 条全跑完。
+const rowCalcCode = ref('')
+
+async function calcOne(row) {
+  if (rowCalcCode.value) return
+  if (row.implStatus === 'MANUAL') {
+    ElMessage.info('该指标为人工录入类，请点「录入」填写数值')
+    return
+  }
+  rowCalcCode.value = row.code
+  const t0 = Date.now()
+  try {
+    const res = await recalcQualityMetric(row.code, {
+      periodType: periodType.value,
+      periodStart: periodStart.value,
       departCode: departCode.value || ''
     })
-    const ok = res && res.metricOk !== undefined ? res.metricOk : ''
-    ElMessage.success(`计算完成${ok !== '' ? `：成功 ${ok} 条` : ''}`)
-    await loadOverview()
+    if (res && res.calcStatus === 'BUSY') {
+      ElMessage.warning(res.errorMsg || '已有计算任务在执行，请稍候再试')
+      return
+    }
+    const r = res && res.result
+    // 就地更新这一行：127 行整页重查反而比单条计算本身还慢
+    if (r) {
+      row.value = r.value
+      row.numerator = r.numerator
+      row.denominator = r.denominator
+      row.calcStatus = r.calcStatus
+      row.errorMsg = r.errorMsg || ''
+    }
+    const sec = ((Date.now() - t0) / 1000).toFixed(1)
+    if (r && r.calcStatus === 'ERROR') {
+      ElMessage.error(`${row.code} 计算失败：${r.errorMsg || '未知错误'}`)
+    } else {
+      ElMessage.success(`${row.code} 计算完成，耗时 ${sec}s`)
+    }
   } catch (e) {
     ElMessage.error('计算失败：' + (e.message || e))
   } finally {
-    recalcing.value = false
+    rowCalcCode.value = ''
   }
 }
 
@@ -779,65 +1116,229 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
-.metric-cards {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+/* ---------------- 总览面板 ---------------- */
+/* 结构：一行「周期 + 科室 + 出数率」交代统计口径，下面四张卡给出分布，
+   数字统一 tabular-nums（等宽），刷新时不会左右跳动。 */
+.overview {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  padding: 16px 18px 16px;
   margin-bottom: 16px;
 }
 
-.metric-card {
-  background: #fff;
-  border-radius: 8px;
-  padding: 18px 20px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  border-left: 4px solid #909399;
+.ov-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f2f5;
 }
 
-.metric-card.ok {
-  border-left-color: #67c23a;
-}
-.metric-card.warn {
-  border-left-color: #e6a23c;
-}
-.metric-card.muted {
-  border-left-color: #909399;
-}
-.metric-card.info {
-  border-left-color: #409eff;
+.ov-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.metric-label {
-  font-size: 14px;
-  color: #606266;
-  margin-bottom: 8px;
+.ov-title-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
 }
 
-.metric-value {
-  font-size: 30px;
-  font-weight: 700;
-  color: #303133;
-  line-height: 1.2;
+.ov-period {
+  font-size: 12.5px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
 }
 
-.metric-sub {
+.ov-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ov-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
+  color: #4b5563;
+  background: #f5f7fa;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.ov-tag.strong {
+  color: #1d4ed8;
+  background: #eef4ff;
+  font-weight: 600;
+}
+
+.tag-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.tag-dot.blue {
+  background: #409eff;
+}
+.tag-dot.gray {
+  background: #909399;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.stat-card {
+  border: 1px solid #eef0f4;
+  border-radius: 8px;
+  padding: 14px 16px 12px;
+  background: linear-gradient(180deg, #fbfcfe 0%, #ffffff 100%);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.stat-card:hover {
+  box-shadow: 0 4px 14px rgba(31, 41, 55, 0.08);
+  transform: translateY(-1px);
+}
+
+.stat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.stat-ico {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+.stat-ico.blue {
+  color: #409eff;
+  background: #ecf5ff;
+}
+.stat-ico.green {
+  color: #67c23a;
+  background: #f0f9eb;
+}
+.stat-ico.orange {
+  color: #e6a23c;
+  background: #fdf6ec;
+}
+.stat-ico.gray {
   color: #909399;
+  background: #f4f4f5;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1.25;
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-value.green {
+  color: #16a34a;
+}
+.stat-value.orange {
+  color: #e6a23c;
+}
+.stat-value.gray {
+  color: #909399;
+}
+
+.stat-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: #f0f2f5;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.stat-bar .fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+.fill.green {
+  background: #67c23a;
+}
+.fill.orange {
+  background: #e6a23c;
+}
+.fill.gray {
+  background: #c0c4cc;
+}
+
+.stat-foot {
+  font-size: 11.5px;
+  color: #9ca3af;
   margin-top: 6px;
 }
 
-.period-hint {
+.ov-note {
+  margin-top: 12px;
   font-size: 12px;
-  color: #606266;
-  margin-bottom: 8px;
-  padding: 8px 12px;
-  background: #ecf5ff;
-  border-radius: 6px;
+  color: #909399;
 }
 
-.hint-note {
+/* ---------------- 计算进度（异步批次） ---------------- */
+.calc-body {
+  padding: 4px 2px 0;
+}
+.calc-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: #606266;
+  margin-top: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.calc-elapsed {
   color: #909399;
-  margin-left: 8px;
+}
+.calc-stat {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 12.5px;
+}
+.calc-stat .s-ok {
+  color: #16a34a;
+}
+.calc-stat .s-fail {
+  color: #d03050;
+}
+.calc-stat .s-hold {
+  color: #909399;
+}
+.calc-tip {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #909399;
+  background: #f7f8fa;
+  border-radius: 6px;
+  padding: 8px 10px;
 }
 
 .tab-body {
@@ -974,7 +1475,7 @@ onMounted(() => {
 }
 
 @media (max-width: 1200px) {
-  .metric-cards,
+  .stat-grid,
   .result-cards {
     grid-template-columns: repeat(2, 1fr);
   }
