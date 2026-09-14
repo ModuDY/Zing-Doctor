@@ -21,6 +21,32 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# ---------- 原生命令容错（关键，勿删） ----------
+# 本脚本要调用原生命令（mvn / node）。PowerShell 的坑：原生命令往 stderr 写内容时，
+# 在 $ErrorActionPreference='Stop' 下会被**当成脚本错误直接抛出**，
+# 连 $LASTEXITCODE 都来不及判断。这不是理论风险 —— Vite 每次构建都会往 stderr 打一条
+# "The CJS build of Vite's Node API is deprecated"，表现为「构建明明成功，打包却中断」。
+#
+# PS 7.3+ 用这个开关关闭该行为；Windows PowerShell 5.1 没有这个变量，
+# 由下面的 Invoke-Native 兜底（临时降级 EAP，并只用 exit code 判断成败）。
+if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
+
+function Invoke-Native {
+    param([string]$Label, [string]$Exe, [string[]]$ExeArgs)
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        # 2>&1 把 stderr 合并进 stdout：既保住进度输出，也避免被当成错误抛出
+        & $Exe @ExeArgs 2>&1 | ForEach-Object { Write-Host $_ }
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+    if ($LASTEXITCODE -ne 0) { throw "$Label 失败（exit=$LASTEXITCODE）" }
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $OutDir) { $OutDir = $root }
 
@@ -55,16 +81,14 @@ if (-not $env:JAVA_HOME) {
 # ---------- 可选：先构建 ----------
 if ($Build) {
     Write-Host ">>> 构建后端：$mvn package" -ForegroundColor Cyan
-    & $mvn @mvnArgs -f "$root\pom.xml" package -DskipTests -q
-    if ($LASTEXITCODE -ne 0) { throw '后端构建失败' }
+    Invoke-Native -Label '后端构建' -Exe $mvn -ExeArgs (@($mvnArgs) + @('-f', "$root\pom.xml", 'package', '-DskipTests', '-q'))
 
     Write-Host '>>> 构建前端 vite build' -ForegroundColor Cyan
     if (-not $node) { throw '未找到 node，请先安装或手动构建前端' }
     # 用调用运算符同步执行：Start-Process 在本机环境下会在 vite 写盘阶段异常中断构建
     Push-Location "$root\frontend"
     try {
-        & $node 'node_modules/vite/bin/vite.js' 'build'
-        if ($LASTEXITCODE -ne 0) { throw '前端构建失败' }
+        Invoke-Native -Label '前端构建' -Exe $node -ExeArgs @('node_modules/vite/bin/vite.js', 'build')
     } finally {
         Pop-Location
     }

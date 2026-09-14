@@ -1,0 +1,200 @@
+{
+  "data": [
+    {
+      "id": "page-quality-board",
+      "title": "质控指标看板",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789390203000,
+      "canvasData": {
+        "x": 0,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/quality-board.html",
+        "interactions": [
+          {
+            "targetPageId": "page-quality-coverage",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-coverage']",
+            "hidden": true,
+            "label": "切换到覆盖率报告"
+          },
+          {
+            "targetPageId": "page-quality-facts",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-facts']",
+            "hidden": true,
+            "label": "切换到事实层"
+          },
+          {
+            "targetPageId": "page-quality-runs",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-runs']",
+            "hidden": true,
+            "label": "切换到计算批次"
+          },
+          {
+            "targetPageId": "page-quality-detail",
+            "trigger": "click",
+            "selector": "[data-dom-id='metric-value-link']",
+            "hidden": false,
+            "label": "查看指标详情"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-quality-coverage",
+      "title": "覆盖率报告",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789390203000,
+      "canvasData": {
+        "x": 480,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/quality-coverage.html",
+        "interactions": [
+          {
+            "targetPageId": "page-quality-board",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-board']",
+            "hidden": true,
+            "label": "切换到指标看板"
+          },
+          {
+            "targetPageId": "page-quality-facts",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-facts']",
+            "hidden": true,
+            "label": "切换到事实层"
+          },
+          {
+            "targetPageId": "page-quality-runs",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-runs']",
+            "hidden": true,
+            "label": "切换到计算批次"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-quality-facts",
+      "title": "事实层",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789390203000,
+      "canvasData": {
+        "x": 960,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/quality-facts.html",
+        "interactions": [
+          {
+            "targetPageId": "page-quality-board",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-board']",
+            "hidden": true,
+            "label": "切换到指标看板"
+          },
+          {
+            "targetPageId": "page-quality-coverage",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-coverage']",
+            "hidden": true,
+            "label": "切换到覆盖率报告"
+          },
+          {
+            "targetPageId": "page-quality-runs",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-runs']",
+            "hidden": true,
+            "label": "切换到计算批次"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-quality-runs",
+      "title": "计算批次",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789390203000,
+      "canvasData": {
+        "x": 1440,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/quality-runs.html",
+        "interactions": [
+          {
+            "targetPageId": "page-quality-board",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-board']",
+            "hidden": true,
+            "label": "切换到指标看板"
+          },
+          {
+            "targetPageId": "page-quality-coverage",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-coverage']",
+            "hidden": true,
+            "label": "切换到覆盖率报告"
+          },
+          {
+            "targetPageId": "page-quality-facts",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-facts']",
+            "hidden": true,
+            "label": "切换到事实层"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-quality-detail",
+      "title": "指标详情抽屉",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789390203000,
+      "canvasData": {
+        "x": 1920,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/quality-detail.html",
+        "interactions": [
+          {
+            "targetPageId": "page-quality-board",
+            "trigger": "click",
+            "selector": "[data-dom-id='drawer-backdrop']",
+            "hidden": true,
+            "label": "关闭抽屉"
+          },
+          {
+            "targetPageId": "page-quality-board",
+            "trigger": "click",
+            "selector": "[data-dom-id='drawer-close']",
+            "hidden": true,
+            "label": "关闭抽屉"
+          }
+        ]
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": true,
+    "deviceType": "desktop",
+    "projectName": "质控指标看板重设计",
+    "visualEditorEnabled": false
+  }
+}

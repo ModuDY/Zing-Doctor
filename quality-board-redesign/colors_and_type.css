@@ -1,0 +1,241 @@
+/* Quality Board Redesign — Warm Clean White */
+/* Brand prefix: qb */
+
+:root {
+  /* --- Primary warm orange scale --- */
+  --qb-orange-50: #fff7ed;
+  --qb-orange-100: #ffedd5;
+  --qb-orange-200: #fed7aa;
+  --qb-orange-300: #fdba74;
+  --qb-orange-400: #fb923c;
+  --qb-orange-500: #f97316;
+  --qb-orange-600: #ea580c;
+  --qb-orange-700: #c2410c;
+  --qb-orange-800: #9a3412;
+
+  /* --- Neutral warm gray scale --- */
+  --qb-stone-0: #ffffff;
+  --qb-stone-50: #fafaf9;
+  --qb-stone-100: #f5f5f4;
+  --qb-stone-200: #e7e5e4;
+  --qb-stone-300: #d6d3d1;
+  --qb-stone-400: #a8a29e;
+  --qb-stone-500: #78716c;
+  --qb-stone-600: #57534e;
+  --qb-stone-700: #44403c;
+  --qb-stone-800: #292524;
+  --qb-stone-900: #1c1917;
+
+  /* --- Semantic state colors --- */
+  --qb-state-success: #16a34a;
+  --qb-state-success-soft: #dcfce7;
+  --qb-state-warning: #d97706;
+  --qb-state-warning-soft: #fef3c7;
+  --qb-state-error: #dc2626;
+  --qb-state-error-soft: #fee2e2;
+  --qb-state-info: #0891b2;
+  --qb-state-info-soft: #cffafe;
+
+  /* --- Aliases required by head contract --- */
+  --qb-background: var(--qb-stone-50);
+  --qb-foreground: var(--qb-stone-900);
+  --qb-card: var(--qb-stone-0);
+  --qb-card-foreground: var(--qb-stone-900);
+  --qb-popover: var(--qb-stone-0);
+  --qb-popover-foreground: var(--qb-stone-900);
+  --qb-primary: var(--qb-orange-600);
+  --qb-primary-foreground: #ffffff;
+  --qb-secondary: var(--qb-stone-100);
+  --qb-secondary-foreground: var(--qb-stone-700);
+  --qb-muted: var(--qb-stone-100);
+  --qb-muted-foreground: var(--qb-stone-500);
+  --qb-border: var(--qb-stone-200);
+  --qb-input: var(--qb-stone-200);
+  --qb-ring: var(--qb-orange-400);
+
+  /* --- Radius scale (max 16px) --- */
+  --qb-radius-small: 4px;
+  --qb-radius-medium: 8px;
+  --qb-radius-large: 12px;
+  --qb-radius-full: 9999px;
+
+  /* --- Shadows (static alpha <= 0.05) --- */
+  --qb-shadow-sm: 0 1px 2px rgba(28, 25, 23, 0.04);
+  --qb-shadow-md: 0 4px 6px -1px rgba(28, 25, 23, 0.05), 0 2px 4px -2px rgba(28, 25, 23, 0.05);
+  --qb-shadow-lg: 0 10px 15px -3px rgba(28, 25, 23, 0.05), 0 4px 6px -4px rgba(28, 25, 23, 0.05);
+  --qb-shadow-float: 0 20px 25px -5px rgba(28, 25, 23, 0.08), 0 8px 10px -6px rgba(28, 25, 23, 0.08);
+}
+
+/* --- Typography system --- */
+:root {
+  --qb-font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --qb-font-mono: "SF Mono", "Monaco", "Inconsolata", "Fira Code", "PingFang SC", monospace;
+  --qb-text-xs: 12px;
+  --qb-text-sm: 13px;
+  --qb-text-base: 14px;
+  --qb-text-md: 15px;
+  --qb-text-lg: 18px;
+  --qb-text-xl: 22px;
+  --qb-text-2xl: 28px;
+  --qb-leading-tight: 1.25;
+  --qb-leading-snug: 1.4;
+  --qb-leading-normal: 1.6;
+}
+
+html, body {
+  font-family: var(--qb-font-sans);
+  font-size: var(--qb-text-base);
+  line-height: var(--qb-leading-normal);
+  color: var(--qb-foreground);
+  background: var(--qb-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* --- Utility classes (static-safe) --- */
+.qb-card {
+  background: var(--qb-card);
+  border: 1px solid var(--qb-border);
+  border-radius: var(--qb-radius-large);
+  box-shadow: var(--qb-shadow-sm);
+}
+
+.qb-card-hover:hover {
+  box-shadow: var(--qb-shadow-md);
+  transform: translateY(-1px);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.qb-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--qb-primary);
+  color: var(--qb-primary-foreground);
+  border: 1px solid var(--qb-primary);
+  border-radius: var(--qb-radius-medium);
+  font-size: var(--qb-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.qb-btn-primary:hover {
+  background: var(--qb-orange-700);
+  border-color: var(--qb-orange-700);
+}
+
+.qb-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--qb-stone-0);
+  color: var(--qb-stone-700);
+  border: 1px solid var(--qb-border);
+  border-radius: var(--qb-radius-medium);
+  font-size: var(--qb-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.qb-btn-secondary:hover {
+  background: var(--qb-stone-50);
+  border-color: var(--qb-stone-300);
+}
+
+.qb-input {
+  padding: 7px 12px;
+  background: var(--qb-stone-0);
+  color: var(--qb-foreground);
+  border: 1px solid var(--qb-input);
+  border-radius: var(--qb-radius-medium);
+  font-size: var(--qb-text-sm);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.qb-input:focus {
+  border-color: var(--qb-ring);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+}
+
+.qb-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--qb-radius-full);
+  font-size: var(--qb-text-xs);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.qb-tag-success { background: var(--qb-state-success-soft); color: var(--qb-state-success); }
+.qb-tag-warning { background: var(--qb-state-warning-soft); color: var(--qb-state-warning); }
+.qb-tag-error   { background: var(--qb-state-error-soft);   color: var(--qb-state-error);   }
+.qb-tag-info    { background: var(--qb-state-info-soft);    color: var(--qb-state-info);    }
+.qb-tag-muted   { background: var(--qb-stone-100);          color: var(--qb-stone-500);     }
+
+.qb-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--qb-text-sm);
+}
+
+.qb-table th, .qb-table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--qb-border);
+}
+
+.qb-table th {
+  font-weight: 600;
+  color: var(--qb-stone-600);
+  background: var(--qb-stone-50);
+  font-size: var(--qb-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.qb-table tbody tr:hover {
+  background: var(--qb-stone-50);
+}
+
+.qb-link {
+  color: var(--qb-primary);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.qb-link:hover {
+  text-decoration: underline;
+}
+
+.qb-mono {
+  font-family: var(--qb-font-mono);
+  font-size: 12px;
+}
+
+.qb-empty {
+  color: var(--qb-stone-400);
+}
+
+/* --- Status dots --- */
+.qb-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.qb-dot-success { background: var(--qb-state-success); }
+.qb-dot-warning { background: var(--qb-state-warning); }
+.qb-dot-error   { background: var(--qb-state-error);   }
+.qb-dot-info    { background: var(--qb-state-info);    }
+.qb-dot-muted   { background: var(--qb-stone-300);     }
