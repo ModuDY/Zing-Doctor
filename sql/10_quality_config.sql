@@ -142,4 +142,4 @@ INSERT INTO "zing_doctor_db_prod"."zing_page_config"
     ("page_code", "page_name", "frontend_path", "remark", "status")
 VALUES
     ('quality-config', '质控指标配置', '/page/quality-config',
-     '质控指标可视化配置：指标口径编辑（简单/高级）、事实层配置、变更历史与回滚，保存即热生效', 1);
+     '质控指标可视化配置：指标口径编辑（简单/高级，支持「或」条件组）、事实层配置、变更历史与回滚、批量导入导出，保存即热生效', 1);

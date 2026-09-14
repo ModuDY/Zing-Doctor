@@ -153,14 +153,23 @@ public class SqlCompiler {
         return "(" + String.join(" || '-' || ", uniq) + ")";
     }
 
+    /**
+     * 分子命中条件（PT_COUNT 用）。
+     *
+     * <p><b>where 片段必须整体加括号</b>：简单模式的「条件组」会产出
+     * {@code (A AND B) OR (C)} 这种含顶层 OR 的过滤条件，若直接与分子附加条件用
+     * {@code AND} 拼接，SQL 的 AND 优先级高于 OR，会被解析成
+     * {@code A OR (B AND 分子条件)} —— 分子口径被悄悄放大，且页面上看不出来。
+     * 括号对单个条件无副作用，因此这里统一加，不做「是否需要」的判断。
+     */
     private String numCondition(MetricDefinition m) {
         boolean hasWhere = StringUtils.hasText(m.getWhere());
         boolean hasNum = StringUtils.hasText(m.getNumerator());
         if (hasWhere && hasNum) {
-            return m.getWhere() + " AND (" + m.getNumerator() + ")";
+            return "(" + m.getWhere() + ") AND (" + m.getNumerator() + ")";
         }
         if (hasWhere) {
-            return m.getWhere();
+            return "(" + m.getWhere() + ")";
         }
         if (hasNum) {
             return m.getNumerator();

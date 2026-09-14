@@ -49,6 +49,35 @@ public class QualityProperties {
      */
     private String configSource = "yaml";
 
+    /**
+     * 配置写接口令牌（可选，与 {@link #configWriteIpWhitelist} 至少配一个，否则写接口整体拒绝）。
+     *
+     * <p>页面属于「改一行 SQL 就能改生产口径」的高危操作，而 {@code /api/quality/config/**}
+     * 与只读看板共用同一套外链鉴权 —— 拿到外链就能改口径，风险等级不匹配。
+     * 配置本项后，所有<b>写请求</b>必须额外携带请求头 {@code X-Quality-Config-Token}。
+     *
+     * <p><b>默认留空且白名单也留空时，写接口一律拒绝</b>（fail-closed）。
+     * 这是刻意选择：宁可让部署方显式开一次口子，也不要默认放开一个能改生产口径的入口。
+     * 本项目尚无 SSO，此项与 IP 白名单是「待接 SSO」之前的过渡手段。
+     *
+     * <p>例：{@code ${QUALITY_CONFIG_WRITE_TOKEN:}}
+     */
+    private String configWriteToken;
+
+    /**
+     * 配置写接口 IP 白名单（可选，推荐）。
+     *
+     * <p>逗号分隔；元素支持<b>前缀匹配</b>，因此可写整个网段或一段前缀：
+     * <pre>
+     *   100.120.1.104,10.0.0.        → 单机 + 10.0.0.* 整段
+     * </pre>
+     * 配好之后只有信息科/质控科的工作站能提交配置，浏览器端无需携带任何密钥
+     * （不需要重建前端），是当前最省事的隔离手段。
+     *
+     * <p>同时配置本项与 {@link #configWriteToken} 时<b>两者都必须通过</b>。
+     */
+    private String configWriteIpWhitelist;
+
     /** 数据源定义文件 */
     private String sourceLocation = "classpath*:quality/sources.yaml";
 

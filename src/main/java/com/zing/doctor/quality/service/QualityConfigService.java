@@ -20,9 +20,11 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 质控配置服务：查询、校验、保存、生效、回滚。
@@ -48,6 +50,9 @@ public class QualityConfigService {
 
     private static final String TYPE_METRIC = "METRIC";
     private static final String TYPE_FACT = "FACT";
+
+    /** 单次批量导入上限。防的不是恶意，是「把整个生产库快照拖进来」这种误操作。 */
+    private static final int MAX_IMPORT_SIZE = 500;
 
     private final QualityConfigRepository repo;
     private final QualityConfigValidator validator;
@@ -297,6 +302,135 @@ public class QualityConfigService {
     }
 
     // ==================================================================
+    // 批量导入 / 导出
+    // ==================================================================
+
+    /**
+     * 导出当前<b>生效中</b>的全部指标口径（含表达式正文）。
+     *
+     * <p>数据取自内存中的生效配置（{@link QualityDslLoader#sortedMetrics()}），因此
+     * yaml 真源下同样可用 —— 这条路径让「先在测试环境用 yaml 调好口径，再导入生产 DB」
+     * 成为可能，不必手工敲 SQL。
+     *
+     * <p>与列表接口 {@link #listMetrics} 的关键差别是<b>不清空表达式</b>：导出必须完整，
+     * 否则回灌时会把口径写空。
+     */
+    public List<MetricDefinition> exportMetrics() {
+        return dsl.sortedMetrics();
+    }
+
+    /**
+     * 批量导入指标口径。
+     *
+     * <p>三条刻意的设计：
+     * <ol>
+     *   <li><b>逐条校验、逐条落库，不用整体事务</b>。上百条里有 3 条写错是常态，
+     *       整体回滚会让使用者只能「全部重来」；这里返回逐条结论，好的进去、坏的带着原因留下。</li>
+     *   <li><b>复用单条保存的校验链</b>，不另写一套宽松校验 —— 否则导入就成了绕过护栏的后门。</li>
+     *   <li><b>全部处理完只热生效一次</b>。逐条 reload 会重放 127 条口径，
+     *       导入 100 条就是 100 次全量重载。</li>
+     * </ol>
+     *
+     * @param mode skip=同编号跳过（默认）/ overwrite=同编号覆盖
+     */
+    public ImportResult importMetrics(List<MetricDefinition> metrics, String mode,
+                                      boolean trial, String operator) {
+        ImportResult result = new ImportResult();
+        String blocked = writableGuard();
+        if (blocked != null) {
+            result.setRejected(true);
+            result.setMessage(blocked);
+            return result;
+        }
+        if (metrics == null || metrics.isEmpty()) {
+            result.setMessage("导入内容为空：未解析到任何指标定义，请确认文件是导出接口产出的 JSON。");
+            return result;
+        }
+        if (metrics.size() > MAX_IMPORT_SIZE) {
+            result.setMessage("单次最多导入 " + MAX_IMPORT_SIZE + " 条指标，当前 " + metrics.size()
+                    + " 条，请拆分后分批导入。");
+            return result;
+        }
+
+        boolean overwrite = "overwrite".equalsIgnoreCase(mode == null ? "" : mode.trim());
+        result.setTotal(metrics.size());
+        LocalDateTime now = LocalDateTime.now();
+        Set<String> seen = new LinkedHashSet<>();
+        boolean anyWritten = false;
+
+        for (int i = 0; i < metrics.size(); i++) {
+            MetricDefinition m = metrics.get(i);
+            String code = m == null ? null : m.getCode();
+            if (!StringUtils.hasText(code)) {
+                result.item(null, "FAILED", "第 " + (i + 1) + " 条缺少指标编号");
+                continue;
+            }
+            if (!seen.add(code)) {
+                result.item(code, "SKIPPED", "同一批次内编号重复，仅处理首次出现");
+                continue;
+            }
+
+            QualityConfigValidator.ValidationResult v = validator.validateMetric(m, trial, null, null);
+            if (!v.isOk()) {
+                result.item(code, "FAILED", String.join("；", v.getErrors()));
+                continue;
+            }
+
+            try {
+                QualityMetricDef existing = repo.metricRow(code);
+                if (existing != null && !overwrite) {
+                    result.item(code, "SKIPPED", "已存在同编号指标（当前策略为 skip，如需覆盖请选 overwrite）");
+                    continue;
+                }
+                boolean isNew = existing == null;
+                QualityMetricDef row = isNew ? new QualityMetricDef() : existing;
+                repo.fillRow(row, m);
+                if (row.getSortNo() == null) {
+                    row.setSortNo(isNew ? 9999 : (existing.getSortNo() == null ? 9999 : existing.getSortNo()));
+                }
+                row.setExprVersion(nextVersion(existing, m));
+                row.setStatus(1);
+                row.setOperator(operator);
+                row.setUpdateTime(now);
+                if (isNew) {
+                    row.setCreateTime(now);
+                    repo.insertMetric(row);
+                } else {
+                    repo.updateMetric(row);
+                }
+                repo.saveHistory(TYPE_METRIC, code, row.getExprVersion(),
+                        isNew ? "CREATE" : "UPDATE", repo.toJson(m), operator);
+                anyWritten = true;
+                result.item(code, isNew ? "CREATED" : "UPDATED",
+                        isNew ? "已新增" : "已覆盖为 v" + row.getExprVersion());
+            } catch (Exception e) {
+                // 单条写库失败不影响其余条目，但必须把原因带回页面，否则使用者无从下手
+                result.item(code, "FAILED", "写入失败：" + e.getMessage());
+                log.warn("[质控] 批量导入单条失败: code={}", code, e);
+            }
+        }
+
+        String tail;
+        if (anyWritten) {
+            try {
+                result.setSyncedCount(reloadAndSync());
+                tail = "；配置已热生效";
+            } catch (Exception e) {
+                // 入库成功但热生效失败：必须显式说出来，否则又变成「保存成功但看板没变」
+                tail = "；但热生效失败：" + e.getMessage() + "，请检查配置后点「重载配置」";
+                log.error("[质控] 批量导入后热生效失败", e);
+            }
+        } else {
+            tail = "；无有效改动，未触发热生效";
+        }
+        result.setMessage(String.format("导入完成：新增 %d、覆盖 %d、跳过 %d、失败 %d%s",
+                result.getCreated(), result.getUpdated(), result.getSkipped(), result.getFailed(), tail));
+        log.info("[质控] 指标批量导入: mode={}, trial={}, operator={}, {}",
+                mode, trial, operator, result.getMessage());
+        return result;
+    }
+
+    // ==================================================================
     // 生效
     // ==================================================================
 
@@ -395,6 +529,52 @@ public class QualityConfigService {
             SaveResult r = new SaveResult();
             r.message = message;
             return r;
+        }
+    }
+
+    /**
+     * 批量导入结果：逐条结论 + 汇总计数。
+     *
+     * <p>刻意返回 {@code items} 而不是只给个总数：导入失败时使用者需要精确知道
+     * 「哪几条、为什么」，否则只能靠一条条重试去猜。
+     */
+    @Data
+    public static class ImportResult {
+        /** 前置条件不满足（真源非 db / 内容为空 / 超量），此时 items 为空 */
+        private boolean rejected;
+        private String message;
+        private int total;
+        private int created;
+        private int updated;
+        private int skipped;
+        private int failed;
+        /** 热生效后同步的指标字典条数 */
+        private int syncedCount;
+        private List<Item> items = new ArrayList<>();
+
+        void item(String code, String status, String message) {
+            Item it = new Item();
+            it.setCode(code);
+            it.setStatus(status);
+            it.setMessage(message);
+            items.add(it);
+            if ("CREATED".equals(status)) {
+                created++;
+            } else if ("UPDATED".equals(status)) {
+                updated++;
+            } else if ("SKIPPED".equals(status)) {
+                skipped++;
+            } else {
+                failed++;
+            }
+        }
+
+        @Data
+        public static class Item {
+            private String code;
+            /** CREATED / UPDATED / SKIPPED / FAILED */
+            private String status;
+            private String message;
         }
     }
 

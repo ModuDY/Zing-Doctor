@@ -1,6 +1,7 @@
 package com.zing.doctor.config;
 
 import com.zing.doctor.external.ExternalLinkInterceptor;
+import com.zing.doctor.quality.config.QualityConfigWriteInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -8,19 +9,23 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * Web 配置：注册外链拦截器、跨域（P0 开发期放开）。
+ * Web 配置：注册外链拦截器、质控配置写保护、跨域（P0 开发期放开）。
  */
 @Configuration
 @RequiredArgsConstructor
 public class WebConfig implements WebMvcConfigurer {
 
     private final ExternalLinkInterceptor externalLinkInterceptor;
+    private final QualityConfigWriteInterceptor qualityConfigWriteInterceptor;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(externalLinkInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns("/api/external/token");
+        // 顺序敏感：必须排在外链鉴权之后，先确认「能看」，再判定「能改」
+        registry.addInterceptor(qualityConfigWriteInterceptor)
+                .addPathPatterns("/api/quality/config/**");
     }
 
     @Override

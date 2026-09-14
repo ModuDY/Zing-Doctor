@@ -11,11 +11,13 @@
       </div>
     </div>
 
-    <!-- 真源提示：先说清楚「能不能改」，而不是等点了保存才拒绝 -->
-    <div class="banner" :class="writable ? 'ok' : 'warn'">
+    <!--
+      真源 + 写权限提示：先说清楚「能不能改、为什么不能改」，而不是等点了保存才拒绝。
+      两种只读原因要分开说：真源没切到库、和「有库但当前没写权限」，处理方式完全不同。
+    -->
+    <div class="banner" :class="bannerClass">
       <span class="dot"></span>
-      <span v-if="writable">配置真源：数据库 ｜ 保存即生效（保存时会先校验 + 试算一遍）</span>
-      <span v-else>配置真源：YAML 文件 ｜ 页面为只读预览。{{ statusHint }}</span>
+      <span>{{ bannerText }}</span>
     </div>
 
     <div class="tabs">
@@ -41,6 +43,8 @@
         </select>
         <input class="tb-input search" v-model.trim="keyword"
                placeholder="搜索编号 / 名称 / 事实层" />
+        <button class="btn" @click="doExport">导出配置</button>
+        <button class="btn" :disabled="!canEdit" @click="openImport">导入配置</button>
         <span class="count">共 {{ filteredMetrics.length }} 条</span>
       </div>
 
@@ -71,9 +75,9 @@
               </span>
             </td>
             <td>
-              <button class="btn btn-text" :disabled="!writable" @click="openMetric(m.indexCode)">编辑</button>
-              <button class="btn btn-text" :disabled="!writable" @click="openHistory(m.indexCode)">历史</button>
-              <button v-if="m.status === 1" class="btn btn-text danger" :disabled="!writable"
+              <button class="btn btn-text" :disabled="!canEdit" @click="openMetric(m.indexCode)">编辑</button>
+              <button class="btn btn-text" :disabled="!canEdit" @click="openHistory(m.indexCode)">历史</button>
+              <button v-if="m.status === 1" class="btn btn-text danger" :disabled="!canEdit"
                       @click="doDisable(m)">停用</button>
             </td>
           </tr>
@@ -112,7 +116,7 @@
             <td class="remark">{{ f.note || '—' }}</td>
             <td>
               <button class="btn btn-text" @click="openFact(f.fact)">查看</button>
-              <button class="btn btn-text" :disabled="!writable" @click="editFact(f.fact)">编辑</button>
+              <button class="btn btn-text" :disabled="!canEdit" @click="editFact(f.fact)">编辑</button>
             </td>
           </tr>
           <tr v-if="!facts.length">
@@ -155,7 +159,7 @@
             <td>{{ h.createTime }}</td>
             <td>
               <button class="btn btn-text" @click="showSnapshot(h)">看快照</button>
-              <button class="btn btn-text danger" :disabled="!writable" @click="doRollback(h)">回滚到此版</button>
+              <button class="btn btn-text danger" :disabled="!canEdit" @click="doRollback(h)">回滚到此版</button>
             </td>
           </tr>
           <tr v-if="!historyList.length">
@@ -260,11 +264,20 @@
             <div class="sect">
               <div class="sect-head">
                 <h4>{{ isSumOrAvg ? '① 统计范围（筛选出要算的记录）' : '① 分子筛选条件' }}</h4>
-                <button class="btn btn-text" @click="simple.whereRows.push({ field: '', op: '=', value: '' })">+ 加一行</button>
+                <div class="sect-acts">
+                  <button class="btn btn-text" @click="addCond(simple.whereRows)">+ 加一行</button>
+                  <button class="btn btn-text" @click="addGroup(simple.whereRows)">+ 加一组（或）</button>
+                </div>
               </div>
-              <p class="sect-hint">多行之间是「并且」的关系，全部满足才计入。</p>
+              <p class="sect-hint">
+                <b>同一组</b>内的多行是「并且」，<b>不同组</b>之间是「或者」。
+                例：「A 并且 B」或者「C」= 第 1 组填 A、B，第 2 组填 C。不设置则全部记录都算作分子。
+              </p>
               <div class="cond" v-for="(r, i) in simple.whereRows" :key="'w' + i">
-                <select class="tb-input" v-model="r.field">
+                <select class="tb-input grp" v-model.number="r.group" title="同组内是「并且」，不同组之间是「或者」">
+                  <option v-for="g in groupOptions(simple.whereRows, r.group)" :key="g" :value="g">组{{ g }}</option>
+                </select>
+                <select class="tb-input field-sel" v-model="r.field">
                   <option value="">选择字段…</option>
                   <option v-for="c in fieldOptions" :key="c" :value="c">{{ c }}</option>
                 </select>
@@ -275,13 +288,19 @@
                 <button class="btn btn-text danger" @click="simple.whereRows.splice(i, 1)">删</button>
               </div>
               <p v-if="!simple.whereRows.length" class="sect-empty">未设置：全部记录都算作分子。</p>
+              <p v-else-if="previewWhere" class="expr-preview">
+                实际口径：<code>{{ previewWhere }}</code>
+                <em v-if="hasOrGroup(simple.whereRows)">已按「或」分组自动加括号</em>
+              </p>
             </div>
 
             <div class="sect">
               <div class="sect-head">
                 <h4>{{ isSumOrAvg ? '② 要统计的数值列' : '② 额外条件（一般留空）' }}</h4>
-                <button v-if="!isSumOrAvg" class="btn btn-text"
-                        @click="simple.numRows.push({ field: '', op: '=', value: '' })">+ 加一行</button>
+                <div class="sect-acts" v-if="!isSumOrAvg">
+                  <button class="btn btn-text" @click="addCond(simple.numRows)">+ 加一行</button>
+                  <button class="btn btn-text" @click="addGroup(simple.numRows)">+ 加一组（或）</button>
+                </div>
               </div>
               <template v-if="isSumOrAvg">
                 <p class="sect-hint">对满足①的每条记录，取这一列的数值累加 / 求平均。</p>
@@ -293,10 +312,14 @@
               </template>
               <template v-else>
                 <p class="sect-hint">
-                  去重患者数已按①筛选，这里通常不需要再填。仅在「同一患者还需满足另一列条件」时使用。
+                  去重患者数已按①筛选，这里通常不需要再填。仅在「同一患者还需满足另一列条件」时使用；
+                  分组规则同①（同组「并且」、异组「或者」）。
                 </p>
                 <div class="cond" v-for="(r, i) in simple.numRows" :key="'n' + i">
-                  <select class="tb-input" v-model="r.field">
+                  <select class="tb-input grp" v-model.number="r.group" title="同组内是「并且」，不同组之间是「或者」">
+                    <option v-for="g in groupOptions(simple.numRows, r.group)" :key="g" :value="g">组{{ g }}</option>
+                  </select>
+                  <select class="tb-input field-sel" v-model="r.field">
                     <option value="">选择字段…</option>
                     <option v-for="c in fieldOptions" :key="c" :value="c">{{ c }}</option>
                   </select>
@@ -307,17 +330,27 @@
                   <button class="btn btn-text danger" @click="simple.numRows.splice(i, 1)">删</button>
                 </div>
                 <p v-if="!simple.numRows.length" class="sect-empty">未设置。</p>
+                <p v-else-if="previewNum" class="expr-preview">
+                  实际口径：<code>{{ previewNum }}</code>
+                  <em v-if="hasOrGroup(simple.numRows)">已按「或」分组自动加括号</em>
+                </p>
               </template>
             </div>
 
             <div class="sect">
               <div class="sect-head">
                 <h4>③ 分母筛选条件</h4>
-                <button class="btn btn-text" @click="simple.denRows.push({ field: '', op: '=', value: '' })">+ 加一行</button>
+                <div class="sect-acts">
+                  <button class="btn btn-text" @click="addCond(simple.denRows)">+ 加一行</button>
+                  <button class="btn btn-text" @click="addGroup(simple.denRows)">+ 加一组（或）</button>
+                </div>
               </div>
-              <p class="sect-hint">留空 = 同期全部患者。率类指标（如使用率）必须设置。</p>
+              <p class="sect-hint">留空 = 同期全部患者。率类指标（如使用率）必须设置。分组规则同①。</p>
               <div class="cond" v-for="(r, i) in simple.denRows" :key="'d' + i">
-                <select class="tb-input" v-model="r.field">
+                <select class="tb-input grp" v-model.number="r.group" title="同组内是「并且」，不同组之间是「或者」">
+                  <option v-for="g in groupOptions(simple.denRows, r.group)" :key="g" :value="g">组{{ g }}</option>
+                </select>
+                <select class="tb-input field-sel" v-model="r.field">
                   <option value="">选择字段…</option>
                   <option v-for="c in fieldOptions" :key="c" :value="c">{{ c }}</option>
                 </select>
@@ -328,6 +361,10 @@
                 <button class="btn btn-text danger" @click="simple.denRows.splice(i, 1)">删</button>
               </div>
               <p v-if="!simple.denRows.length" class="sect-empty">未设置：分母为同期全部患者。</p>
+              <p v-else-if="previewDen" class="expr-preview">
+                实际口径：<code>{{ previewDen }}</code>
+                <em v-if="hasOrGroup(simple.denRows)">已按「或」分组自动加括号</em>
+              </p>
             </div>
 
             <div class="sect">
@@ -535,6 +572,75 @@
       </div>
     </div>
 
+    <!-- ==================== 批量导入 ==================== -->
+    <div class="modal-mask" v-if="importDialog" @click.self="importDialog = false">
+      <div class="modal">
+        <div class="modal-head">
+          <h3>批量导入指标口径</h3>
+          <button class="modal-close" @click="importDialog = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="tip">
+            用本页「导出配置」产出的 JSON 回灌即可：先在测试环境调好口径，再一次性导到生产。
+            导入是<b>逐条校验、逐条落库</b>——好的一条进、坏的一条带着原因返回，
+            不会因为个别错误把整批回滚掉（上百条里有两三条写错是常态）。
+          </div>
+
+          <div class="field">
+            <label>配置文件</label>
+            <div class="cond">
+              <button class="btn" @click="pickImportFile">选择 JSON 文件…</button>
+              <span class="grow import-file">{{ importFileName || '未选择文件' }}</span>
+              <input ref="importInput" type="file" accept=".json,application/json"
+                     style="display: none" @change="onImportFile" />
+            </div>
+            <p v-if="importMetrics.length" class="sect-hint">已解析 {{ importMetrics.length }} 条指标定义。</p>
+          </div>
+
+          <div class="field">
+            <label>遇到同编号指标时</label>
+            <div class="chips">
+              <label class="chip" :class="{ on: importMode === 'skip' }">
+                <input type="radio" value="skip" v-model="importMode" /> 跳过（只新增，不动线上口径）
+              </label>
+              <label class="chip" :class="{ on: importMode === 'overwrite' }">
+                <input type="radio" value="overwrite" v-model="importMode" /> 覆盖（用文件内容替换）
+              </label>
+            </div>
+            <p class="sect-hint">
+              默认「跳过」：一份来路不明的文件不应有机会整体覆盖线上口径，确认无误后再显式选「覆盖」。
+            </p>
+          </div>
+
+          <div class="result" v-if="importResult">
+            <div class="result-head">
+              <span class="tag" :class="importResult.failed ? 'pend' : 'on'">{{ importResult.message }}</span>
+            </div>
+            <div class="preview" v-if="importResult.items && importResult.items.length">
+              <table class="mini">
+                <thead>
+                  <tr><th style="width:190px">编号</th><th style="width:80px">结果</th><th>说明</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(it, i) in importResult.items" :key="i">
+                    <td><code class="small">{{ it.code || '—' }}</code></td>
+                    <td><span class="tag" :class="importTagClass(it.status)">{{ importStatusLabel(it.status) }}</span></td>
+                    <td>{{ it.message }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" @click="importDialog = false">关闭</button>
+          <button class="btn btn-primary" :disabled="busy || !importMetrics.length" @click="doImport">
+            {{ busy ? '导入中…' : '开始导入' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- ==================== 快照 ==================== -->
     <div class="modal-mask" v-if="snapshot" @click.self="snapshot = null">
       <div class="modal">
@@ -572,7 +678,9 @@ import {
   fetchConfigFactSql,
   fetchQualityConfigHistory,
   rollbackQualityConfig,
-  reloadQualityConfig
+  reloadQualityConfig,
+  exportQualityMetricsConfig,
+  importQualityMetricsConfig
 } from '../api/quality'
 
 const OPS = ['=', '<>', '>', '>=', '<', '<=', 'LIKE']
@@ -585,8 +693,33 @@ const tabs = computed(() => [
 
 const tab = ref('metric')
 const busy = ref(false)
+// writable  = 真源是不是数据库（改了会不会生效）
+// writeAllowed = 当前请求有没有写权限（服务端 IP 白名单 / 令牌判定）
+// 两者是不同的问题，必须分开说，否则使用者无法判断该找谁处理
 const writable = ref(false)
+const writeAllowed = ref(true)
+const writeHint = ref('')
 const statusHint = ref('')
+const operator = ref('')
+
+/** 能编辑 = 真源可写 且 有写权限 */
+const canEdit = computed(() => writable.value && writeAllowed.value)
+
+const bannerClass = computed(() => {
+  if (canEdit.value) return 'ok'
+  // 有库但没写权限属于「配置问题」，比 yaml 只读更需要引起注意
+  return writable.value ? 'danger' : 'warn'
+})
+
+const bannerText = computed(() => {
+  if (!writable.value) {
+    return `配置真源：YAML 文件 ｜ 页面为只读预览。${statusHint.value}`
+  }
+  if (!writeAllowed.value) {
+    return `配置真源：数据库 ｜ 当前无写权限，页面为只读预览。${writeHint.value}`
+  }
+  return `配置真源：数据库 ｜ 保存即生效（保存时会先校验 + 试算一遍）｜ 操作人：${operator.value || '未知'}`
+})
 
 const metrics = ref([])
 const facts = ref([])
@@ -609,6 +742,11 @@ const historyKey = ref('')
 
 const COND_RE = /^([A-Za-z_][\w.]*)\s*(>=|<=|<>|!=|=|>|<|LIKE)\s*(.+)$/i
 
+/** 新建条件行。group 从 1 开始，同组「并且」、异组「或者」 */
+function newRow(group) {
+  return { field: '', op: '=', value: '', group: Number(group) > 1 ? Number(group) : 1 }
+}
+
 function parseConditions(expr) {
   const text = String(expr || '').trim()
   if (!text) return []
@@ -618,25 +756,132 @@ function parseConditions(expr) {
   for (const part of text.split(/\s+AND\s+/i)) {
     const m = part.trim().match(COND_RE)
     if (!m) return null
-    rows.push({ field: m[1], op: m[2] === '!=' ? '<>' : m[2].toUpperCase(), value: m[3].trim() })
+    rows.push({ field: m[1], op: m[2] === '!=' ? '<>' : m[2].toUpperCase(), value: m[3].trim(), group: 1 })
   }
   return rows
 }
 
-function buildConditions(rows) {
-  return (rows || [])
-    .filter(r => r.field && String(r.value).trim() !== '')
-    .map(r => `${r.field} ${r.op || '='} ${r.value}`)
-    .join(' AND ')
+function groupOf(r) {
+  const n = Number(r.group)
+  return n > 1 ? n : 1
 }
 
-/** 拆得开且拼得回，才返回条件行；否则返回 null 表示「必须走高级模式」 */
+/**
+ * 条件行 → 表达式。
+ *
+ * 单组时产出 `a = 1 AND b = 2`（与历史口径完全一致，不加多余括号）；
+ * 多组时产出 `(a = 1 AND b = 2) OR (c = 3)`。
+ * 后端在拼分子命中的 CASE WHEN 时会把整段再包一层括号，因此这里的 OR 不会与
+ * 外层 AND 抢优先级（见 SqlCompiler#numCondition）。
+ */
+function buildGroups(rows) {
+  const valid = (rows || []).filter(r => r.field && String(r.value).trim() !== '')
+  if (!valid.length) return ''
+  const groups = new Map()
+  valid.forEach(r => {
+    const g = groupOf(r)
+    if (!groups.has(g)) groups.set(g, [])
+    groups.get(g).push(r)
+  })
+  const parts = [...groups.keys()].sort((a, b) => a - b).map(g => {
+    const conds = groups.get(g).map(r => `${r.field} ${r.op || '='} ${r.value}`)
+    return conds.length === 1 ? conds[0] : conds.join(' AND ')
+  })
+  return parts.length === 1 ? parts[0] : parts.map(p => `(${p})`).join(' OR ')
+}
+
+/** 只拆「顶层 OR」，括号内或引号内的 OR 不算分隔符 */
+function splitTopLevelOr(text) {
+  if (text.includes("'")) return null
+  const parts = []
+  let depth = 0
+  let start = 0
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    if (c === '(') {
+      depth++
+    } else if (c === ')') {
+      depth--
+      if (depth < 0) return null
+    } else if (depth === 0 && /^or\b/i.test(text.slice(i)) && (i === 0 || /[\s)]/.test(text[i - 1]))) {
+      parts.push(text.slice(start, i).trim())
+      i += 1
+      start = i + 1
+    }
+  }
+  if (depth !== 0) return null
+  parts.push(text.slice(start).trim())
+  return parts.length > 1 && parts.every(p => p) ? parts : null
+}
+
+/** 剥掉最外层括号；括号不配平或提前闭合则返回 null */
+function stripOuterParens(text) {
+  const s = String(text).trim()
+  if (!s.startsWith('(') || !s.endsWith(')')) return null
+  let depth = 0
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '(') depth++
+    else if (s[i] === ')') {
+      depth--
+      if (depth === 0 && i !== s.length - 1) return null
+    }
+  }
+  return depth === 0 ? s.slice(1, -1).trim() : null
+}
+
+/** 表达式 → 条件行（带组号）；拆不动返回 null 表示「必须走高级模式」 */
+function parseGroups(expr) {
+  const text = String(expr || '').trim()
+  if (!text) return []
+  const flat = parseConditions(text)
+  if (flat) return flat
+  const parts = splitTopLevelOr(text)
+  if (!parts) return null
+  const rows = []
+  let group = 1
+  for (const part of parts) {
+    const inner = stripOuterParens(part)
+    if (inner === null) return null
+    const conds = parseConditions(inner)
+    if (!conds) return null
+    conds.forEach(c => rows.push({ ...c, group }))
+    group++
+  }
+  return rows
+}
+
+/**
+ * 拆得开且能原样拼回，才返回条件行；否则返回 null。
+ *
+ * 往返比对是这里的关键护栏：只要结构化编辑不能精确还原原文，
+ * 就整体退回高级模式，绝不「猜一个差不多的口径」。
+ */
 function toSimple(expr) {
   const text = String(expr || '').trim()
   if (!text) return []
-  const rows = parseConditions(text)
+  const rows = parseGroups(text)
   if (!rows) return null
-  return buildConditions(rows) === text ? rows : null
+  return buildGroups(rows) === text ? rows : null
+}
+
+/** 条件行操作：加一行（跟随末行组号）/ 另起一组（或） */
+function addCond(rows) {
+  const last = rows.length ? groupOf(rows[rows.length - 1]) : 1
+  rows.push(newRow(last))
+}
+
+function addGroup(rows) {
+  const max = rows.reduce((acc, r) => Math.max(acc, groupOf(r)), 0)
+  rows.push(newRow(max + 1))
+}
+
+function groupOptions(rows, current) {
+  const max = (rows || []).reduce((acc, r) => Math.max(acc, groupOf(r)), Math.max(1, Number(current) || 1))
+  return Array.from({ length: max + 1 }, (_, i) => i + 1)
+}
+
+function hasOrGroup(rows) {
+  return new Set((rows || []).filter(r => r.field && String(r.value).trim() !== '').map(groupOf)).size > 1
 }
 
 // ---------------------------------------------------------------------------
@@ -704,15 +949,21 @@ function fmt(v) {
 /** 简单模式 → 表达式字段；高级模式直接用表单里的原始文本 */
 function applyModeToForm() {
   if (mode.value !== 'simple') return
-  metricForm.where = buildConditions(simple.whereRows)
-  metricForm.denominatorWhere = buildConditions(simple.denRows)
+  metricForm.where = buildGroups(simple.whereRows)
+  metricForm.denominatorWhere = buildGroups(simple.denRows)
   if (isSumOrAvg.value) {
     metricForm.numerator = simple.numField || ''
   } else {
-    metricForm.numerator = buildConditions(simple.numRows)
+    metricForm.numerator = buildGroups(simple.numRows)
   }
   metricForm.dims = [...simple.dims]
 }
+
+// 实时回显「实际口径」：条件组一旦变复杂，光看表格很难确认最终拼出的是什么，
+// 尤其「或」分组的括号位置直接影响结果，必须让使用者看得见。
+const previewWhere = computed(() => buildGroups(simple.whereRows))
+const previewNum = computed(() => (isSumOrAvg.value ? '' : buildGroups(simple.numRows)))
+const previewDen = computed(() => buildGroups(simple.denRows))
 
 function switchMode(target) {
   if (target === mode.value) return
@@ -726,7 +977,7 @@ function switchMode(target) {
   const denRows = toSimple(metricForm.denominatorWhere)
   const numRows = isSumOrAvg.value ? [] : toSimple(metricForm.numerator || '')
   if (whereRows === null || denRows === null || numRows === null) {
-    ElMessage.warning('当前口径含函数、括号或带引号的条件，无法用简单模式表达，已保留在高级模式')
+    ElMessage.warning('当前口径含函数、嵌套括号或带引号的条件，无法用简单模式表达，已保留在高级模式')
     return
   }
   simple.whereRows = whereRows
@@ -851,7 +1102,7 @@ async function doSaveMetric() {
   if (!guardEmptyMetric()) return
   busy.value = true
   try {
-    const r = await saveConfigMetric(collectMetric(), true, currentOperator())
+    const r = await saveConfigMetric(collectMetric(), true)
     checkResult.value = r.validation
     if (!r.saved) {
       ElMessage.error(r.message || '校验未通过，配置未保存')
@@ -878,7 +1129,7 @@ async function doDisable(m) {
   }
   busy.value = true
   try {
-    await disableConfigMetric(m.indexCode, currentOperator())
+    await disableConfigMetric(m.indexCode)
     ElMessage.success('已停用')
     await loadMetrics()
   } catch (e) {
@@ -948,7 +1199,7 @@ async function fillFact(name, editable) {
       groupText: (f.group || []).join('\n'),
       note: f.note
     })
-    factEditable.value = editable && writable.value
+    factEditable.value = editable && canEdit.value
     factCheck.value = null
     factDialog.value = true
     // 三个附属信息互不依赖，任一个失败都不该影响打开弹窗
@@ -990,7 +1241,7 @@ async function doSaveFact() {
   }
   busy.value = true
   try {
-    const r = await saveConfigFact(collectFact(), true, currentOperator())
+    const r = await saveConfigFact(collectFact(), true)
     factCheck.value = r.validation
     if (!r.saved) {
       ElMessage.error(r.message || '校验未通过，配置未保存')
@@ -1054,7 +1305,7 @@ async function doRollback(h) {
   }
   busy.value = true
   try {
-    await rollbackQualityConfig(h.id, currentOperator())
+    await rollbackQualityConfig(h.id)
     ElMessage.success('已回滚并生效')
     await Promise.all([loadMetrics(), loadHistory()])
   } catch (e) {
@@ -1081,19 +1332,142 @@ async function doReload() {
 // 加载
 // ---------------------------------------------------------------------------
 
-/** 操作人：质控页面目前无账号体系，统一记 admin，保证审计字段不为空 */
-function currentOperator() {
-  return 'admin'
-}
-
 async function loadStatus() {
   try {
     const s = await fetchQualityConfigStatus()
     writable.value = !!s.writable
     statusHint.value = s.hint || ''
+    // writeAllowed 由服务端判定（IP 白名单 / 令牌），页面只做展示与禁用，
+    // 真正的拦截在服务端 —— 前端禁用只是体验优化，不是安全边界。
+    writeAllowed.value = s.writeAllowed !== false
+    writeHint.value = s.writeHint || ''
+    operator.value = s.operator || ''
   } catch (e) {
     writable.value = false
+    writeAllowed.value = false
     statusHint.value = '未取到配置状态，请稍后刷新'
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 批量导入 / 导出
+//
+// 导出的是「当前生效口径」的完整 JSON（含表达式正文），因此可以直接回灌导入，
+// 这条路径本身就是跨环境迁移手段：测试环境调好 → 导出 → 生产导入。
+// ---------------------------------------------------------------------------
+
+const importDialog = ref(false)
+const importInput = ref(null)
+const importFileName = ref('')
+const importMetrics = ref([])
+const importMode = ref('skip')
+const importResult = ref(null)
+
+function stamp() {
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+}
+
+async function doExport() {
+  busy.value = true
+  try {
+    const payload = await exportQualityMetricsConfig()
+    const list = (payload && payload.metrics) || []
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `quality-metrics-${stamp()}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    ElMessage.success(`已导出 ${list.length} 条指标口径`)
+  } catch (e) {
+    ElMessage.error('导出失败：' + e.message)
+  } finally {
+    busy.value = false
+  }
+}
+
+function openImport() {
+  importFileName.value = ''
+  importMetrics.value = []
+  importMode.value = 'skip'
+  importResult.value = null
+  importDialog.value = true
+}
+
+function pickImportFile() {
+  if (importInput.value) importInput.value.click()
+}
+
+async function onImportFile(ev) {
+  const file = ev.target.files && ev.target.files[0]
+  // 清空 value：否则连续选同一个文件不会再触发 change
+  ev.target.value = ''
+  if (!file) return
+  let parsed
+  try {
+    parsed = JSON.parse(await file.text())
+  } catch (e) {
+    ElMessage.error('文件不是合法 JSON：' + e.message)
+    return
+  }
+  // 兼容两种形态：导出接口的 {metrics:[...]} 包裹，或裸数组
+  const list = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.metrics) ? parsed.metrics : null)
+  if (!list || !list.length) {
+    ElMessage.error('文件里没有指标数据（应为本页「导出配置」产出的 JSON）')
+    return
+  }
+  importFileName.value = file.name
+  importMetrics.value = list
+  importResult.value = null
+}
+
+function importStatusLabel(status) {
+  return { CREATED: '新增', UPDATED: '覆盖', SKIPPED: '跳过', FAILED: '失败' }[status] || status
+}
+
+function importTagClass(status) {
+  if (status === 'CREATED' || status === 'UPDATED') return 'on'
+  return status === 'FAILED' ? 'off' : 'pend'
+}
+
+async function doImport() {
+  if (!importMetrics.value.length) return
+  if (importMode.value === 'overwrite') {
+    try {
+      await ElMessageBox.confirm(
+        `将用文件内容覆盖 ${importMetrics.value.length} 条中的同编号指标，线上口径会立即变化。确认继续？`,
+        '覆盖确认', { type: 'warning' }
+      )
+    } catch (e) {
+      return
+    }
+  }
+  busy.value = true
+  try {
+    const r = await importQualityMetricsConfig(importMetrics.value, importMode.value)
+    importResult.value = r
+    if (r.rejected) {
+      ElMessage.error(r.message || '导入未执行')
+      return
+    }
+    if (r.failed) {
+      ElMessage.warning(r.message || '导入完成，但有失败条目')
+    } else {
+      ElMessage.success(r.message || '导入完成')
+    }
+    // 导入成功后刷新：列表、状态（同步字典条数可能变化）
+    if (r.created || r.updated) {
+      await reloadAll()
+    }
+  } catch (e) {
+    ElMessage.error('导入失败：' + e.message)
+  } finally {
+    busy.value = false
   }
 }
 
@@ -1176,6 +1550,13 @@ onMounted(async () => {
   color: #8a5a10;
 }
 .banner.warn .dot { background: #e8a33d; }
+/* 真源已是数据库、但当前没有写权限：属于配置问题，比 yaml 只读更需要被注意到 */
+.banner.danger {
+  background: #fdf0f0;
+  border: 1px solid #f5c6c6;
+  color: #93312e;
+}
+.banner.danger .dot { background: #d24b45; }
 
 .tabs {
   display: flex;
@@ -1415,6 +1796,7 @@ code { font-family: Consolas, Monaco, monospace; }
   justify-content: space-between;
 }
 .sect-head h4 { margin: 0; font-size: 13.5px; color: #1f2937; }
+.sect-acts { display: flex; gap: 2px; flex-shrink: 0; }
 .sect-hint {
   margin: 4px 0 8px;
   font-size: 12px;
@@ -1433,7 +1815,44 @@ code { font-family: Consolas, Monaco, monospace; }
 }
 .cond .op { width: 82px; flex-shrink: 0; text-align: center; }
 .cond .grow { flex: 1; min-width: 0; }
-.cond .tb-input:first-child { width: 210px; flex-shrink: 0; }
+.cond .field-sel { width: 210px; flex-shrink: 0; }
+/* 条件组号：同组「并且」、异组「或者」，窄到不喧宾夺主但仍可点 */
+.cond .grp {
+  width: 66px;
+  flex-shrink: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+  color: #1d4ed8;
+}
+
+/* 实际口径回显：条件组一旦含「或」，光看表格无法确认括号落在哪 */
+.expr-preview {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #4b5563;
+  line-height: 1.7;
+}
+.expr-preview code {
+  padding: 1px 6px;
+  background: #eef2f7;
+  border-radius: 3px;
+  color: #1f2937;
+  word-break: break-all;
+}
+.expr-preview em {
+  margin-left: 6px;
+  font-style: normal;
+  font-size: 11.5px;
+  color: #8a94a2;
+}
+
+.import-file {
+  font-size: 12.5px;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {

@@ -108,7 +108,30 @@ export function rebuildQualityMonthly(year, departCode) {
 // 试跑类接口 timeout 放宽：它要真跑一遍达梦，慢的时候不止 60s。
 // ---------------------------------------------------------------------------
 
-/** 配置真源与可写状态：页面打开时先调，据此决定可编辑还是只读预览 */
+/**
+ * 给配置写请求附加写接口令牌。
+ *
+ * 写保护由服务端判定（IP 白名单 / 令牌），二者取其一即可：
+ *   - 走 IP 白名单时完全不需要令牌，本函数原样返回；
+ *   - 走令牌时用构建变量 VITE_QUALITY_CONFIG_WRITE_TOKEN 注入，
+ *     这样令牌不进代码库、也不必让使用者手工填。
+ * 注意令牌是构建期常量，会出现在前端产物里，因此只适合内网过渡期使用；
+ * 真正长期方案是接入 SSO 后改为角色判定（见 QualityConfigGuard）。
+ */
+function withWriteToken(config = {}) {
+  const token = import.meta.env.VITE_QUALITY_CONFIG_WRITE_TOKEN
+  if (!token) {
+    return config
+  }
+  return { ...config, headers: { ...(config.headers || {}), 'X-Quality-Config-Token': token } }
+}
+
+/**
+ * 配置真源与可写状态：页面打开时先调，据此决定可编辑还是只读预览。
+ *
+ * 返回里除了 configSource/writable，还有 writeAllowed 与 writeHint：
+ * 让页面「一进来」就能说明白能不能改、为什么不能改，而不是等点保存才收到 403。
+ */
 export function fetchQualityConfigStatus() {
   return request.get('/quality/config/status')
 }
@@ -132,21 +155,42 @@ export function validateConfigMetric(metric, trial = true) {
   })
 }
 
-/** 保存指标：校验 → 落库 → 留快照 → 热生效 */
-export function saveConfigMetric(metric, trial = true, operator = 'admin') {
-  return request.post('/quality/config/metric', metric, {
-    params: { trial, operator },
+/**
+ * 保存指标：校验 → 落库 → 留快照 → 热生效。
+ *
+ * 不再传 operator：操作人由服务端从外链参数/网关头解析，
+ * 前端传的值一律被忽略 —— 否则审计字段等于由被审计者自己填写。
+ */
+export function saveConfigMetric(metric, trial = true) {
+  return request.post('/quality/config/metric', metric, withWriteToken({
+    params: { trial },
     silentError: true,
     timeout: 180000
-  })
+  }))
 }
 
 /** 停用指标（不删除，历史结果保留） */
-export function disableConfigMetric(code, operator = 'admin') {
-  return request.post('/quality/config/metric/disable', null, {
-    params: { code, operator },
+export function disableConfigMetric(code) {
+  return request.post('/quality/config/metric/disable', null, withWriteToken({
+    params: { code },
     silentError: true
-  })
+  }))
+}
+
+/** 导出全部生效中的指标口径（含表达式正文，可直接回灌导入） */
+export function exportQualityMetricsConfig() {
+  return request.get('/quality/config/metrics/export', { timeout: 120000 })
+}
+
+/**
+ * 批量导入指标口径（部分成功：逐条返回结论）。
+ *
+ * trial 固定 false —— 逐条真跑会拖死页面，批量场景依赖 L1-L3 静态校验，
+ * 试跑留给单条编辑。
+ */
+export function importQualityMetricsConfig(metrics, mode = 'skip') {
+  return request.post('/quality/config/metrics/import', { metrics, mode, trial: false },
+    withWriteToken({ silentError: true, timeout: 300000 }))
 }
 
 export function fetchConfigFacts() {
@@ -165,12 +209,12 @@ export function validateConfigFact(fact, trial = true) {
   })
 }
 
-export function saveConfigFact(fact, trial = true, operator = 'admin') {
-  return request.post('/quality/config/fact', fact, {
-    params: { trial, operator },
+export function saveConfigFact(fact, trial = true) {
+  return request.post('/quality/config/fact', fact, withWriteToken({
+    params: { trial },
     silentError: true,
     timeout: 180000
-  })
+  }))
 }
 
 /** 事实层可引用列（简单模式的字段下拉数据源；取不到不阻断编辑，退化为手工输入） */
@@ -193,17 +237,17 @@ export function fetchQualityConfigHistory(params) {
   return request.get('/quality/config/history', { params })
 }
 
-/** 回滚到指定历史版本 */
-export function rollbackQualityConfig(historyId, operator = 'admin') {
-  return request.post('/quality/config/rollback', null, {
-    params: { historyId, operator },
+/** 回滚到指定历史版本（操作人同样由服务端解析） */
+export function rollbackQualityConfig(historyId) {
+  return request.post('/quality/config/rollback', null, withWriteToken({
+    params: { historyId },
     silentError: true
-  })
+  }))
 }
 
 /** 手动重载配置 + 同步字典（保存时已自动执行，此处用于排查与恢复） */
 export function reloadQualityConfig() {
-  return request.post('/quality/config/reload', null, { silentError: true })
+  return request.post('/quality/config/reload', null, withWriteToken({ silentError: true }))
 }
 
 /**

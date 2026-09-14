@@ -203,9 +203,14 @@ class QualityDslSmokeTest {
     // internal
     // ------------------------------------------------------------------
 
-    /** 不启动 Spring 直接构造加载器：三个 location 都有默认值，指向 classpath 下的 YAML。 */
+    /**
+     * 不启动 Spring 直接构造加载器：三个 location 都有默认值，指向 classpath 下的 YAML。
+     *
+     * <p>{@code configRepo} 传 null：本测试用默认的 {@code config-source=yaml}，
+     * 加载路径不会碰配置表（{@code useDb()} 为 false）。
+     */
     private QualityDslLoader load() {
-        QualityDslLoader dsl = new QualityDslLoader(new QualityProperties());
+        QualityDslLoader dsl = new QualityDslLoader(new QualityProperties(), null);
         dsl.reload();
         return dsl;
     }
