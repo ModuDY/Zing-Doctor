@@ -1,15 +1,20 @@
 <template>
-  <MainLayout v-if="useLayout">
-    <PageBoundary>
+  <!-- Element Plus 按需引入后不能再 app.use(ElementPlus, { locale }) 全局注册，
+       语言包改由 config-provider 提供（该组件由 unplugin-vue-components 自动引入） -->
+  <el-config-provider :locale="zhCn">
+    <MainLayout v-if="useLayout">
+      <PageBoundary>
+        <router-view />
+      </PageBoundary>
+    </MainLayout>
+    <PageBoundary v-else>
       <router-view />
     </PageBoundary>
-  </MainLayout>
-  <PageBoundary v-else>
-    <router-view />
-  </PageBoundary>
+  </el-config-provider>
 </template>
 
 <script>
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import MainLayout from './layouts/MainLayout.vue'
 import PageBoundary from './layouts/PageBoundary.vue'
 import { isExternalMode } from './utils/external'
@@ -19,6 +24,7 @@ export default {
   components: { MainLayout, PageBoundary },
   data() {
     return {
+      zhCn,
       externalMode: isExternalMode()
     }
   },

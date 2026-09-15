@@ -27,7 +27,7 @@ import java.util.Map;
  *
  * <p>外部系统（如 ICU 信息系统）通过
  * {@code GET /entry/{pageCode}?expire=xx&sign=xx&业务参数...}
- * 免登录进入医生系统某个功能页面。本接口完成签名校验后 302 跳转到前端路由。
+ * 免登录进入医生决策系统某个功能页面。本接口完成签名校验后 302 跳转到前端路由。
  */
 @Slf4j
 @RestController

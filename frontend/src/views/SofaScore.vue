@@ -619,7 +619,7 @@
 import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import * as echarts from 'echarts'
+import * as echarts from '../utils/echarts'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import {

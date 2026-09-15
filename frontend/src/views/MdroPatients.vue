@@ -465,7 +465,7 @@ onMounted(() => {
 .patient-detail {
   padding: 16px;
   border-top: 1px solid #e7e5e4;
-  background: #fafafa;
+  background: #fafaf9;
 }
 
 .detail-header {

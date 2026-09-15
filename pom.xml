@@ -15,7 +15,7 @@
     <artifactId>zing-doctor</artifactId>
     <version>1.0.0</version>
     <name>zing-doctor</name>
-    <description>ICU 抗菌药物管理与临床决策 - 医生系统（多维度）</description>
+    <description>医生决策系统（ICU 抗菌药物管理与临床决策）</description>
 
     <properties>
         <java.version>1.8</java.version>
@@ -47,7 +47,7 @@
             <version>${dynamic-datasource.version}</version>
         </dependency>
 
-        <!-- 达梦数据库驱动（ICU 与医生系统主库均为达梦 DM8）
+        <!-- 达梦数据库驱动（ICU 与医生决策系统主库均为达梦 DM8）
              采用 system scope + lib/ 相对路径：驱动 jar 随项目打包交付，
              服务器构建无需依赖 Maven 仓库是否收录 com.dameng。
              如需换用标准坐标，可改用：
@@ -109,4 +109,41 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+          依赖漏洞扫描（OWASP dependency-check）。
+          默认不启用：它需要联网下载并增量更新 NVD 漏洞库，内网交付机通常不可用。
+          使用方式：mvn -Psecurity-check verify
+          建议节奏：每次发版前、或 CI 每周定时跑一次。
+          阈值：CVSS >= 7（高危及以上）才中断构建，避免低危噪音阻塞发版。
+          报告：target/dependency-check-report.html
+        -->
+        <profile>
+            <id>security-check</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.owasp</groupId>
+                        <artifactId>dependency-check-maven</artifactId>
+                        <version>11.1.0</version>
+                        <configuration>
+                            <failBuildOnCVSS>7</failBuildOnCVSS>
+                            <formats>
+                                <format>HTML</format>
+                                <format>JSON</format>
+                            </formats>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

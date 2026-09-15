@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =====================================================================
-# zing-doctor 医生系统 - 一键安装部署脚本
+# 医生决策系统 - 一键安装部署脚本
 #
 # 用法：将交付包解压后，在 zing-doctor 根目录执行：
 #     bash install.sh
@@ -10,7 +10,7 @@
 # 流程：
 #   1) 环境检查（docker / docker compose / 达梦连通）
 #   2) 达梦数据库初始化（统一用 SYSDBA，自动选择通道，顺序尝试）：
-#        00_init_user.sql：CREATE SCHEMA "zing_doctor_db_prod" AUTHORIZATION SYSDBA（建医生系统自有模式）
+#        00_init_user.sql：CREATE SCHEMA "zing_doctor_db_prod" AUTHORIZATION SYSDBA（建医生决策系统自有模式）
 #        01_schema.sql   ：建 4 张业务表（SQL 内显式 "zing_doctor_db_prod"."xxx" 模式前缀）
 #        02_seed.sql     ：初始化页面注册数据
 #       通道：
@@ -35,7 +35,7 @@ warn(){ echo -e "${YELLOW}[WARN]${NC} $*"; }
 err(){ echo -e "${RED}[ERROR]${NC} $*"; }
 
 echo "=================================================="
-echo "  zing-doctor 医生系统 · 一键安装部署"
+echo "  医生决策系统 · 一键安装部署"
 echo "  部署路径：$ROOT"
 echo "=================================================="
 
@@ -115,7 +115,35 @@ detect_disql
 # 避免「代码更新了、表没改」导致页面 500（典型：无效的列名[param_type]）。
 # 只放**幂等**脚本：每个 DDL 都先判断存在性，重跑不会报「对象已存在」。
 # 一次性脚本（如 06_abx_drug_dict.sql 的裸 CREATE TABLE）不要加进来。
-INCREMENTAL_SQL=("13_auth.sql" "14_param_framework.sql")
+# 12_archive.sql 虽含裸 CREATE TABLE/SEQUENCE，但 JDBC 通道会先查元数据跳过（幂等）；
+# 必须排在 14 之前：14 会给 zing_sys_param 加列，该表由 12 创建。
+INCREMENTAL_SQL=("12_archive.sql" "13_auth.sql" "14_param_framework.sql")
+
+# ---------- JDBC 初始化工具 classpath ----------
+# ⚠️ 交付包里的 tools/db-init/DbInit.class 是预编译产物：若 DbInit.java 比它新
+# （典型：改了源码却没重新编译就打包），必须现场重编译，否则跑的还是旧逻辑
+# ——曾因旧 class 把 PL/SQL 块按分号切碎，导致 13/14 初始化脚本报「语法分析出错」。
+# 结果写入全局变量 DBINIT_CP（不用命令替换，避免 info 日志混进 classpath）。
+DBINIT_CP=""
+resolve_dbinit_cp() {
+  DBINIT_CP=""
+  if command -v javac >/dev/null 2>&1 && [ -f "tools/db-init/DbInit.java" ] \
+     && { [ ! -f "tools/db-init/DbInit.class" ] || [ "tools/db-init/DbInit.java" -nt "tools/db-init/DbInit.class" ]; }; then
+    info "编译 JDBC 初始化工具（DbInit.java 比 DbInit.class 新）..."
+    mkdir -p tools/db-init-classes
+    if javac -encoding UTF-8 -cp "lib/DmJdbcDriver18-8.1.3.140.jar" \
+         -d tools/db-init-classes tools/db-init/DbInit.java >/dev/null 2>&1; then
+      DBINIT_CP="tools/db-init-classes"
+      return 0
+    fi
+    warn "javac 编译失败，回退使用交付包自带的 DbInit.class"
+  fi
+  if [ -f "tools/db-init/DbInit.class" ]; then
+    DBINIT_CP="tools/db-init"
+  elif [ -f "tools/db-init-classes/DbInit.class" ]; then
+    DBINIT_CP="tools/db-init-classes"
+  fi
+}
 
 apply_incremental() {
   local files=()
@@ -145,12 +173,8 @@ apply_incremental() {
   fi
 
   if command -v java >/dev/null 2>&1 && [ -f "lib/DmJdbcDriver18-8.1.3.140.jar" ]; then
-    local _cp=""
-    if [ -f "tools/db-init/DbInit.class" ]; then
-      _cp="tools/db-init"
-    elif [ -f "tools/db-init-classes/DbInit.class" ]; then
-      _cp="tools/db-init-classes"
-    fi
+    resolve_dbinit_cp
+    local _cp="$DBINIT_CP"
     if [ -n "$_cp" ]; then
       info "应用增量脚本（JDBC 工具）：${INCREMENTAL_SQL[*]}"
       java -cp "lib/DmJdbcDriver18-8.1.3.140.jar:$_cp" \
@@ -211,20 +235,11 @@ init_db() {
   fi
 
   # 通道 c：本机 JDK + JDBC 初始化工具
-  # 优先使用交付包预编译的 tools/db-init/DbInit.class（服务器无需 javac），
-  # 其次用 tools/db-init-classes/，最后才尝试现场编译（需 javac）
+  # 优先使用交付包预编译的 tools/db-init/DbInit.class（服务器无需 javac）；
+  # 但若 DbInit.java 比 .class 新（改了源码没重新编译就打包），现场重编译，避免跑旧逻辑。
   if command -v java >/dev/null 2>&1 && [ -f "lib/DmJdbcDriver18-8.1.3.140.jar" ]; then
-    local _cp=""
-    if [ -f "tools/db-init/DbInit.class" ]; then
-      _cp="tools/db-init"
-    elif [ -f "tools/db-init-classes/DbInit.class" ]; then
-      _cp="tools/db-init-classes"
-    elif [ -f "tools/db-init/DbInit.java" ] && command -v javac >/dev/null 2>&1; then
-      info "通道 c：现场编译 JDBC 初始化工具..."
-      mkdir -p tools/db-init-classes
-      javac -encoding UTF-8 -cp "lib/DmJdbcDriver18-8.1.3.140.jar" \
-        -d tools/db-init-classes tools/db-init/DbInit.java && _cp="tools/db-init-classes"
-    fi
+    resolve_dbinit_cp
+    local _cp="$DBINIT_CP"
     if [ -n "$_cp" ]; then
       info "通道 c：运行 JDBC 初始化工具连接达梦（classpath: $_cp）..."
       if java -cp "lib/DmJdbcDriver18-8.1.3.140.jar:$_cp" \
@@ -255,6 +270,9 @@ init_db() {
   echo "    start $ROOT/sql/09_quality.sql      # 质控指标中台建表 + 页面注册（幂等可重复）"
   echo "    start $ROOT/sql/10_quality_config.sql # 质控配置真源三表 + 注册 quality-config 页（幂等可重复）"
   echo "    start $ROOT/sql/11_quality_count_rule.sql # 质控「真指标」规则表（幂等；建表后需在看板点「同步指标规则」灌数）"
+  echo "    start $ROOT/sql/12_archive.sql      # 系统参数表 + 归档流水表 + 评分记录归档列（幂等可重复）"
+  echo "    start $ROOT/sql/13_auth.sql         # 直连登录账号表（幂等可重复；后端首启自动写入 admin 账号）"
+  echo "    start $ROOT/sql/14_param_framework.sql # 参数框架：参数分组表 + zing_sys_param 类型扩展列（幂等可重复）"
   exit 1
 }
 

@@ -1,6 +1,6 @@
-# zing-doctor 医生系统（ICU 抗菌药物管理与临床决策）
+# 医生决策系统
 
-面向 ICU 临床信息系统的独立医生系统，由 ICU 系统通过**外链免登录**方式嵌入打开，围绕抗菌药物管理（ASP）与危重症临床决策提供多维度支持。
+面向 ICU 临床信息系统的独立医生决策系统，由 ICU 系统通过**外链免登录**方式嵌入打开，围绕抗菌药物管理（ASP）与危重症临床决策提供多维度支持。
 
 - Spring Boot 2.7 + Java 8 后端，MyBatis-Plus 双数据源（主库 `zing_doctor_db_prod` / 只读 `zing_icu_db_prod`），数据库为**达梦 DM8**
 - 外链免登录机制：外部系统（ICU）通过 `GET /entry/{pageCode}?expire=&sign=&业务参数`（签名模式）或 `GET /entry/{pageCode}?extToken=&业务参数`（ICU 明文模式）打开任意已注册页面
@@ -61,6 +61,29 @@ ICU 明文模式联调无需签发，直接用配置的静态 `extToken` 访问�
 ```
 http://<host>:2001/entry/abx-decision?extToken=zing-icu-link-token-2026&inHospitalNo=<住院号>
 ```
+
+## 质量保障（测试 / 检查 / CI）
+
+本地与 CI 共用同一个脚本，不绑定具体 CI 平台：
+
+```bash
+bash tools/ci.sh                      # 后端测试 + 前端 lint/漏洞扫描/构建
+bash tools/ci.sh --backend            # 只跑后端
+bash tools/ci.sh --frontend           # 只跑前端
+CI_SECURITY_SCAN=1 bash tools/ci.sh   # 额外跑后端依赖漏洞扫描（需联网更新 NVD 库）
+```
+
+| 校验项 | 命令 | 通过门槛 |
+|---|---|---|
+| 后端单元测试 | `mvn test` | 全绿（当前 125 个用例） |
+| 前端代码检查 | `cd frontend && npm run lint` | error 为 0（warning 不阻塞） |
+| 前端依赖漏洞 | `cd frontend && npm run audit:ci` | 生产依赖不允许 high 及以上 |
+| 后端依赖漏洞 | `mvn -Psecurity-check verify` | CVSS ≥ 7 中断（需联网） |
+| 前端格式化 | `cd frontend && npm run format` | 提交前本地执行 |
+
+- 测试位于 `src/test/java`，覆盖 SOFA / Apache II 评分、质控 DSL 与配置校验，以及 DDD 使用强度解析、PK/PD 肾功能计算、MDRO 判定口径、集束化休克判定与液体量等核心业务计算。
+- 流水线定义见 `.github/workflows/ci.yml`；换 GitLab CI / Jenkins 时把命令照搬即可，无需改 `tools/ci.sh`。
+- 前端 `xlsx` 依赖取自仓库内 `frontend/vendor/xlsx-0.20.3.tgz`（SheetJS 已迁出 npm，官方源在内网不可达，故随仓库固化）；**升级时替换该 tgz 并同步 `package.json` 里的路径**。
 
 ## 交付包命名规范
 

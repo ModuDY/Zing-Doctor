@@ -24,7 +24,7 @@ import java.util.Map;
  * <p>调度：默认每日 03:20（{@code 0 20 3 * * ?}），业务低峰期执行；
  * 同步本身幂等（增量比对），手动补跑安全（{@code POST /api/antibiotic/drug-dict/sync}）。
  *
- * <p>失败策略：ICU 库不可达 / 权限不足时只记录日志，不影响医生系统正常功能——
+ * <p>失败策略：ICU 库不可达 / 权限不足时只记录日志，不影响医生决策系统正常功能——
  * 识别会自动降级为「关键词白名单 + 黑名单」模式（快照中 dictDrugCount=0）。
  *
  * <p>可通过配置关闭：{@code abx.drug-sync.enabled=false}；

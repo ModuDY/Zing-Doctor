@@ -430,7 +430,7 @@ onMounted(async () => {
 .patient-main-drugs {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid #f5f5f4;
   font-size: 13px;
   color: #44403c;
 }

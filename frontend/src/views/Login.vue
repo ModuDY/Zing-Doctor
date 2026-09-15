@@ -2,10 +2,9 @@
   <div class="login-page">
     <div class="login-card">
       <div class="brand">
-        <div class="brand-logo">抗</div>
+        <div class="brand-logo">医</div>
         <div class="brand-text">
           <div class="brand-title">医生决策系统</div>
-          <div class="brand-sub">ICU 抗生素分析</div>
         </div>
       </div>
 
@@ -36,8 +35,6 @@
           登 录
         </el-button>
       </el-form>
-
-      <div class="login-tip">初始管理员账号 admin / zing@123，首次登录后请尽快修改。</div>
     </div>
   </div>
 </template>
@@ -139,12 +136,6 @@ async function submit() {
   line-height: 1.3;
 }
 
-.brand-sub {
-  font-size: 12px;
-  color: #a8a29e;
-  line-height: 1.3;
-}
-
 .login-title {
   font-size: 20px;
   font-weight: 600;
@@ -171,14 +162,5 @@ async function submit() {
 .submit-btn:focus {
   background: #44403c;
   border-color: #44403c;
-}
-
-.login-tip {
-  margin-top: 18px;
-  font-size: 12px;
-  color: #a8a29e;
-  line-height: 1.6;
-  border-top: 1px solid #f5f5f4;
-  padding-top: 14px;
 }
 </style>

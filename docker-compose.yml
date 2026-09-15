@@ -1,5 +1,5 @@
 # =====================================================================
-# zing-doctor 医生系统 - Docker Compose 部署配置
+# 医生决策系统 - Docker Compose 部署配置
 #
 # 用法：
 #   1. 有外网：docker compose up -d --build

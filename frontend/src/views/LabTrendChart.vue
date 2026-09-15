@@ -25,7 +25,7 @@
 </template>
 
 <script>
-import * as echarts from 'echarts'
+import * as echarts from '../utils/echarts'
 
 const COLOR = {
   PCT: '#2d6fbf',

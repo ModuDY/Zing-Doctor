@@ -1,11 +1,11 @@
 -- =====================================================================
--- zing-doctor 医生系统 - 自有数据库结构（达梦 DM8）
+-- 医生决策系统 - 自有数据库结构（达梦 DM8）
 --
 -- 说明：
---   1. 本库存放医生系统自身产生的业务数据（决策记录、外链访问日志、页面配置等）
+--   1. 本库存放医生决策系统自身产生的业务数据（决策记录、外链访问日志、页面配置等）
 --   2. 分析判断所需的患者/医嘱/检验/微生物数据来源于 ICU 系统库 zing_icu_db_prod，
 --      本库不复制 ICU 业务主数据，仅通过只读数据源访问。
---   3. 数据库为达梦 DM8。医生系统统一用 SYSDBA 连接达梦（与 ICU 系统访问方式一致），
+--   3. 数据库为达梦 DM8。医生决策系统统一用 SYSDBA 连接达梦（与 ICU 系统访问方式一致），
 --      通过显式模式前缀访问各模式。本脚本建表于模式 zing_doctor_db_prod 下
 --      （SQL 中的 "zing_doctor_db_prod"."xxx" 即显式模式限定）。
 --      部署前先用 00_init_user.sql（SYSDBA 执行）创建该模式。
@@ -55,7 +55,7 @@ CREATE UNIQUE INDEX "zing_doctor_db_prod"."uk_zing_page_config_page_code"
     ON "zing_doctor_db_prod"."zing_page_config" ("page_code");
 
 -- ---------------------------------------------------------------------
--- 外链访问日志：记录外部系统（ICU）外链进入医生系统的访问
+-- 外链访问日志：记录外部系统（ICU）外链进入医生决策系统的访问
 -- ---------------------------------------------------------------------
 CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_external_access_log" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."zing_external_access_log" (

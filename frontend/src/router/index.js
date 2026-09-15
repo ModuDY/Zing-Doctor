@@ -176,7 +176,7 @@ const router = createRouter({
 router.beforeEach((to) => {
   // 外链打开时捕获签名上下文（pageCode/expire/sign），供 /api 调用鉴权
   captureExternalContext()
-  document.title = to.meta.title ? `${to.meta.title} · 医生系统` : '医生系统'
+  document.title = to.meta.title ? `${to.meta.title} · 医生决策系统` : '医生决策系统'
 
   if (to.name === 'login') {
     // 已登录时不该再看登录页

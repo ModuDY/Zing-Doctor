@@ -207,8 +207,8 @@ public class PkpdServiceImpl implements PkpdService {
         return renal;
     }
 
-    /** Cockcroft-Gault 肌酐清除率（mL/min） */
-    private BigDecimal calcCrclCockcroftGault(int age, BigDecimal weightKg, BigDecimal crMgDl, String gender) {
+    /** Cockcroft-Gault 肌酐清除率（mL/min）。包内可见：供单测直接验证计算口径 */
+    BigDecimal calcCrclCockcroftGault(int age, BigDecimal weightKg, BigDecimal crMgDl, String gender) {
         if (crMgDl == null || crMgDl.compareTo(BigDecimal.ZERO) <= 0) {
             return null;
         }
@@ -221,8 +221,8 @@ public class PkpdServiceImpl implements PkpdService {
         return crcl;
     }
 
-    /** CKD-EPI eGFR（简化版，不考虑种族，mL/min/1.73m²） */
-    private BigDecimal calcEgfrCkdEpi(int age, BigDecimal crMgDl, String gender) {
+    /** CKD-EPI eGFR（简化版，不考虑种族，mL/min/1.73m²）。包内可见：供单测直接验证计算口径 */
+    BigDecimal calcEgfrCkdEpi(int age, BigDecimal crMgDl, String gender) {
         if (crMgDl == null || crMgDl.compareTo(BigDecimal.ZERO) <= 0) {
             return null;
         }
@@ -235,8 +235,8 @@ public class PkpdServiceImpl implements PkpdService {
         return new BigDecimal(egfr).setScale(1, RoundingMode.HALF_UP);
     }
 
-    /** KDIGO 肾功能分级 */
-    private String[] classifyRenalStage(BigDecimal egfr) {
+    /** KDIGO 肾功能分级。包内可见：供单测直接验证分级边界 */
+    String[] classifyRenalStage(BigDecimal egfr) {
         if (egfr == null) return new String[]{"unknown", "未知"};
         double v = egfr.doubleValue();
         if (v >= 90) return new String[]{"G1", "正常或增高"};

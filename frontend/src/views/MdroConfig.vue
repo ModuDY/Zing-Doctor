@@ -120,7 +120,7 @@
         </el-form-item>
         <el-form-item label="是否高风险">
           <el-switch v-model="form.isHighRisk" :active-value="1" :inactive-value="0" />
-          <span style="margin-left: 8px; color: #909399; font-size: 12px;">ICU常见MDRO风险菌标记为高风险</span>
+          <span style="margin-left: 8px; color: #78716c; font-size: 12px;">ICU常见MDRO风险菌标记为高风险</span>
         </el-form-item>
         <el-form-item label="匹配关键词">
           <el-input v-model="form.keywords" type="textarea" :rows="2" placeholder="多个关键词用逗号分隔，如：鲍曼不动杆菌,不动杆菌" />

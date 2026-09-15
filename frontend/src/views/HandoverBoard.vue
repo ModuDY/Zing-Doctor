@@ -511,7 +511,7 @@ onMounted(() => {
 .pc-line.dim { color: #78716c; }
 .diagnosis { color: #292524; line-height: 1.4; height: 1.8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.vital-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 6px; padding: 8px; background: #f7f9fc; border-radius: 6px; }
+.vital-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 6px; padding: 8px; background: #fafaf9; border-radius: 6px; }
 .vital { font-size: 12px; color: #78716c; }
 .vital b { color: #292524; font-size: 13.5px; font-weight: 600; margin-left: 2px; }
 .vital.hot b, .danger-text { color: #dc2626; }
@@ -537,7 +537,7 @@ onMounted(() => {
 .d-name { font-size: 18px; font-weight: 600; margin-right: 10px; }
 .d-meta { color: #78716c; font-size: 13px; }
 .d-jump { display: flex; gap: 8px; }
-.d-info-line { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: #44403c; background: #f7f9fc; padding: 8px 12px; border-radius: 6px; margin-bottom: 14px; }
+.d-info-line { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: #44403c; background: #fafaf9; padding: 8px 12px; border-radius: 6px; margin-bottom: 14px; }
 
 .d-section { background: #fff; border: 1px solid #e7e5e4; border-radius: 8px; padding: 14px; margin-bottom: 12px; }
 .block-title { display: flex; align-items: center; font-size: 15px; font-weight: 600; color: #292524; margin-bottom: 10px; }

@@ -293,7 +293,7 @@ import { ref, reactive, onMounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { fetchPkpd, fetchPkpdByNo } from '../api/antibiotic'
 import { Warning, InfoFilled, Clock } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
+import * as echarts from '../utils/echarts'
 import '../styles/abx-theme.css'
 
 const route = useRoute()
@@ -427,7 +427,7 @@ watch(() => route.query.inHospitalNo, () => {
 }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
 .dot-blue { background: linear-gradient(180deg, #0d9488, #2dd4bf); }
-.dot-cyan { background: #17a2b8; }
+.dot-cyan { background: #0891b2; }
 .dot-red { background: #dc2626; }
 .dot-purple { background: #8b6fd8; }
 .dot-green { background: #16a34a; }
@@ -446,7 +446,7 @@ watch(() => route.query.inHospitalNo, () => {
   flex: 0 0 auto;
   min-width: 100px;
   padding: 4px 16px;
-  border-right: 1px solid #eef1f5;
+  border-right: 1px solid #f5f5f4;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -460,12 +460,12 @@ watch(() => route.query.inHospitalNo, () => {
   padding: 4px 8px;
 }
 .p-cell-group .p-cell {
-  border-right: 1px solid #e2e8f0;
+  border-right: 1px solid #e7e5e4;
   padding: 4px 12px;
   min-width: 90px;
 }
 .p-cell-group .p-cell:last-child { border-right: none; }
-.p-cell label { font-size: 12px; color: #8a94a3; }
+.p-cell label { font-size: 12px; color: #78716c; }
 .p-cell b { font-size: 14px; color: #44403c; }
 .warn-text { color: #d97706; font-weight: 600; }
 
@@ -502,7 +502,7 @@ watch(() => route.query.inHospitalNo, () => {
   gap: 8px;
   margin-bottom: 12px;
   padding: 12px;
-  background: linear-gradient(135deg, #f0f6ff, #e8f0fe);
+  background: linear-gradient(135deg, #f0fdfa, #ccfbf1);
   border-radius: 8px;
 }
 .renal-num { font-size: 36px; font-weight: 700; line-height: 1; }
@@ -559,7 +559,7 @@ watch(() => route.query.inHospitalNo, () => {
   font-size: 12px;
   margin-top: 8px;
 }
-.obese-alert { background: #fef3c7; color: #b88230; }
+.obese-alert { background: #fef3c7; color: #92400e; }
 .low-weight-alert { background: #f0fdfa; color: #0d9488; }
 
 /* 肝功能 */
@@ -587,7 +587,7 @@ watch(() => route.query.inHospitalNo, () => {
   background: #fef3c7;
   border-radius: 6px;
   font-size: 12px;
-  color: #b88230;
+  color: #92400e;
 }
 
 /* 抗菌药 PK/PD 分析 */

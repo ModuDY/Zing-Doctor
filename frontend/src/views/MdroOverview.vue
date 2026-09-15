@@ -147,7 +147,7 @@ import { ref, reactive, onMounted, nextTick, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Refresh, User, Setting } from '@element-plus/icons-vue'
 import request from '../api/request'
-import * as echarts from 'echarts'
+import * as echarts from '../utils/echarts'
 import '../styles/abx-theme.css'
 
 const router = useRouter()

@@ -442,8 +442,9 @@ public class DddStatsServiceImpl implements DddStatsService {
 
     /**
      * 匹配 DDD 配置（先匹配通用名，再匹配关键词）。
+     * <p>包内可见：供单测直接验证「通用名优先于关键词」的匹配顺序。
      */
-    private DddConfig matchDddConfig(String adviceName, List<DddConfig> configs) {
+    DddConfig matchDddConfig(String adviceName, List<DddConfig> configs) {
         for (DddConfig config : configs) {
             if (adviceName.contains(config.getDrugName())) {
                 return config;
@@ -464,8 +465,9 @@ public class DddStatsServiceImpl implements DddStatsService {
 
     /**
      * 从 drug_one_dosage 和 drug_one_dosage_unit 字段解析单次剂量，并转换为目标单位。
+     * <p>包内可见：供单测直接验证单位换算（mg/μg/g/MU）。
      */
-    private BigDecimal parseDoseFromFields(Map<String, Object> advice, String targetUnit) {
+    BigDecimal parseDoseFromFields(Map<String, Object> advice, String targetUnit) {
         Object dosageObj = advice.get("drug_one_dosage");
         Object unitObj = advice.get("drug_one_dosage_unit");
         if (dosageObj == null) return null;
@@ -503,8 +505,9 @@ public class DddStatsServiceImpl implements DddStatsService {
 
     /**
      * 从医嘱名称中解析单次剂量（转换为 g）。
+     * <p>包内可见：供单测直接验证解析口径（多剂量取最大、mg 换算等）。
      */
-    private BigDecimal parseDose(String adviceName, String targetUnit) {
+    BigDecimal parseDose(String adviceName, String targetUnit) {
         if (adviceName == null) return null;
 
         Matcher matcher = DOSE_PATTERN.matcher(adviceName);
@@ -583,8 +586,9 @@ public class DddStatsServiceImpl implements DddStatsService {
 
     /**
      * 解析频次为每日次数。
+     * <p>包内可见：供单测直接验证频次映射（未识别频次回退 1 次/日）。
      */
-    private double parseFreq(String freq) {
+    double parseFreq(String freq) {
         if (freq == null || freq.isEmpty()) return 1.0;
         String lower = freq.toLowerCase().trim();
         return FREQ_MAP.getOrDefault(lower, 1.0);
@@ -592,8 +596,9 @@ public class DddStatsServiceImpl implements DddStatsService {
 
     /**
      * 判断是否为溶媒。
+     * <p>包内可见：供单测锁定当前口径（实现当前恒返回 false，即 DDD 统计不过滤溶媒）。
      */
-    private boolean isSolvent(String name) {
+    boolean isSolvent(String name) {
         for (String keyword : SOLVENT_KEYWORDS) {
             if (name.contains(keyword)) {
                 // 但如果同时包含抗菌药关键词，则不是纯溶媒（如"氯化钠+美罗培南"）

@@ -15,7 +15,7 @@ import java.util.Map;
 /**
  * 外链令牌签发接口（P0 供集成调试与联调用）。
  *
- * <p>生产环境中应由 ICU 系统或医生系统管理端持密钥签发，避免暴露给浏览器端调用方。
+ * <p>生产环境中应由 ICU 系统或医生决策系统管理端持密钥签发，避免暴露给浏览器端调用方。
  */
 @RestController
 @RequestMapping("/api/external")

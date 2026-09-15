@@ -198,7 +198,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Cpu, Download, Grid, CircleCheck, Collection, View } from '@element-plus/icons-vue'
 import { externalParam } from '../utils/external'
 import '../styles/quality-theme.css'
-import * as echarts from 'echarts'
+import * as echarts from '../utils/echarts'
 import {
   fetchQualityMonthly,
   rebuildQualityMonthly,

@@ -24,7 +24,7 @@ public class ExternalLinkService {
     /**
      * 签发一个可直接外链访问的 URL。
      *
-     * @param baseUrl  医生系统对外访问基础地址，如 https://doctor.example.com
+     * @param baseUrl  医生决策系统对外访问基础地址，如 https://doctor.example.com
      * @param pageCode 页面编码（须已在 zing_page_config 注册）
      * @param params   业务参数（如 patientId）
      * @return 完整外链 URL

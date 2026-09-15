@@ -1,13 +1,13 @@
 -- ================================================================
 -- ICU 信息系统（zing_icu_db_prod）性能优化索引
--- 用途：医生系统（zing-doctor）只读查询 ICU 库时的性能加速
+-- 用途：医生决策系统只读查询 ICU 库时的性能加速
 -- 说明：这些索引加在 ICU 业务库上，不影响 ICU 系统原有功能
 -- 达梦 DM8 方言，表名/列名双引号保小写
 -- 注意：DbInit 工具的 ensureIndex 已内置幂等检查（索引存在自动跳过），
 --       此处不写 IF NOT EXISTS（DbInit 不识别该语法会解析错误）
 -- ================================================================
 
--- 1. patient_info_lis_item：检验明细表（医生系统核心查询，原无 in_hospital_no 索引导致单条 SQL 10s+）
+-- 1. patient_info_lis_item：检验明细表（医生决策系统核心查询，原无 in_hospital_no 索引导致单条 SQL 10s+）
 CREATE INDEX "zing_icu_db_prod"."idx_pili_in_hospital_no"
   ON "zing_icu_db_prod"."patient_info_lis_item" ("in_hospital_no");
 

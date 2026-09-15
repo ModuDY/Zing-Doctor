@@ -1,10 +1,11 @@
 import { createApp } from 'vue'
 import { captureExternalContext } from './utils/external'
-import ElementPlus from 'element-plus'
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import 'element-plus/dist/index.css'
 import App from './App.vue'
 import router from './router'
+
+// Element Plus 已改为按需引入（见 vite.config.js 的 Components/ElementPlus 插件），
+// 不再全量 `import ElementPlus` + `element-plus/dist/index.css`；
+// 全局中文语言包改由 App.vue 的 <el-config-provider :locale> 提供。
 
 // 必须在 createApp 之前同步捕获外链上下文：
 // App.vue 在 setup 时就会读取 isExternalMode() 决定是否渲染侧边栏，
@@ -31,6 +32,5 @@ window.addEventListener('unhandledrejection', (e) => {
   console.error('[frontend-error] unhandled rejection', e.reason)
 })
 
-app.use(ElementPlus, { locale: zhCn })
 app.use(router)
 app.mount('#app')

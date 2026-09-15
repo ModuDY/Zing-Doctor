@@ -105,7 +105,7 @@ public class QualityProperties {
     /** 指标定义文件，可多个 */
     private String metricLocation = "classpath*:quality/metrics/*.yaml";
 
-    /** 事实层物化落库的 schema（医生系统主库） */
+    /** 事实层物化落库的 schema（医生决策系统主库） */
     private String factSchema = "zing_doctor_db_prod";
 
     /** 事实层表名前缀，最终表名 = 前缀 + factName */

@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * 医生系统（ICU 抗生素分析 - P0 框架）启动类。
+ * 医生决策系统启动类。
  */
 @SpringBootApplication
 @EnableScheduling

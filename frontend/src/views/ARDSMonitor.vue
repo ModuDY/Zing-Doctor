@@ -157,7 +157,7 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick, computed } from 'vue'
 import { Search } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
+import * as echarts from '../utils/echarts'
 import request from '../api/request'
 
 const loading = ref(false)

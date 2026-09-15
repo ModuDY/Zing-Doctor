@@ -1,5 +1,5 @@
 # =====================================================================
-# zing-doctor 医生系统 - 后端 Dockerfile
+# 医生决策系统 - 后端 Dockerfile
 # 基础镜像：openjdk:8-jre-slim（内网环境可提前 docker pull 或导入）
 # 构建：docker build -t zing-doctor-backend:latest .
 # 运行：docker run -d --name zing-doctor-backend -p 8081:8081 zing-doctor-backend

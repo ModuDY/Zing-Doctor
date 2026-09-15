@@ -1146,7 +1146,7 @@ onMounted(() => {
   align-items: center;
 }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
-.dot-cyan { background: #17a2b8; }
+.dot-cyan { background: #0891b2; }
 .dot-orange { background: #d97706; }
 
 /* 患者信息横条 */
@@ -1160,7 +1160,7 @@ onMounted(() => {
   flex: 0 0 auto;
   min-width: 100px;
   padding: 4px 16px;
-  border-right: 1px solid #eef1f5;
+  border-right: 1px solid #f5f5f4;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1174,12 +1174,12 @@ onMounted(() => {
   margin-right: 16px;
 }
 .p-cell-group .p-cell {
-  border-right: 1px solid #e2e8f0;
+  border-right: 1px solid #e7e5e4;
   padding: 4px 12px;
   min-width: 88px;
 }
 .p-cell-group .p-cell:last-child { border-right: none; }
-.p-cell label { font-size: 12px; color: #8a94a3; }
+.p-cell label { font-size: 12px; color: #78716c; }
 .p-cell b { font-size: 14px; color: #44403c; font-weight: 600; }
 .danger-text { color: #dc2626; font-weight: 600; }
 
@@ -1217,7 +1217,7 @@ onMounted(() => {
   font-size: 12px;
   font-weight: 700;
   color: #78716c;
-  border: 2px solid #d3d7de;
+  border: 2px solid #d6d3d1;
   background: #fafaf9;
   position: relative;
 }
@@ -1233,8 +1233,8 @@ onMounted(() => {
   animation: pulse 2s infinite;
 }
 @keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(230, 162, 60, 0.2); }
-  50% { box-shadow: 0 0 0 6px rgba(230, 162, 60, 0.3); }
+  0%, 100% { box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2); }
+  50% { box-shadow: 0 0 0 6px rgba(217, 119, 6, 0.3); }
 }
 .step-circle .mini-check {
   position: absolute;
@@ -1280,7 +1280,7 @@ onMounted(() => {
   top: 0;
   bottom: 0;
   width: 0;
-  background: linear-gradient(90deg, #16a34a, #85ce61);
+  background: linear-gradient(90deg, #16a34a, #4ade80);
   border-radius: 2px;
 }
 .step-line.filled .fill { width: 100%; }
@@ -1343,13 +1343,13 @@ onMounted(() => {
 }
 .btn-danger-ghost {
   background: #fff;
-  border-color: #fbc4c4;
+  border-color: #fecaca;
   color: #dc2626;
 }
 .btn-danger-ghost:hover {
   background: #fee2e2;
   border-color: #dc2626;
-  color: #d03050;
+  color: #dc2626;
 }
 .btn-success {
   background: #16a34a;
@@ -1447,12 +1447,12 @@ onMounted(() => {
 .status-tag.done {
   background: #f0fdf4;
   color: #16a34a;
-  border: 1px solid #e1f3d8;
+  border: 1px solid #dcfce7;
 }
 .status-tag.pending {
   background: #fef3c7;
   color: #d97706;
-  border: 1px solid #faecd8;
+  border: 1px solid #fef3c7;
 }
 
 .bundle-card-body {
@@ -1542,12 +1542,12 @@ onMounted(() => {
   padding: 12px 14px;
   background: #fafaf9;
   border-radius: 8px;
-  border-left: 3px solid #17a2b8;
+  border-left: 3px solid #0891b2;
 }
 .assessment-title {
   font-size: 12px;
   font-weight: 600;
-  color: #17a2b8;
+  color: #0891b2;
   margin-bottom: 10px;
 }
 .assessment-grid {
@@ -1559,7 +1559,7 @@ onMounted(() => {
   padding: 6px 8px;
   background: #fff;
   border-radius: 4px;
-  border: 1px solid #eef1f5;
+  border: 1px solid #f5f5f4;
 }
 .assess-label {
   font-size: 10px;
@@ -1730,7 +1730,7 @@ onMounted(() => {
 }
 .reason-item.checked {
   background: #f0fdf4;
-  border: 1px solid #e1f3d8;
+  border: 1px solid #dcfce7;
 }
 .reason-item input[type="checkbox"] {
   width: 15px;
@@ -1772,7 +1772,7 @@ onMounted(() => {
 .no-reason {
   padding: 16px;
   text-align: center;
-  color: #a0aec0;
+  color: #a8a29e;
   font-size: 13px;
 }
 
@@ -1819,7 +1819,7 @@ onMounted(() => {
   .p-progress-area {
     min-width: 100%;
     padding: 8px 16px 0;
-    border-top: 1px solid #eef1f5;
+    border-top: 1px solid #f5f5f4;
     margin-top: 8px;
   }
 }

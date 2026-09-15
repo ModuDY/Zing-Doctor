@@ -3,10 +3,9 @@
     <!-- 侧边栏 -->
     <aside class="sidebar">
       <div class="sidebar-logo">
-        <div class="logo-icon">抗</div>
+        <div class="logo-icon">医</div>
         <div class="logo-text">
           <div class="logo-title">医生决策系统</div>
-          <div class="logo-sub">ICU 抗生素分析</div>
         </div>
       </div>
 
@@ -184,12 +183,6 @@ export default {
   font-weight: 600;
   color: #1c1917;
   line-height: 1.3;
-}
-
-.logo-sub {
-  font-size: 11px;
-  color: #a8a29e;
-  margin-top: 2px;
 }
 
 .sidebar-nav {

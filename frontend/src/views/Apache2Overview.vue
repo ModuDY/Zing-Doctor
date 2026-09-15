@@ -134,7 +134,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import request from '../api/request'
 import { appendExternalContext } from '../utils/external'
-import * as echarts from 'echarts'
+import * as echarts from '../utils/echarts'
 
 const route = useRoute()
 // ICU 外链模板未被替换的占位符（如 ${departCode}）会原样带进 query，必须按“无效参数”处理，

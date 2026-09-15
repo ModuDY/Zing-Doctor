@@ -123,7 +123,7 @@
                   :label="item.label"
                   :value="item.value">
                   <span style="float: left">{{ item.label }}</span>
-                  <span style="float: right; color: #8492a6; font-size: 12px">
+                  <span style="float: right; color: #a8a29e; font-size: 12px">
                     {{ item.workNo }} · {{ item.pinyin }} · {{ item.depart }}
                   </span>
                 </el-option>
@@ -365,7 +365,7 @@ export default {
   gap: 12px;
   padding: 0 24px;
   height: 56px;
-  background: linear-gradient(90deg, #0f2a43, #1f4e79);
+  background: linear-gradient(90deg, #134e4a, #0f766e);
   color: #fff;
   position: sticky;
   top: 0;
@@ -390,7 +390,7 @@ export default {
 }
 .top-patient {
   font-size: 14px;
-  color: #cfe3f5;
+  color: #99f6e4;
 }
 
 .page-body {
@@ -420,7 +420,7 @@ export default {
 }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
 .dot-blue { background: linear-gradient(180deg, #0d9488, #2dd4bf); }
-.dot-cyan { background: #17a2b8; }
+.dot-cyan { background: #0891b2; }
 .dot-red { background: #dc2626; }
 .dot-purple { background: #8b6fd8; }
 .dot-green { background: #16a34a; }
@@ -438,7 +438,7 @@ export default {
   flex: 0 0 auto;
   min-width: 100px;
   padding: 4px 16px;
-  border-right: 1px solid #eef1f5;
+  border-right: 1px solid #f5f5f4;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -452,14 +452,14 @@ export default {
   padding: 4px 8px;
 }
 .p-cell-group .p-cell {
-  border-right: 1px solid #e2e8f0;
+  border-right: 1px solid #e7e5e4;
   padding: 4px 12px;
   min-width: 90px;
 }
 .p-cell-group .p-cell:last-child { border-right: none; }
-.p-cell label { font-size: 12px; color: #8a94a3; }
+.p-cell label { font-size: 12px; color: #78716c; }
 .p-cell b { font-size: 14px; color: #44403c; }
-.type-highlight { color: #1f4e79; }
+.type-highlight { color: #0f766e; }
 
 /* 主体三栏 */
 .main-grid {
@@ -481,8 +481,8 @@ export default {
 .abx-list { margin: 0; padding: 0; list-style: none; max-height: 220px; overflow-y: auto; padding-right: 4px; }
 .abx-list::-webkit-scrollbar { width: 4px; }
 .abx-list::-webkit-scrollbar-track { background: transparent; }
-.abx-list::-webkit-scrollbar-thumb { background: #c8d4e3; border-radius: 2px; }
-.abx-list::-webkit-scrollbar-thumb:hover { background: #a8b8cc; }
+.abx-list::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 2px; }
+.abx-list::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
 .abx-list li {
   padding: 8px 10px;
   background: #f0fdfa;
@@ -490,7 +490,7 @@ export default {
   border-radius: 6px;
   margin-bottom: 8px;
   font-size: 13px;
-  color: #2c4056;
+  color: #292524;
 }
 .abx-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .abx-time { font-family: 'Courier New', monospace; font-size: 12px; color: #78716c; background: #f5f5f4; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
@@ -498,11 +498,11 @@ export default {
 .abx-freq { font-weight: 400; font-size: 12px; color: #0f766e; background: #ccfbf1; padding: 1px 5px; border-radius: 3px; margin-left: 4px; }
 .abx-method { font-size: 12px; color: #78716c; }
 .abx-tag { margin-left: auto; }
-.abx-list .empty-li { background: none; border: none; color: #a0a8b4; }
+.abx-list .empty-li { background: none; border: none; color: #a8a29e; }
 
 /* 推荐方案 */
 .plan-item {
-  border: 1px solid #eef1f5;
+  border: 1px solid #f5f5f4;
   border-left: 4px solid #dc2626;
   border-radius: 8px;
   padding: 12px 14px;
@@ -514,7 +514,7 @@ export default {
 .plan-dose { margin-top: 8px; font-size: 15px; color: #292524; font-weight: 600; }
 .plan-reason { margin-top: 6px; font-size: 13px; color: #44403c; }
 .plan-evidence { margin-top: 2px; font-size: 12px; color: #78716c; }
-.reason-label { color: #8a94a3; }
+.reason-label { color: #78716c; }
 
 /* 既往培养：横向铺开 */
 .culture-grid {
@@ -524,23 +524,23 @@ export default {
 }
 .culture-chip {
   background: #f5f5f4;
-  border: 1px solid #e4e9f0;
+  border: 1px solid #e7e5e4;
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 13px;
-  color: #3d4a5c;
+  color: #44403c;
 }
 .culture-chip.culture-danger {
   background: #fee2e2;
-  border-color: #f3c2c2;
-  color: #b33636;
+  border-color: #fecaca;
+  color: #b91c1c;
 }
 .culture-chip.culture-warn {
   background: #fef3c7;
-  border-color: #ecd9a8;
-  color: #8a6d1f;
+  border-color: #fde68a;
+  color: #92400e;
 }
-.culture-empty { color: #a0a8b4; font-size: 13px; padding: 8px; }
+.culture-empty { color: #a8a29e; font-size: 13px; padding: 8px; }
 
 /* 下部：决策 + 历史 */
 .bottom-grid {

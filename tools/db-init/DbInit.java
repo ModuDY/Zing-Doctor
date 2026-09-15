@@ -60,27 +60,55 @@ public class DbInit {
         try (Statement st = conn.createStatement()) {
             for (String s : stmts) {
                 String t = s.trim();
-                // 忽略空语句、纯 "/" 或 "/" 开头（disql CREATE SCHEMA 专属终止符，JDBC 无需执行）
+                // 忽略空语句、纯 "/" 或 "/" 开头（disql 块终止符，已在拆分阶段消费；此处兜底）
                 if (t.isEmpty() || t.equals("/") || t.startsWith("/")) {
                     continue;
                 }
-                if (isCreateSchema(t)) {
-                    ensureSchema(st, t);
-                } else if (isCreateTable(t)) {
-                    ensureTable(st, t);
-                } else if (isCreateIndex(t)) {
-                    ensureIndex(st, t);
-                } else if (isAlterAddColumn(t)) {
-                    ensureColumn(st, t);
-                } else if (isCommentOnColumn(t)) {
-                    ensureCommentColumn(st, t);
-                } else {
-                    st.execute(t);
+                try {
+                    executeOne(st, t);
+                } catch (Exception e) {
+                    // 打印失败语句片段，便于定位达梦报的「第 N 行 第 M 列」到底是哪一条
+                    System.err.println("[ERROR] " + path + " 第 " + (ok + 1) + " 条语句执行失败：");
+                    System.err.println(preview(t));
+                    throw e;
                 }
                 ok++;
             }
         }
         System.out.println("[OK] " + path + " 执行 " + ok + " 条语句");
+    }
+
+    /** 按语句类型分派执行（幂等创建 / 直接执行） */
+    private static void executeOne(Statement st, String t) throws Exception {
+        if (isCreateSchema(t)) {
+            ensureSchema(st, t);
+        } else if (isCreateTable(t)) {
+            ensureTable(st, t);
+        } else if (isCreateIndex(t)) {
+            ensureIndex(st, t);
+        } else if (isCreateSequence(t)) {
+            ensureSequence(st, t);
+        } else if (isAlterAddColumn(t)) {
+            ensureColumn(st, t);
+        } else if (isCommentOnColumn(t)) {
+            ensureCommentColumn(st, t);
+        } else {
+            st.execute(t);
+        }
+    }
+
+    /** 失败语句预览：最多 6 行，避免长 SQL 刷屏 */
+    private static String preview(String t) {
+        String[] lines = t.split("\\R");
+        StringBuilder sb = new StringBuilder();
+        int max = Math.min(lines.length, 6);
+        for (int i = 0; i < max; i++) {
+            sb.append("    ").append(lines[i]).append(System.lineSeparator());
+        }
+        if (lines.length > max) {
+            sb.append("    ...（语句共 ").append(lines.length).append(" 行，已截断）");
+        }
+        return sb.toString();
     }
 
     // ------------------------------------------------------------------
@@ -100,6 +128,11 @@ public class DbInit {
     /** 是否 CREATE [UNIQUE] INDEX 语句 */
     private static boolean isCreateIndex(String t) {
         return t.matches("(?is)^\\s*CREATE\\s+(?:UNIQUE\\s+)?INDEX(\\s|$).*");
+    }
+
+    /** 是否 CREATE SEQUENCE 语句 */
+    private static boolean isCreateSequence(String t) {
+        return t.matches("(?is)^\\s*CREATE\\s+SEQUENCE(\\s|$).*");
     }
 
     // ------------------------------------------------------------------
@@ -164,6 +197,25 @@ public class DbInit {
             System.out.println("[DB] 索引创建跳过（" + msg.replaceAll("\\s+", " ").trim() + "）: "
                     + (schema != null ? schema + "." : "") + name);
         }
+    }
+
+    /** 幂等创建序列：查 ALL_SEQUENCES，已存在则跳过（达梦不支持 CREATE SEQUENCE IF NOT EXISTS） */
+    private static void ensureSequence(Statement st, String createSql) throws Exception {
+        String[] parts = extractObjectName(createSql);
+        String schema = parts.length >= 2 ? parts[0] : null;
+        String name = parts[parts.length - 1];
+        String cond = schema != null
+                ? "UPPER(SEQUENCE_OWNER)=UPPER('" + esc(schema) + "')"
+                : "UPPER(SEQUENCE_OWNER)=USER";
+        boolean exists = existsByQuery(st,
+                "SELECT COUNT(*) FROM ALL_SEQUENCES WHERE " + cond
+                        + " AND UPPER(SEQUENCE_NAME)=UPPER('" + esc(name) + "')");
+        if (exists) {
+            System.out.println("[DB] 序列已存在，跳过: " + (schema != null ? schema + "." : "") + name);
+            return;
+        }
+        st.execute(createSql);
+        System.out.println("[DB] 已创建序列: " + (schema != null ? schema + "." : "") + name);
     }
 
     // ------------------------------------------------------------------
@@ -275,12 +327,12 @@ public class DbInit {
     }
 
     /**
-     * 提取 CREATE TABLE / CREATE [UNIQUE] INDEX 的目标对象限定名。
+     * 提取 CREATE TABLE / CREATE [UNIQUE] INDEX / CREATE SEQUENCE 的目标对象限定名。
      * 支持 "schema"."name"、schema.name 或裸 name。
      * 返回数组：长度 2 为 {schema, name}，长度 1 为 {name}。
      */
     private static String[] extractObjectName(String t) {
-        String body = t.replaceFirst("(?is)^\\s*CREATE\\s+(?:UNIQUE\\s+)?(?:TABLE|INDEX)\\s+", "").trim();
+        String body = t.replaceFirst("(?is)^\\s*CREATE\\s+(?:UNIQUE\\s+)?(?:TABLE|INDEX|SEQUENCE)\\s+", "").trim();
         Pattern ident = Pattern.compile("^(?:\"([^\"]+)\"|([^\\s.\\\"(]+))");
         Matcher m = ident.matcher(body);
         if (!m.find()) {
@@ -310,12 +362,22 @@ public class DbInit {
         return s.replace("'", "''");
     }
 
-    /** 按分号拆分 SQL；忽略 "--" 行注释与单引号字符串内的分号 */
+    /**
+     * 按分号拆分 SQL；忽略 "--" 行注释与单引号字符串内的分号。
+     *
+     * <p>PL/SQL 块特殊处理（关键）：DECLARE/BEGIN 匿名块、CREATE PROCEDURE/FUNCTION/
+     * TRIGGER/PACKAGE 等过程体内部含大量分号，按分号拆会把块切成碎片导致
+     * 「语法分析出错」。识别到块头后进入块模式，后续分号一律不拆，
+     * 一直读到 disql 的块终止符——独占一行的 "/" 为止（该 "/" 本身不进入语句）。
+     */
     private static List<String> splitStatements(String content) {
         List<String> out = new ArrayList<>();
         StringBuilder cur = new StringBuilder();
+        StringBuilder word = new StringBuilder();
+        List<String> headWords = new ArrayList<>();
         boolean inStr = false;
         boolean inLineComment = false;
+        boolean inBlock = false;
         int n = content.length();
         for (int i = 0; i < n; i++) {
             char c = content.charAt(i);
@@ -334,8 +396,8 @@ public class DbInit {
                 continue;
             }
             if (c == '\'') {
-                if (i + 1 < n && content.charAt(i + 1) == '\'') {
-                    // '' 转义的单引号
+                if (inStr && i + 1 < n && content.charAt(i + 1) == '\'') {
+                    // 字符串内 '' 表示一个单引号字符（如 EXECUTE IMMEDIATE 'DEFAULT ''text'''）
                     cur.append("''");
                     i++;
                     continue;
@@ -344,11 +406,38 @@ public class DbInit {
                 cur.append(c);
                 continue;
             }
-            if (c == ';' && !inStr) {
+            // disql 块终止符：独占一行的 "/" → 结束当前语句（含 PL/SQL 块）
+            if (!inStr && c == '/' && isSlashOnlyLine(content, i)) {
                 if (cur.toString().trim().length() > 0) {
                     out.add(cur.toString());
                 }
                 cur.setLength(0);
+                word.setLength(0);
+                headWords.clear();
+                inBlock = false;
+                int eol = content.indexOf('\n', i);
+                i = (eol < 0 ? n : eol) - 1; // 跳到本行行尾，换行符留给下一轮拼入
+                continue;
+            }
+            // 收集语句开头的关键字，判断是否为 PL/SQL 块（只看前两个词，够用且不被长 SQL 拖累）
+            if (!inStr && !inBlock && headWords.size() < 2) {
+                if (isWordChar(c)) {
+                    word.append(c);
+                } else if (word.length() > 0) {
+                    headWords.add(word.toString());
+                    word.setLength(0);
+                    if (isBlockHead(headWords)) {
+                        inBlock = true;
+                    }
+                }
+            }
+            if (c == ';' && !inStr && !inBlock) {
+                if (cur.toString().trim().length() > 0) {
+                    out.add(cur.toString());
+                }
+                cur.setLength(0);
+                word.setLength(0);
+                headWords.clear();
             } else {
                 cur.append(c);
             }
@@ -357,5 +446,53 @@ public class DbInit {
             out.add(cur.toString());
         }
         return out;
+    }
+
+    /** 标识符字符（用于取语句开头的关键字） */
+    private static boolean isWordChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '$' || c == '#';
+    }
+
+    /**
+     * 语句开头是否为 PL/SQL 块：
+     * DECLARE / BEGIN 匿名块，或 CREATE [OR REPLACE] PROCEDURE|FUNCTION|TRIGGER|PACKAGE|TYPE。
+     */
+    private static boolean isBlockHead(List<String> headWords) {
+        if (headWords.isEmpty()) {
+            return false;
+        }
+        String w1 = headWords.get(0).toUpperCase();
+        String w2 = headWords.size() > 1 ? headWords.get(1).toUpperCase() : "";
+        if ("DECLARE".equals(w1) || "BEGIN".equals(w1)) {
+            return true;
+        }
+        if ("CREATE".equals(w1)) {
+            return "OR".equals(w2) || "PROCEDURE".equals(w2) || "FUNCTION".equals(w2)
+                    || "TRIGGER".equals(w2) || "PACKAGE".equals(w2) || "TYPE".equals(w2);
+        }
+        return false;
+    }
+
+    /** content[i] 处的 '/' 是否独占一行（行内其余字符均为空白） */
+    private static boolean isSlashOnlyLine(String content, int i) {
+        for (int k = i - 1; k >= 0; k--) {
+            char p = content.charAt(k);
+            if (p == '\n') {
+                break;
+            }
+            if (p != '\r' && p != '\t' && !Character.isSpaceChar(p)) {
+                return false;
+            }
+        }
+        for (int k = i + 1; k < content.length(); k++) {
+            char p = content.charAt(k);
+            if (p == '\n' || p == '\r') {
+                return true;
+            }
+            if (p != '\t' && !Character.isSpaceChar(p)) {
+                return false;
+            }
+        }
+        return true;
     }
 }

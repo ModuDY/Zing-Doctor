@@ -896,9 +896,9 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
      * 优先判断感染性休克/脓毒性休克，其次是脓毒症
      * 只取入科后到出科前的诊断
      */
-    private String determineShockType(List<Map<String, Object>> diagnosisList,
-                                       LocalDateTime inDepartTime,
-                                       LocalDateTime outDepartTime) {
+    String determineShockType(List<Map<String, Object>> diagnosisList,
+                              LocalDateTime inDepartTime,
+                              LocalDateTime outDepartTime) {
         boolean hasSepticShock = false;
         boolean hasSepsis = false;
 
@@ -936,8 +936,8 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
      * 计算指定时间范围内的晶体液总量（ml）
      * 只计算单位为ml/mL的液体，跳过单位为g的药物
      */
-    private double calculateFluidAmount(List<Map<String, Object>> fluidList,
-                                         LocalDateTime startTime, LocalDateTime endTime) {
+    double calculateFluidAmount(List<Map<String, Object>> fluidList,
+                               LocalDateTime startTime, LocalDateTime endTime) {
         double total = 0.0;
         for (Map<String, Object> fluid : fluidList) {
             LocalDateTime adviceTime = parseDateTime(str(fluid.get("start_time")));
@@ -1007,7 +1007,7 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
      * 判断是否为有效的细菌/真菌名称
      * 排除：未检出、阴性、无细菌、正常菌群、培养X天未检出、杂菌生长等非菌株结果
      */
-    private boolean isValidBacteriaName(String name) {
+    boolean isValidBacteriaName(String name) {
         if (name == null || name.isEmpty()) {
             return false;
         }
@@ -1028,8 +1028,8 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
         return true;
     }
 
-    /** 判断是否为溶媒 */
-    private boolean isSolvent(String name) {
+    /** 判断是否为溶媒。包内可见：供单测直接验证溶媒剔除口径 */
+    boolean isSolvent(String name) {
         if (name == null || name.isEmpty()) {
             return false;
         }

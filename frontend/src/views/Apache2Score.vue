@@ -693,7 +693,7 @@
 import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import * as echarts from 'echarts'
+import * as echarts from '../utils/echarts'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import axios from 'axios'
@@ -1073,7 +1073,7 @@ function selectRecord(rec) {
     try {
       const aps = JSON.parse(rec.apsData)
       Object.keys(aps).forEach(k => {
-        if (form.hasOwnProperty(k)) form[k] = aps[k]
+        if (Object.prototype.hasOwnProperty.call(form, k)) form[k] = aps[k]
       })
     } catch (e) {}
   }

@@ -57,7 +57,7 @@ public class MdroStatsServiceImpl implements MdroStatsService {
      * 判断是否为非细菌/真菌结果（明确不是真正的细菌或真菌）
      * 规则：包含数字和"天"，或者包含"生长"
      */
-    private boolean isNonBacteriaFungi(String bacteriaName) {
+    boolean isNonBacteriaFungi(String bacteriaName) {
         if (bacteriaName == null || bacteriaName.isEmpty()) {
             return true;
         }
@@ -544,7 +544,7 @@ public class MdroStatsServiceImpl implements MdroStatsService {
         return item;
     }
 
-    private String getClassName(String bacteriaClass) {
+    String getClassName(String bacteriaClass) {
         if ("gram_positive".equals(bacteriaClass)) return "革兰阳性菌";
         if ("gram_negative".equals(bacteriaClass)) return "革兰阴性菌";
         if ("fungi".equals(bacteriaClass)) return "真菌";
@@ -593,7 +593,7 @@ public class MdroStatsServiceImpl implements MdroStatsService {
      * 有效结束时间 = min(出科时间, 统计周期结束, 当前时间)
      * 在科天数 = 有效结束时间 - 有效开始时间
      */
-    private int calcInDepartDays(String inDepartTime, String outDepartTime, String statStart, String statEnd) {
+    int calcInDepartDays(String inDepartTime, String outDepartTime, String statStart, String statEnd) {
         try {
             LocalDateTime in = parseDateTime(inDepartTime);
             if (in == null) return 0;
@@ -632,7 +632,7 @@ public class MdroStatsServiceImpl implements MdroStatsService {
      * 判断患者在科时间与统计周期是否有交集。
      * 交集条件：入科时间 < 统计周期结束 且 (出科时间 > 统计周期开始 或 出科时间为空/还在科)
      */
-    private boolean isInDepartOverlap(String inDepartTime, String outDepartTime, String statStart, String statEnd) {
+    boolean isInDepartOverlap(String inDepartTime, String outDepartTime, String statStart, String statEnd) {
         LocalDateTime in = parseDateTime(inDepartTime);
         if (in == null) {
             return true; // 入科时间为空，不过滤

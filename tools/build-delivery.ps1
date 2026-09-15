@@ -94,6 +94,21 @@ if ($Build) {
     }
 }
 
+# ---------- 编译数据库初始化工具 ----------
+# ⚠️ tools/db-init/DbInit.class 是预编译产物：源码改了却没重新编译，服务器上跑的
+# 就还是旧逻辑（曾因此把 PL/SQL 块按分号切碎 → 13/14 初始化脚本报「语法分析出错」）。
+# 目标字节码必须是 Java 8（服务器 JDK 8），故显式 -source/-target 1.8。
+$javacCmd = Get-Command javac -ErrorAction SilentlyContinue
+if ($javacCmd) {
+    Write-Host '>>> 编译 tools/db-init/DbInit.java（Java 8 字节码）' -ForegroundColor Cyan
+    Invoke-Native -Label 'DbInit 编译' -Exe $javacCmd.Source `
+        -ExeArgs @('-source', '1.8', '-target', '1.8', '-encoding', 'UTF-8', '-d', "$root\tools\db-init", "$root\tools\db-init\DbInit.java")
+} elseif (Test-Path "$root\tools\db-init\DbInit.class") {
+    Write-Host '>>> 未找到 javac，沿用已有的 tools/db-init/DbInit.class' -ForegroundColor Yellow
+} else {
+    throw '未找到 javac，且 tools/db-init/DbInit.class 不存在：无法生成数据库初始化工具'
+}
+
 # ---------- 同步 jar 到交付约定位置 ----------
 $jar = "$root\target\zing-doctor.jar"
 if (-not (Test-Path $jar)) { throw "未找到 $jar ，请先构建后端" }
