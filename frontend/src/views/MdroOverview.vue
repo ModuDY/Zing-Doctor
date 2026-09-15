@@ -1,9 +1,9 @@
 <template>
-  <div class="mdro-overview">
+  <div class="mdro-overview abx-theme">
     <!-- 顶部筛选栏 -->
     <div class="filter-bar">
       <div class="filter-left">
-        <el-select v-model="selectedDepartCode" placeholder="选择科室" style="width: 180px" @change="loadData">
+        <el-select v-model="selectedDepartCode" placeholder="选择科室" style="width: 180px" popper-class="abx-popper" @change="loadData">
           <el-option
             v-for="dept in departments"
             :key="dept.org_code"
@@ -19,6 +19,7 @@
           end-placeholder="结束月份"
           value-format="YYYY-MM"
           :clearable="false"
+          popper-class="abx-popper"
           @change="handleDateChange"
         />
         <el-button type="primary" @click="loadData" :loading="loading">
@@ -147,6 +148,7 @@ import { useRouter } from 'vue-router'
 import { Refresh, User, Setting } from '@element-plus/icons-vue'
 import request from '../api/request'
 import * as echarts from 'echarts'
+import '../styles/abx-theme.css'
 
 const router = useRouter()
 const loading = ref(false)
@@ -240,17 +242,17 @@ function renderTrendChart() {
     tooltip: { trigger: 'axis', confine: true },
     legend: { data: ['阳性率(%)', '革兰阳性菌', '革兰阴性菌', '真菌', '高风险细菌'], top: 0 },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'category', data: trend.map(t => t.month), axisLabel: { color: '#666' } },
+    xAxis: { type: 'category', data: trend.map(t => t.month), axisLabel: { color: '#78716c' } },
     yAxis: [
-      { type: 'value', name: '次数', axisLabel: { color: '#666' } },
-      { type: 'value', name: '阳性率(%)', axisLabel: { color: '#666' }, max: 100 }
+      { type: 'value', name: '次数', axisLabel: { color: '#78716c' } },
+      { type: 'value', name: '阳性率(%)', axisLabel: { color: '#78716c' }, max: 100 }
     ],
     series: [
-      { name: '阳性率(%)', type: 'line', yAxisIndex: 1, data: trend.map(t => t.positiveRate), smooth: true, itemStyle: { color: '#e6a23c' }, lineStyle: { width: 3 } },
-      { name: '革兰阳性菌', type: 'bar', data: trend.map(t => t.gramPositiveCount), itemStyle: { color: '#67c23a' } },
-      { name: '革兰阴性菌', type: 'bar', data: trend.map(t => t.gramNegativeCount), itemStyle: { color: '#409eff' } },
-      { name: '真菌', type: 'bar', data: trend.map(t => t.fungiCount), itemStyle: { color: '#e6a23c' } },
-      { name: '高风险细菌', type: 'line', data: trend.map(t => t.highRiskCount), smooth: true, itemStyle: { color: '#f56c6c' }, lineStyle: { width: 2, type: 'dashed' } }
+      { name: '阳性率(%)', type: 'line', yAxisIndex: 1, data: trend.map(t => t.positiveRate), smooth: true, itemStyle: { color: '#d97706' }, lineStyle: { width: 3 } },
+      { name: '革兰阳性菌', type: 'bar', data: trend.map(t => t.gramPositiveCount), itemStyle: { color: '#16a34a' } },
+      { name: '革兰阴性菌', type: 'bar', data: trend.map(t => t.gramNegativeCount), itemStyle: { color: '#14b8a6' } },
+      { name: '真菌', type: 'bar', data: trend.map(t => t.fungiCount), itemStyle: { color: '#d97706' } },
+      { name: '高风险细菌', type: 'line', data: trend.map(t => t.highRiskCount), smooth: true, itemStyle: { color: '#dc2626' }, lineStyle: { width: 2, type: 'dashed' } }
     ]
   })
 }
@@ -261,7 +263,7 @@ function renderRankChart() {
   const ranks = bacteriaRanks.value || []
   const names = ranks.map(r => r.bacteriaName).reverse()
   const values = ranks.map(r => r.detectCount).reverse()
-  const colors = ranks.map(r => r.isHighRisk === 1 ? '#f56c6c' : '#409eff').reverse()
+  const colors = ranks.map(r => r.isHighRisk === 1 ? '#dc2626' : '#14b8a6').reverse()
   rankChart.setOption({
     tooltip: {
       trigger: 'axis',
@@ -271,16 +273,16 @@ function renderRankChart() {
         const p = params[0]
         const idx = ranks.length - 1 - p.dataIndex
         const r = ranks[idx]
-        return `${r.bacteriaName}<br/>检出次数: ${r.detectCount}<br/>检出患者: ${r.patientCount}人<br/>分类: ${r.bacteriaClassName || '其他'}${r.isHighRisk === 1 ? '<br/><span style=\'color:#f56c6c\'>高风险细菌</span>' : ''}`
+        return `${r.bacteriaName}<br/>检出次数: ${r.detectCount}<br/>检出患者: ${r.patientCount}人<br/>分类: ${r.bacteriaClassName || '其他'}${r.isHighRisk === 1 ? '<br/><span style=\'color:#dc2626\'>高风险细菌</span>' : ''}`
       }
     },
     grid: { left: '3%', right: '8%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'value', axisLabel: { color: '#666' } },
-    yAxis: { type: 'category', data: names, axisLabel: { color: '#333', fontSize: 11 } },
+    xAxis: { type: 'value', axisLabel: { color: '#78716c' } },
+    yAxis: { type: 'category', data: names, axisLabel: { color: '#78716c', fontSize: 11 } },
     series: [{
       type: 'bar',
       data: values.map((v, i) => ({ value: v, itemStyle: { color: colors[i] } })),
-      label: { show: true, position: 'right', color: '#666', fontSize: 11 },
+      label: { show: true, position: 'right', color: '#78716c', fontSize: 11 },
       barWidth: '60%'
     }]
   })
@@ -312,13 +314,13 @@ function renderSpecimenChart() {
   specimenChart.setOption({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, confine: true },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'category', data: dist.map(d => d.name), axisLabel: { color: '#666', rotate: 30, fontSize: 11 } },
-    yAxis: { type: 'value', axisLabel: { color: '#666' } },
+    xAxis: { type: 'category', data: dist.map(d => d.name), axisLabel: { color: '#78716c', rotate: 30, fontSize: 11 } },
+    yAxis: { type: 'value', axisLabel: { color: '#78716c' } },
     series: [{
       type: 'bar',
       data: dist.map(d => d.value),
-      itemStyle: { color: '#909399', borderRadius: [4, 4, 0, 0] },
-      label: { show: true, position: 'top', color: '#666', fontSize: 11 },
+      itemStyle: { color: '#78716c', borderRadius: [4, 4, 0, 0] },
+      label: { show: true, position: 'top', color: '#78716c', fontSize: 11 },
       barWidth: '50%'
     }]
   })
@@ -348,7 +350,7 @@ onMounted(() => {
 <style scoped>
 .mdro-overview {
   padding: 16px;
-  background: #f5f7fa;
+  background: #fafaf9;
   min-height: 100vh;
 }
 
@@ -383,29 +385,29 @@ onMounted(() => {
   background: #fff;
   border-radius: 8px;
   padding: 16px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  border-left: 4px solid #409eff;
+  box-shadow: 0 2px 8px rgba(28,25,23,0.04);
+  border-left: 4px solid #0d9488;
 }
 
-.metric-card.success { border-left-color: #67c23a; }
-.metric-card.warning { border-left-color: #e6a23c; }
-.metric-card.danger { border-left-color: #f56c6c; }
-.metric-card.info { border-left-color: #909399; }
-.metric-card.gram-positive { border-left-color: #67c23a; }
-.metric-card.gram-negative { border-left-color: #409eff; }
-.metric-card.fungi { border-left-color: #e6a23c; }
-.metric-card.other { border-left-color: #909399; }
+.metric-card.success { border-left-color: #16a34a; }
+.metric-card.warning { border-left-color: #d97706; }
+.metric-card.danger { border-left-color: #dc2626; }
+.metric-card.info { border-left-color: #78716c; }
+.metric-card.gram-positive { border-left-color: #16a34a; }
+.metric-card.gram-negative { border-left-color: #0d9488; }
+.metric-card.fungi { border-left-color: #d97706; }
+.metric-card.other { border-left-color: #78716c; }
 
 .metric-label {
   font-size: 13px;
-  color: #909399;
+  color: #78716c;
   margin-bottom: 8px;
 }
 
 .metric-value {
   font-size: 28px;
   font-weight: 600;
-  color: #303133;
+  color: #292524;
   line-height: 1.2;
 }
 
@@ -415,20 +417,20 @@ onMounted(() => {
 
 .metric-unit {
   font-size: 13px;
-  color: #909399;
+  color: #78716c;
   font-weight: 400;
   margin-left: 4px;
 }
 
 .metric-target {
   font-size: 12px;
-  color: #67c23a;
+  color: #16a34a;
   margin-top: 6px;
 }
 
 .metric-sub {
   font-size: 12px;
-  color: #c0c4cc;
+  color: #a8a29e;
   margin-top: 4px;
 }
 
@@ -437,7 +439,7 @@ onMounted(() => {
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 2px 8px rgba(28,25,23,0.04);
 }
 
 .row-cards {
@@ -454,14 +456,14 @@ onMounted(() => {
   align-items: center;
   font-size: 15px;
   font-weight: 600;
-  color: #303133;
+  color: #292524;
   margin-bottom: 12px;
 }
 
 .block-title .dot {
   width: 4px;
   height: 16px;
-  background: #409eff;
+  background: #0d9488;
   border-radius: 2px;
   margin-right: 8px;
 }

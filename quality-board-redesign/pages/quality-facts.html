@@ -415,16 +415,6 @@ html, body {
     <main>
       <div class="qb-page">
         <!-- Header -->
-        <header class="qb-header">
-          <div>
-            <h1 class="qb-header-title">质控指标看板</h1>
-            <p class="qb-header-sub">127 条 ICU 质控指标 · 可配置 · 可追溯 · 可解释</p>
-          </div>
-          <div class="qb-actions">
-            <button class="qb-btn-ghost"><i data-lucide="help-circle" class="w-4 h-4"></i>帮助</button>
-          </div>
-        </header>
-
         <!-- Filter bar -->
         <section class="qb-card qb-filter-bar">
           <div class="qb-filter-left">
@@ -511,83 +501,88 @@ html, body {
           </div>
 
           <table class="qb-table">
-            <thead><tr><th style="width: 140px;">事实编号</th><th>事实名称</th><th style="width: 140px;">源表</th><th style="width: 100px; text-align: center;">状态</th><th style="width: 130px; text-align: center;">更新时间</th><th style="width: 120px; text-align: center;">被引用</th><th style="width: 120px; text-align: center;">操作</th></tr></thead>
+            <thead><tr><th style="width: 180px;">事实编号</th><th>域</th><th style="width: 100px; text-align: center;">状态</th><th style="width: 180px;">源表</th><th>备注</th><th style="width: 120px; text-align: center;">操作</th></tr></thead>
             <tbody>
-              <tr class="qb-fact-row">
-                <td class="qb-mono">fact_ards_admit</td>
-                <td>ARDS 患者入科识别</td>
-                <td class="qb-mono">dwd_admission</td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-success">通过</span></td>
-                <td style="text-align: center;">2026-08-31 06:00</td>
-                <td style="text-align: center;">12 个指标</td>
-                <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">SQL</button><button class="qb-btn-text">血缘</button></div></td>
-              </tr>
-              <tr class="qb-fact-row">
-                <td class="qb-mono">fact_ards_mv</td>
-                <td>ARDS 患者机械通气事件</td>
-                <td class="qb-mono">dwd_ventilator</td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-success">通过</span></td>
-                <td style="text-align: center;">2026-08-31 06:00</td>
-                <td style="text-align: center;">8 个指标</td>
-                <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">SQL</button><button class="qb-btn-text">血缘</button></div></td>
-              </tr>
-              <tr>
-                <td colspan="7" class="qb-fact-detail">
-                  <div class="qb-fact-detail-inner">
-                    <div class="qb-fact-detail-title">编译 SQL · fact_ards_mv</div>
-                    <div class="qb-code-block"><span class="qb-code-keyword">SELECT</span>
-    patient_id,
-    stay_id,
-    start_time,
-    end_time,
-    mode,
-    <span class="qb-code-keyword">CASE</span> <span class="qb-code-keyword">WHEN</span> fio2 &gt;= 50 <span class="qb-code-keyword">OR</span> peep &gt;= 8 <span class="qb-code-keyword">THEN</span> 1 <span class="qb-code-keyword">ELSE</span> 0 <span class="qb-code-keyword">END</span> <span class="qb-code-keyword">AS</span> severe_flag
-<span class="qb-code-keyword">FROM</span> dwd_ventilator
-<span class="qb-code-keyword">WHERE</span> start_time &gt;= <span class="qb-code-string">'${start_date}'</span>
-  <span class="qb-code-keyword">AND</span> start_time &lt;  <span class="qb-code-string">'${end_date}'</span>;
-<span class="qb-code-comment">-- 输出字段: patient_id, stay_id, start_time, end_time, mode, severe_flag</span></div>
-                  </div>
-                </td>
-              </tr>
-              <tr class="qb-fact-row">
-                <td class="qb-mono">fact_sepsis_bundle_1h</td>
-                <td>脓毒症休克 1H 集束化执行</td>
-                <td class="qb-mono">dwd_order + dwd_lab</td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-success">通过</span></td>
-                <td style="text-align: center;">2026-08-31 06:00</td>
-                <td style="text-align: center;">5 个指标</td>
-                <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">SQL</button><button class="qb-btn-text">血缘</button></div></td>
-              </tr>
-              <tr class="qb-fact-row">
-                <td class="qb-mono">fact_prone_position</td>
-                <td>俯卧位通气实施记录</td>
-                <td class="qb-mono">nursing_position</td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-warning">待接源</span></td>
-                <td style="text-align: center;">—</td>
-                <td style="text-align: center;">2 个指标</td>
-                <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">SQL</button><button class="qb-btn-text">血缘</button></div></td>
-              </tr>
-              <tr class="qb-fact-row">
-                <td class="qb-mono">fact_ards_mortality_28d</td>
-                <td>ARDS 患者 28 天结局</td>
-                <td class="qb-mono">dwd_outcome</td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-error">编译失败</span></td>
-                <td style="text-align: center;">2026-08-30 22:15</td>
-                <td style="text-align: center;">1 个指标</td>
-                <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">SQL</button><button class="qb-btn-text">血缘</button></div></td>
-              </tr>
-              <tr>
-                <td colspan="7" class="qb-fact-detail">
-                  <div class="qb-fact-detail-inner">
-                    <div class="qb-fact-detail-title">编译错误 · fact_ards_mortality_28d</div>
-                    <div class="qb-code-block" style="color: #fecaca;"><span class="qb-code-comment">-- Error: column "death_date" does not exist</span>
-<span class="qb-code-comment">-- Hint: 目标表 dwd_outcome 已重构，死亡时间字段改为 death_datetime</span>
-<span class="qb-code-keyword">SELECT</span> patient_id, death_date - index_date <span class="qb-code-keyword">AS</span> survival_days
-<span class="qb-code-keyword">FROM</span> dwd_outcome
-<span class="qb-code-keyword">WHERE</span> diagnosis <span class="qb-code-keyword">LIKE</span> <span class="qb-code-string">'%ARDS%'</span>;</div>
-                  </div>
-                </td>
-              </tr>
+        <tr data-fact="fact_patient_stay">
+          <td class="fact-name">fact_patient_stay</td>
+          <td class="domain"></td>
+          <td class="status status-impl">ACTIVE</td>
+          <td class="source"></td>
+          <td class="note"></td>
+          <td class="action"><button class="btn-mini btn-sql">查看 SQL</button></td>
+        </tr>
+        <tr data-fact="fact_score_resource">
+          <td class="fact-name">fact_score_resource</td>
+          <td class="domain"></td>
+          <td class="status status-impl">ACTIVE</td>
+          <td class="source"></td>
+          <td class="note"></td>
+          <td class="action"><button class="btn-mini btn-sql">查看 SQL</button></td>
+        </tr>
+        <tr data-fact="fact_staff">
+          <td class="fact-name">fact_staff</td>
+          <td class="domain"></td>
+          <td class="status status-impl">ACTIVE</td>
+          <td class="source"></td>
+          <td class="note"></td>
+          <td class="action"><button class="btn-mini btn-sql">查看 SQL</button></td>
+        </tr>
+        <tr data-fact="fact_bed">
+          <td class="fact-name">fact_bed</td>
+          <td class="domain"></td>
+          <td class="status status-impl">ACTIVE</td>
+          <td class="source"></td>
+          <td class="note"></td>
+          <td class="action"><button class="btn-mini btn-sql">查看 SQL</button></td>
+        </tr>
+        <tr data-fact="fact_sepsis_bundle">
+          <td class="fact-name">fact_sepsis_bundle</td>
+          <td class="domain"></td>
+          <td class="status status-impl">ACTIVE</td>
+          <td class="source"></td>
+          <td class="note"></td>
+          <td class="action"><button class="btn-mini btn-sql">查看 SQL</button></td>
+        </tr>
+        <tr data-fact="fact_assessment">
+          <td class="fact-name">fact_assessment</td>
+          <td class="domain"></td>
+          <td class="status status-impl">ACTIVE</td>
+          <td class="source"></td>
+          <td class="note"></td>
+          <td class="action"><button class="btn-mini btn-sql">查看 SQL</button></td>
+        </tr>
+        <tr data-fact="fact_ards">
+          <td class="fact-name">fact_ards</td>
+          <td class="domain"></td>
+          <td class="status status-impl">ACTIVE</td>
+          <td class="source"></td>
+          <td class="note"></td>
+          <td class="action"><button class="btn-mini btn-sql">查看 SQL</button></td>
+        </tr>
+        <tr data-fact="fact_abx_culture">
+          <td class="fact-name">fact_abx_culture</td>
+          <td class="domain"></td>
+          <td class="status status-impl">ACTIVE</td>
+          <td class="source"></td>
+          <td class="note"></td>
+          <td class="action"><button class="btn-mini btn-sql">查看 SQL</button></td>
+        </tr>
+        <tr data-fact="fact_dvt">
+          <td class="fact-name">fact_dvt</td>
+          <td class="domain"></td>
+          <td class="status status-impl">ACTIVE</td>
+          <td class="source"></td>
+          <td class="note"></td>
+          <td class="action"><button class="btn-mini btn-sql">查看 SQL</button></td>
+        </tr>
+        <tr data-fact="fact_device">
+          <td class="fact-name">fact_device</td>
+          <td class="domain"></td>
+          <td class="status status-impl">ACTIVE</td>
+          <td class="source"></td>
+          <td class="note"></td>
+          <td class="action"><button class="btn-mini btn-sql">查看 SQL</button></td>
+        </tr>
             </tbody>
           </table>
         </section>

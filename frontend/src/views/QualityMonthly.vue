@@ -1,7 +1,7 @@
 <template>
-  <div class="quality-monthly">
+  <div class="quality-monthly qb-theme">
     <!-- 筛选栏 -->
-    <div class="filter-bar">
+    <div class="filter-bar qb-card">
       <div class="filter-left">
         <el-date-picker
           v-model="year"
@@ -10,6 +10,7 @@
           value-format="YYYY"
           :clearable="false"
           style="width: 130px"
+          popper-class="qb-popper"
           @change="loadMonthly"
         />
         <el-select
@@ -17,6 +18,7 @@
           placeholder="全院"
           style="width: 170px"
           clearable
+          popper-class="qb-popper"
           @change="loadMonthly"
         >
           <el-option
@@ -26,7 +28,13 @@
             :value="dept.org_code"
           />
         </el-select>
-        <el-select v-model="domainFilter" placeholder="全部域" style="width: 170px" clearable>
+        <el-select
+          v-model="domainFilter"
+          placeholder="全部域"
+          style="width: 170px"
+          clearable
+          popper-class="qb-popper"
+        >
           <el-option v-for="d in domainOptions" :key="d" :label="d" :value="d" />
         </el-select>
         <el-checkbox v-model="onlyWithData">只看有数据的指标</el-checkbox>
@@ -39,7 +47,7 @@
         <el-button :loading="rebuilding" @click="doRebuild">
           <el-icon><Cpu /></el-icon> 重建汇总
         </el-button>
-        <el-button type="success" :loading="exporting" :disabled="!rows.length" @click="doExport">
+        <el-button type="primary" :loading="exporting" :disabled="!rows.length" @click="doExport">
           <el-icon><Download /></el-icon> 导出 Excel
         </el-button>
       </div>
@@ -48,22 +56,34 @@
     <!-- 摘要卡 -->
     <div class="metric-cards">
       <div class="metric-card info">
-        <div class="metric-label">汇总指标数</div>
+        <div class="metric-head">
+          <span class="metric-label">汇总指标数</span>
+          <span class="metric-ico"><el-icon><Grid /></el-icon></span>
+        </div>
         <div class="metric-value">{{ rows.length }}</div>
         <div class="metric-sub">{{ year }} 年 · {{ departLabel }}</div>
       </div>
       <div class="metric-card ok">
-        <div class="metric-label">本年度有数据</div>
+        <div class="metric-head">
+          <span class="metric-label">本年度有数据</span>
+          <span class="metric-ico"><el-icon><CircleCheck /></el-icon></span>
+        </div>
         <div class="metric-value">{{ withDataCount }}</div>
         <div class="metric-sub">至少 1 个月有值</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">覆盖域</div>
+        <div class="metric-head">
+          <span class="metric-label">覆盖域</span>
+          <span class="metric-ico"><el-icon><Collection /></el-icon></span>
+        </div>
         <div class="metric-value">{{ domainOptions.length }}</div>
         <div class="metric-sub">按指标所属域统计</div>
       </div>
       <div class="metric-card muted">
-        <div class="metric-label">当前展示</div>
+        <div class="metric-head">
+          <span class="metric-label">当前展示</span>
+          <span class="metric-ico"><el-icon><View /></el-icon></span>
+        </div>
         <div class="metric-value">{{ displayRows.length }}</div>
         <div class="metric-sub">{{ filterHint }}</div>
       </div>
@@ -80,7 +100,7 @@
     />
 
     <!-- 年度趋势 -->
-    <div v-if="rows.length" class="chart-card">
+    <div v-if="rows.length" class="chart-card qb-card">
       <div class="chart-head">
         <div class="block-title">
           <span class="dot"></span>
@@ -91,6 +111,7 @@
           filterable
           placeholder="选择指标"
           style="width: 360px"
+          popper-class="qb-popper"
           @change="renderChart"
         >
           <el-option-group v-for="g in chartGroups" :key="g.domain" :label="g.domain">
@@ -107,7 +128,7 @@
     </div>
 
     <!-- 月度宽表 -->
-    <div class="table-card">
+    <div class="table-card qb-card">
       <div class="block-title">
         <span class="dot"></span>
         <span>月度汇总宽表（1-12 月横排）</span>
@@ -174,8 +195,9 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, Cpu, Download } from '@element-plus/icons-vue'
+import { Refresh, Cpu, Download, Grid, CircleCheck, Collection, View } from '@element-plus/icons-vue'
 import { externalParam } from '../utils/external'
+import '../styles/quality-theme.css'
 import * as echarts from 'echarts'
 import {
   fetchQualityMonthly,
@@ -292,7 +314,7 @@ async function doRebuild() {
     await ElMessageBox.confirm(
       `将按 ${year.value} 年的月度结果重建汇总宽表（幂等：先删后建），是否继续？`,
       '重建月度汇总',
-      { type: 'warning', confirmButtonText: '开始重建', cancelButtonText: '取消' }
+      { type: 'warning', confirmButtonText: '开始重建', cancelButtonText: '取消', customClass: 'qb-overlay' }
     )
   } catch (e) {
     return
@@ -358,13 +380,15 @@ function renderChart() {
       xAxis: {
         type: 'category',
         data: header.value,
-        axisLabel: { color: '#666' }
+        axisLabel: { color: '#78716c' },
+        axisLine: { lineStyle: { color: '#e7e5e4' } }
       },
       yAxis: {
         type: 'value',
         name: row.unit || '',
-        axisLabel: { color: '#666' },
-        splitLine: { lineStyle: { color: '#eee' } }
+        nameTextStyle: { color: '#78716c' },
+        axisLabel: { color: '#78716c' },
+        splitLine: { lineStyle: { color: '#f5f5f4' } }
       },
       series: [
         {
@@ -373,14 +397,16 @@ function renderChart() {
           smooth: true,
           connectNulls: true,
           data,
-          itemStyle: { color: '#409eff' },
+          symbolSize: 7,
+          lineStyle: { width: 3, color: '#f97316' },
+          itemStyle: { color: '#f97316', borderColor: '#fff', borderWidth: 2 },
           areaStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: 'rgba(64,158,255,0.30)' },
-              { offset: 1, color: 'rgba(64,158,255,0.05)' }
+              { offset: 0, color: 'rgba(249,115,22,0.18)' },
+              { offset: 1, color: 'rgba(249,115,22,0.01)' }
             ])
           },
-          label: { show: true, fontSize: 10, color: '#666' }
+          label: { show: true, fontSize: 10, color: '#78716c' }
         }
       ]
     },
@@ -433,10 +459,20 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* ===================================================================
+   质控月度汇总 · 暖橙主题（设计稿 quality-monthly.html 适配）
+   =================================================================== */
 .quality-monthly {
-  padding: 16px;
-  background: #f5f7fa;
+  padding: 24px;
+  background: #fafaf9;
   min-height: 100vh;
+}
+
+.qb-card {
+  background: #ffffff;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04);
 }
 
 .filter-bar {
@@ -445,11 +481,8 @@ onBeforeUnmount(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  margin-bottom: 20px;
+  padding: 14px 18px;
 }
 
 .filter-left,
@@ -460,57 +493,82 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 
+/* ---------------- 摘要卡（设计稿 stat-card 风格） ---------------- */
 .metric-cards {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .metric-card {
-  background: #fff;
-  border-radius: 8px;
-  padding: 18px 20px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  border-left: 4px solid #909399;
+  background: linear-gradient(180deg, #ffffff 0%, #fafaf9 100%);
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  padding: 16px 18px 14px;
+  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+}
+.metric-card:hover {
+  border-color: #d6d3d1;
+  box-shadow: 0 4px 14px rgba(28, 25, 23, 0.06);
+  transform: translateY(-1px);
 }
 
-.metric-card.ok {
-  border-left-color: #67c23a;
-}
-.metric-card.info {
-  border-left-color: #409eff;
-}
-.metric-card.muted {
-  border-left-color: #c0c4cc;
+.metric-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .metric-label {
-  font-size: 14px;
-  color: #606266;
-  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #78716c;
+}
+
+.metric-ico {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  color: #78716c;
+  background: #f5f5f4;
+}
+.metric-card.info .metric-ico {
+  color: #0891b2;
+  background: #cffafe;
+}
+.metric-card.ok .metric-ico {
+  color: #16a34a;
+  background: #dcfce7;
+}
+.metric-card:not(.info):not(.ok):not(.muted) .metric-ico {
+  color: #d97706;
+  background: #fef3c7;
 }
 
 .metric-value {
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 700;
-  color: #303133;
-  line-height: 1.2;
+  color: #1c1917;
+  line-height: 1.25;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
 }
 
 .metric-sub {
   font-size: 12px;
-  color: #909399;
-  margin-top: 6px;
+  color: #a8a29e;
+  margin-top: 8px;
 }
 
 .chart-card,
 .table-card {
-  background: #fff;
-  border-radius: 8px;
-  padding: 16px 20px;
-  margin-bottom: 16px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  padding: 18px 20px;
+  margin-bottom: 20px;
 }
 
 .chart-head {
@@ -524,6 +582,7 @@ onBeforeUnmount(() => {
 .chart-container {
   width: 100%;
   height: 320px;
+  margin-top: 12px;
 }
 
 .block-title {
@@ -531,47 +590,58 @@ onBeforeUnmount(() => {
   align-items: center;
   font-size: 15px;
   font-weight: 600;
-  color: #303133;
+  color: #44403c;
   margin-bottom: 12px;
 }
 
 .dot {
   width: 4px;
   height: 16px;
-  background: linear-gradient(180deg, #409eff, #66b1ff);
+  background: linear-gradient(180deg, #f97316, #fb923c);
   border-radius: 2px;
   margin-right: 8px;
+  flex-shrink: 0;
 }
 
 .title-note {
   font-size: 12px;
   font-weight: 400;
-  color: #909399;
+  color: #a8a29e;
   margin-left: 10px;
 }
 
 .strong {
-  font-weight: 600;
-  color: #303133;
+  font-weight: 700;
+  color: #292524;
 }
 
+/* 年内最高月=暖红、最低月=绿（设计稿 error / success 色值） */
 :deep(.month-max) {
-  color: #f56c6c;
+  color: #dc2626;
   font-weight: 700;
 }
 
 :deep(.month-min) {
-  color: #67c23a;
+  color: #16a34a;
   font-weight: 700;
 }
 
 :deep(.row-empty) {
-  color: #c0c4cc;
+  color: #a8a29e;
 }
 
 @media (max-width: 1200px) {
   .metric-cards {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .quality-monthly {
+    padding: 12px;
+  }
+  .metric-cards {
+    grid-template-columns: 1fr;
   }
 }
 </style>

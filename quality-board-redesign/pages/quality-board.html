@@ -307,6 +307,38 @@ html, body {
   .qb-stat-grid { grid-template-columns: 1fr; }
   .qb-table th, .qb-table td { padding: 10px; }
 }
+
+/* Business metric table */
+.metric-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--qb-text-sm); }
+.metric-table th, .metric-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--qb-border); vertical-align: top; }
+.metric-table thead th { font-weight: 600; color: var(--qb-stone-600); background: var(--qb-stone-50); font-size: var(--qb-text-xs); text-transform: uppercase; letter-spacing: 0.02em; }
+.metric-table tbody tr:hover { background: var(--qb-stone-50); }
+.metric-table td.name { font-weight: 500; color: var(--qb-stone-800); }
+.metric-table .code { color: var(--qb-primary); font-weight: 500; }
+.metric-table .num-value, .metric-table .den-value, .metric-table .current, .metric-table .target, .metric-table .warning { text-align: right; font-variant-numeric: tabular-nums; }
+.metric-table .unit { text-align: center; color: var(--qb-stone-500); }
+.metric-table .atom-name { color: var(--qb-stone-500); font-size: var(--qb-text-xs); }
+.metric-table .status { text-align: center; }
+.metric-table .status-empty { color: var(--qb-stone-400); }
+.metric-table .status-ok { color: var(--qb-state-success); font-weight: 500; }
+.metric-table .lineage { text-align: center; white-space: nowrap; }
+
+.remark-dot {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; margin-left: 6px;
+  background: var(--qb-orange-100); color: var(--qb-orange-700);
+  border-radius: 50%; font-size: 11px; font-weight: 700; cursor: help;
+}
+
+.btn-mini {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 4px 10px; margin: 0 2px;
+  font-size: var(--qb-text-xs); font-weight: 500;
+  color: var(--qb-primary); background: var(--qb-orange-50);
+  border: 1px solid var(--qb-orange-200); border-radius: var(--qb-radius-small);
+  cursor: pointer; transition: background 0.15s ease, border-color 0.15s ease;
+}
+.btn-mini:hover { background: var(--qb-orange-100); border-color: var(--qb-orange-300); }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
     <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
@@ -415,16 +447,6 @@ html, body {
     <main>
       <div class="qb-page">
         <!-- Header -->
-        <header class="qb-header">
-          <div>
-            <h1 class="qb-header-title">质控指标看板</h1>
-            <p class="qb-header-sub">127 条 ICU 质控指标 · 可配置 · 可追溯 · 可解释</p>
-          </div>
-          <div class="qb-actions">
-            <button class="qb-btn-ghost"><i data-lucide="help-circle" class="w-4 h-4"></i>帮助</button>
-          </div>
-        </header>
-
         <!-- Filter bar -->
         <section class="qb-card qb-filter-bar">
           <div class="qb-filter-left">
@@ -440,6 +462,13 @@ html, body {
               <option>ICU 二病区</option>
               <option>综合 ICU</option>
             </select>
+            <select class="qb-select" style="min-width: 120px;">
+              <option value="all">全部状态</option>
+              <option value="impl">已实现</option>
+              <option value="pending_source">待接数据源</option>
+              <option value="placeholder">口径待定</option><option value="manual">人工录入</option>
+            </select>
+            <input type="text" class="qb-input" placeholder="搜索指标名称 / 分子 / 分母" style="min-width: 220px;" />
             <button class="qb-btn-secondary"><i data-lucide="refresh-cw" class="w-4 h-4"></i>刷新</button>
           </div>
           <div class="qb-filter-right">
@@ -453,8 +482,8 @@ html, body {
           <div class="qb-overview-head">
             <h2 class="qb-overview-title">质控指标总览<span class="qb-overview-period">2026-08-01 ~ 2026-08-31 · 科室 全院</span></h2>
             <div class="qb-overview-tags">
-              <span class="qb-overview-tag"><span class="qb-dot qb-dot-info"></span>8 个域</span>
-              <span class="qb-overview-tag"><strong>出数率 67.0%</strong></span>
+              <span class="qb-overview-tag"><span class="qb-dot qb-dot-info"></span>来源 quality_count_rule</span>
+              <span class="qb-overview-tag"><strong>质控指标 60 条 · 出数率 0.0%</strong></span>
             </div>
           </div>
           <div class="qb-stat-grid">
@@ -463,255 +492,981 @@ html, body {
                 <span class="qb-stat-label">指标总数</span>
                 <span class="qb-stat-icon blue"><i data-lucide="grid-3x3" class="w-4 h-4"></i></span>
               </div>
-              <div class="qb-stat-value">127</div>
-              <div class="qb-stat-foot">口径来自指标字典，空壳一并计入</div>
+              <div class="qb-stat-value">60</div>
+              <div class="qb-stat-foot">来源 quality_count_rule</div>
             </div>
             <div class="qb-stat-card">
               <div class="qb-stat-head">
                 <span class="qb-stat-label">本期已出数</span>
                 <span class="qb-stat-icon green"><i data-lucide="check-circle-2" class="w-4 h-4"></i></span>
               </div>
-              <div class="qb-stat-value green">85</div>
-              <div class="qb-stat-bar"><i class="green" style="width: 67%"></i></div>
-              <div class="qb-stat-foot">占全部指标 67.0%</div>
+              <div class="qb-stat-value green">0</div>
+              <div class="qb-stat-bar"><i class="green" style="width: 0%"></i></div>
+              <div class="qb-stat-foot">占指标总数 0.0%</div>
             </div>
             <div class="qb-stat-card">
               <div class="qb-stat-head">
                 <span class="qb-stat-label">本期无数据</span>
                 <span class="qb-stat-icon orange"><i data-lucide="alert-triangle" class="w-4 h-4"></i></span>
               </div>
-              <div class="qb-stat-value orange">12</div>
-              <div class="qb-stat-bar"><i class="orange" style="width: 9.4%"></i></div>
-              <div class="qb-stat-foot">口径成立但本周期无命中</div>
+              <div class="qb-stat-value orange">0</div>
+              <div class="qb-stat-bar"><i class="orange" style="width: 0%"></i></div>
+              <div class="qb-stat-foot">本期计算结果为空</div>
             </div>
             <div class="qb-stat-card">
               <div class="qb-stat-head">
                 <span class="qb-stat-label">未出数（含空壳）</span>
-                <span class="qb-stat-icon gray"><i data-lucide="clock" class="w-4 h-4"></i></span>
+                <span class="qb-stat-icon gray"><i data-lucide="eye-off" class="w-4 h-4"></i></span>
               </div>
-              <div class="qb-stat-value gray">30</div>
-              <div class="qb-stat-bar"><i class="gray" style="width: 23.6%"></i></div>
-              <div class="qb-stat-foot">待接数据源 / 口径待定 / 未计算 / 人工</div>
+              <div class="qb-stat-value gray">60</div>
+              <div class="qb-stat-bar"><i class="gray" style="width: 100%"></i></div>
+              <div class="qb-stat-foot">待接源 / 口径待定 / 人工录入</div>
             </div>
           </div>
         </section>
 
         <!-- Tabs -->
         <nav class="qb-card qb-tabs" style="border-radius: 12px 12px 0 0; border-bottom: 1px solid var(--qb-border); margin-bottom: 0;">
-          <button class="qb-tab active" data-dom-id="tab-board">指标看板</button>
+          <button class="qb-tab active" data-dom-id="tab-board">质控指标</button>
           <button class="qb-tab" data-dom-id="tab-coverage">覆盖率报告</button>
           <button class="qb-tab" data-dom-id="tab-facts">事实层</button>
           <button class="qb-tab" data-dom-id="tab-runs">计算批次</button>
         </nav>
 
         <!-- Tab panel: Board -->
-        <section class="qb-card qb-tab-panel" style="border-radius: 0 0 12px 12px; border-top: none;">
-          <div class="qb-tab-note">
-            空壳指标也占据完整行位，数值列显示「—」，页面始终是 127 行。
-          </div>
+        <section class="qb-card qb-tab-panel" style="border-radius: 0 0 12px 12px; border-top: none; overflow-x: auto;">
+          <!-- 60 business metrics from quality_count_rule -->
+          <div class="table-wrap" style="min-width: 1100px;">
+            <table class="metric-table business-table">
+              <thead>
+                <tr>
+                  <th rowspan="2" style="min-width: 220px;">指标名称</th>
+                  <th colspan="3" style="text-align: center;">分子</th>
+                  <th colspan="3" style="text-align: center;">分母</th>
+                  <th rowspan="2">单位</th>
+                  <th rowspan="2">本期值</th>
+                  <th rowspan="2">目标值</th>
+                  <th rowspan="2">预警值</th>
+                  <th rowspan="2">状态</th>
+                  <th rowspan="2" style="min-width: 100px;">血缘</th>
+                </tr>
+                <tr>
+                  <th>指标编码</th>
+                  <th>本期值</th>
+                  <th style="min-width: 160px;">名称</th>
+                  <th>指标编码</th>
+                  <th>本期值</th>
+                  <th style="min-width: 160px;">名称</th>
+                </tr>
+              </thead>
+              <tbody>
+              <tr data-rule="148305094329981301">
+                <td class="name">ICU床位使用率<span class="remark-dot" title="说明 :ICU实际占用总床日数与同期ICU实际开放总床日数之比">?</span></td>
+                <td class="code qb-mono">quality_2</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">ICU收治患者床日数</td>
+                <td class="code qb-mono">quality_301</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期ICU实际开放总床日数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018608604417425410">
+                <td class="name">ICU患者收治率</td>
+                <td class="code qb-mono">quality_0</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治人数（转入+入院）</td>
+                <td class="code qb-mono">quality_401</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">全院收治人数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018612181789638658">
+                <td class="name">ICU患者收治床日率</td>
+                <td class="code qb-mono">quality_2</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">ICU收治患者床日数</td>
+                <td class="code qb-mono">quality_402</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">全院实际占用床日数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="14830509432981302">
+                <td class="name">ICU医师床位比<span class="remark-dot" title="说明 :ICU医师总数与ICU实际开放床位数之比">?</span></td>
+                <td class="code qb-mono">quality_302</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">ICU医师总数</td>
+                <td class="code qb-mono">quality_304</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">ICU实际开放床位数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="148350943291303">
+                <td class="name">ICU护士床位比<span class="remark-dot" title="说明 :ICU护士总数与ICU实际开放床位数之比">?</span></td>
+                <td class="code qb-mono">quality_303</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">ICU护士总数</td>
+                <td class="code qb-mono">quality_304</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">ICU实际开放床位数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="1483050993981022">
+                <td class="name">急性生理与慢性健康评分（APACHEⅡ）≥15分的患者收治率（入ICU24小时内）<span class="remark-dot" title="说明:入ICU 24小时内，APACHEⅡ评分≥15分患者数占同期ICU收治患者总数的比例">?</span></td>
+                <td class="code qb-mono">quality_32</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">APACHEⅡ评分≥15分</td>
+                <td class="code qb-mono">quality_403</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期患者总数（转出+出院）</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="1483050943293980">
+                <td class="name">深静脉血栓预防率<span class="remark-dot" title="说明:进行深静脉血栓（DVT）预防的ICU患者数占同期ICU收治患者总数的比例">?</span></td>
+                <td class="code qb-mono">quality_14</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">进行深静脉血栓预防的患者数</td>
+                <td class="code qb-mono">quality_403</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期患者总数（转出+出院）</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018618678217080834">
+                <td class="name">深静脉血栓（仅）药物预防率</td>
+                <td class="code qb-mono">quality_404</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">仅进行深静脉血栓药物预防的患者数</td>
+                <td class="code qb-mono">quality_403</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期患者总数（转出+出院）</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018621953943339009">
+                <td class="name">深静脉血栓药物预防率</td>
+                <td class="code qb-mono">quality_405</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">进行深静脉血栓药物预防的患者总数</td>
+                <td class="code qb-mono">quality_403</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期患者总数（转出+出院）</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018858528564379650">
+                <td class="name">深静脉血栓（仅）机械预防率</td>
+                <td class="code qb-mono">quality_406</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">仅进行深静脉血栓机械预防的患者数</td>
+                <td class="code qb-mono">quality_403</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期患者总数（转出+出院）</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018861660463759362">
+                <td class="name">深静脉血栓机械预防率</td>
+                <td class="code qb-mono">quality_407</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">进行深静脉血栓机械预防的患者总数</td>
+                <td class="code qb-mono">quality_403</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期患者总数（转出+出院）</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018864168351367169">
+                <td class="name">（仅）下腔静脉滤器血栓预防率</td>
+                <td class="code qb-mono">quality_408</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">仅进行下腔静脉滤器置入的患者数</td>
+                <td class="code qb-mono">quality_403</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期患者总数（转出+出院）</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018864342377234433">
+                <td class="name">下腔静脉滤器血栓预防率</td>
+                <td class="code qb-mono">quality_409</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">进行下腔静脉滤器置入的患者总数</td>
+                <td class="code qb-mono">quality_403</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期患者总数（转出+出院）</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018864456244199426">
+                <td class="name">深静脉血栓相关死亡率</td>
+                <td class="code qb-mono">quality_410</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">深静脉血栓相关死亡人数</td>
+                <td class="code qb-mono">quality_403</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期患者总数（转出+出院）</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018864915344326658">
+                <td class="name">深静脉血栓预防后深静脉血栓发生率</td>
+                <td class="code qb-mono">quality_411</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">进行深静脉血栓预防并诊断深静脉血栓的患者数</td>
+                <td class="code qb-mono">quality_14</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">进行深静脉血栓预防的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018865101311377409">
+                <td class="name">深静脉血栓预防后深静脉血栓相关死亡率</td>
+                <td class="code qb-mono">quality_412</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">进行深静脉血栓预防并死亡的患者总数</td>
+                <td class="code qb-mono">quality_14</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">进行深静脉血栓预防的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018865344782336001">
+                <td class="name">进行深静脉血栓预防、诊断深静脉血栓的患者的死亡率</td>
+                <td class="code qb-mono">quality_413</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">进行深静脉血栓预防、诊断深静脉血栓并死亡的患者总数</td>
+                <td class="code qb-mono">quality_412</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">进行深静脉血栓预防并死亡的患者总数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018867883821039618">
+                <td class="name">感染性休克患者1h内乳酸测定率</td>
+                <td class="code qb-mono">quality_415</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">1h内完成乳酸测定的患者数</td>
+                <td class="code qb-mono">quality_414</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU前发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018867978570366977">
+                <td class="name">感染性休克患者1h内血培养留取率</td>
+                <td class="code qb-mono">quality_416</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">1h内留取血培养的患者数</td>
+                <td class="code qb-mono">quality_414</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU前发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018868134950797314">
+                <td class="name">感染性休克患者1h内抗菌药物使用率</td>
+                <td class="code qb-mono">quality_417</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">1h内使用抗菌药物的患者数</td>
+                <td class="code qb-mono">quality_414</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU前发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="148305094329310">
+                <td class="name">感染性休克3h集束化治疗完成率<span class="remark-dot" title="说明:入ICU诊断为感染性休克并全部完成3h bundle的患者数占同期入ICU诊断为感染性休克患者总数的比例">?</span></td>
+                <td class="code qb-mono">quality_9</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">完成3h集束化治疗的患者数</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018868918409035777">
+                <td class="name">感染性休克6h集束化治疗完成率</td>
+                <td class="code qb-mono">quality_419</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">完成6h集束化治疗的患者数</td>
+                <td class="code qb-mono">quality_414</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU前发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018887410428477442">
+                <td class="name">收治的≤18岁的感染性休克患者数（包括ICU内发生）比例</td>
+                <td class="code qb-mono">quality_433</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的≤18岁的感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018888296504557569">
+                <td class="name">收治的18-65岁的感染性休克患者数（包括ICU内发生）比例</td>
+                <td class="code qb-mono">quality_434</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的18-65岁的感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018888378524172289">
+                <td class="name">收治的≥65岁的感染性休克患者数（包括ICU内发生）比例</td>
+                <td class="code qb-mono">quality_435</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的≥65岁的感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018888459285495809">
+                <td class="name">收治的血流感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_438</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的血流感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018888548506730497">
+                <td class="name">收治的血流感染（CRBSI）感染性休克患者数（包括ICU内发生）比例</td>
+                <td class="code qb-mono">quality_436</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的血流感染（CRBSI）感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018892707754737665">
+                <td class="name">收治的血流感染（非CRBSI）感染性休克患者数（包括ICU内发生）比例</td>
+                <td class="code qb-mono">quality_437</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的血流感染（非CRBSI）感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018894431475269634">
+                <td class="name">收治的腹腔感染感染性休克患者数（包括ICU内发生）比例</td>
+                <td class="code qb-mono">quality_439</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的腹腔感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018894742445162497">
+                <td class="name">收治的泌尿系感染感染性休克患者数（包括ICU内发生）比例</td>
+                <td class="code qb-mono">quality_440</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的泌尿系感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018894847147573249">
+                <td class="name">收治的中枢神经系统感染感染性休克患者数（包括ICU内发生）比例</td>
+                <td class="code qb-mono">quality_441</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的中枢神经系统感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018894962750980097">
+                <td class="name">收治的肺部感染感染性休克患者数（包括ICU内发生）比例</td>
+                <td class="code qb-mono">quality_442</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的肺部感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018895319849828353">
+                <td class="name">收治的胆道感染感染性休克患者数（包括ICU内发生）比例</td>
+                <td class="code qb-mono">quality_443</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的胆道感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018895424493518850">
+                <td class="name">收治的胃肠道感染感染性休克患者数（包括ICU内发生）比例</td>
+                <td class="code qb-mono">quality_444</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的胃肠道感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018895515874820097">
+                <td class="name">收治的骨髓感染感染性休克患者数（包括ICU内发生）比例</td>
+                <td class="code qb-mono">quality_445</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的骨髓感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018895635043385346">
+                <td class="name">收治的皮肤软组织感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_446</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的皮肤软组织感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018895739468972034">
+                <td class="name">收治的其他部位感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_447</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的其他部位感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018895846687965186">
+                <td class="name">收治的感染性休克患者死亡数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_448</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">收治的感染性休克患者死亡数（包括ICU内发生）</td>
+                <td class="code qb-mono">quality_449</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018873286487244801">
+                <td class="name">ARDS患者采用保护性肺通气的比例</td>
+                <td class="code qb-mono">quality_421</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">采用保护性肺通气的患者数</td>
+                <td class="code qb-mono">quality_420</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的ARDS患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018873403755790337">
+                <td class="name">ARDS患者采用俯卧位通气的比例</td>
+                <td class="code qb-mono">quality_422</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">采用俯卧位通气的患者数</td>
+                <td class="code qb-mono">quality_420</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">收治的ARDS患者数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="1480594329381304">
+                <td class="name">ICU镇痛评估率<span class="remark-dot" title="说明 :进行镇痛评估ICU患者人数占同期ICU患者总人数的比例">?</span></td>
+                <td class="code qb-mono">quality_306</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">进行镇痛评估的 ICU患者人数</td>
+                <td class="code qb-mono">quality_403</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期患者总数（转出+出院）</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2046596316785082370">
+                <td class="name">ICU医师床位比</td>
+                <td class="code qb-mono">quality_302</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">ICU医师总数</td>
+                <td class="code qb-mono">quality_304</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">ICU实际开放床位数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2046596830486659074">
+                <td class="name">ICU护士床位比</td>
+                <td class="code qb-mono">quality_303</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">ICU护士总数</td>
+                <td class="code qb-mono">quality_304</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">ICU实际开放床位数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="148309432931305">
+                <td class="name">ICU镇静评估率<span class="remark-dot" title="说明 :进行镇静评估的ICU患者人数占同期ICU患者总人数的比例">?</span></td>
+                <td class="code qb-mono">quality_305</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">进行镇静评估的 ICU患者人数</td>
+                <td class="code qb-mono">quality_403</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期患者总数（转出+出院）</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018876838051905537">
+                <td class="name">ABI患者意识评估率</td>
+                <td class="code qb-mono">quality_423</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">完成意识评估的ABI患者数</td>
+                <td class="code qb-mono">quality_424</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期ABI患者总数（转出+出院的患者中）</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="1483050943291009">
+                <td class="name">ICU患者标化病死指数（StandardizedMortality Ratio）<span class="remark-dot" title="说明:ICU患者实际病死率与同期ICU患者预计病死率的比值">?</span></td>
+                <td class="code qb-mono">quality_30</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">ICU实际病死率(%)</td>
+                <td class="code qb-mono">quality_31</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">ICU患者预计病死率(%)</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="1483050943281010">
+                <td class="name">ICU非计划气管插管拔管率<span class="remark-dot" title="说明:非计划气管插管拔管例数占同期ICU患者气管插管拔管总数的比例">?</span></td>
+                <td class="code qb-mono">quality_17</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">非计划气管插管拔管数</td>
+                <td class="code qb-mono">quality_18</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">ICU患者气管插管拔管数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="1483050943293988">
+                <td class="name">ICU患者预计病死率<span class="remark-dot" title="说明:ICU收治患者预计病死率的总和与同期ICU收治患者总数的比值">?</span></td>
+                <td class="code qb-mono">quality_15</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">ICU收治患者预计病死率(%)</td>
+                <td class="code qb-mono">quality_403</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期患者总数（转出+出院）</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="1483050943981011">
+                <td class="name">ICU气管插管拔管后48h内再插管率<span class="remark-dot" title="说明:气管插管计划拔管后48h内再插管例数占同期ICU患者气管插管拔管总例数的比例（不包括非计划气管插管拔管后再插管）">?</span></td>
+                <td class="code qb-mono">quality_19</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">气管插管计划拔管后48h内再插管数</td>
+                <td class="code qb-mono">quality_18</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">ICU患者气管插管拔管数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="1483050943981012">
+                <td class="name">术后非计划转入率<span class="remark-dot" title="说明:非计划转入ICU患者数占同期转入ICU患者总数的比例">?</span></td>
+                <td class="code qb-mono">quality_20</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">术后非计划转入例数</td>
+                <td class="code qb-mono">quality_21</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">术后转入例数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="1483050943291013">
+                <td class="name">转出ICU后48h内重返率<span class="remark-dot" title="说明:转出ICU后48h内重返ICU的患者数占同期转出ICU患者总数的比例">?</span></td>
+                <td class="code qb-mono">quality_22</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">转出ICU后48h内重返ICU</td>
+                <td class="code qb-mono">quality_23</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">转出ICU</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="148305094321014">
+                <td class="name">呼吸机相关性肺炎发病率(例/千呼吸机日)<span class="remark-dot" title="说明:VAP发生例数占同期ICU患者有创机械通气总天数的比例">?</span></td>
+                <td class="code qb-mono">quality_24</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">发生呼吸机相关性肺炎（VAP）数</td>
+                <td class="code qb-mono">quality_25</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">患者有创机械通气天数</td>
+                <td class="unit">‰</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="1483050943293981">
+                <td class="name">血管内导管相关血流感染发病率(例/千导管日)<span class="remark-dot" title="说明:CRBSI发生例数占同期ICU患者血管内导管留置总天数的比例">?</span></td>
+                <td class="code qb-mono">quality_26</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">发生血管内导管相关血流感染（CRBSI）数</td>
+                <td class="code qb-mono">quality_27</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">患者血管内导管留置天数</td>
+                <td class="unit">‰</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018877060886888449">
+                <td class="name">导尿管相关泌尿系感染发病率(例/千导尿管日)</td>
+                <td class="code qb-mono">quality_425</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">导尿管相关泌尿系感染发生例数</td>
+                <td class="code qb-mono">quality_426</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">导尿管留置总天数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="148350943298306">
+                <td class="name">ICU急性脑损伤患者意识评估率<span class="remark-dot" title="说明 :ICU内完成意识评估的急性脑损伤患者人数占同期ICU急性脑损伤患者总人数的比例">?</span></td>
+                <td class="code qb-mono">quality_307</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">ICU内完成意识评估的急性脑损伤患者人数</td>
+                <td class="code qb-mono">quality_308</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期ICU急性脑损伤患者总人数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018878630621937665">
+                <td class="name">治疗性抗菌药物使用前病原学送检率</td>
+                <td class="code qb-mono">quality_427</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">治疗性抗菌药物使用前送检病原学标本例数</td>
+                <td class="code qb-mono">quality_428</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">使用治疗性抗菌药物例数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018879663909699586">
+                <td class="name">治疗性抗菌药物使用前PCT送检率</td>
+                <td class="code qb-mono">quality_429</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">治疗性抗菌药物使用前送检PCT例数</td>
+                <td class="code qb-mono">quality_430</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">使用治疗性抗菌药物例数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018879799771594754">
+                <td class="name">治疗性抗菌药物使用前G/GM实验送检率</td>
+                <td class="code qb-mono">quality_431</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">治疗性抗菌药物使用前送检G/GM实验例数</td>
+                <td class="code qb-mono">quality_430</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">使用治疗性抗菌药物例数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="2018879897138167810">
+                <td class="name">治疗性抗菌药物使用前白介素送检率</td>
+                <td class="code qb-mono">quality_432</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">治疗性抗菌药物使用前送检白介素例数</td>
+                <td class="code qb-mono">quality_430</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">使用治疗性抗菌药物例数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
+              <tr data-rule="148309432981307">
+                <td class="name">48h 内肠内营养（EN）启动率<span class="remark-dot" title="说明 :入住ICU超过48h的患者中48h内启动EN的患者人数占同期入住ICU超过 48h 的患者总人数的比例">?</span></td>
+                <td class="code qb-mono">quality_309</td>
+                <td class="num-value">—</td>
+                <td class="atom-name">入住ICU超过48h的患者中48h内启动EN的患者人数</td>
+                <td class="code qb-mono">quality_310</td>
+                <td class="den-value">—</td>
+                <td class="atom-name">同期入住ICU超过48h的患者总人数</td>
+                <td class="unit">%</td>
+                <td class="current"><span class="empty">—</span></td>
+                <td class="target">未配置</td>
+                <td class="warning">未配置</td>
+                <td class="status status-empty">无数据</td>
+                <td class="lineage"><button class="btn-mini btn-lineage">分子</button><button class="btn-mini btn-lineage">分母</button></td>
+              </tr>
 
-          <!-- ARDS -->
-          <div class="qb-domain">
-            <div class="qb-domain-header open">
-              <div class="qb-domain-title">
-                <i data-lucide="chevron-down" class="w-4 h-4 text-stone-400"></i>
-                ARDS 专项
-              </div>
-              <span class="qb-domain-count">46 条 · 已出数 32</span>
-            </div>
-            <div class="qb-domain-body">
-              <table class="qb-table">
-                <thead><tr><th style="width: 110px;">指标编号</th><th>指标名称</th><th style="width: 60px;">单位</th><th style="width: 100px; text-align: right;">本期值</th><th style="width: 120px; text-align: right;">分子 / 分母</th><th style="width: 90px; text-align: center;">计算状态</th><th style="width: 100px; text-align: center;">实现状态</th><th style="width: 180px; text-align: center;">操作</th></tr></thead>
-                <tbody>
-                  <tr>
-                    <td class="qb-mono">quality_420</td>
-                    <td>收治的 ARDS 患者数<span class="qb-empty" style="margin-left: 6px; cursor: help;" title="ARDS 人群识别基于诊断（含 ARDS / 急性呼吸窘迫）">?</span></td>
-                    <td style="text-align: center;">人</td>
-                    <td style="text-align: right;"><a class="qb-link" data-dom-id="metric-value-link">12</a></td>
-                    <td style="text-align: right;">— / —</td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-success">已出数</span></td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-success">已实现</span></td>
-                    <td style="text-align: center;">
-                      <div class="qb-actions">
-                        <button class="qb-btn-text success">计算</button>
-                        <button class="qb-btn-text primary">口径血缘</button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="qb-mono">quality_421</td>
-                    <td>ARDS 患者机械通气率</td>
-                    <td style="text-align: center;">%</td>
-                    <td style="text-align: right;"><a class="qb-link" data-dom-id="metric-value-link">83.3</a></td>
-                    <td style="text-align: right;">10 / 12</td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-success">已出数</span></td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-success">已实现</span></td>
-                    <td style="text-align: center;">
-                      <div class="qb-actions">
-                        <button class="qb-btn-text success">计算</button>
-                        <button class="qb-btn-text primary">口径血缘</button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="qb-mono">quality_422</td>
-                    <td>应实施俯卧位的中重度 ARDS 患者数</td>
-                    <td style="text-align: center;">人</td>
-                    <td style="text-align: right;"><span class="qb-empty">—</span></td>
-                    <td style="text-align: right;"><span class="qb-empty">— / —</span></td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-info">空壳</span></td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-warning">待接数据源</span></td>
-                    <td style="text-align: center;">
-                      <div class="qb-actions">
-                        <button class="qb-btn-text" disabled>计算</button>
-                        <button class="qb-btn-text primary">口径血缘</button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="qb-mono">quality_423</td>
-                    <td>ARDS 患者 28 天病死率</td>
-                    <td style="text-align: center;">%</td>
-                    <td style="text-align: right;"><span class="qb-empty">—</span></td>
-                    <td style="text-align: right;"><span class="qb-empty">— / —</span></td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-info">空壳</span></td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-muted">口径待定</span></td>
-                    <td style="text-align: center;">
-                      <div class="qb-actions">
-                        <button class="qb-btn-text" disabled>计算</button>
-                        <button class="qb-btn-text primary">口径血缘</button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Sepsis -->
-          <div class="qb-domain">
-            <div class="qb-domain-header open">
-              <div class="qb-domain-title">
-                <i data-lucide="chevron-down" class="w-4 h-4 text-stone-400"></i>
-                脓毒症_感染性休克
-              </div>
-              <span class="qb-domain-count">27 条 · 已出数 19</span>
-            </div>
-            <div class="qb-domain-body">
-              <table class="qb-table">
-                <thead><tr><th style="width: 110px;">指标编号</th><th>指标名称</th><th style="width: 60px;">单位</th><th style="width: 100px; text-align: right;">本期值</th><th style="width: 120px; text-align: right;">分子 / 分母</th><th style="width: 90px; text-align: center;">计算状态</th><th style="width: 100px; text-align: center;">实现状态</th><th style="width: 180px; text-align: center;">操作</th></tr></thead>
-                <tbody>
-                  <tr>
-                    <td class="qb-mono">quality_210</td>
-                    <td>脓毒症休克 1H 集束化达标率</td>
-                    <td style="text-align: center;">%</td>
-                    <td style="text-align: right;"><a class="qb-link">92.0</a></td>
-                    <td style="text-align: right;">23 / 25</td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-success">已出数</span></td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-success">已实现</span></td>
-                    <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text success">计算</button><button class="qb-btn-text primary">口径血缘</button></div></td>
-                  </tr>
-                  <tr>
-                    <td class="qb-mono">quality_211</td>
-                    <td>脓毒症休克 3H 集束化达标率</td>
-                    <td style="text-align: center;">%</td>
-                    <td style="text-align: right;"><a class="qb-link">88.0</a></td>
-                    <td style="text-align: right;">22 / 25</td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-success">已出数</span></td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-success">已实现</span></td>
-                    <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text success">计算</button><button class="qb-btn-text primary">口径血缘</button></div></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Patient flow -->
-          <div class="qb-domain">
-            <div class="qb-domain-header open">
-              <div class="qb-domain-title">
-                <i data-lucide="chevron-down" class="w-4 h-4 text-stone-400"></i>
-                患者流转
-              </div>
-              <span class="qb-domain-count">11 条 · 已出数 9</span>
-            </div>
-            <div class="qb-domain-body">
-              <table class="qb-table">
-                <thead><tr><th style="width: 110px;">指标编号</th><th>指标名称</th><th style="width: 60px;">单位</th><th style="width: 100px; text-align: right;">本期值</th><th style="width: 120px; text-align: right;">分子 / 分母</th><th style="width: 90px; text-align: center;">计算状态</th><th style="width: 100px; text-align: center;">实现状态</th><th style="width: 180px; text-align: center;">操作</th></tr></thead>
-                <tbody>
-                  <tr>
-                    <td class="qb-mono">quality_101</td>
-                    <td>ICU 收治患者总数</td>
-                    <td style="text-align: center;">人</td>
-                    <td style="text-align: right;"><a class="qb-link">156</a></td>
-                    <td style="text-align: right;">— / —</td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-success">已出数</span></td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-success">已实现</span></td>
-                    <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text success">计算</button><button class="qb-btn-text primary">口径血缘</button></div></td>
-                  </tr>
-                  <tr>
-                    <td class="qb-mono">quality_102</td>
-                    <td>ICU 患者病死率</td>
-                    <td style="text-align: center;">%</td>
-                    <td style="text-align: right;"><a class="qb-link">8.3</a></td>
-                    <td style="text-align: right;">13 / 156</td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-success">已出数</span></td>
-                    <td style="text-align: center;"><span class="qb-tag qb-tag-success">已实现</span></td>
-                    <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text success">计算</button><button class="qb-btn-text primary">口径血缘</button></div></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- More domains collapsed -->
-          <div class="qb-domain">
-            <div class="qb-domain-header">
-              <div class="qb-domain-title">
-                <i data-lucide="chevron-right" class="w-4 h-4 text-stone-400"></i>
-                DVT 预防
-              </div>
-              <span class="qb-domain-count">11 条 · 已出数 6</span>
-            </div>
-          </div>
-          <div class="qb-domain">
-            <div class="qb-domain-header">
-              <div class="qb-domain-title">
-                <i data-lucide="chevron-right" class="w-4 h-4 text-stone-400"></i>
-                导管_管路_院感
-              </div>
-              <span class="qb-domain-count">9 条 · 已出数 4</span>
-            </div>
-          </div>
-          <div class="qb-domain">
-            <div class="qb-domain-header">
-              <div class="qb-domain-title">
-                <i data-lucide="chevron-right" class="w-4 h-4 text-stone-400"></i>
-                评估依从
-              </div>
-              <span class="qb-domain-count">8 条 · 已出数 7</span>
-            </div>
-          </div>
-          <div class="qb-domain">
-            <div class="qb-domain-header">
-              <div class="qb-domain-title">
-                <i data-lucide="chevron-right" class="w-4 h-4 text-stone-400"></i>
-                抗菌药送检
-              </div>
-              <span class="qb-domain-count">8 条 · 已出数 5</span>
-            </div>
-          </div>
-          <div class="qb-domain">
-            <div class="qb-domain-header">
-              <div class="qb-domain-title">
-                <i data-lucide="chevron-right" class="w-4 h-4 text-stone-400"></i>
-                评分_资源
-              </div>
-              <span class="qb-domain-count">7 条 · 已出数 3</span>
-            </div>
+              </tbody>
+            </table>
           </div>
         </section>
       </div>
+    </main>      </div>
     </main>
     <script>lucide.createIcons();</script>
 </body>

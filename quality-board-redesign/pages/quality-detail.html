@@ -455,21 +455,27 @@ html, body {
         background-color: currentColor;
       }
     </style>
+    <style id="detail-sample-styles">
+      /* Detail sample styles */
+      .drawer-meta { display: grid; grid-template-columns: 120px 1fr; gap: 10px 16px; font-size: var(--qb-text-sm); }
+      .meta-row { display: contents; }
+      .meta-label { color: var(--qb-stone-500); font-weight: 500; }
+      .meta-value { color: var(--qb-stone-800); }
+      .meta-value.status-impl { color: var(--qb-state-success); font-weight: 600; }
+      .drawer-desc { margin-top: 16px; padding: 12px 16px; background: var(--qb-stone-50); border-radius: var(--qb-radius-medium); border-left: 3px solid var(--qb-orange-400); font-size: var(--qb-text-sm); color: var(--qb-stone-700); line-height: var(--qb-leading-snug); }
+      .result-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+      .result-card { padding: 14px; border: 1px solid var(--qb-border); border-radius: var(--qb-radius-large); background: var(--qb-stone-50); }
+      .result-label { font-size: var(--qb-text-xs); color: var(--qb-stone-500); margin-bottom: 6px; }
+      .result-value { font-size: var(--qb-text-xl); font-weight: 700; color: var(--qb-stone-900); font-variant-numeric: tabular-nums; }
+      .result-value.status-impl { color: var(--qb-state-success); }
+      @media (max-width: 1100px) { .result-cards { grid-template-columns: repeat(2, 1fr); } }
+      @media (max-width: 640px) { .result-cards { grid-template-columns: 1fr; } }
+    </style>
 </head>
 <body class="min-h-screen font-sans antialiased">
     <main>
       <div class="qb-page" style="filter: brightness(0.98);">
         <!-- Header -->
-        <header class="qb-header">
-          <div>
-            <h1 class="qb-header-title">质控指标看板</h1>
-            <p class="qb-header-sub">127 条 ICU 质控指标 · 可配置 · 可追溯 · 可解释</p>
-          </div>
-          <div class="qb-actions">
-            <button class="qb-btn-ghost"><i data-lucide="help-circle" class="w-4 h-4"></i>帮助</button>
-          </div>
-        </header>
-
         <!-- Filter bar -->
         <section class="qb-card qb-filter-bar">
           <div class="qb-filter-left">
@@ -565,82 +571,57 @@ html, body {
       <div class="qb-drawer" role="dialog" aria-modal="true">
         <div class="qb-drawer-header">
           <div>
-            <h2 class="qb-drawer-title">ARDS 患者机械通气率</h2>
-            <p class="qb-drawer-sub"><span class="qb-mono">quality_421</span> · ARDS 专项 · 2026-08</p>
+            <h2 class="qb-drawer-title">收治的ARDS患者数</h2>
+            <p class="qb-drawer-sub"><span class="qb-mono">quality_420</span> · ARDS 专项 · 2026-08</p>
           </div>
           <button class="qb-drawer-close" data-dom-id="drawer-close" aria-label="关闭"><i data-lucide="x" class="w-4 h-4"></i></button>
         </div>
         <div class="qb-drawer-body">
           <!-- Meta -->
           <div class="qb-drawer-section">
-            <h3 class="qb-drawer-section-title">指标元信息</h3>
-            <dl class="qb-desc-list">
-              <dt>指标编号</dt><dd class="qb-mono">quality_421</dd>
-              <dt>中文名称</dt><dd>ARDS 患者机械通气率</dd>
-              <dt>英文名称</dt><dd>Mechanical Ventilation Rate in ARDS</dd>
-              <dt>定义</dt><dd>收治的 ARDS 患者中接受有创机械通气的比例</dd>
-              <dt>计算公式</dt><dd>机械通气 ARDS 患者数 / 收治 ARDS 患者总数 × 100%</dd>
-              <dt>统计周期</dt><dd>按月</dd>
-              <dt>科室范围</dt><dd>全院 ICU</dd>
-              <dt>数据级别</dt><dd>科室级聚合</dd>
-            </dl>
+            <div class="drawer-meta">
+              <div class="meta-row"><span class="meta-label">指标编号</span><span class="meta-value">quality_420</span></div>
+              <div class="meta-row"><span class="meta-label">所属域</span><span class="meta-value">ARDS专项</span></div>
+              <div class="meta-row"><span class="meta-label">单位</span><span class="meta-value">人</span></div>
+              <div class="meta-row"><span class="meta-label">事实层</span><span class="meta-value">fact_ards</span></div>
+              <div class="meta-row"><span class="meta-label">实现状态</span><span class="meta-value status-impl">已实现</span></div>
+              <div class="meta-row"><span class="meta-label">口径版本</span><span class="meta-value">v1</span></div>
+            </div>
+            <div class="drawer-desc"><strong>口径说明：</strong>ARDS 人群识别基于诊断（含 ARDS / 急性呼吸窘迫）</div>
           </div>
 
           <!-- Result cards -->
           <div class="qb-drawer-section">
-            <h3 class="qb-drawer-section-title">本期结果</h3>
-            <div class="qb-result-cards">
-              <div class="qb-result-card">
-                <div class="qb-result-label">本期值</div>
-                <div class="qb-result-value green">83.3%</div>
-              </div>
-              <div class="qb-result-card">
-                <div class="qb-result-label">分子</div>
-                <div class="qb-result-value">10</div>
-              </div>
-              <div class="qb-result-card">
-                <div class="qb-result-label">分母</div>
-                <div class="qb-result-value">12</div>
-              </div>
+            <div class="result-cards">
+              <div class="result-card"><div class="result-label">指标值</div><div class="result-value">12</div></div>
+              <div class="result-card"><div class="result-label">分子 / 分母</div><div class="result-value">— / —</div></div>
+              <div class="result-card"><div class="result-label">计算状态</div><div class="result-value status-impl">OK</div></div>
+              <div class="result-card"><div class="result-label">数据批次</div><div class="result-value">202608…rk1</div></div>
             </div>
           </div>
 
-          <!-- Bloodline -->
+          <!-- Bloodline SQL -->
           <div class="qb-drawer-section">
             <h3 class="qb-drawer-section-title">口径血缘 SQL</h3>
-            <div class="qb-code-block"><span class="qb-code-keyword">WITH</span> ards_patients <span class="qb-code-keyword">AS</span> (
-  <span class="qb-code-keyword">SELECT</span> <span class="qb-code-keyword">DISTINCT</span> patient_id, stay_id
-  <span class="qb-code-keyword">FROM</span> dwd_diagnosis
-  <span class="qb-code-keyword">WHERE</span> diagnosis <span class="qb-code-keyword">LIKE</span> <span class="qb-code-string">'%ARDS%'</span>
-    <span class="qb-code-keyword">AND</span> diag_time &gt;= <span class="qb-code-string">'${start_date}'</span>
-    <span class="qb-code-keyword">AND</span> diag_time &lt;  <span class="qb-code-string">'${end_date}'</span>
-),
-mv_patients <span class="qb-code-keyword">AS</span> (
-  <span class="qb-code-keyword">SELECT</span> <span class="qb-code-keyword">DISTINCT</span> patient_id
-  <span class="qb-code-keyword">FROM</span> dwd_ventilator
-  <span class="qb-code-keyword">WHERE</span> mode = <span class="qb-code-string">'invasive'</span>
-    <span class="qb-code-keyword">AND</span> start_time &gt;= <span class="qb-code-string">'${start_date}'</span>
-)
-<span class="qb-code-keyword">SELECT</span>
-  <span class="qb-code-keyword">COUNT</span>(<span class="qb-code-keyword">DISTINCT</span> <span class="qb-code-keyword">CASE</span> <span class="qb-code-keyword">WHEN</span> m.patient_id <span class="qb-code-keyword">IS NOT NULL</span> <span class="qb-code-keyword">THEN</span> a.patient_id <span class="qb-code-keyword">END</span>) <span class="qb-code-keyword">AS</span> numerator,
-  <span class="qb-code-keyword">COUNT</span>(<span class="qb-code-keyword">DISTINCT</span> a.patient_id) <span class="qb-code-keyword">AS</span> denominator,
-  ROUND(numerator * 100.0 / denominator, 1) <span class="qb-code-keyword">AS</span> value
-<span class="qb-code-keyword">FROM</span> ards_patients a
-<span class="qb-code-keyword">LEFT JOIN</span> mv_patients m <span class="qb-code-keyword">ON</span> a.patient_id = m.patient_id;
-<span class="qb-code-comment">-- 依赖事实: fact_ards_admit, fact_ards_mv</span></div>
+            <div class="qb-code-block"><span class="qb-code-keyword">SELECT</span>
+  <span class="qb-code-keyword">COUNT</span>(<span class="qb-code-keyword">DISTINCT</span> patient_id) <span class="qb-code-keyword">AS</span> ards_patients
+<span class="qb-code-keyword">FROM</span> fact_ards
+<span class="qb-code-keyword">WHERE</span> ards = 1
+  <span class="qb-code-keyword">AND</span> depart_code = <span class="qb-code-string">'${dept}'</span>
+  <span class="qb-code-keyword">AND</span> period_start &gt;= <span class="qb-code-string">'${start_date}'</span>
+  <span class="qb-code-keyword">AND</span> period_start &lt;  <span class="qb-code-string">'${end_date}'</span>;
+<span class="qb-code-comment">-- 依赖事实: fact_ards</span></div>
           </div>
 
           <!-- Patient detail -->
           <div class="qb-drawer-section">
-            <h3 class="qb-drawer-section-title">患者明细（分母 12 / 分子 10）</h3>
+            <h3 class="qb-drawer-section-title">患者明细（12 人）</h3>
             <table class="qb-table">
-              <thead><tr><th style="width: 110px;">患者 ID</th><th style="width: 90px;">性别</th><th style="width: 70px;">年龄</th><th style="width: 140px;">入科时间</th><th style="width: 160px;">上机时间</th><th style="width: 90px; text-align: center;">是否纳入分子</th></tr></thead>
+              <thead><tr><th style="width: 110px;">患者 ID</th><th style="width: 90px;">性别</th><th style="width: 70px;">年龄</th><th style="width: 140px;">入科时间</th><th style="width: 90px; text-align: center;">ARDS 诊断</th></tr></thead>
               <tbody>
-                <tr><td class="qb-mono">P100821</td><td>男</td><td>68</td><td>2026-08-02</td><td>2026-08-02 09:15</td><td style="text-align: center;"><span class="qb-tag qb-tag-success">是</span></td></tr>
-                <tr><td class="qb-mono">P100834</td><td>女</td><td>55</td><td>2026-08-05</td><td>2026-08-05 14:30</td><td style="text-align: center;"><span class="qb-tag qb-tag-success">是</span></td></tr>
-                <tr><td class="qb-mono">P100856</td><td>男</td><td>71</td><td>2026-08-11</td><td>2026-08-11 03:22</td><td style="text-align: center;"><span class="qb-tag qb-tag-success">是</span></td></tr>
-                <tr><td class="qb-mono">P100861</td><td>女</td><td>62</td><td>2026-08-12</td><td>2026-08-12 18:45</td><td style="text-align: center;"><span class="qb-tag qb-tag-success">是</span></td></tr>
-                <tr><td class="qb-mono">P100872</td><td>男</td><td>59</td><td>2026-08-15</td><td><span class="qb-empty">—</span></td><td style="text-align: center;"><span class="qb-tag qb-tag-muted">否</span></td></tr>
+                <tr><td class="qb-mono">P100821</td><td>男</td><td>68</td><td>2026-08-02</td><td style="text-align: center;"><span class="qb-tag qb-tag-success">已确认</span></td></tr>
+                <tr><td class="qb-mono">P100834</td><td>女</td><td>55</td><td>2026-08-05</td><td style="text-align: center;"><span class="qb-tag qb-tag-success">已确认</span></td></tr>
+                <tr><td class="qb-mono">P100856</td><td>男</td><td>71</td><td>2026-08-11</td><td style="text-align: center;"><span class="qb-tag qb-tag-success">已确认</span></td></tr>
               </tbody>
             </table>
           </div>

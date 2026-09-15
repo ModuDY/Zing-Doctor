@@ -1,15 +1,15 @@
 <template>
-  <div class="mdro-config">
+  <div class="mdro-config abx-theme">
     <div class="filter-bar">
       <div class="filter-left">
         <el-button @click="goBack">
           <el-icon><ArrowLeft /></el-icon> 返回总览
         </el-button>
-        <el-select v-model="filterConfigType" placeholder="按配置类型筛选" clearable style="width: 160px;" @change="loadList">
+        <el-select v-model="filterConfigType" placeholder="按配置类型筛选" clearable style="width: 160px;" popper-class="abx-popper" @change="loadList">
           <el-option label="细菌分类" value="bacteria_class" />
           <el-option label="高风险细菌" value="high_risk" />
         </el-select>
-        <el-select v-model="filterBacteriaClass" placeholder="按细菌分类筛选" clearable style="width: 140px;" @change="filterList">
+        <el-select v-model="filterBacteriaClass" placeholder="按细菌分类筛选" clearable style="width: 140px;" popper-class="abx-popper" @change="filterList">
           <el-option label="革兰阳性菌" value="gram_positive" />
           <el-option label="革兰阴性菌" value="gram_negative" />
           <el-option label="真菌" value="fungi" />
@@ -99,10 +99,10 @@
     </div>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑配置' : '新增配置'" width="560px" @close="resetForm">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑配置' : '新增配置'" width="560px" class="abx-overlay" @close="resetForm">
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
         <el-form-item label="配置类型" prop="configType">
-          <el-select v-model="form.configType" style="width: 100%;">
+          <el-select v-model="form.configType" style="width: 100%;" popper-class="abx-popper">
             <el-option label="细菌分类" value="bacteria_class" />
             <el-option label="高风险细菌" value="high_risk" />
           </el-select>
@@ -111,7 +111,7 @@
           <el-input v-model="form.bacteriaName" placeholder="请输入细菌名称，如：鲍曼不动杆菌" />
         </el-form-item>
         <el-form-item label="细菌分类" prop="bacteriaClass">
-          <el-select v-model="form.bacteriaClass" style="width: 100%;">
+          <el-select v-model="form.bacteriaClass" style="width: 100%;" popper-class="abx-popper">
             <el-option label="革兰阳性菌" value="gram_positive" />
             <el-option label="革兰阴性菌" value="gram_negative" />
             <el-option label="真菌" value="fungi" />
@@ -143,6 +143,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Plus, Refresh } from '@element-plus/icons-vue'
 import request from '../api/request'
+import '../styles/abx-theme.css'
 
 const router = useRouter()
 const loading = ref(false)
@@ -240,7 +241,7 @@ async function toggleStatus(row, status) {
     await ElMessageBox.confirm(
       `确定要${newStatus === 1 ? '启用' : '停用'}「${row.bacteriaName}」吗？`,
       '提示',
-      { type: 'warning' }
+      { type: 'warning', customClass: 'abx-overlay' }
     )
     await request.post('/antibiotic/mdro/config/toggle', null, {
       params: { id: row.id, status: newStatus }
@@ -323,8 +324,8 @@ onMounted(() => {
 
 <style scoped>
 .mdro-config {
-  padding: 16px;
-  background: #f5f7fa;
+  padding: 24px;
+  background: #fafaf9;
   min-height: 100vh;
 }
 
@@ -353,45 +354,47 @@ onMounted(() => {
 
 .summary-item {
   background: #fff;
-  border-radius: 8px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
   padding: 12px 20px;
   display: flex;
   align-items: baseline;
   gap: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  border-left: 4px solid #409eff;
+  box-shadow: 0 1px 2px rgba(28,25,23,0.04);
+  border-left: 4px solid #0d9488;
 }
 
-.summary-item.success { border-left-color: #67c23a; }
-.summary-item.primary { border-left-color: #409eff; }
-.summary-item.warning { border-left-color: #e6a23c; }
-.summary-item.danger { border-left-color: #f56c6c; }
+.summary-item.success { border-left-color: #16a34a; }
+.summary-item.primary { border-left-color: #0d9488; }
+.summary-item.warning { border-left-color: #d97706; }
+.summary-item.danger { border-left-color: #dc2626; }
 
 .summary-item .label {
   font-size: 13px;
-  color: #909399;
+  color: #78716c;
 }
 
 .summary-item .value {
   font-size: 22px;
   font-weight: 600;
-  color: #303133;
+  color: #292524;
 }
 
-.summary-item .value.success { color: #67c23a; }
-.summary-item .value.primary { color: #409eff; }
-.summary-item .value.warning { color: #e6a23c; }
-.summary-item .value.danger { color: #f56c6c; }
+.summary-item .value.success { color: #16a34a; }
+.summary-item .value.primary { color: #0d9488; }
+.summary-item .value.warning { color: #d97706; }
+.summary-item .value.danger { color: #dc2626; }
 
 .config-table {
   background: #fff;
-  border-radius: 8px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
   padding: 16px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 2px rgba(28,25,23,0.04);
 }
 
 .bacteria-name {
   font-weight: 500;
-  color: #303133;
+  color: #292524;
 }
 </style>

@@ -1,0 +1,1876 @@
+[
+  {
+    "code": "quality_0",
+    "name": "收治人数（转入+入院）",
+    "domain": "患者流转",
+    "fact": "fact_patient_stay",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "admitted_in_period = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 1,
+    "remark": "复用 Handover 口径：本周期内入/转入 ICU 的患者数",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_2",
+    "name": "ICU收治患者床日数",
+    "domain": "患者流转",
+    "fact": "fact_patient_stay",
+    "unit": "天",
+    "valueType": "COUNT",
+    "agg": "SUM",
+    "numerator": "stay_days",
+    "where": "stay_days > 0",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 2,
+    "remark": "跨月按「本周期 ∩ 在院区间」切分；取整数天，不足一天按 0 天不计入",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_9",
+    "name": "完成3h集束化治疗的患者数",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND lactate_3h = 1 AND culture_3h = 1 AND abx_3h = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 3,
+    "remark": "3h 三要素（乳酸+血培养+抗菌药）。30ml/kg 晶体液要素待接入液体复苏数据后可加进 where",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_10",
+    "name": "入ICU诊断为感染性休克",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "pre_icu_shock = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 4,
+    "remark": "入 ICU 前已发生：诊断「感染性休克」时间早于入科时间",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_11",
+    "name": "入ICU诊断为感染性休克并全部完成6h bundle",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "pre_icu_shock = 1 AND lactate_3h = 1 AND culture_3h = 1 AND abx_3h = 1 AND vaso_6h = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 5,
+    "remark": "6h = 3h 三要素 + 血管活性药（低血压处理要素）",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_12",
+    "name": "使用抗菌药物前病原学检验标本送检",
+    "domain": "抗菌药送检",
+    "fact": "fact_abx_culture",
+    "unit": "%",
+    "valueType": "RATE",
+    "scale": 100,
+    "where": "abx_used = 1 AND culture_first_time IS NOT NULL AND culture_first_time <= abx_first_time",
+    "denominatorWhere": "abx_used = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 6,
+    "remark": "分母=使用抗菌药物患者；分子=首次培养/涂片/镜检/药敏/鉴定送检时间不晚于首剂抗菌药时间。老脚本越界取值（把全院送检算进分子），此处按患者维度修正",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_13",
+    "name": "使用抗菌药物治疗",
+    "domain": "抗菌药送检",
+    "fact": "fact_abx_culture",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "abx_used = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 7,
+    "remark": "quality_12 的分母，单独出数便于核对",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_14",
+    "name": "进行深静脉血栓预防的患者数",
+    "domain": "DVT预防",
+    "fact": "fact_dvt",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 8,
+    "remark": "待接 useDvtAdviceList（医嘱侧预防措施）。事实层需补 prevent_drug / prevent_mech / prevent_filter 三列"
+  },
+  {
+    "code": "quality_15",
+    "name": "ICU收治患者预计病死率(%)",
+    "domain": "评分_资源",
+    "fact": "fact_score_resource",
+    "unit": "%",
+    "valueType": "AVG",
+    "agg": "SUM",
+    "numerator": "mortality_rate",
+    "denominatorWhere": "mortality_rate IS NOT NULL",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 9,
+    "remark": "复用 APACHE II 评分记录，取 mortality_rate 均值；分母为「有评分的患者数」而非全部收治患者",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_16",
+    "name": "ICU死亡患者数",
+    "domain": "患者流转",
+    "fact": "fact_patient_stay",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "died_in_period = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 10,
+    "remark": "死亡以转归 out_vest_type=3 且转出时间落在本周期为准",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_17",
+    "name": "非计划气管插管拔管数",
+    "domain": "导管_管路_院感",
+    "fact": "fact_device",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 11,
+    "remark": "待接 tubeList。事实层已备 device_pair 与 unplanned_removal，缺源。老脚本存在循环变量泄漏（多条管路互相覆盖），新实现按 device_id 逐条判定"
+  },
+  {
+    "code": "quality_18",
+    "name": "ICU患者气管插管拔管数",
+    "domain": "导管_管路_院感",
+    "fact": "fact_device",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 12,
+    "remark": "待接 tubeList"
+  },
+  {
+    "code": "quality_19",
+    "name": "气管插管计划拔管后48h内再插管数",
+    "domain": "导管_管路_院感",
+    "fact": "fact_device",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 13,
+    "remark": "待接 tubeList。老脚本时间桶错位（把拔管当天的再插管算到次日），新实现按 time_window 算子在同一患者内配对，避免跨患者误配"
+  },
+  {
+    "code": "quality_20",
+    "name": "术后非计划转入例数",
+    "domain": "患者流转",
+    "fact": "fact_patient_stay",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 14,
+    "remark": "待接：需要「非计划转入」判定源（手术计划状态/转入来源）。事实层已备好 post_op 派生列，接入后补一条 where 即生效，当前不给出假 0"
+  },
+  {
+    "code": "quality_21",
+    "name": "术后转入例数",
+    "domain": "患者流转",
+    "fact": "fact_patient_stay",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "post_op = 1 AND admitted_in_period = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 15,
+    "remark": "术后由诊断文本识别；与 quality_20 的差别在「非计划」标识，该标识暂无源",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_22",
+    "name": "转出ICU后48h内重返ICU",
+    "domain": "患者流转",
+    "fact": "fact_patient_stay",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "readmit_48h = 1 AND admitted_in_period = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 16,
+    "remark": "同一住院号下若存在更早一次转出且间隔≤48h，则本次转入计为重返",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_23",
+    "name": "转出ICU",
+    "domain": "患者流转",
+    "fact": "fact_patient_stay",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "out_in_period = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 17,
+    "remark": "含转科、出院、死亡、临终、自动转院",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_24",
+    "name": "发生呼吸机相关性肺炎（VAP）数",
+    "domain": "导管_管路_院感",
+    "fact": "fact_device",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 18,
+    "remark": "空壳：VAP 判定标准待与院感科确认（是否采用 CDC/NHSN 的 VAE 定义、感染窗口多长）"
+  },
+  {
+    "code": "quality_25",
+    "name": "患者有创机械通气天数",
+    "domain": "导管_管路_院感",
+    "fact": "fact_device",
+    "unit": "天",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 19,
+    "remark": "空壳：需明确「同一次住院多次上机是否合并、跨月如何切分」"
+  },
+  {
+    "code": "quality_26",
+    "name": "发生血管内导管相关血流感染（CRBSI）数",
+    "domain": "导管_管路_院感",
+    "fact": "fact_device",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 20,
+    "remark": "待接管路表。老脚本数据源错配（指向脓毒症 bundle），此处按管路表 + infection_flag 实现，不复用旧口径"
+  },
+  {
+    "code": "quality_27",
+    "name": "患者血管内导管留置天数",
+    "domain": "导管_管路_院感",
+    "fact": "fact_device",
+    "unit": "天",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 21,
+    "remark": "空壳：口径待定，同 quality_25"
+  },
+  {
+    "code": "quality_30",
+    "name": "ICU实际病死率(%)",
+    "domain": "患者流转",
+    "fact": "fact_patient_stay",
+    "unit": "%",
+    "valueType": "RATE",
+    "scale": 100,
+    "implStatus": "MANUAL",
+    "version": 1,
+    "sortNo": 22,
+    "remark": "人工录入：分母的「ICU 收治患者总数」在院内口径中需人工确认（是否含短时观察/转入转出重复），故不由系统自动算"
+  },
+  {
+    "code": "quality_31",
+    "name": "ICU患者预计病死率(%)",
+    "domain": "评分_资源",
+    "fact": "fact_score_resource",
+    "unit": "%",
+    "valueType": "RATE",
+    "scale": 100,
+    "implStatus": "MANUAL",
+    "version": 1,
+    "sortNo": 23,
+    "remark": "人工录入：与 quality_15 口径待并（来源清单分列两条），暂保留人工上报以免历史口径断档"
+  },
+  {
+    "code": "quality_32",
+    "name": "APACHEⅡ评分≥15分",
+    "domain": "评分_资源",
+    "fact": "fact_score_resource",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "apache_ge15 = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 24,
+    "remark": "入周期内评分记录 total_score≥15 的患者数",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_34",
+    "name": "完成1h集束化治疗的患者数",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND lactate_1h = 1 AND culture_1h = 1 AND abx_1h = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 25,
+    "remark": "1h 三要素；与 quality_418 同值同实现（两条来源清单保留）",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_301",
+    "name": "同期ICU实际开放总床日数",
+    "domain": "评分_资源",
+    "fact": "fact_bed",
+    "unit": "天",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 26,
+    "remark": "待接 bedInfoList（床位开放记录）。缺该源时病死率类指标的标准化分母无法计算"
+  },
+  {
+    "code": "quality_302",
+    "name": "ICU医师总数",
+    "domain": "评分_资源",
+    "fact": "fact_staff",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "is_doctor = 1",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 27,
+    "remark": "待接 staffInfoList。表达式已就绪：事实层 fact_staff 的计数对象为人（patientKey=user_id），接入后无需改配置"
+  },
+  {
+    "code": "quality_303",
+    "name": "ICU护士总数",
+    "domain": "评分_资源",
+    "fact": "fact_staff",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "is_nurse = 1",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 28,
+    "remark": "待接 staffInfoList，同 quality_302"
+  },
+  {
+    "code": "quality_304",
+    "name": "ICU实际开放床位数",
+    "domain": "评分_资源",
+    "fact": "fact_bed",
+    "unit": "张",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 29,
+    "remark": "待接 bedInfoList"
+  },
+  {
+    "code": "quality_305",
+    "name": "进行镇静评估的 ICU患者人数",
+    "domain": "评估依从",
+    "fact": "fact_assessment",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sedation_assessed = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 30,
+    "remark": "观察项名含「镇静 / RASS / SAS」",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_306",
+    "name": "进行镇痛评估的 ICU患者人数",
+    "domain": "评估依从",
+    "fact": "fact_assessment",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "analgesia_assessed = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 31,
+    "remark": "观察项名含「镇痛 / 疼痛 / CPOT」",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_307",
+    "name": "ICU内完成意识评估的急性脑损伤患者人数",
+    "domain": "评估依从",
+    "fact": "fact_assessment",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "abi = 1 AND consciousness_assessed = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 32,
+    "remark": "ABI 由诊断识别（脑出血/脑梗死/颅脑损伤/脑外伤/蛛网膜下腔出血/缺氧性脑病）",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_308",
+    "name": "同期ICU急性脑损伤患者总人数",
+    "domain": "评估依从",
+    "fact": "fact_assessment",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "abi = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 33,
+    "remark": "quality_307 的分母",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_309",
+    "name": "入住ICU超过48h的患者中48h内启动EN的患者人数",
+    "domain": "评估依从",
+    "fact": "fact_assessment",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "stay_gt_48h = 1 AND en_48h = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 34,
+    "remark": "EN 由医嘱名称识别（肠内营养/鼻饲/能全力等）",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_310",
+    "name": "同期入住ICU超过48h的患者总人数",
+    "domain": "评估依从",
+    "fact": "fact_assessment",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "stay_gt_48h = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 35,
+    "remark": "quality_309 的分母；未转出者按本周期末计算住院时长",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_311",
+    "name": "中重度 ARDS 患者中实施俯卧位通气治疗的人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND (ards_moderate = 1 OR ards_severe = 1) AND prone = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 36,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_312",
+    "name": "应实施俯卧位通气治疗的中重度ARDS 患者总人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND (ards_moderate = 1 OR ards_severe = 1)",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 37,
+    "remark": "quality_311 的分母",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_401",
+    "name": "全院收治人数",
+    "domain": "患者流转",
+    "fact": "fact_patient_stay",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "MANUAL",
+    "version": 1,
+    "sortNo": 38,
+    "remark": "人工录入：数据在 HIS 全院口径，不在 ICU 库"
+  },
+  {
+    "code": "quality_402",
+    "name": "全院实际占用床日数",
+    "domain": "患者流转",
+    "fact": "fact_patient_stay",
+    "unit": "天",
+    "valueType": "COUNT",
+    "implStatus": "MANUAL",
+    "version": 1,
+    "sortNo": 39,
+    "remark": "人工录入：全院口径，跨月由病案室提供"
+  },
+  {
+    "code": "quality_403",
+    "name": "同期患者总数（转出+出院）",
+    "domain": "患者流转",
+    "fact": "fact_patient_stay",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "out_in_period = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 40,
+    "remark": "作为病死率等率类指标的同期分母",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_404",
+    "name": "仅进行深静脉血栓药物预防的患者数",
+    "domain": "DVT预防",
+    "fact": "fact_dvt",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 41,
+    "remark": "待接医嘱侧药物预防数据"
+  },
+  {
+    "code": "quality_405",
+    "name": "进行深静脉血栓药物预防的患者总数",
+    "domain": "DVT预防",
+    "fact": "fact_dvt",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 42,
+    "remark": "待接医嘱侧药物预防数据"
+  },
+  {
+    "code": "quality_406",
+    "name": "仅进行深静脉血栓机械预防的患者数",
+    "domain": "DVT预防",
+    "fact": "fact_dvt",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 43,
+    "remark": "待接医嘱侧机械预防数据（间歇充气加压 / 弹力袜）"
+  },
+  {
+    "code": "quality_407",
+    "name": "进行深静脉血栓机械预防的患者总数",
+    "domain": "DVT预防",
+    "fact": "fact_dvt",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 44,
+    "remark": "待接医嘱侧机械预防数据"
+  },
+  {
+    "code": "quality_408",
+    "name": "仅进行下腔静脉滤器置入的患者数",
+    "domain": "DVT预防",
+    "fact": "fact_dvt",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 45,
+    "remark": "待接下腔静脉滤器置入记录"
+  },
+  {
+    "code": "quality_409",
+    "name": "进行下腔静脉滤器置入的患者总数",
+    "domain": "DVT预防",
+    "fact": "fact_dvt",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 46,
+    "remark": "待接下腔静脉滤器置入记录"
+  },
+  {
+    "code": "quality_410",
+    "name": "深静脉血栓相关死亡人数",
+    "domain": "DVT预防",
+    "fact": "fact_dvt",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "dvt_death = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 47,
+    "remark": "基于诊断（深静脉血栓/下肢静脉血栓/肺栓塞）+ 转归死亡，是当前唯一有可靠源的一条",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_411",
+    "name": "进行深静脉血栓预防并诊断深静脉血栓的患者数",
+    "domain": "DVT预防",
+    "fact": "fact_dvt",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 48,
+    "remark": "空壳：分子需「进行预防」，依赖医嘱侧源；口径待定，先占位"
+  },
+  {
+    "code": "quality_412",
+    "name": "进行深静脉血栓预防并死亡的患者总数",
+    "domain": "DVT预防",
+    "fact": "fact_dvt",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 49,
+    "remark": "待接医嘱侧预防数据"
+  },
+  {
+    "code": "quality_413",
+    "name": "进行深静脉血栓预防、诊断深静脉血栓并死亡的患者总数",
+    "domain": "DVT预防",
+    "fact": "fact_dvt",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PENDING_SOURCE",
+    "version": 1,
+    "sortNo": 50,
+    "remark": "待接医嘱侧预防数据"
+  },
+  {
+    "code": "quality_414",
+    "name": "收治的入ICU前发生感染性休克的患者数",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "pre_icu_shock = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 51,
+    "remark": "与 quality_10 同口径、来源清单不同，保留两条",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_415",
+    "name": "1h内完成乳酸测定的患者数",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND lactate_1h = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 52,
+    "remark": "检验项目名含「乳酸」且采样时间距入科≤60min",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_416",
+    "name": "1h内留取血培养的患者数",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND culture_1h = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 53,
+    "remark": "检验项目名含「血培养」；若贵院血培养明细名不含该词，改事实层关键词即可",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_417",
+    "name": "1h内使用抗菌药物的患者数",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND abx_1h = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 54,
+    "remark": "抗菌药识别走药名词表 + 医嘱 type_code='drug'",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_418",
+    "name": "完成1h集束化治疗的患者数",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND lactate_1h = 1 AND culture_1h = 1 AND abx_1h = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 55,
+    "remark": "与 quality_34 同值同实现",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_419",
+    "name": "完成6h集束化治疗的患者数",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND lactate_3h = 1 AND culture_3h = 1 AND abx_3h = 1 AND vaso_6h = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 56,
+    "remark": "6h bundle；复测乳酸要素暂不单列（需同一患者两次乳酸配对）",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_420",
+    "name": "收治的ARDS患者数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 57,
+    "remark": "ARDS 人群识别基于诊断（含 ARDS / 急性呼吸窘迫）",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_421",
+    "name": "采用保护性肺通气的患者数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 58,
+    "remark": "空壳：保护性肺通气需潮气量/平台压数值（小潮气量 6ml/kg 预测体重），当前无结构化参数源"
+  },
+  {
+    "code": "quality_422",
+    "name": "采用俯卧位通气的患者数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND prone = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 59,
+    "remark": "不限分度",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_423",
+    "name": "完成意识评估的ABI患者数",
+    "domain": "评估依从",
+    "fact": "fact_assessment",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "abi = 1 AND consciousness_assessed = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 60,
+    "remark": "与 quality_307 同值同实现（来源清单分列两条）",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_424",
+    "name": "同期ABI患者总数（转出+出院的患者中）",
+    "domain": "评估依从",
+    "fact": "fact_assessment",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "abi = 1 AND out_in_period = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 61,
+    "remark": "限定本周期内转出/出院，与 quality_308（口径为全周期在科）不同，故单独出数",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_425",
+    "name": "导尿管相关泌尿系感染发生例数",
+    "domain": "导管_管路_院感",
+    "fact": "fact_device",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 62,
+    "remark": "空壳：CAUTI 判定标准待与院感科确认"
+  },
+  {
+    "code": "quality_426",
+    "name": "导尿管留置总天数",
+    "domain": "导管_管路_院感",
+    "fact": "fact_device",
+    "unit": "天",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 63,
+    "remark": "空壳：口径待定"
+  },
+  {
+    "code": "quality_427",
+    "name": "治疗性抗菌药物使用前送检病原学标本例数",
+    "domain": "抗菌药送检",
+    "fact": "fact_abx_culture",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 64,
+    "remark": "空壳：口径待定 —— 缺「治疗性 / 预防性」用药标识。老系统同样为空壳，不给出假 0"
+  },
+  {
+    "code": "quality_428",
+    "name": "使用治疗性抗菌药物例数",
+    "domain": "抗菌药送检",
+    "fact": "fact_abx_culture",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 65,
+    "remark": "空壳：口径待定 —— 同上缺治疗性标识"
+  },
+  {
+    "code": "quality_429",
+    "name": "治疗性抗菌药物使用前送检PCT例数",
+    "domain": "抗菌药送检",
+    "fact": "fact_abx_culture",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 66,
+    "remark": "空壳：口径待定 —— 与 quality_427 同因（缺「治疗性 / 预防性」用药标识）。若按全部抗菌药出数会系统性低估，故不出数；PCT 首检时间已在事实层备好，接入标识后补一条 where 即可启用"
+  },
+  {
+    "code": "quality_430",
+    "name": "使用治疗性抗菌药物例数",
+    "domain": "抗菌药送检",
+    "fact": "fact_abx_culture",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 67,
+    "remark": "空壳：与 quality_428 重复，来源清单要求保留三条，此处保留占位"
+  },
+  {
+    "code": "quality_431",
+    "name": "治疗性抗菌药物使用前送检G/GM实验例数",
+    "domain": "抗菌药送检",
+    "fact": "fact_abx_culture",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 68,
+    "remark": "空壳：口径待定 —— 同 quality_427。另指标名有误（应为 G 试验 / GM 试验），名称沿用来源清单以免对不上账"
+  },
+  {
+    "code": "quality_432",
+    "name": "治疗性抗菌药物使用前送检白介素例数",
+    "domain": "抗菌药送检",
+    "fact": "fact_abx_culture",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 69,
+    "remark": "空壳：口径待定 —— 同 quality_427（白介素按 IL-6 识别的词表已在事实层备好）"
+  },
+  {
+    "code": "quality_433",
+    "name": "收治的≤18岁的感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND age_num <= 18",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 70,
+    "remark": "age_num 在事实层用正则确认可解析后转数字，规避达梦对文本年龄的隐式转换报错",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_434",
+    "name": "收治的18-65岁的感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND age_num >= 19 AND age_num <= 64",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 71,
+    "remark": "按 18<age<65 处理，避免与相邻区间重复计数",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_435",
+    "name": "收治的≥65岁的感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND age_num >= 65",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 72,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_436",
+    "name": "收治的血流感染（CRBSI）感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND site_crbsi = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 73,
+    "remark": "导管相关血流感染",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_437",
+    "name": "收治的血流感染（非CRBSI）感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND site_blood = 1 AND site_crbsi = 0",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 74,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_438",
+    "name": "收治的血流感染感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND site_blood = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 75,
+    "remark": "= CRBSI + 非CRBSI",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_439",
+    "name": "收治的腹腔感染感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND site_abdomen = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 76,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_440",
+    "name": "收治的泌尿系感染感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND site_urinary = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 77,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_441",
+    "name": "收治的中枢神经系统感染感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND site_cns = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 78,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_442",
+    "name": "收治的肺部感染感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND site_lung = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 79,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_443",
+    "name": "收治的胆道感染感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND site_biliary = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 80,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_444",
+    "name": "收治的胃肠道感染感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND site_gi = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 81,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_445",
+    "name": "收治的骨髓感染感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND site_marrow = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 82,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_446",
+    "name": "收治的皮肤软组织感染感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND site_skin = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 83,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_447",
+    "name": "收治的其他部位感染感染性休克患者数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND site_none = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 84,
+    "remark": "以上部位一个都未命中才计为其他部位，避免分型相互重叠",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_448",
+    "name": "收治的感染性休克患者死亡数（包括ICU内发生）",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "sepsis_shock = 1 AND died_in_period = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 85,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_449",
+    "name": "收治的入ICU发生感染性休克的患者数",
+    "domain": "脓毒症_感染性休克",
+    "fact": "fact_sepsis_bundle",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "in_icu_shock = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 86,
+    "remark": "入 ICU 后发生（诊断时间不早于入科时间）",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_450",
+    "name": "非插管的男性ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND intubated = 0 AND sex_male = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 87,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_451",
+    "name": "插管的男性ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND intubated = 1 AND sex_male = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 88,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_452",
+    "name": "年龄≤18岁男性ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND sex_male = 1 AND age_num <= 18",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 89,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_453",
+    "name": "年龄18-65岁男性ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND sex_male = 1 AND age_num >= 19 AND age_num <= 64",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 90,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_454",
+    "name": "年龄＞65岁男性ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND sex_male = 1 AND age_num >= 65",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 91,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_455",
+    "name": "非插管的女性ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND intubated = 0 AND (sex_male IS NULL OR sex_male = 0)",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 92,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_456",
+    "name": "插管的女性ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND intubated = 1 AND (sex_male IS NULL OR sex_male = 0)",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 93,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_457",
+    "name": "年龄≤18岁女性ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND (sex_male IS NULL OR sex_male = 0) AND age_num <= 18",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 94,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_458",
+    "name": "年龄18-65岁女性ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND (sex_male IS NULL OR sex_male = 0) AND age_num >= 19 AND age_num <= 64",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 95,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_459",
+    "name": "年龄＞65岁女性ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND (sex_male IS NULL OR sex_male = 0) AND age_num >= 65",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 96,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_460",
+    "name": "轻度ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards_mild = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 97,
+    "remark": "按诊断文本分度",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_461",
+    "name": "中度ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards_moderate = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 98,
+    "remark": "按诊断文本分度",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_462",
+    "name": "重度ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards_severe = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 99,
+    "remark": "按诊断文本分度",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_463",
+    "name": "细菌性肺炎ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND cause_bacterial_pneumonia = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 100,
+    "remark": "病因按诊断文本关键词归类，一条诊断可能同时命中多个病因，故各病因之和可大于 ARDS 总数",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_464",
+    "name": "病毒性肺炎ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND cause_viral_pneumonia = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 101,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_465",
+    "name": "真菌性肺炎ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND cause_fungal_pneumonia = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 102,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_466",
+    "name": "吸入性肺炎ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND cause_aspiration = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 103,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_467",
+    "name": "肺挫伤ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND cause_contusion = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 104,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_468",
+    "name": "严重感染（肺外）ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND cause_extrapulmonary_infection = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 105,
+    "remark": "脓毒症/感染性休克且诊断中不含「肺炎」",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_469",
+    "name": "严重创伤（肺外）ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND cause_extrapulmonary_trauma = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 106,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_470",
+    "name": "急性重症胰腺炎ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND cause_pancreatitis = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 107,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_471",
+    "name": "大量输血ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND cause_massive_transfusion = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 108,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_472",
+    "name": "体外循环ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND cause_cardiopulmonary_bypass = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 109,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_473",
+    "name": "其他原因ARDS人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND cause_bacterial_pneumonia = 0 AND cause_viral_pneumonia = 0 AND cause_fungal_pneumonia = 0 AND cause_aspiration = 0 AND cause_contusion = 0 AND cause_extrapulmonary_infection = 0 AND cause_extrapulmonary_trauma = 0 AND cause_pancreatitis = 0 AND cause_massive_transfusion = 0 AND cause_cardiopulmonary_bypass = 0",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 110,
+    "remark": "以上病因一个都未命中才计为其他，保证「各病因 + 其他」可加",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_474",
+    "name": "实施有创机械通气的ARDS患者人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND intubated = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 111,
+    "remark": "医嘱+观察项关键词识别，见事实层",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_475",
+    "name": "实施无创机械通气的ARDS患者人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND niv = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 112,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_476",
+    "name": "实施高流量(HFNC)的ARDS患者人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND hfnc = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 113,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_477",
+    "name": "ARDS平均机械通气支持天数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "天",
+    "valueType": "AVG",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 114,
+    "remark": "空壳：需通气起止时间与跨月切分规则（口径待定）"
+  },
+  {
+    "code": "quality_478",
+    "name": "中重度ARDS患者肌松的使用人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND (ards_moderate = 1 OR ards_severe = 1) AND muscle_relaxant = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 115,
+    "remark": "肌松药按药名识别（顺阿曲库铵/维库溴铵/罗库溴铵等）",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_479",
+    "name": "中重度ARDS患者总人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND (ards_moderate = 1 OR ards_severe = 1)",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 116,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_480",
+    "name": "实施ECMO支持的ARDS患者人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND ecmo = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 117,
+    "remark": "ECMO 由医嘱关键词识别；若后续接入 ECMO 专用记录表，改事实层一列即可",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_481",
+    "name": "ARDS平均ECMO支持天数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "天",
+    "valueType": "AVG",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 118,
+    "remark": "空壳：需 ECMO 起止时间，口径待定"
+  },
+  {
+    "code": "quality_482",
+    "name": "ARDS实施俯卧位通气的人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards = 1 AND prone = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 119,
+    "remark": "与 quality_422 同值同实现（来源清单分列两条）",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_483",
+    "name": "轻度ARDS俯卧位人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards_mild = 1 AND prone = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 120,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_484",
+    "name": "中度ARDS俯卧位人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards_moderate = 1 AND prone = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 121,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_485",
+    "name": "重度ARDS俯卧位人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "where": "ards_severe = 1 AND prone = 1",
+    "dims": [
+      "depart_code"
+    ],
+    "version": 1,
+    "sortNo": 122,
+    "remark": "",
+    "implStatus": "IMPL"
+  },
+  {
+    "code": "quality_486",
+    "name": "ARDS平均俯卧位通气天数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "天",
+    "valueType": "AVG",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 123,
+    "remark": "空壳：需俯卧位起止时间（观察项目前只有「是否发生」），口径待定"
+  },
+  {
+    "code": "quality_487",
+    "name": "ARDS患者的院内死亡人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 124,
+    "remark": "空壳：口径待定 —— 指标名是「院内死亡」，而库内只有 ICU 转归（out_vest_type=3，转出后病房死亡看不到）。直接拿 ICU 死亡当院内死亡会上报偏低，故不出数；事实层已备 died_in_period，接入病案首页出院结局后可启用"
+  },
+  {
+    "code": "quality_488",
+    "name": "轻度ARDS患者院内死亡人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 125,
+    "remark": "空壳：同 quality_487（院内死亡全口径待定）"
+  },
+  {
+    "code": "quality_489",
+    "name": "中度ARDS患者院内死亡人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 126,
+    "remark": "空壳：同 quality_487（院内死亡全口径待定）"
+  },
+  {
+    "code": "quality_490",
+    "name": "重度ARDS患者院内死亡人数",
+    "domain": "ARDS专项",
+    "fact": "fact_ards",
+    "unit": "人",
+    "valueType": "COUNT",
+    "implStatus": "PLACEHOLDER",
+    "version": 1,
+    "sortNo": 127,
+    "remark": "空壳：同 quality_487（院内死亡全口径待定）"
+  }
+]

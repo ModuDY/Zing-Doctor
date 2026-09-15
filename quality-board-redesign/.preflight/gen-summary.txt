@@ -1,0 +1,3 @@
+boardRows=60
+monthlyRows=60
+trendOptions=20

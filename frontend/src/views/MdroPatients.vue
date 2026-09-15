@@ -1,11 +1,11 @@
 <template>
-  <div class="mdro-patients">
+  <div class="mdro-patients abx-theme">
     <div class="filter-bar">
       <div class="filter-left">
         <el-button @click="goBack">
           <el-icon><ArrowLeft /></el-icon> 返回总览
         </el-button>
-        <el-select v-model="selectedDepartCode" placeholder="选择科室" style="width: 180px" @change="loadData">
+        <el-select v-model="selectedDepartCode" placeholder="选择科室" style="width: 180px" popper-class="abx-popper" @change="loadData">
           <el-option
             v-for="dept in departments"
             :key="dept.org_code"
@@ -21,6 +21,7 @@
           end-placeholder="结束月份"
           value-format="YYYY-MM"
           :clearable="false"
+          popper-class="abx-popper"
           @change="loadData"
         />
         <el-button type="primary" @click="loadData" :loading="loading">
@@ -156,6 +157,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Refresh, ArrowDown, Document, FirstAidKit, Warning } from '@element-plus/icons-vue'
 import request from '../api/request'
+import '../styles/abx-theme.css'
 
 const router = useRouter()
 const loading = ref(false)
@@ -292,7 +294,7 @@ onMounted(() => {
 <style scoped>
 .mdro-patients {
   padding: 16px;
-  background: #f5f7fa;
+  background: #fafaf9;
   min-height: 100vh;
 }
 
@@ -321,26 +323,27 @@ onMounted(() => {
 
 .summary-item {
   background: #fff;
-  border-radius: 8px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
   padding: 12px 20px;
   display: flex;
   align-items: baseline;
   gap: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  border-left: 4px solid #409eff;
+  box-shadow: 0 2px 8px rgba(28,25,23,0.04);
+  border-left: 4px solid #0d9488;
 }
 
-.summary-item.danger { border-left-color: #f56c6c; }
+.summary-item.danger { border-left-color: #dc2626; }
 
 .summary-item .label {
   font-size: 13px;
-  color: #909399;
+  color: #78716c;
 }
 
 .summary-item .value {
   font-size: 22px;
   font-weight: 600;
-  color: #303133;
+  color: #292524;
 }
 
 .summary-item .value.text {
@@ -350,7 +353,7 @@ onMounted(() => {
 
 .summary-item .unit {
   font-size: 12px;
-  color: #c0c4cc;
+  color: #a8a29e;
 }
 
 .patient-list {
@@ -361,8 +364,9 @@ onMounted(() => {
 
 .patient-card {
   background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(28,25,23,0.04);
   overflow: hidden;
   transition: all 0.2s;
 }
@@ -381,7 +385,7 @@ onMounted(() => {
 }
 
 .patient-header:hover {
-  background: #f5f7fa;
+  background: #fafaf9;
 }
 
 .patient-info {
@@ -400,12 +404,12 @@ onMounted(() => {
 .patient-name {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: #292524;
 }
 
 .patient-gender-age {
   font-size: 13px;
-  color: #909399;
+  color: #78716c;
 }
 
 .patient-bottom-row {
@@ -416,7 +420,7 @@ onMounted(() => {
 
 .patient-field {
   font-size: 12px;
-  color: #606266;
+  color: #44403c;
 }
 
 .patient-stats {
@@ -424,7 +428,7 @@ onMounted(() => {
   align-items: center;
   gap: 24px;
   padding-left: 16px;
-  border-left: 1px solid #ebeef5;
+  border-left: 1px solid #e7e5e4;
 }
 
 .stat {
@@ -435,22 +439,22 @@ onMounted(() => {
 .stat-label {
   display: block;
   font-size: 11px;
-  color: #909399;
+  color: #78716c;
   margin-bottom: 4px;
 }
 
 .stat-value {
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: #292524;
 }
 
-.stat.success .stat-value { color: #67c23a; }
-.stat.warning .stat-value { color: #e6a23c; }
-.stat.info .stat-value { color: #909399; }
+.stat.success .stat-value { color: #16a34a; }
+.stat.warning .stat-value { color: #d97706; }
+.stat.info .stat-value { color: #78716c; }
 
 .expand-icon {
-  color: #c0c4cc;
+  color: #a8a29e;
   transition: transform 0.2s;
 }
 
@@ -460,7 +464,7 @@ onMounted(() => {
 
 .patient-detail {
   padding: 16px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid #e7e5e4;
   background: #fafafa;
 }
 
@@ -474,7 +478,7 @@ onMounted(() => {
 .detail-title {
   font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: #292524;
 }
 
 .detail-actions {
@@ -487,11 +491,11 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: #fef0f0;
+  background: #fee2e2;
   border-radius: 4px;
   margin-bottom: 12px;
   font-size: 13px;
-  color: #f56c6c;
+  color: #dc2626;
 }
 
 @media (max-width: 1200px) {

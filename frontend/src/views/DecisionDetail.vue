@@ -1,5 +1,5 @@
 <template>
-  <div class="abx-decision-page">
+  <div class="abx-decision-page abx-theme">
     <div v-if="!patientId && !inHospitalNo" class="warn-bar">
       <el-alert type="warning" :closable="false" show-icon
                 title="缺少患者参数"
@@ -110,6 +110,7 @@
                 remote
                 reserve-keyword
                 clearable
+                popper-class="abx-popper"
                 :remote-method="searchStaffRemote"
                 :loading="staffLoading"
                 placeholder="输入姓名/拼音首字母/工号搜索"
@@ -169,6 +170,7 @@
 <script>
 import { fetchAssessment, fetchAssessmentByNo, saveDecision, updateDecision, deleteDecision, fetchRecords, searchStaff } from '../api/antibiotic'
 import LabTrendChart from './LabTrendChart.vue'
+import '../styles/abx-theme.css'
 
 export default {
   name: 'DecisionDetail',
@@ -322,7 +324,8 @@ export default {
       this.$confirm(`确认删除 ${this.formatTime(row.createTime)} 的决策记录？删除后不可恢复。`, '删除确认', {
         type: 'warning',
         confirmButtonText: '删除',
-        cancelButtonText: '取消'
+        cancelButtonText: '取消',
+        customClass: 'abx-overlay'
       }).then(async () => {
         await deleteDecision(row.id)
         this.$message.success('已删除')
@@ -352,7 +355,7 @@ export default {
 <style scoped>
 .abx-decision-page {
   min-height: 100vh;
-  background: #f0f2f5;
+  background: #fafaf9;
 }
 
 /* 顶部深蓝导航条 */
@@ -404,24 +407,24 @@ export default {
   background: #fff;
   border-radius: 10px;
   padding: 16px 18px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e8ecf1;
+  box-shadow: 0 1px 4px rgba(28, 25, 23, 0.04);
+  border: 1px solid #e7e5e4;
 }
 .block-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1f3a5f;
+  color: #292524;
   margin-bottom: 12px;
   display: flex;
   align-items: center;
 }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
-.dot-blue { background: #2d6fbf; }
+.dot-blue { background: linear-gradient(180deg, #0d9488, #2dd4bf); }
 .dot-cyan { background: #17a2b8; }
-.dot-red { background: #f56c6c; }
+.dot-red { background: #dc2626; }
 .dot-purple { background: #8b6fd8; }
-.dot-green { background: #67c23a; }
-.dot-gray { background: #909399; }
+.dot-green { background: #16a34a; }
+.dot-gray { background: #78716c; }
 
 /* 患者信息横条 */
 .patient-bar {
@@ -444,7 +447,7 @@ export default {
 .p-cell-group {
   display: flex;
   align-items: stretch;
-  background: #f8fafc;
+  background: #fafaf9;
   border-radius: 8px;
   padding: 4px 8px;
 }
@@ -455,7 +458,7 @@ export default {
 }
 .p-cell-group .p-cell:last-child { border-right: none; }
 .p-cell label { font-size: 12px; color: #8a94a3; }
-.p-cell b { font-size: 14px; color: #1f2d3d; }
+.p-cell b { font-size: 14px; color: #44403c; }
 .type-highlight { color: #1f4e79; }
 
 /* 主体三栏 */
@@ -482,35 +485,35 @@ export default {
 .abx-list::-webkit-scrollbar-thumb:hover { background: #a8b8cc; }
 .abx-list li {
   padding: 8px 10px;
-  background: #f0f7ff;
-  border-left: 3px solid #2d6fbf;
+  background: #f0fdfa;
+  border-left: 3px solid #0d9488;
   border-radius: 6px;
   margin-bottom: 8px;
   font-size: 13px;
   color: #2c4056;
 }
 .abx-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.abx-time { font-family: 'Courier New', monospace; font-size: 12px; color: #6b7a8f; background: #e8f0fb; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
-.abx-name { font-weight: 600; color: #1f3a5f; }
-.abx-freq { font-weight: 400; font-size: 12px; color: #2d6fbf; background: #e8f0fb; padding: 1px 5px; border-radius: 3px; margin-left: 4px; }
-.abx-method { font-size: 12px; color: #6b7a8f; }
+.abx-time { font-family: 'Courier New', monospace; font-size: 12px; color: #78716c; background: #f5f5f4; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.abx-name { font-weight: 600; color: #292524; }
+.abx-freq { font-weight: 400; font-size: 12px; color: #0f766e; background: #ccfbf1; padding: 1px 5px; border-radius: 3px; margin-left: 4px; }
+.abx-method { font-size: 12px; color: #78716c; }
 .abx-tag { margin-left: auto; }
 .abx-list .empty-li { background: none; border: none; color: #a0a8b4; }
 
 /* 推荐方案 */
 .plan-item {
   border: 1px solid #eef1f5;
-  border-left: 4px solid #f56c6c;
+  border-left: 4px solid #dc2626;
   border-radius: 8px;
   padding: 12px 14px;
   margin-bottom: 12px;
   background: #fff;
 }
 .plan-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.plan-drug { font-size: 16px; font-weight: 700; color: #1f3a5f; }
-.plan-dose { margin-top: 8px; font-size: 15px; color: #303133; font-weight: 600; }
-.plan-reason { margin-top: 6px; font-size: 13px; color: #606266; }
-.plan-evidence { margin-top: 2px; font-size: 12px; color: #909399; }
+.plan-drug { font-size: 16px; font-weight: 700; color: #292524; }
+.plan-dose { margin-top: 8px; font-size: 15px; color: #292524; font-weight: 600; }
+.plan-reason { margin-top: 6px; font-size: 13px; color: #44403c; }
+.plan-evidence { margin-top: 2px; font-size: 12px; color: #78716c; }
 .reason-label { color: #8a94a3; }
 
 /* 既往培养：横向铺开 */
@@ -520,7 +523,7 @@ export default {
   gap: 10px;
 }
 .culture-chip {
-  background: #f4f6f9;
+  background: #f5f5f4;
   border: 1px solid #e4e9f0;
   border-radius: 8px;
   padding: 8px 12px;
@@ -528,12 +531,12 @@ export default {
   color: #3d4a5c;
 }
 .culture-chip.culture-danger {
-  background: #fdf0f0;
+  background: #fee2e2;
   border-color: #f3c2c2;
   color: #b33636;
 }
 .culture-chip.culture-warn {
-  background: #fdf8ec;
+  background: #fef3c7;
   border-color: #ecd9a8;
   color: #8a6d1f;
 }

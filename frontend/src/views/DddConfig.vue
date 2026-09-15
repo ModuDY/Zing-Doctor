@@ -1,14 +1,14 @@
 <template>
-  <div class="ddd-config">
+  <div class="ddd-config abx-theme">
     <div class="filter-bar">
       <div class="filter-left">
         <el-button @click="goBack">
           <el-icon><ArrowLeft /></el-icon> 返回总览
         </el-button>
-        <el-select v-model="filterClass" placeholder="按分类筛选" clearable style="width: 160px;" @change="loadList">
+        <el-select v-model="filterClass" placeholder="按分类筛选" clearable style="width: 160px;" popper-class="abx-popper" @change="loadList">
           <el-option v-for="c in allClasses" :key="c" :label="c" :value="c" />
         </el-select>
-        <el-select v-model="filterLevel" placeholder="按管理级别筛选" clearable style="width: 140px;" @change="loadList">
+        <el-select v-model="filterLevel" placeholder="按管理级别筛选" clearable style="width: 140px;" popper-class="abx-popper" @change="loadList">
           <el-option label="非限制" value="非限制" />
           <el-option label="限制" value="限制" />
           <el-option label="特殊" value="特殊" />
@@ -85,7 +85,7 @@
     </div>
 
     <!-- 新增/编辑弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑DDD配置' : '新增DDD配置'" width="600px" @close="resetForm">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑DDD配置' : '新增DDD配置'" width="600px" class="abx-overlay" @close="resetForm">
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
         <el-form-item label="药品通用名" prop="drugName">
           <el-input v-model="form.drugName" placeholder="如：美罗培南" />
@@ -97,7 +97,7 @@
           <el-input-number v-model="form.dddValue" :precision="4" :step="0.1" :min="0" style="width: 200px;" />
         </el-form-item>
         <el-form-item label="DDD单位" prop="dddUnit">
-          <el-select v-model="form.dddUnit" style="width: 150px;">
+          <el-select v-model="form.dddUnit" style="width: 150px;" popper-class="abx-popper">
             <el-option label="g" value="g" />
             <el-option label="mg" value="mg" />
             <el-option label="MU" value="MU" />
@@ -105,20 +105,20 @@
           </el-select>
         </el-form-item>
         <el-form-item label="给药途径" prop="route">
-          <el-select v-model="form.route" style="width: 150px;">
+          <el-select v-model="form.route" style="width: 150px;" popper-class="abx-popper">
             <el-option label="注射" value="注射" />
             <el-option label="口服" value="口服" />
           </el-select>
         </el-form-item>
         <el-form-item label="管理级别" prop="manageLevel">
-          <el-select v-model="form.manageLevel" style="width: 150px;">
+          <el-select v-model="form.manageLevel" style="width: 150px;" popper-class="abx-popper">
             <el-option label="非限制" value="非限制" />
             <el-option label="限制" value="限制" />
             <el-option label="特殊" value="特殊" />
           </el-select>
         </el-form-item>
         <el-form-item label="药物分类" prop="drugClass">
-          <el-select v-model="form.drugClass" filterable allow-create style="width: 200px;" placeholder="选择或输入分类">
+          <el-select v-model="form.drugClass" filterable allow-create style="width: 200px;" popper-class="abx-popper" placeholder="选择或输入分类">
             <el-option v-for="c in allClasses" :key="c" :label="c" :value="c" />
           </el-select>
         </el-form-item>
@@ -143,6 +143,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Plus, Refresh } from '@element-plus/icons-vue'
 import request from '../api/request'
+import '../styles/abx-theme.css'
 
 const router = useRouter()
 const loading = ref(false)
@@ -283,7 +284,7 @@ async function toggleStatus(row) {
     await ElMessageBox.confirm(
       `确定要${newStatus === 1 ? '启用' : '停用'}「${row.drugName}」吗？`,
       '提示',
-      { type: 'warning' }
+      { type: 'warning', customClass: 'abx-overlay' }
     )
     await request.post('/antibiotic/ddd/config/toggle', null, {
       params: { id: row.id, status: newStatus }
@@ -306,8 +307,8 @@ onMounted(() => {
 
 <style scoped>
 .ddd-config {
-  padding: 16px;
-  background: #f5f7fa;
+  padding: 24px;
+  background: #fafaf9;
   min-height: 100vh;
 }
 
@@ -318,8 +319,9 @@ onMounted(() => {
   margin-bottom: 16px;
   padding: 12px 16px;
   background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(28,25,23,0.04);
 }
 
 .filter-left, .filter-right {
@@ -333,9 +335,10 @@ onMounted(() => {
   gap: 32px;
   padding: 16px 20px;
   background: #fff;
-  border-radius: 8px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
   margin-bottom: 16px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 2px rgba(28,25,23,0.04);
 }
 
 .summary-item {
@@ -346,33 +349,34 @@ onMounted(() => {
 
 .summary-item .label {
   font-size: 13px;
-  color: #909399;
+  color: #78716c;
 }
 
 .summary-item .value {
   font-size: 22px;
   font-weight: 700;
-  color: #303133;
+  color: #292524;
 }
 
-.summary-item .value.success { color: #67c23a; }
-.summary-item .value.warning { color: #e6a23c; }
-.summary-item .value.danger { color: #f56c6c; }
+.summary-item .value.success { color: #16a34a; }
+.summary-item .value.warning { color: #d97706; }
+.summary-item .value.danger { color: #dc2626; }
 
 .config-table {
   background: #fff;
-  border-radius: 8px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
   padding: 16px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 2px rgba(28,25,23,0.04);
 }
 
 .drug-name {
   font-weight: 600;
-  color: #303133;
+  color: #292524;
 }
 
 .highlight {
-  color: #409eff;
+  color: #0d9488;
   font-weight: 600;
 }
 </style>

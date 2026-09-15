@@ -1,15 +1,15 @@
 <template>
-  <div class="word-config">
+  <div class="word-config abx-theme">
     <div class="filter-bar">
       <div class="filter-left">
         <el-button @click="goBack">
           <el-icon><ArrowLeft /></el-icon> 返回集束化治疗
         </el-button>
-        <el-select v-model="filterType" placeholder="按词类型筛选" clearable style="width: 170px;" @change="filterList">
+        <el-select v-model="filterType" placeholder="按词类型筛选" clearable style="width: 170px;" popper-class="abx-popper" @change="filterList">
           <el-option label="广谱抗菌药（白名单）" value="broad_spectrum" />
           <el-option label="非抗菌药（黑名单）" value="non_antibiotic" />
         </el-select>
-        <el-select v-model="filterCategory" placeholder="按分组筛选" clearable style="width: 160px;" @change="filterList">
+        <el-select v-model="filterCategory" placeholder="按分组筛选" clearable style="width: 160px;" popper-class="abx-popper" @change="filterList">
           <el-option v-for="c in allCategories" :key="c" :label="c" :value="c" />
         </el-select>
         <el-input v-model="searchKeyword" placeholder="搜索关键词" clearable style="width: 200px;" @input="filterList" />
@@ -84,19 +84,19 @@
     </div>
 
     <!-- 新增/编辑弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑词条' : '新增词条'" width="560px" @close="resetForm">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑词条' : '新增词条'" width="560px" class="abx-overlay" @close="resetForm">
       <el-form :model="form" :rules="rules" ref="formRef" label-width="110px">
         <el-form-item label="关键词" prop="keyword">
           <el-input v-model="form.keyword" placeholder="如：美罗培南 / 西替利嗪" />
         </el-form-item>
         <el-form-item label="词类型" prop="wordType">
-          <el-select v-model="form.wordType" style="width: 220px;">
+          <el-select v-model="form.wordType" style="width: 220px;" popper-class="abx-popper">
             <el-option label="广谱抗菌药（白名单）" value="broad_spectrum" />
             <el-option label="非抗菌药（黑名单）" value="non_antibiotic" />
           </el-select>
         </el-form-item>
         <el-form-item label="分组" prop="category">
-          <el-select v-model="form.category" filterable allow-create style="width: 220px;" placeholder="选择或输入分组">
+          <el-select v-model="form.category" filterable allow-create style="width: 220px;" popper-class="abx-popper" placeholder="选择或输入分组">
             <el-option v-for="c in allCategories" :key="c" :label="c" :value="c" />
           </el-select>
         </el-form-item>
@@ -118,6 +118,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Plus, Refresh } from '@element-plus/icons-vue'
 import request from '../api/request'
+import '../styles/abx-theme.css'
 
 const route = useRoute()
 const router = useRouter()
@@ -248,7 +249,7 @@ async function toggleStatus(row) {
     await ElMessageBox.confirm(
       `确定要${newStatus === 1 ? '启用' : '停用'}「${row.keyword}」吗？`,
       '提示',
-      { type: 'warning' }
+      { type: 'warning', customClass: 'abx-overlay' }
     )
     await request.post('/antibiotic/word-config/toggle', null, {
       params: { id: row.id, status: newStatus }
@@ -271,8 +272,8 @@ onMounted(() => {
 
 <style scoped>
 .word-config {
-  padding: 16px;
-  background: #f5f7fa;
+  padding: 24px;
+  background: #fafaf9;
   min-height: 100vh;
 }
 
@@ -283,8 +284,9 @@ onMounted(() => {
   margin-bottom: 16px;
   padding: 12px 16px;
   background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(28,25,23,0.04);
 }
 
 .filter-left, .filter-right {
@@ -298,9 +300,10 @@ onMounted(() => {
   gap: 32px;
   padding: 16px 20px;
   background: #fff;
-  border-radius: 8px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
   margin-bottom: 16px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 2px rgba(28,25,23,0.04);
 }
 
 .summary-item {
@@ -311,27 +314,28 @@ onMounted(() => {
 
 .summary-item .label {
   font-size: 13px;
-  color: #909399;
+  color: #78716c;
 }
 
 .summary-item .value {
   font-size: 22px;
   font-weight: 700;
-  color: #303133;
+  color: #292524;
 }
 
-.summary-item .value.success { color: #67c23a; }
-.summary-item .value.warning { color: #e6a23c; }
+.summary-item .value.success { color: #16a34a; }
+.summary-item .value.warning { color: #d97706; }
 
 .config-table {
   background: #fff;
-  border-radius: 8px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
   padding: 16px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 2px rgba(28,25,23,0.04);
 }
 
 .keyword {
   font-weight: 600;
-  color: #303133;
+  color: #292524;
 }
 </style>

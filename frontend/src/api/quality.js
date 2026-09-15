@@ -31,6 +31,30 @@ export function fetchQualityOverview(params) {
   return request.get('/quality/overview', { params })
 }
 
+/**
+ * 真正的业务指标（quality_count_rule 组装视图）—— 这才是质控要管的东西。
+ *
+ * 与 fetchQualityOverview 的区别：overview 列的是**原子项**（quality_xxx，
+ * 一个「多少人/多少天」的量，自身成不了率）；这里每条都是
+ * 「分子 ÷ 分母 × 放大系数」算出来的率。
+ *
+ * includeHidden=true 时连 is_show_page=0 的规则一起返回（配置/排查用），
+ * 看板默认 false。口径待确认的指标照常返回并带 pendingConfirm=true。
+ */
+export function fetchQualityRules(params) {
+  return request.get('/quality/rules', { params })
+}
+
+/**
+ * 从 ICU 侧同步指标规则（幂等，只插入本地还没有的 rule_id）。
+ *
+ * 首次使用、或 ICU 侧新增/修改了规则后调用；同步不会覆盖本院已配置的目标值/预警值。
+ * silentError：是否已有数据、是否有跨库权限由页面给出更有上下文的提示。
+ */
+export function syncQualityRules() {
+  return request.post('/quality/rules/sync', null, { silentError: true })
+}
+
 /** 单指标详情：口径 + 本期值 + 血缘摘要 + 患者明细 */
 export function fetchQualityMetric(code, params) {
   return request.get('/quality/metric', { params: { code, ...params } })

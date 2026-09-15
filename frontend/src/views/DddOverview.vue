@@ -1,9 +1,9 @@
 <template>
-  <div class="ddd-overview">
+  <div class="ddd-overview abx-theme">
     <!-- 顶部筛选栏 -->
     <div class="filter-bar">
       <div class="filter-left">
-        <el-select v-model="selectedDepartCode" placeholder="选择科室" style="width: 180px" @change="loadData">
+        <el-select v-model="selectedDepartCode" placeholder="选择科室" style="width: 180px" popper-class="abx-popper" @change="loadData">
           <el-option
             v-for="dept in departments"
             :key="dept.org_code"
@@ -19,6 +19,7 @@
           end-placeholder="结束月份"
           value-format="YYYY-MM"
           :clearable="false"
+          popper-class="abx-popper"
           @change="handleDateChange"
         />
         <el-button type="primary" @click="loadData" :loading="loading">
@@ -159,6 +160,7 @@ import { useRouter } from 'vue-router'
 import { Refresh, User, Setting } from '@element-plus/icons-vue'
 import request from '../api/request'
 import * as echarts from 'echarts'
+import '../styles/abx-theme.css'
 
 const router = useRouter()
 const loading = ref(false)
@@ -250,27 +252,27 @@ function renderTrendChart() {
     tooltip: { trigger: 'axis' },
     legend: { data: ['使用率(%)', '使用强度(DDDs)'], top: 0 },
     grid: { left: 50, right: 50, top: 40, bottom: 30 },
-    xAxis: { type: 'category', data: trend.map(t => t.month), axisLabel: { color: '#666' } },
+    xAxis: { type: 'category', data: trend.map(t => t.month), axisLabel: { color: '#78716c' } },
     yAxis: [
-      { type: 'value', name: '使用率(%)', axisLabel: { color: '#666' }, splitLine: { lineStyle: { color: '#eee' } } },
-      { type: 'value', name: '使用强度', axisLabel: { color: '#666' }, splitLine: { show: false } }
+      { type: 'value', name: '使用率(%)', axisLabel: { color: '#78716c' }, splitLine: { lineStyle: { color: '#f5f5f4' } } },
+      { type: 'value', name: '使用强度', axisLabel: { color: '#78716c' }, splitLine: { show: false } }
     ],
     series: [
       {
         name: '使用率(%)', type: 'line', smooth: true,
         data: trend.map(t => t.usageRate),
-        itemStyle: { color: '#409eff' },
+        itemStyle: { color: '#14b8a6' },
         areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(64,158,255,0.3)' },
-          { offset: 1, color: 'rgba(64,158,255,0.05)' }
+          { offset: 0, color: 'rgba(20,184,166,0.18)' },
+          { offset: 1, color: 'rgba(20,184,166,0.01)' }
         ]) },
-        markLine: { silent: true, data: [{ yAxis: 60, name: '目标线', lineStyle: { color: '#67c23a', type: 'dashed' } }] }
+        markLine: { silent: true, data: [{ yAxis: 60, name: '目标线', lineStyle: { color: '#16a34a', type: 'dashed' } }] }
       },
       {
         name: '使用强度(DDDs)', type: 'line', smooth: true, yAxisIndex: 1,
         data: trend.map(t => t.useDensity),
-        itemStyle: { color: '#f56c6c' },
-        markLine: { silent: true, data: [{ yAxis: 40, name: '目标线', lineStyle: { color: '#e6a23c', type: 'dashed' } }] }
+        itemStyle: { color: '#dc2626' },
+        markLine: { silent: true, data: [{ yAxis: 40, name: '目标线', lineStyle: { color: '#d97706', type: 'dashed' } }] }
       }
     ]
   })
@@ -283,17 +285,17 @@ function renderRankChart() {
   rankChart.setOption({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: 120, right: 40, top: 20, bottom: 30 },
-    xAxis: { type: 'value', name: 'DDDs', axisLabel: { color: '#666' } },
-    yAxis: { type: 'category', data: top10.map(d => d.drugName), axisLabel: { color: '#333', fontSize: 12 } },
+    xAxis: { type: 'value', name: 'DDDs', axisLabel: { color: '#78716c' } },
+    yAxis: { type: 'category', data: top10.map(d => d.drugName), axisLabel: { color: '#78716c', fontSize: 12 } },
     series: [{
       type: 'bar', data: top10.map(d => ({
         value: d.totalDdds,
         itemStyle: {
-          color: d.manageLevel === '特殊' ? '#f56c6c' : d.manageLevel === '限制' ? '#e6a23c' : '#67c23a',
+          color: d.manageLevel === '特殊' ? '#dc2626' : d.manageLevel === '限制' ? '#d97706' : '#16a34a',
           borderRadius: [0, 4, 4, 0]
         }
       })),
-      label: { show: true, position: 'right', color: '#666', fontSize: 11 }
+      label: { show: true, position: 'right', color: '#78716c', fontSize: 11 }
     }]
   })
 }
@@ -319,7 +321,7 @@ function renderLevelChart() {
   if (!levelChartRef.value) return
   if (!levelChart) levelChart = echarts.init(levelChartRef.value)
   const data = (overview.levelRatios || []).map(l => ({ name: l.manageLevel, value: l.ddds }))
-  const colors = { '非限制': '#67c23a', '限制': '#e6a23c', '特殊': '#f56c6c' }
+  const colors = { '非限制': '#16a34a', '限制': '#d97706', '特殊': '#dc2626' }
   levelChart.setOption({
     tooltip: { trigger: 'item', formatter: '{b}: {c} DDDs ({d}%)' },
     legend: { bottom: 0, textStyle: { fontSize: 11 } },
@@ -327,7 +329,7 @@ function renderLevelChart() {
       type: 'pie', radius: ['40%', '70%'], center: ['50%', '45%'],
       itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
       label: { show: true, formatter: '{b}\n{d}%', fontSize: 11 },
-      data: data.map(d => ({ ...d, itemStyle: { color: colors[d.name] || '#909399' } }))
+      data: data.map(d => ({ ...d, itemStyle: { color: colors[d.name] || '#78716c' } }))
     }]
   })
 }
@@ -356,7 +358,7 @@ onMounted(async () => {
 <style scoped>
 .ddd-overview {
   padding: 16px;
-  background: #f5f7fa;
+  background: #fafaf9;
   min-height: 100vh;
 }
 
@@ -368,7 +370,7 @@ onMounted(async () => {
   padding: 12px 16px;
   background: #fff;
   border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 4px rgba(28,25,23,0.04);
 }
 
 .filter-left, .filter-right {
@@ -388,8 +390,8 @@ onMounted(async () => {
   background: #fff;
   border-radius: 8px;
   padding: 20px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-  border-left: 4px solid #909399;
+  box-shadow: 0 1px 4px rgba(28,25,23,0.04);
+  border-left: 4px solid #78716c;
   transition: transform 0.2s;
 }
 
@@ -398,31 +400,31 @@ onMounted(async () => {
 }
 
 .metric-card.达标 {
-  border-left-color: #67c23a;
+  border-left-color: #16a34a;
 }
 
 .metric-card:not(.达标):not(.special):not(.info) {
-  border-left-color: #f56c6c;
+  border-left-color: #dc2626;
 }
 
 .metric-card.special {
-  border-left-color: #f56c6c;
+  border-left-color: #dc2626;
 }
 
 .metric-card.info {
-  border-left-color: #409eff;
+  border-left-color: #0d9488;
 }
 
 .metric-label {
   font-size: 14px;
-  color: #606266;
+  color: #44403c;
   margin-bottom: 8px;
 }
 
 .metric-value {
   font-size: 32px;
   font-weight: 700;
-  color: #303133;
+  color: #292524;
   line-height: 1.2;
 }
 
@@ -433,19 +435,19 @@ onMounted(async () => {
 .metric-unit {
   font-size: 13px;
   font-weight: 400;
-  color: #909399;
+  color: #78716c;
   margin-left: 4px;
 }
 
 .metric-target {
   font-size: 12px;
-  color: #909399;
+  color: #78716c;
   margin-top: 6px;
 }
 
 .metric-sub {
   font-size: 12px;
-  color: #606266;
+  color: #44403c;
   margin-top: 4px;
 }
 
@@ -454,7 +456,7 @@ onMounted(async () => {
   border-radius: 8px;
   padding: 16px 20px;
   margin-bottom: 16px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 4px rgba(28,25,23,0.04);
 }
 
 .block-title {
@@ -462,14 +464,14 @@ onMounted(async () => {
   align-items: center;
   font-size: 15px;
   font-weight: 600;
-  color: #303133;
+  color: #292524;
   margin-bottom: 12px;
 }
 
 .dot {
   width: 4px;
   height: 16px;
-  background: linear-gradient(180deg, #409eff, #66b1ff);
+  background: linear-gradient(180deg, #0d9488, #2dd4bf);
   border-radius: 2px;
   margin-right: 8px;
 }
@@ -498,7 +500,7 @@ onMounted(async () => {
 }
 
 .highlight {
-  color: #409eff;
+  color: #0d9488;
   font-weight: 600;
 }
 

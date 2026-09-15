@@ -93,17 +93,21 @@ export default {
 </script>
 
 <style scoped>
+/* 侧边栏：设计稿 warm-stone 浅色版（白卡 + 暖灰底 + 1px 描边），去掉旧的深蓝渐变。
+   刻意不绑主色：外壳同时承载抗菌药（青）与质控（橙）两套主题，
+   激活态用中性暖灰强调，两边都不打架。入口数量与层级一律不动。 */
 .main-layout {
   display: flex;
   min-height: 100vh;
-  background: #f0f2f5;
+  background: #fafaf9;
 }
 
 /* 侧边栏 */
 .sidebar {
   width: 220px;
-  background: linear-gradient(180deg, #1a3a5c 0%, #0f2540 100%);
-  color: #fff;
+  background: #fafaf9;
+  border-right: 1px solid #e7e5e4;
+  color: #292524;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -119,14 +123,14 @@ export default {
   display: flex;
   align-items: center;
   gap: 12px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+  border-bottom: 1px solid #f5f5f4;
 }
 
 .logo-icon {
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, #4a9eff, #2d6fbf);
-  border-radius: 10px;
+  background: linear-gradient(135deg, #57534e, #292524);
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -138,13 +142,13 @@ export default {
 .logo-title {
   font-size: 15px;
   font-weight: 600;
-  color: #fff;
+  color: #1c1917;
   line-height: 1.3;
 }
 
 .logo-sub {
   font-size: 11px;
-  color: rgba(255,255,255,0.5);
+  color: #a8a29e;
   margin-top: 2px;
 }
 
@@ -158,7 +162,7 @@ export default {
 .nav-divider {
   padding: 14px 14px 6px;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
+  color: #a8a29e;
   letter-spacing: 1px;
 }
 
@@ -168,7 +172,9 @@ export default {
   gap: 10px;
   padding: 11px 14px;
   border-radius: 8px;
-  color: rgba(255,255,255,0.7);
+  /* 透明描边占位：激活态补上 1px 边框时不会把文字挤动 */
+  border: 1px solid transparent;
+  color: #57534e;
   text-decoration: none;
   font-size: 14px;
   margin-bottom: 4px;
@@ -176,16 +182,19 @@ export default {
 }
 
 .nav-item:hover {
-  background: rgba(255,255,255,0.08);
-  color: #fff;
+  background: #f5f5f4;
+  color: #292524;
 }
 
+/* 卡片式激活项：白卡 + 暖灰描边 + 极轻阴影 + 左侧强调条 */
 .nav-active {
-  background: linear-gradient(90deg, rgba(74,158,255,0.25), rgba(74,158,255,0.08));
-  color: #fff;
-  font-weight: 500;
-  border-left: 3px solid #4a9eff;
-  padding-left: 11px;
+  background: #ffffff;
+  border: 1px solid #e7e5e4;
+  border-left: 3px solid #292524;
+  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04);
+  color: #1c1917;
+  font-weight: 600;
+  padding-left: 12px;
 }
 
 .nav-icon {
@@ -196,7 +205,7 @@ export default {
 
 .sidebar-footer {
   padding: 14px 16px;
-  border-top: 1px solid rgba(255,255,255,0.1);
+  border-top: 1px solid #f5f5f4;
 }
 
 .footer-user {
@@ -209,7 +218,7 @@ export default {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #4a9eff, #2d6fbf);
+  background: linear-gradient(135deg, #57534e, #292524);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -220,13 +229,13 @@ export default {
 
 .user-name {
   font-size: 13px;
-  color: #fff;
+  color: #1c1917;
   font-weight: 500;
 }
 
 .user-role {
   font-size: 11px;
-  color: rgba(255,255,255,0.5);
+  color: #a8a29e;
   margin-top: 1px;
 }
 

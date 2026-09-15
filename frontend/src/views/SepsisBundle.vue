@@ -1,5 +1,5 @@
 <template>
-  <div class="sepsis-page">
+  <div class="sepsis-page abx-theme">
     <div v-if="!inHospitalNo" class="warn-bar">
       <el-alert type="warning" :closable="false" show-icon
                 title="缺少患者参数"
@@ -36,6 +36,7 @@
               value-format="YYYY-MM-DD HH:mm:ss"
               size="small"
               style="width: 170px"
+              popper-class="abx-popper"
             />
           </div>
         </div>
@@ -81,7 +82,7 @@
       <div class="card assess-bar">
         <div class="assess-left">
           <span class="assess-label">评估记录</span>
-          <el-select v-model="currentAssessId" placeholder="选择评估记录" style="width: 300px" @change="onAssessChange">
+          <el-select v-model="currentAssessId" placeholder="选择评估记录" style="width: 300px" popper-class="abx-popper" @change="onAssessChange">
             <el-option label="新建评估" :value="null" />
             <el-option
               v-for="(item, index) in historyList"
@@ -322,6 +323,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import request from '../api/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import '../styles/abx-theme.css'
 
 const route = useRoute()
 const router = useRouter()
@@ -579,7 +581,7 @@ function goWordConfig() {
 /* ===== 删除评估记录 ===== */
 async function onDeleteAssess() {
   try {
-    await ElMessageBox.confirm('确定删除当前评估记录吗？删除后不可恢复。', '删除评估', { type: 'warning' })
+    await ElMessageBox.confirm('确定删除当前评估记录吗？删除后不可恢复。', '删除评估', { type: 'warning', customClass: 'abx-overlay' })
   } catch {
     return
   }
@@ -759,7 +761,7 @@ onMounted(() => {
 <style scoped>
 .sepsis-page {
   min-height: 100vh;
-  background: #f0f2f5;
+  background: #fafaf9;
 }
 
 .page-body {
@@ -776,22 +778,22 @@ onMounted(() => {
   background: #fff;
   border-radius: 10px;
   padding: 16px 18px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e8ecf1;
+  box-shadow: 0 1px 4px rgba(28, 25, 23, 0.04);
+  border: 1px solid #e7e5e4;
   margin-bottom: 16px;
 }
 
 .block-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1f3a5f;
+  color: #292524;
   margin-bottom: 12px;
   display: flex;
   align-items: center;
 }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
 .dot-cyan { background: #17a2b8; }
-.dot-orange { background: #e6a23c; }
+.dot-orange { background: #d97706; }
 
 /* 患者信息横条 */
 .patient-bar {
@@ -812,7 +814,7 @@ onMounted(() => {
 .p-cell-group {
   display: flex;
   align-items: stretch;
-  background: #f8fafc;
+  background: #fafaf9;
   border-radius: 8px;
   padding: 4px 8px;
   margin-right: 16px;
@@ -824,8 +826,8 @@ onMounted(() => {
 }
 .p-cell-group .p-cell:last-child { border-right: none; }
 .p-cell label { font-size: 12px; color: #8a94a3; }
-.p-cell b { font-size: 14px; color: #1f2d3d; font-weight: 600; }
-.danger-text { color: #f56c6c; font-weight: 600; }
+.p-cell b { font-size: 14px; color: #44403c; font-weight: 600; }
+.danger-text { color: #dc2626; font-weight: 600; }
 
 /* 内嵌进度条（左对齐，紧跟感染部位） */
 .p-progress-area {
@@ -860,19 +862,19 @@ onMounted(() => {
   justify-content: center;
   font-size: 12px;
   font-weight: 700;
-  color: #909399;
+  color: #78716c;
   border: 2px solid #d3d7de;
-  background: #f5f7fa;
+  background: #fafaf9;
   position: relative;
 }
 .step-circle.done {
-  background: #67c23a;
-  border-color: #67c23a;
+  background: #16a34a;
+  border-color: #16a34a;
   color: #fff;
 }
 .step-circle.active {
-  background: #e6a23c;
-  border-color: #e6a23c;
+  background: #d97706;
+  border-color: #d97706;
   color: #fff;
   animation: pulse 2s infinite;
 }
@@ -888,7 +890,7 @@ onMounted(() => {
   height: 14px;
   border-radius: 50%;
   background: #fff;
-  border: 1.5px solid #67c23a;
+  border: 1.5px solid #16a34a;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -896,22 +898,22 @@ onMounted(() => {
 .step-circle .mini-check svg {
   width: 8px;
   height: 8px;
-  stroke: #67c23a;
+  stroke: #16a34a;
   stroke-width: 3;
   fill: none;
 }
 .step-name {
   font-size: 11px;
-  color: #606266;
+  color: #44403c;
   font-weight: 600;
 }
-.step-node.done .step-name { color: #67c23a; }
-.step-node.active .step-name { color: #e6a23c; }
+.step-node.done .step-name { color: #16a34a; }
+.step-node.active .step-name { color: #d97706; }
 .step-line {
   flex: 1;
   height: 3px;
   border-radius: 2px;
-  background: #e4e7ed;
+  background: #d6d3d1;
   margin: 0 6px;
   margin-bottom: 17px;
   position: relative;
@@ -924,7 +926,7 @@ onMounted(() => {
   top: 0;
   bottom: 0;
   width: 0;
-  background: linear-gradient(90deg, #67c23a, #85ce61);
+  background: linear-gradient(90deg, #16a34a, #85ce61);
   border-radius: 2px;
 }
 .step-line.filled .fill { width: 100%; }
@@ -944,65 +946,65 @@ onMounted(() => {
 .assess-label {
   font-size: 14px;
   font-weight: 600;
-  color: #1f3a5f;
+  color: #292524;
 }
 .btn {
   padding: 8px 16px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid #e7e5e4;
   border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   background: #fff;
-  color: #606266;
+  color: #44403c;
   transition: all 0.2s;
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 .btn:hover {
-  color: #2d6fbf;
-  border-color: #c6e2ff;
-  background: #ecf5ff;
+  color: #0f766e;
+  border-color: #99f6e4;
+  background: #f0fdfa;
 }
 .btn-primary {
-  background: #2d6fbf;
-  border-color: #2d6fbf;
+  background: #0d9488;
+  border-color: #0d9488;
   color: #fff;
 }
 .btn-primary:hover {
-  background: #1a5ba8;
-  border-color: #1a5ba8;
+  background: #115e59;
+  border-color: #115e59;
   color: #fff;
 }
 .btn-ghost {
   background: #fff;
-  border-color: #c6e2ff;
-  color: #2d6fbf;
+  border-color: #99f6e4;
+  color: #0f766e;
 }
 .btn-ghost:hover {
-  background: #ecf5ff;
-  border-color: #2d6fbf;
-  color: #1a5ba8;
+  background: #f0fdfa;
+  border-color: #0f766e;
+  color: #115e59;
 }
 .btn-danger-ghost {
   background: #fff;
   border-color: #fbc4c4;
-  color: #f56c6c;
+  color: #dc2626;
 }
 .btn-danger-ghost:hover {
-  background: #fef0f0;
-  border-color: #f56c6c;
+  background: #fee2e2;
+  border-color: #dc2626;
   color: #d03050;
 }
 .btn-success {
-  background: #67c23a;
-  border-color: #67c23a;
+  background: #16a34a;
+  border-color: #16a34a;
   color: #fff;
 }
 .btn-success:hover {
-  background: #529b2e;
-  border-color: #529b2e;
+  background: #16a34a;
+  border-color: #16a34a;
   color: #fff;
 }
 .btn svg {
@@ -1016,10 +1018,10 @@ onMounted(() => {
 }
 .assess-count {
   font-size: 13px;
-  color: #909399;
+  color: #78716c;
 }
 .assess-count strong {
-  color: #2d6fbf;
+  color: #0f766e;
   font-size: 16px;
 }
 
@@ -1033,25 +1035,25 @@ onMounted(() => {
 .bundle-card {
   background: #fff;
   border-radius: 10px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e8ecf1;
+  box-shadow: 0 1px 4px rgba(28, 25, 23, 0.04);
+  border: 1px solid #e7e5e4;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 .bundle-card.completed {
-  border-top: 3px solid #67c23a;
+  border-top: 3px solid #16a34a;
 }
 .bundle-card.pending {
-  border-top: 3px solid #e6a23c;
+  border-top: 3px solid #d97706;
 }
 .bundle-card-header {
   padding: 14px 18px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #f0f2f5;
-  background: #fafbfc;
+  border-bottom: 1px solid #e7e5e4;
+  background: #fafaf9;
 }
 .bundle-card-title {
   display: flex;
@@ -1069,17 +1071,17 @@ onMounted(() => {
   font-weight: 700;
   color: #fff;
 }
-.time-badge.h1 { background: #f56c6c; }
-.time-badge.h3 { background: #e6a23c; }
-.time-badge.h6 { background: #67c23a; }
+.time-badge.h1 { background: #dc2626; }
+.time-badge.h3 { background: #d97706; }
+.time-badge.h6 { background: #16a34a; }
 .bundle-name {
   font-size: 15px;
   font-weight: 600;
-  color: #1f3a5f;
+  color: #292524;
 }
 .bundle-sub {
   font-size: 11px;
-  color: #909399;
+  color: #78716c;
   margin-top: 2px;
 }
 .status-tag {
@@ -1089,13 +1091,13 @@ onMounted(() => {
   border-radius: 4px;
 }
 .status-tag.done {
-  background: #f0f9eb;
-  color: #67c23a;
+  background: #f0fdf4;
+  color: #16a34a;
   border: 1px solid #e1f3d8;
 }
 .status-tag.pending {
-  background: #fdf6ec;
-  color: #e6a23c;
+  background: #fef3c7;
+  color: #d97706;
   border: 1px solid #faecd8;
 }
 
@@ -1106,17 +1108,17 @@ onMounted(() => {
 .bundle-item {
   padding: 10px 12px;
   margin-bottom: 8px;
-  background: #f8fafc;
+  background: #fafaf9;
   border-radius: 6px;
-  border-left: 3px solid #e4e7ed;
+  border-left: 3px solid #d6d3d1;
   transition: all 0.2s;
 }
 .bundle-item:last-child {
   margin-bottom: 0;
 }
 .bundle-item.done {
-  background: #f8fafc;
-  border-left-color: #67c23a;
+  background: #fafaf9;
+  border-left-color: #16a34a;
 }
 .item-row {
   display: flex;
@@ -1131,14 +1133,14 @@ onMounted(() => {
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
-  border: 1.5px solid #c0c4cc;
+  border: 1.5px solid #a8a29e;
   border-radius: 3px;
   position: relative;
   transition: all 0.2s;
 }
 .item-check:checked {
-  background: #67c23a;
-  border-color: #67c23a;
+  background: #16a34a;
+  border-color: #16a34a;
 }
 .item-check:checked::after {
   content: '';
@@ -1153,14 +1155,14 @@ onMounted(() => {
 }
 .item-name {
   font-size: 13px;
-  color: #606266;
+  color: #44403c;
   line-height: 1.5;
   flex: 1;
   cursor: default;
   user-select: none;
 }
 .bundle-item.done .item-name {
-  color: #606266;
+  color: #44403c;
 }
 .item-detail {
   margin-left: 24px;
@@ -1168,23 +1170,23 @@ onMounted(() => {
 }
 .detail-tag {
   font-size: 11px;
-  color: #2d6fbf;
-  background: #ecf5ff;
+  color: #0f766e;
+  background: #f0fdfa;
   padding: 2px 8px;
   border-radius: 4px;
   display: inline-block;
   line-height: 1.5;
 }
 .detail-tag.warn {
-  color: #e6a23c;
-  background: #fdf6ec;
+  color: #d97706;
+  background: #fef3c7;
 }
 
 /* 3小时后评估 */
 .assessment-box {
   margin: 0 18px 14px;
   padding: 12px 14px;
-  background: #f8fafc;
+  background: #fafaf9;
   border-radius: 8px;
   border-left: 3px solid #17a2b8;
 }
@@ -1207,26 +1209,26 @@ onMounted(() => {
 }
 .assess-label {
   font-size: 10px;
-  color: #909399;
+  color: #78716c;
   font-weight: 500;
 }
 .assess-value {
   font-size: 14px;
   font-weight: 700;
-  color: #1f2d3d;
+  color: #44403c;
   margin-top: 2px;
 }
 .assess-value small {
   font-size: 10px;
   font-weight: 400;
-  color: #c0c4cc;
+  color: #a8a29e;
   margin-left: 2px;
 }
 
 .bundle-card-footer {
   padding: 10px 18px;
-  border-top: 1px solid #f0f2f5;
-  background: #fafbfc;
+  border-top: 1px solid #e7e5e4;
+  background: #fafaf9;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1237,21 +1239,21 @@ onMounted(() => {
   gap: 6px;
   cursor: pointer;
   font-size: 12.5px;
-  color: #606266;
+  color: #44403c;
   font-weight: 500;
 }
 .all-check input[type="checkbox"] {
   width: 14px;
   height: 14px;
   cursor: pointer;
-  accent-color: #67c23a;
+  accent-color: #16a34a;
 }
 .progress-text {
   font-size: 12px;
-  color: #909399;
+  color: #78716c;
 }
 .progress-text strong {
-  color: #2d6fbf;
+  color: #0f766e;
   font-size: 14px;
 }
 
@@ -1269,18 +1271,18 @@ onMounted(() => {
 }
 .info-block {
   padding: 10px 12px;
-  background: #f8fafc;
+  background: #fafaf9;
   border-radius: 6px;
 }
 .info-label {
   font-size: 11px;
-  color: #909399;
+  color: #78716c;
   font-weight: 500;
   margin-bottom: 6px;
 }
 .info-value {
   font-size: 14px;
-  color: #1f2d3d;
+  color: #44403c;
   font-weight: 600;
   line-height: 1.5;
 }
@@ -1291,8 +1293,8 @@ onMounted(() => {
 }
 .value-tag {
   font-size: 12px;
-  color: #2d6fbf;
-  background: #ecf5ff;
+  color: #0f766e;
+  background: #f0fdfa;
   border: 1px solid #d9ecff;
   padding: 2px 8px;
   border-radius: 4px;
@@ -1310,22 +1312,22 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  background: #f8fafc;
+  background: #fafaf9;
   border-radius: 6px;
 }
 .reason-item.checked {
-  background: #f0f9eb;
+  background: #f0fdf4;
   border: 1px solid #e1f3d8;
 }
 .reason-item input[type="checkbox"] {
   width: 15px;
   height: 15px;
   cursor: pointer;
-  accent-color: #e6a23c;
+  accent-color: #d97706;
 }
 .reason-item span {
   font-size: 13px;
-  color: #606266;
+  color: #44403c;
   cursor: default;
   user-select: none;
 }
@@ -1334,25 +1336,25 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: #f8fafc;
+  background: #fafaf9;
   border-radius: 6px;
 }
 .other-label {
   font-size: 13px;
-  color: #606266;
+  color: #44403c;
   font-weight: 600;
   white-space: nowrap;
 }
 .other-input {
   flex: 1;
   padding: 6px 10px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid #e7e5e4;
   border-radius: 4px;
   font-size: 13px;
   outline: none;
 }
 .other-input:focus {
-  border-color: #2d6fbf;
+  border-color: #0d9488;
 }
 .no-reason {
   padding: 16px;
@@ -1369,8 +1371,8 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   gap: 16px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e8ecf1;
+  box-shadow: 0 1px 4px rgba(28, 25, 23, 0.04);
+  border: 1px solid #e7e5e4;
   position: sticky;
   bottom: 16px;
   z-index: 100;

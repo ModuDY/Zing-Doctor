@@ -1,9 +1,14 @@
 <template>
-  <div class="quality-board">
+  <div class="quality-board qb-theme">
     <!-- 筛选栏 -->
-    <div class="filter-bar">
+    <div class="filter-bar qb-card">
       <div class="filter-left">
-        <el-select v-model="periodType" style="width: 100px" @change="onPeriodTypeChange">
+        <el-select
+          v-model="periodType"
+          style="width: 100px"
+          popper-class="qb-popper"
+          @change="onPeriodTypeChange"
+        >
           <el-option label="按月" value="MONTH" />
           <el-option label="按季" value="QUARTER" />
           <el-option label="按年" value="YEAR" />
@@ -16,6 +21,7 @@
           placeholder="选择月份"
           value-format="YYYY-MM"
           :clearable="false"
+          popper-class="qb-popper"
           @change="loadOverview"
         />
         <el-date-picker
@@ -25,6 +31,7 @@
           placeholder="选择年份"
           value-format="YYYY"
           :clearable="false"
+          popper-class="qb-popper"
           @change="loadOverview"
         />
         <template v-else>
@@ -35,9 +42,15 @@
             value-format="YYYY"
             :clearable="false"
             style="width: 110px"
+            popper-class="qb-popper"
             @change="loadOverview"
           />
-          <el-select v-model="quarter" style="width: 84px" @change="loadOverview">
+          <el-select
+            v-model="quarter"
+            style="width: 84px"
+            popper-class="qb-popper"
+            @change="loadOverview"
+          >
             <el-option v-for="q in 4" :key="q" :label="`Q${q}`" :value="q" />
           </el-select>
         </template>
@@ -47,6 +60,7 @@
           placeholder="全院"
           style="width: 170px"
           clearable
+          popper-class="qb-popper"
           @change="loadOverview"
         >
           <el-option
@@ -57,12 +71,15 @@
           />
         </el-select>
 
-        <el-button type="primary" :loading="loading" @click="loadOverview">
+        <el-button type="primary" :loading="loading || rulesLoading" @click="loadOverview">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
       </div>
 
       <div class="filter-right">
+        <el-button :loading="rulesSyncing" @click="doSyncRules">
+          <el-icon><Upload /></el-icon> 同步指标规则
+        </el-button>
         <el-button :loading="recalcing" @click="doRecalc">
           <el-icon><Cpu /></el-icon> 触发计算
         </el-button>
@@ -72,19 +89,19 @@
       </div>
     </div>
 
-    <!-- 总览：先说清「哪段时间、哪个科室、数得怎么样」，再给分布 -->
-    <div class="overview">
+    <!--
+      总览（按设计稿）：常驻在 Tab 上方，统计口径是 quality_count_rule 的质控指标（约 60 条），
+      数字由前端按 rules 的 calcStatus 聚合，无需后端新增接口。
+    -->
+    <section class="qb-card overview">
       <div class="ov-head">
-        <div class="ov-title">
-          <span class="ov-title-text">质控指标总览</span>
-          <span class="ov-period">
-            {{ fmtPeriod(overview.periodStart) }} ~ {{ fmtPeriodEnd(overview.periodEnd) }}
-          </span>
-        </div>
+        <h2 class="ov-title">
+          质控指标总览
+          <span class="ov-period">{{ ovPeriod.start }} ~ {{ ovPeriod.end }} · 科室 {{ ovPeriod.dept }}</span>
+        </h2>
         <div class="ov-tags">
-          <span class="ov-tag"><i class="tag-dot blue"></i>{{ deptName(overview.departCode) }}</span>
-          <span class="ov-tag"><i class="tag-dot gray"></i>{{ domainPanels.length }} 个域</span>
-          <span class="ov-tag strong">出数率 {{ okRate }}%</span>
+          <span class="ov-tag"><i class="tag-dot info"></i>来源 quality_count_rule</span>
+          <span class="ov-tag strong">质控指标 {{ ruleSummary.total }} 条 · 出数率 {{ ruleSummary.okRate }}%</span>
         </div>
       </div>
 
@@ -94,8 +111,8 @@
             <span class="stat-label">指标总数</span>
             <span class="stat-ico blue"><el-icon><Grid /></el-icon></span>
           </div>
-          <div class="stat-value">{{ summary.total ?? 0 }}</div>
-          <div class="stat-foot">口径来自指标字典，空壳一并计入</div>
+          <div class="stat-value">{{ ruleSummary.total }}</div>
+          <div class="stat-foot">来源 quality_count_rule</div>
         </div>
 
         <div class="stat-card">
@@ -103,9 +120,9 @@
             <span class="stat-label">本期已出数</span>
             <span class="stat-ico green"><el-icon><CircleCheck /></el-icon></span>
           </div>
-          <div class="stat-value green">{{ summary.ok ?? 0 }}</div>
-          <div class="stat-bar"><i class="fill green" :style="{ width: okRate + '%' }"></i></div>
-          <div class="stat-foot">占全部指标 {{ okRate }}%（calc_status = OK）</div>
+          <div class="stat-value green">{{ ruleSummary.ok }}</div>
+          <div class="stat-bar"><i class="fill green" :style="{ width: ruleSummary.okRate + '%' }"></i></div>
+          <div class="stat-foot">占指标总数 {{ ruleSummary.okRate }}%</div>
         </div>
 
         <div class="stat-card">
@@ -113,30 +130,159 @@
             <span class="stat-label">本期无数据</span>
             <span class="stat-ico orange"><el-icon><WarningFilled /></el-icon></span>
           </div>
-          <div class="stat-value orange">{{ summary.noData ?? 0 }}</div>
-          <div class="stat-bar"><i class="fill orange" :style="{ width: noDataRate + '%' }"></i></div>
-          <div class="stat-foot">口径成立但本周期无命中</div>
+          <div class="stat-value orange">{{ ruleSummary.noData }}</div>
+          <div class="stat-bar"><i class="fill orange" :style="{ width: ruleSummary.noDataRate + '%' }"></i></div>
+          <div class="stat-foot">本期计算结果为空</div>
         </div>
 
         <div class="stat-card">
           <div class="stat-head">
             <span class="stat-label">未出数（含空壳）</span>
-            <span class="stat-ico gray"><el-icon><Clock /></el-icon></span>
+            <span class="stat-ico gray"><el-icon><Hide /></el-icon></span>
           </div>
-          <div class="stat-value gray">{{ summary.placeholder ?? 0 }}</div>
-          <div class="stat-bar"><i class="fill gray" :style="{ width: placeholderRate + '%' }"></i></div>
-          <div class="stat-foot">待接数据源 / 口径待定 / 未计算 / 人工录入</div>
+          <div class="stat-value gray">{{ ruleSummary.pending }}</div>
+          <div class="stat-bar"><i class="fill gray" :style="{ width: ruleSummary.pendingRate + '%' }"></i></div>
+          <div class="stat-foot">待接源 / 口径待定 / 人工录入</div>
         </div>
       </div>
+    </section>
 
-      <div class="ov-note">
-        空壳指标也占据完整行位，数值列显示「—」，页面始终是 {{ summary.total ?? 0 }} 行
-      </div>
-    </div>
+    <el-tabs v-model="activeTab" class="board-tabs" @tab-change="onTabChange">
+      <!-- ---------------- 质控指标（真指标，主视图） ---------------- -->
+      <el-tab-pane label="质控指标" name="rules">
+        <div v-loading="rulesLoading" class="tab-body">
+          <el-alert
+            v-if="!rulesLoading && rules.length === 0"
+            type="warning"
+            show-icon
+            :closable="false"
+            title="还没有指标规则"
+            description="点击右上角「同步指标规则」，从 ICU 侧 quality_count_rule 拉取。首次使用同步一次即可，之后 ICU 侧增减规则再同步。"
+          />
 
-    <el-tabs v-model="activeTab" @tab-change="onTabChange">
-      <!-- ---------------- 指标看板 ---------------- -->
-      <el-tab-pane label="指标看板" name="board">
+          <template v-else>
+            <el-alert
+              v-if="rulesPendingCount > 0"
+              type="warning"
+              show-icon
+              :closable="false"
+              style="margin-bottom: 12px"
+              :title="rulesPendingCount + ' 条指标口径待确认'"
+              description="涉及 quality_15 / quality_30 / quality_31 —— 这三个原子项自带百分比语义，源表存的究竟是「率」还是「率之和」尚未与 ICU 侧确认。值按公式照常给出，但可能有数量级偏差；其余指标不受影响。"
+            />
+
+            <div class="block-title">
+              <span class="dot"></span>
+              指标 = 分子 ÷ 分母 × 系数
+              <el-tag size="small" type="info" effect="plain">
+                共 {{ rules.length }} 条 · 已出数 {{ rulesOkCount }}
+              </el-tag>
+            </div>
+
+            <el-table :data="rules" stripe border size="small" max-height="620">
+              <el-table-column label="指标名称" min-width="300">
+                <template #default="{ row }">
+                  <span>{{ row.countName }}</span>
+                  <el-tooltip v-if="row.remark" placement="top" :content="row.remark">
+                    <span class="remark-dot">?</span>
+                  </el-tooltip>
+                  <el-tag
+                    v-if="row.pendingConfirm"
+                    size="small"
+                    type="warning"
+                    effect="plain"
+                    class="pending-tag"
+                  >
+                    口径待确认
+                  </el-tag>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="分子" min-width="190">
+                <template #default="{ row }">
+                  <div class="atom-cell">
+                    <a class="code-link" @click="openAtom(row.numeratorCode)">
+                      {{ row.numeratorCode }}
+                    </a>
+                    <span class="atom-val">
+                      {{ isBlank(row.numeratorValue) ? '—' : num(row.numeratorValue) }}
+                    </span>
+                  </div>
+                  <div class="atom-name">{{ row.numeratorName || '' }}</div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="分母" min-width="190">
+                <template #default="{ row }">
+                  <div class="atom-cell">
+                    <a class="code-link" @click="openAtom(row.denominatorCode)">
+                      {{ row.denominatorCode }}
+                    </a>
+                    <span class="atom-val">
+                      {{ isBlank(row.denominatorValue) ? '—' : num(row.denominatorValue) }}
+                    </span>
+                  </div>
+                  <div class="atom-name">{{ row.denominatorName || '' }}</div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="单位" width="66" align="center">
+                <template #default="{ row }">{{ row.displayUnit }}</template>
+              </el-table-column>
+
+              <el-table-column label="本期值" width="124" align="right">
+                <template #default="{ row }">
+                  <span v-if="isBlank(row.value)" class="empty-value">—</span>
+                  <span v-else class="rule-value" :class="{ 'is-pending': row.pendingConfirm }">
+                    {{ num(row.value) }}<em>{{ row.displayUnit }}</em>
+                  </span>
+                </template>
+              </el-table-column>
+
+              <!--
+                目标值 / 预警值：ICU 侧这四列目前全是 NULL，所以这里多半显示「未配置」。
+                仍保留这两列 —— 质控最关心的「达标与否」必须有地方看，
+                等本院配好值就能直接判定，不必再改页面。
+              -->
+              <el-table-column label="目标值" width="92" align="right">
+                <template #default="{ row }">
+                  <span v-if="isBlank(row.targetValue)" class="empty-value">未配置</span>
+                  <span v-else>{{ num(row.targetValue) }}</span>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="预警值" width="92" align="right">
+                <template #default="{ row }">
+                  <span v-if="isBlank(row.warningValue)" class="empty-value">未配置</span>
+                  <span v-else>{{ num(row.warningValue) }}</span>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="状态" width="94" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="calcTag(row.calcStatus).type" size="small" effect="light">
+                    {{ calcTag(row.calcStatus).label }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="血缘" width="132" align="center" fixed="right">
+                <template #default="{ row }">
+                  <el-button link type="primary" size="small" @click="openAtom(row.numeratorCode)">
+                    分子
+                  </el-button>
+                  <el-button link type="primary" size="small" @click="openAtom(row.denominatorCode)">
+                    分母
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </template>
+        </div>
+      </el-tab-pane>
+
+      <!-- ---------------- 原子项（原「指标看板」，退为明细层） ---------------- -->
+      <el-tab-pane label="原子项明细" name="board">
         <div v-loading="loading" class="tab-body">
           <el-alert
             v-if="!loading && domainPanels.length === 0"
@@ -146,7 +292,16 @@
             title="指标字典为空"
             description="请先点击右上角「同步字典」，从 classpath:quality/metrics/*.yaml 同步指标定义。"
           />
-          <el-collapse v-else v-model="activeDomains">
+          <el-alert
+            v-if="domainPanels.length > 0"
+            type="info"
+            show-icon
+            :closable="false"
+            style="margin-bottom: 12px"
+            title="这一页是原子项，不是质控指标"
+            description="quality_xxx 只是「多少人 / 多少天」的原子量，自身成不了率。真正的指标 = 分子 ÷ 分母 × 系数，在「质控指标」页。本页用于排查某个率的分母为什么是 0、以及查看暂未被任何指标引用的原子项。"
+          />
+          <el-collapse v-else v-model="activeDomains" class="qb-collapse">
             <el-collapse-item
               v-for="group in domainPanels"
               :key="group.domain"
@@ -346,6 +501,7 @@
       v-model="calcVisible"
       title="指标计算"
       width="460px"
+      class="qb-overlay"
       :close-on-click-modal="false"
       :close-on-press-escape="!calcRunning"
       :show-close="!calcRunning"
@@ -384,7 +540,12 @@
     </el-dialog>
 
     <!-- ---------------- 指标详情抽屉 ---------------- -->
-    <el-drawer v-model="detailVisible" :title="detail.name || detail.code || '指标详情'" size="62%">
+    <el-drawer
+      v-model="detailVisible"
+      :title="detail.name || detail.code || '指标详情'"
+      size="62%"
+      class="qb-overlay"
+    >
       <div v-loading="detailLoading" class="detail-body">
         <el-descriptions :column="2" border size="small">
           <el-descriptions-item label="指标编号">{{ detail.code || '—' }}</el-descriptions-item>
@@ -496,7 +657,7 @@
     </el-drawer>
 
     <!-- ---------------- 人工录入弹窗 ---------------- -->
-    <el-dialog v-model="manualVisible" title="人工录入指标值" width="440px">
+    <el-dialog v-model="manualVisible" title="人工录入指标值" width="440px" class="qb-overlay">
       <div class="manual-row">
         <span class="manual-label">指标</span>
         <span>{{ manualForm.name }}</span>
@@ -529,10 +690,13 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, Cpu, Upload, Grid, CircleCheck, WarningFilled, Clock } from '@element-plus/icons-vue'
+import { Refresh, Cpu, Upload, Grid, CircleCheck, WarningFilled, Hide } from '@element-plus/icons-vue'
 import { externalParam } from '../utils/external'
+import '../styles/quality-theme.css'
 import {
   fetchQualityOverview,
+  fetchQualityRules,
+  syncQualityRules,
   fetchQualityMetric,
   fetchQualityCoverage,
   fetchQualityFacts,
@@ -671,11 +835,11 @@ function onPeriodTypeChange() {
 
 // ---------------- 看板数据 ----------------
 const loading = ref(false)
-const activeTab = ref('board')
+// 默认落在「质控指标」：这里列的才是质控要管的率，原子项是排查时才看的下一层
+const activeTab = ref('rules')
 const overview = reactive({})
 const activeDomains = ref([])
 
-const summary = computed(() => overview.summary || {})
 const domainPanels = computed(() =>
   (overview.groups || []).map((g) => ({
     domain: g.domain,
@@ -685,18 +849,68 @@ const domainPanels = computed(() =>
 )
 
 /**
- * 各状态占全部指标的百分比（总览卡进度条用）。
- * 分母为 0（字典尚未同步）时返回 0 —— 否则页面会显示 NaN%。
+ * 总览卡口径（按设计图）：统计 quality_count_rule 同步来的质控指标（rules，约 60 条），
+ * 而不是原子项明细的 127 条。按 calcStatus 聚合：OK=已出数，NO_DATA=无数据，其余全部
+ * 计入「未出数（含空壳）」（未计算 / 空壳 / 待接源 / 人工录入 / 异常）。
+ * 百分比保留一位小数，与设计稿「出数率 0.0%」一致。
  */
-function rateOf(n) {
-  const t = Number(summary.value.total) || 0
-  return t ? Math.round((Number(n || 0) / t) * 100) : 0
-}
-const okRate = computed(() => rateOf(summary.value.ok))
-const noDataRate = computed(() => rateOf(summary.value.noData))
-const placeholderRate = computed(() => rateOf(summary.value.placeholder))
+const ruleSummary = computed(() => {
+  const total = rules.value.length
+  const ok = rules.value.filter((r) => r.calcStatus === 'OK').length
+  const noData = rules.value.filter((r) => r.calcStatus === 'NO_DATA').length
+  const pending = total - ok - noData
+  const pct = (n) => (total ? ((Number(n) / total) * 100).toFixed(1) : '0.0')
+  return {
+    total,
+    ok,
+    noData,
+    pending,
+    okRate: pct(ok),
+    noDataRate: pct(noData),
+    pendingRate: pct(pending)
+  }
+})
 
-async function loadOverview() {
+/**
+ * 总览周期文案：直接按当前筛选条件本地拼出闭区间日期（与提交给后端的 PeriodRange 同源），
+ * 这样在「质控指标」Tab（不加载 overview）下总览也始终能说清是哪段时间、哪个科室。
+ */
+const ovPeriod = computed(() => {
+  const now = new Date()
+  let year = now.getFullYear()
+  let startMonth = 0
+  let spanMonths = 1
+  if (periodType.value === 'MONTH') {
+    const [y, m] = String(monthValue.value || '').split('-').map(Number)
+    if (y) year = y
+    startMonth = (m || 1) - 1
+  } else if (periodType.value === 'YEAR') {
+    year = Number(yearValue.value) || year
+    startMonth = 0
+    spanMonths = 12
+  } else {
+    year = Number(quarterYear.value) || year
+    startMonth = (Number(quarter.value) - 1) * 3
+    spanMonths = 3
+  }
+  const day = (d) => fmtDate(d).slice(0, 10)
+  const start = new Date(year, startMonth, 1)
+  const end = new Date(year, startMonth + spanMonths, 1, 0, 0, -1)
+  return { start: day(start), end: day(end), dept: deptName(departCode.value) }
+})
+
+/**
+ * 刷新入口：按当前 Tab 决定刷哪个视图。
+ *
+ * 页面有两个数据视图 —— 「质控指标」（真指标，主视图）与「指标看板」（原子项）。
+ * 顶部周期/科室筛选与刷新按钮是两者共用的，若这里固定刷 overview，
+ * 切到「质控指标」后点刷新就会毫无反应（看着像坏了）。
+ */
+function loadOverview() {
+  return activeTab.value === 'rules' ? loadRules() : loadOverviewData()
+}
+
+async function loadOverviewData() {
   loading.value = true
   try {
     const res = await fetchQualityOverview({
@@ -735,6 +949,65 @@ function deptName(code) {
   if (!c || c === 'ALL') return '全院'
   const hit = departments.value.find((d) => String(d.org_code) === c)
   return hit ? hit.depart_name : c
+}
+
+// ---------------- 质控指标（真指标 = 分子 ÷ 分母 × 系数） ----------------
+//
+// 与下面「指标看板」的关系必须说清楚：那边列的是**原子项**（quality_xxx，
+// 一个「多少人 / 多少天」的量，自身成不了率），这边列的才是质控真正要管的指标。
+// 例：ICU镇痛评估率 = quality_306（做了镇痛评估的人数）÷ quality_403（同期患者总数）× 100。
+// 值不重算 SQL —— 分子分母已由引擎落库，后端只做一次除法。
+const rules = ref([])
+const rulesLoading = ref(false)
+const rulesSyncing = ref(false)
+
+const rulesOkCount = computed(() => rules.value.filter((r) => r.calcStatus === 'OK').length)
+/** 口径待确认（涉及 quality_15/30/31）的条数，用于顶部降级提示 */
+const rulesPendingCount = computed(() => rules.value.filter((r) => r.pendingConfirm).length)
+
+async function loadRules() {
+  rulesLoading.value = true
+  try {
+    const res = await fetchQualityRules({
+      periodType: periodType.value,
+      periodStart: periodStart.value,
+      departCode: departCode.value || '',
+      includeHidden: false
+    })
+    rules.value = Array.isArray(res) ? res : []
+  } catch (e) {
+    console.warn('指标规则加载失败:', e.message || e)
+  } finally {
+    rulesLoading.value = false
+  }
+}
+
+/**
+ * 从 ICU 侧同步指标规则（幂等）。
+ *
+ * 同步不覆盖本院已配置的目标值 / 预警值，因此可以放心重复点。
+ * 失败多半是没有跨 schema 读权限或未执行 11_quality_count_rule.sql，提示里点明排查方向。
+ */
+async function doSyncRules() {
+  rulesSyncing.value = true
+  try {
+    const res = await syncQualityRules()
+    const added = res && res.added != null ? res.added : 0
+    ElMessage.success(added > 0 ? `已同步 ${added} 条指标规则` : '指标规则已是最新，无需新增')
+    await loadRules()
+  } catch (e) {
+    ElMessage.error(
+      '同步指标规则失败：' + (e.message || e) + '（确认已执行 sql/11_quality_count_rule.sql 且库账号可跨 schema 读 ICU）'
+    )
+  } finally {
+    rulesSyncing.value = false
+  }
+}
+
+/** 打开分子 / 分母原子项的口径血缘 —— 回答「这个率是怎么来的」。 */
+function openAtom(code) {
+  if (!code) return
+  openMetric({ code })
 }
 
 // ---------------- 覆盖率 / 事实层 / 批次（按 Tab 懒加载） ----------------
@@ -779,6 +1052,8 @@ async function loadRuns() {
 }
 
 function onTabChange(name) {
+  if (name === 'rules' && rules.value.length === 0) loadRules()
+  if (name === 'board' && !overview.groups) loadOverviewData()
   if (name === 'coverage' && !coverage.metrics) loadCoverage()
   if (name === 'facts' && facts.value.length === 0) loadFacts()
   if (name === 'runs' && runs.value.length === 0) loadRuns()
@@ -849,7 +1124,7 @@ async function doRecalc() {
     await ElMessageBox.confirm(
       `将重算 ${fmtPeriod(overview.periodStart || periodStart.value)} ~ ${fmtPeriodEnd(overview.periodEnd)} 的指标结果（同周期同科室幂等覆盖），是否继续？`,
       '触发计算',
-      { type: 'warning', confirmButtonText: '开始计算', cancelButtonText: '取消' }
+      { type: 'warning', confirmButtonText: '开始计算', cancelButtonText: '取消', customClass: 'qb-overlay' }
     )
   } catch (e) {
     return
@@ -1085,14 +1360,27 @@ function factSql(sourceTables) {
 onMounted(() => {
   loadDepartments()
   loadOverview()
+  loadRules()
 })
 </script>
 
 <style scoped>
+/* ===================================================================
+   质控看板 · 暖橙主题（设计稿 quality-board.html 适配）
+   组件级变量级覆盖在 styles/quality-theme.css，这里只管本页布局与卡片。
+   =================================================================== */
 .quality-board {
-  padding: 16px;
-  background: #f5f7fa;
+  padding: 24px;
+  background: #fafaf9;
   min-height: 100vh;
+}
+
+/* 设计稿通用白卡：暖灰描边 + 12px 圆角 + 极轻阴影 */
+.qb-card {
+  background: #ffffff;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04);
 }
 
 .filter-bar {
@@ -1101,11 +1389,8 @@ onMounted(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  margin-bottom: 20px;
+  padding: 14px 18px;
 }
 
 .filter-left,
@@ -1116,15 +1401,10 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
-/* ---------------- 总览面板 ---------------- */
-/* 结构：一行「周期 + 科室 + 出数率」交代统计口径，下面四张卡给出分布，
-   数字统一 tabular-nums（等宽），刷新时不会左右跳动。 */
+/* ---------------- 总览面板（常驻，60 条质控指标口径） ---------------- */
 .overview {
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  padding: 16px 18px 16px;
-  margin-bottom: 16px;
+  padding: 20px 22px;
+  margin-bottom: 20px;
 }
 
 .ov-head {
@@ -1133,26 +1413,20 @@ onMounted(() => {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #f0f2f5;
 }
 
 .ov-title {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.ov-title-text {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1c1917;
+  margin: 0;
 }
 
 .ov-period {
-  font-size: 12.5px;
-  color: #6b7280;
+  font-size: 13px;
+  font-weight: 400;
+  color: #78716c;
+  margin-left: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1168,47 +1442,44 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #4b5563;
-  background: #f5f7fa;
-  border-radius: 999px;
-  padding: 3px 10px;
+  color: #57534e;
+  background: #f5f5f4;
+  border-radius: 9999px;
+  padding: 4px 12px;
 }
 
 .ov-tag.strong {
-  color: #1d4ed8;
-  background: #eef4ff;
+  color: #ea580c;
   font-weight: 600;
 }
 
 .tag-dot {
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
 }
-.tag-dot.blue {
-  background: #409eff;
-}
-.tag-dot.gray {
-  background: #909399;
+.tag-dot.info {
+  background: #0891b2;
 }
 
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  margin-top: 16px;
+  gap: 16px;
+  margin-top: 18px;
 }
 
 .stat-card {
-  border: 1px solid #eef0f4;
-  border-radius: 8px;
-  padding: 14px 16px 12px;
-  background: linear-gradient(180deg, #fbfcfe 0%, #ffffff 100%);
-  transition: box-shadow 0.2s, transform 0.2s;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  padding: 16px 18px 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #fafaf9 100%);
+  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
 }
 .stat-card:hover {
-  box-shadow: 0 4px 14px rgba(31, 41, 55, 0.08);
+  border-color: #d6d3d1;
+  box-shadow: 0 4px 14px rgba(28, 25, 23, 0.06);
   transform: translateY(-1px);
 }
 
@@ -1220,86 +1491,96 @@ onMounted(() => {
 
 .stat-label {
   font-size: 13px;
-  color: #6b7280;
+  font-weight: 500;
+  color: #78716c;
 }
 
 .stat-ico {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  font-size: 17px;
 }
 .stat-ico.blue {
-  color: #409eff;
-  background: #ecf5ff;
+  color: #0891b2;
+  background: #cffafe;
 }
 .stat-ico.green {
-  color: #67c23a;
-  background: #f0f9eb;
+  color: #16a34a;
+  background: #dcfce7;
 }
 .stat-ico.orange {
-  color: #e6a23c;
-  background: #fdf6ec;
+  color: #d97706;
+  background: #fef3c7;
 }
 .stat-ico.gray {
-  color: #909399;
-  background: #f4f4f5;
+  color: #78716c;
+  background: #f5f5f4;
 }
 
 .stat-value {
   font-size: 28px;
   font-weight: 700;
-  color: #1f2937;
+  color: #1c1917;
   line-height: 1.25;
-  margin-top: 6px;
+  margin-top: 8px;
   font-variant-numeric: tabular-nums;
 }
 .stat-value.green {
   color: #16a34a;
 }
 .stat-value.orange {
-  color: #e6a23c;
+  color: #d97706;
 }
 .stat-value.gray {
-  color: #909399;
+  color: #a8a29e;
 }
 
 .stat-bar {
-  height: 4px;
-  border-radius: 2px;
-  background: #f0f2f5;
-  margin-top: 10px;
+  height: 5px;
+  border-radius: 3px;
+  background: #f5f5f4;
+  margin-top: 12px;
   overflow: hidden;
 }
 .stat-bar .fill {
   display: block;
   height: 100%;
-  border-radius: 2px;
+  border-radius: 3px;
   transition: width 0.4s ease;
 }
 .fill.green {
-  background: #67c23a;
+  background: #16a34a;
 }
 .fill.orange {
-  background: #e6a23c;
+  background: #d97706;
 }
 .fill.gray {
-  background: #c0c4cc;
+  background: #d6d3d1;
 }
 
 .stat-foot {
-  font-size: 11.5px;
-  color: #9ca3af;
-  margin-top: 6px;
+  font-size: 12px;
+  color: #a8a29e;
+  margin-top: 8px;
 }
 
-.ov-note {
-  margin-top: 12px;
-  font-size: 12px;
-  color: #909399;
+/* ---------------- Tab 区整体作为一张白卡 ---------------- */
+.board-tabs {
+  background: #ffffff;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04);
+}
+.board-tabs :deep(.el-tabs__header) {
+  margin: 0;
+  padding: 0 16px;
+}
+.board-tabs :deep(.el-tabs__content) {
+  padding: 18px 16px;
 }
 
 /* ---------------- 计算进度（异步批次） ---------------- */
@@ -1309,35 +1590,36 @@ onMounted(() => {
 .calc-line {
   display: flex;
   justify-content: space-between;
-  font-size: 12.5px;
-  color: #606266;
+  font-size: 13px;
+  color: #57534e;
   margin-top: 10px;
   font-variant-numeric: tabular-nums;
 }
 .calc-elapsed {
-  color: #909399;
+  color: #a8a29e;
 }
 .calc-stat {
   display: flex;
   gap: 16px;
   margin-top: 8px;
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .calc-stat .s-ok {
   color: #16a34a;
 }
 .calc-stat .s-fail {
-  color: #d03050;
+  color: #dc2626;
 }
 .calc-stat .s-hold {
-  color: #909399;
+  color: #78716c;
 }
 .calc-tip {
   margin-top: 12px;
   font-size: 12px;
-  color: #909399;
-  background: #f7f8fa;
-  border-radius: 6px;
+  color: #78716c;
+  background: #fafaf9;
+  border: 1px solid #f5f5f4;
+  border-radius: 8px;
   padding: 8px 10px;
 }
 
@@ -1347,41 +1629,102 @@ onMounted(() => {
 
 .domain-title {
   font-weight: 600;
-  color: #303133;
+  color: #44403c;
   margin-right: 10px;
 }
 
 .domain-count {
   font-size: 12px;
-  color: #909399;
+  color: #78716c;
 }
 
+/* 口径待确认提示点：暖橙软底 */
 .remark-dot {
   display: inline-block;
-  width: 15px;
-  height: 15px;
-  line-height: 15px;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
   text-align: center;
   margin-left: 6px;
   border-radius: 50%;
-  background: #f0f2f5;
-  color: #909399;
+  background: #ffedd5;
+  color: #c2410c;
   font-size: 11px;
+  font-weight: 700;
   cursor: help;
 }
 
 .empty-value {
-  color: #c0c4cc;
+  color: #a8a29e;
 }
 
 .value-link {
-  color: #409eff;
+  color: #ea580c;
   font-weight: 600;
   cursor: pointer;
 }
 
 .value-link:hover {
+  color: #c2410c;
   text-decoration: underline;
+}
+
+/* ---- 质控指标（真指标）表：分子/分母单元 ---- */
+.atom-cell {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* 原子项编号用等宽字体：quality_403 与 quality_4031 肉眼极易看混 */
+.code-link {
+  font-family: 'Cascadia Mono', Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  color: #ea580c;
+  cursor: pointer;
+}
+
+.code-link:hover {
+  color: #c2410c;
+  text-decoration: underline;
+}
+
+.atom-val {
+  font-weight: 600;
+  color: #292524;
+}
+
+.atom-name {
+  font-size: 12px;
+  color: #78716c;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pending-tag {
+  margin-left: 6px;
+  transform: scale(0.92);
+}
+
+.rule-value {
+  font-weight: 700;
+  color: #292524;
+}
+
+.rule-value em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 400;
+  color: #78716c;
+  margin-left: 2px;
+}
+
+/* 口径待确认的值：给足警示，但仍显示 —— 完全藏起来会让使用者以为没算 */
+.rule-value.is-pending {
+  color: #d97706;
 }
 
 .block-title {
@@ -1389,24 +1732,27 @@ onMounted(() => {
   align-items: center;
   font-size: 15px;
   font-weight: 600;
-  color: #303133;
+  color: #44403c;
   margin-bottom: 12px;
 }
 
 .dot {
   width: 4px;
   height: 16px;
-  background: linear-gradient(180deg, #409eff, #66b1ff);
+  background: linear-gradient(180deg, #f97316, #fb923c);
   border-radius: 2px;
   margin-right: 8px;
+  flex-shrink: 0;
 }
 
+/* 设计稿代码块：近黑底 + 暖灰字（替代旧的深色主题配色） */
 .sql-box {
   margin: 0;
-  padding: 12px;
-  background: #1e1e2e;
-  color: #a6e3a1;
-  border-radius: 6px;
+  padding: 14px 16px;
+  background: #1c1917;
+  color: #e7e5e4;
+  border: 1px solid #292524;
+  border-radius: 8px;
   font-size: 12px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -1427,21 +1773,23 @@ onMounted(() => {
 }
 
 .result-card {
-  background: #f7f9fc;
-  border-radius: 8px;
+  background: #fafaf9;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
   padding: 14px 16px;
 }
 
 .result-label {
   font-size: 12px;
-  color: #909399;
+  color: #78716c;
   margin-bottom: 6px;
 }
 
 .result-value {
   font-size: 24px;
   font-weight: 700;
-  color: #303133;
+  color: #1c1917;
+  font-variant-numeric: tabular-nums;
 }
 
 .result-value.small {
@@ -1451,7 +1799,7 @@ onMounted(() => {
 
 .result-unit {
   font-size: 12px;
-  color: #909399;
+  color: #78716c;
   margin-top: 4px;
 }
 
@@ -1469,7 +1817,7 @@ onMounted(() => {
 
 .manual-label {
   width: 48px;
-  color: #909399;
+  color: #78716c;
   font-size: 13px;
   flex-shrink: 0;
 }
@@ -1478,6 +1826,16 @@ onMounted(() => {
   .stat-grid,
   .result-cards {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .quality-board {
+    padding: 12px;
+  }
+  .stat-grid,
+  .result-cards {
+    grid-template-columns: 1fr;
   }
 }
 </style>

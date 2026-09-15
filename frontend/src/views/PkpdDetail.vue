@@ -1,5 +1,5 @@
 <template>
-  <div class="pkpd-page">
+  <div class="pkpd-page abx-theme">
     <div v-if="!inHospitalNo && !patientId" class="warn-bar">
       <el-alert type="warning" :closable="false" show-icon
                 title="缺少患者参数"
@@ -186,7 +186,7 @@
                   </div>
                   <div class="abx-pkpd-row" v-if="!drug.knowledgeMatched">
                     <span class="abx-pkpd-k">知识库</span>
-                    <span class="abx-pkpd-v" style="color:#909399">未匹配到药物知识库，仅展示医嘱信息</span>
+                    <span class="abx-pkpd-v" style="color:#78716c">未匹配到药物知识库，仅展示医嘱信息</span>
                   </div>
                 </div>
                 <div class="abx-pkpd-remark" v-if="drug.remark">
@@ -294,6 +294,7 @@ import { useRoute } from 'vue-router'
 import { fetchPkpd, fetchPkpdByNo } from '../api/antibiotic'
 import { Warning, InfoFilled, Clock } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
+import '../styles/abx-theme.css'
 
 const route = useRoute()
 const loading = ref(true)
@@ -344,13 +345,13 @@ function renderCreatinineChart() {
     xAxis: {
       type: 'category',
       data: trend.map(t => t.time),
-      axisLabel: { color: '#909399', fontSize: 10 }
+      axisLabel: { color: '#78716c', fontSize: 10 }
     },
     yAxis: {
       type: 'value',
       name: 'μmol/L',
-      nameTextStyle: { color: '#909399', fontSize: 10 },
-      axisLabel: { color: '#909399', fontSize: 10 }
+      nameTextStyle: { color: '#78716c', fontSize: 10 },
+      axisLabel: { color: '#78716c', fontSize: 10 }
     },
     series: [{
       type: 'line',
@@ -358,9 +359,9 @@ function renderCreatinineChart() {
       smooth: true,
       symbol: 'circle',
       symbolSize: 6,
-      itemStyle: { color: '#2d6fbf' },
-      lineStyle: { width: 2, color: '#2d6fbf' },
-      areaStyle: { color: 'rgba(45,111,191,0.1)' }
+      itemStyle: { color: '#0d9488' },
+      lineStyle: { width: 2, color: '#0d9488' },
+      areaStyle: { color: 'rgba(13,148,136,0.12)' }
     }]
   })
 }
@@ -396,7 +397,7 @@ watch(() => route.query.inHospitalNo, () => {
 <style scoped>
 .pkpd-page {
   min-height: 100vh;
-  background: #f0f2f5;
+  background: #fafaf9;
 }
 
 .page-body {
@@ -413,25 +414,25 @@ watch(() => route.query.inHospitalNo, () => {
   background: #fff;
   border-radius: 10px;
   padding: 16px 18px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e8ecf1;
+  box-shadow: 0 1px 4px rgba(28, 25, 23, 0.04);
+  border: 1px solid #e7e5e4;
 }
 .block-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1f3a5f;
+  color: #292524;
   margin-bottom: 12px;
   display: flex;
   align-items: center;
 }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
-.dot-blue { background: #2d6fbf; }
+.dot-blue { background: linear-gradient(180deg, #0d9488, #2dd4bf); }
 .dot-cyan { background: #17a2b8; }
-.dot-red { background: #f56c6c; }
+.dot-red { background: #dc2626; }
 .dot-purple { background: #8b6fd8; }
-.dot-green { background: #67c23a; }
-.dot-orange { background: #e6a23c; }
-.dot-gray { background: #909399; }
+.dot-green { background: #16a34a; }
+.dot-orange { background: #d97706; }
+.dot-gray { background: #78716c; }
 
 /* 患者信息横条 */
 .patient-bar {
@@ -454,7 +455,7 @@ watch(() => route.query.inHospitalNo, () => {
 .p-cell-group {
   display: flex;
   align-items: stretch;
-  background: #f8fafc;
+  background: #fafaf9;
   border-radius: 8px;
   padding: 4px 8px;
 }
@@ -465,8 +466,8 @@ watch(() => route.query.inHospitalNo, () => {
 }
 .p-cell-group .p-cell:last-child { border-right: none; }
 .p-cell label { font-size: 12px; color: #8a94a3; }
-.p-cell b { font-size: 14px; color: #1f2d3d; }
-.warn-text { color: #e6a23c; font-weight: 600; }
+.p-cell b { font-size: 14px; color: #44403c; }
+.warn-text { color: #d97706; font-weight: 600; }
 
 .flag-list { display: flex; flex-wrap: wrap; gap: 4px; }
 .flag-tag { margin-right: 4px; }
@@ -505,11 +506,11 @@ watch(() => route.query.inHospitalNo, () => {
   border-radius: 8px;
 }
 .renal-num { font-size: 36px; font-weight: 700; line-height: 1; }
-.renal-unit { font-size: 14px; color: #606266; }
-.renal-label { font-size: 12px; color: #909399; margin-left: auto; align-self: flex-end; }
-.renal-G1, .renal-G2 { color: #67c23a; }
-.renal-G3a, .renal-G3b { color: #e6a23c; }
-.renal-G4, .renal-G5 { color: #f56c6c; }
+.renal-unit { font-size: 14px; color: #44403c; }
+.renal-label { font-size: 12px; color: #78716c; margin-left: auto; align-self: flex-end; }
+.renal-G1, .renal-G2 { color: #16a34a; }
+.renal-G3a, .renal-G3b { color: #d97706; }
+.renal-G4, .renal-G5 { color: #dc2626; }
 
 .renal-info-row {
   display: grid;
@@ -522,14 +523,14 @@ watch(() => route.query.inHospitalNo, () => {
   flex-direction: column;
   gap: 2px;
   padding: 8px;
-  background: #f8fafc;
+  background: #fafaf9;
   border-radius: 6px;
 }
-.ri-label { font-size: 11px; color: #909399; }
-.ri-value { font-size: 13px; font-weight: 600; color: #1f2d3d; }
+.ri-label { font-size: 11px; color: #78716c; }
+.ri-value { font-size: 13px; font-weight: 600; color: #44403c; }
 
 .renal-chart { width: 100%; height: 140px; }
-.empty-chart { text-align: center; color: #c0c4cc; font-size: 12px; padding: 20px 0; }
+.empty-chart { text-align: center; color: #a8a29e; font-size: 12px; padding: 20px 0; }
 
 /* 营养状态 */
 .nutrition-grid {
@@ -543,11 +544,11 @@ watch(() => route.query.inHospitalNo, () => {
   flex-direction: column;
   gap: 2px;
   padding: 8px;
-  background: #f8fafc;
+  background: #fafaf9;
   border-radius: 6px;
 }
-.ni-label { font-size: 11px; color: #909399; }
-.ni-value { font-size: 13px; font-weight: 600; color: #1f2d3d; }
+.ni-label { font-size: 11px; color: #78716c; }
+.ni-value { font-size: 13px; font-weight: 600; color: #44403c; }
 
 .obese-alert, .low-weight-alert {
   display: flex;
@@ -558,8 +559,8 @@ watch(() => route.query.inHospitalNo, () => {
   font-size: 12px;
   margin-top: 8px;
 }
-.obese-alert { background: #fdf6ec; color: #b88230; }
-.low-weight-alert { background: #ecf5ff; color: #409eff; }
+.obese-alert { background: #fef3c7; color: #b88230; }
+.low-weight-alert { background: #f0fdfa; color: #0d9488; }
 
 /* 肝功能 */
 .liver-grid {
@@ -573,17 +574,17 @@ watch(() => route.query.inHospitalNo, () => {
   flex-direction: column;
   gap: 2px;
   padding: 8px;
-  background: #f8fafc;
+  background: #fafaf9;
   border-radius: 6px;
 }
-.li-label { font-size: 11px; color: #909399; }
-.li-value { font-size: 13px; font-weight: 600; color: #1f2d3d; }
+.li-label { font-size: 11px; color: #78716c; }
+.li-value { font-size: 13px; font-weight: 600; color: #44403c; }
 .liver-note {
   display: flex;
   align-items: flex-start;
   gap: 6px;
   padding: 8px 10px;
-  background: #fdf6ec;
+  background: #fef3c7;
   border-radius: 6px;
   font-size: 12px;
   color: #b88230;
@@ -592,10 +593,10 @@ watch(() => route.query.inHospitalNo, () => {
 /* 抗菌药 PK/PD 分析 */
 .abx-pkpd-list { display: flex; flex-direction: column; gap: 12px; }
 .abx-pkpd-item {
-  border: 1px solid #e8ecf1;
+  border: 1px solid #e7e5e4;
   border-radius: 8px;
   padding: 12px;
-  background: #fafbfc;
+  background: #fafaf9;
 }
 .abx-pkpd-header {
   display: flex;
@@ -604,7 +605,7 @@ watch(() => route.query.inHospitalNo, () => {
   margin-bottom: 10px;
   flex-wrap: wrap;
 }
-.abx-pkpd-name { font-size: 14px; font-weight: 600; color: #1f3a5f; }
+.abx-pkpd-name { font-size: 14px; font-weight: 600; color: #292524; }
 .abx-pkpd-detail { display: flex; flex-direction: column; gap: 6px; }
 .abx-pkpd-row {
   display: flex;
@@ -613,11 +614,11 @@ watch(() => route.query.inHospitalNo, () => {
 }
 .abx-pkpd-k {
   flex: 0 0 80px;
-  color: #909399;
+  color: #78716c;
 }
 .abx-pkpd-v {
   flex: 1;
-  color: #1f2d3d;
+  color: #44403c;
 }
 .abx-pkpd-remark {
   display: flex;
@@ -625,19 +626,19 @@ watch(() => route.query.inHospitalNo, () => {
   gap: 6px;
   margin-top: 8px;
   padding: 6px 8px;
-  background: #ecf5ff;
+  background: #f0fdfa;
   border-radius: 4px;
   font-size: 12px;
-  color: #409eff;
+  color: #0d9488;
 }
 
 /* 剂量优化建议 */
 .rec-list { display: flex; flex-direction: column; gap: 12px; }
 .rec-item {
-  border: 1px solid #e8ecf1;
+  border: 1px solid #e7e5e4;
   border-radius: 8px;
   padding: 12px;
-  background: #fafbfc;
+  background: #fafaf9;
 }
 .rec-header {
   display: flex;
@@ -645,14 +646,14 @@ watch(() => route.query.inHospitalNo, () => {
   justify-content: space-between;
   margin-bottom: 8px;
 }
-.rec-name { font-size: 14px; font-weight: 600; color: #1f3a5f; }
+.rec-name { font-size: 14px; font-weight: 600; color: #292524; }
 .rec-dose {
   font-size: 13px;
   font-weight: 600;
-  color: #f56c6c;
+  color: #dc2626;
   margin-bottom: 6px;
   padding: 6px 8px;
-  background: #fef0f0;
+  background: #fee2e2;
   border-radius: 4px;
 }
 .rec-reason {
@@ -660,28 +661,28 @@ watch(() => route.query.inHospitalNo, () => {
   align-items: flex-start;
   gap: 6px;
   font-size: 12px;
-  color: #606266;
+  color: #44403c;
   line-height: 1.5;
 }
 
 .renal-dose-table { margin-top: 10px; }
-.r-table-title { font-size: 12px; font-weight: 600; color: #1f3a5f; margin-bottom: 6px; }
+.r-table-title { font-size: 12px; font-weight: 600; color: #292524; margin-bottom: 6px; }
 .r-table { width: 100%; border-collapse: collapse; font-size: 11px; }
 .r-table th, .r-table td {
-  border: 1px solid #e8ecf1;
+  border: 1px solid #e7e5e4;
   padding: 4px 6px;
   text-align: left;
 }
-.r-table th { background: #f0f2f5; color: #606266; font-weight: 600; }
-.r-table td { color: #1f2d3d; }
+.r-table th { background: #fafaf9; color: #44403c; font-weight: 600; }
+.r-table td { color: #44403c; }
 
 /* TDM 目标值 */
 .tdm-list { display: flex; flex-direction: column; gap: 12px; }
 .tdm-item {
-  border: 1px solid #e8ecf1;
+  border: 1px solid #e7e5e4;
   border-radius: 8px;
   padding: 12px;
-  background: #fafbfc;
+  background: #fafaf9;
 }
 .tdm-header {
   display: flex;
@@ -689,32 +690,32 @@ watch(() => route.query.inHospitalNo, () => {
   justify-content: space-between;
   margin-bottom: 8px;
 }
-.tdm-name { font-size: 14px; font-weight: 600; color: #1f3a5f; }
+.tdm-name { font-size: 14px; font-weight: 600; color: #292524; }
 .tdm-targets { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
 .tdm-target {
   display: flex;
   font-size: 12px;
 }
-.tdm-label { flex: 0 0 70px; color: #909399; }
-.tdm-value { flex: 1; color: #1f2d3d; font-weight: 500; }
+.tdm-label { flex: 0 0 70px; color: #78716c; }
+.tdm-value { flex: 1; color: #44403c; font-weight: 500; }
 .tdm-timing {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #606266;
+  color: #44403c;
   padding-top: 6px;
-  border-top: 1px dashed #e8ecf1;
+  border-top: 1px dashed #e7e5e4;
 }
 .tdm-empty {
   display: flex;
   align-items: flex-start;
   gap: 6px;
   padding: 10px;
-  background: #f4f4f5;
+  background: #f5f5f4;
   border-radius: 6px;
   font-size: 12px;
-  color: #909399;
+  color: #78716c;
 }
 
 /* 药物相互作用 */
@@ -725,10 +726,10 @@ watch(() => route.query.inHospitalNo, () => {
   align-items: flex-start;
   gap: 8px;
   padding: 10px 12px;
-  background: #fef0f0;
+  background: #fee2e2;
   border-radius: 6px;
   font-size: 13px;
-  color: #f56c6c;
+  color: #dc2626;
   line-height: 1.5;
 }
 </style>

@@ -411,16 +411,6 @@ html, body {
     <main>
       <div class="qb-page">
         <!-- Header -->
-        <header class="qb-header">
-          <div>
-            <h1 class="qb-header-title">质控指标看板</h1>
-            <p class="qb-header-sub">127 条 ICU 质控指标 · 可配置 · 可追溯 · 可解释</p>
-          </div>
-          <div class="qb-actions">
-            <button class="qb-btn-ghost"><i data-lucide="help-circle" class="w-4 h-4"></i>帮助</button>
-          </div>
-        </header>
-
         <!-- Filter bar -->
         <section class="qb-card qb-filter-bar">
           <div class="qb-filter-left">
@@ -506,92 +496,78 @@ html, body {
           </div>
 
           <table class="qb-table">
-            <thead><tr><th style="width: 150px;">批次 ID</th><th style="width: 160px;">触发时间</th><th style="width: 90px; text-align: center;">触发方式</th><th style="width: 90px; text-align: center;">状态</th><th style="width: 160px;">指标执行概览</th><th style="width: 90px; text-align: right;">耗时</th><th style="width: 140px; text-align: center;">操作</th></tr></thead>
+            <thead><tr><th style="width: 130px;">批次 ID</th><th style="width: 90px;">计算周期</th><th style="width: 100px;">科室</th><th style="width: 80px; text-align: center;">触发方式</th><th style="width: 90px; text-align: center;">状态</th><th style="width: 90px; text-align: center;">成功/总数</th><th style="width: 80px; text-align: center;">跳过</th><th style="width: 80px; text-align: right;">耗时</th><th style="width: 90px;">操作人</th><th style="width: 160px;">结束时间</th><th>消息</th><th style="width: 90px; text-align: center;">操作</th></tr></thead>
             <tbody>
-              <tr>
-                <td class="qb-mono">run_202608310600</td>
-                <td>2026-08-31 06:00</td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-muted">自动</span></td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-success">成功</span></td>
-                <td>
-                  <div class="qb-run-bars">
-                    <div class="qb-run-bar"><i class="success" style="width: 67%"></i><i class="pending" style="width: 33%"></i></div>
-                    <span class="qb-run-counts">85 / 0 / 42</span>
-                  </div>
-                </td>
-                <td style="text-align: right;">4m 18s</td>
-                <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">日志</button><button class="qb-btn-text">重跑</button></div></td>
-              </tr>
-              <tr>
-                <td class="qb-mono">run_202608300600</td>
-                <td>2026-08-30 06:00</td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-muted">自动</span></td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-error">失败</span></td>
-                <td>
-                  <div class="qb-run-bars">
-                    <div class="qb-run-bar"><i class="success" style="width: 52%"></i><i class="fail" style="width: 4%"></i><i class="pending" style="width: 44%"></i></div>
-                    <span class="qb-run-counts">66 / 3 / 58</span>
-                  </div>
-                </td>
-                <td style="text-align: right;">2m 05s</td>
-                <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">日志</button><button class="qb-btn-text">重跑</button></div></td>
-              </tr>
-              <tr>
-                <td class="qb-mono">run_202608290600</td>
-                <td>2026-08-29 06:00</td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-muted">自动</span></td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-success">成功</span></td>
-                <td>
-                  <div class="qb-run-bars">
-                    <div class="qb-run-bar"><i class="success" style="width: 65%"></i><i class="pending" style="width: 35%"></i></div>
-                    <span class="qb-run-counts">82 / 0 / 45</span>
-                  </div>
-                </td>
-                <td style="text-align: right;">5m 02s</td>
-                <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">日志</button><button class="qb-btn-text">重跑</button></div></td>
-              </tr>
-              <tr>
-                <td class="qb-mono">run_202608281400</td>
-                <td>2026-08-28 14:00</td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-info">手动</span></td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-success">成功</span></td>
-                <td>
-                  <div class="qb-run-bars">
-                    <div class="qb-run-bar"><i class="success" style="width: 63%"></i><i class="pending" style="width: 37%"></i></div>
-                    <span class="qb-run-counts">80 / 0 / 47</span>
-                  </div>
-                </td>
-                <td style="text-align: right;">4m 55s</td>
-                <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">日志</button><button class="qb-btn-text">重跑</button></div></td>
-              </tr>
-              <tr>
-                <td class="qb-mono">run_202608280600</td>
-                <td>2026-08-28 06:00</td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-muted">自动</span></td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-success">成功</span></td>
-                <td>
-                  <div class="qb-run-bars">
-                    <div class="qb-run-bar"><i class="success" style="width: 64%"></i><i class="pending" style="width: 36%"></i></div>
-                    <span class="qb-run-counts">81 / 0 / 46</span>
-                  </div>
-                </td>
-                <td style="text-align: right;">4m 41s</td>
-                <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">日志</button><button class="qb-btn-text">重跑</button></div></td>
-              </tr>
-              <tr>
-                <td class="qb-mono">run_202608270600</td>
-                <td>2026-08-27 06:00</td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-muted">自动</span></td>
-                <td style="text-align: center;"><span class="qb-tag qb-tag-success">成功</span></td>
-                <td>
-                  <div class="qb-run-bars">
-                    <div class="qb-run-bar"><i class="success" style="width: 62%"></i><i class="pending" style="width: 38%"></i></div>
-                    <span class="qb-run-counts">79 / 0 / 48</span>
-                  </div>
-                </td>
-                <td style="text-align: right;">4m 33s</td>
-                <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">日志</button><button class="qb-btn-text">重跑</button></div></td>
-              </tr>
+        <tr data-run="20260915093001">
+          <td class="qb-mono">20260915093001</td>
+          <td>2026-08</td>
+          <td>全院</td>
+          <td style="text-align: center;"><span class="qb-tag qb-tag-info">手动</span></td>
+          <td style="text-align: center;"><span class="qb-tag qb-tag-success">成功</span></td>
+          <td style="text-align: center;">85/127</td>
+          <td style="text-align: center;">42</td>
+          <td style="text-align: right;">3m 24s</td>
+          <td>张质控</td>
+          <td>2026-09-15 09:33:24</td>
+          <td>完成</td>
+          <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">查看</button></div></td>
+        </tr>
+        <tr data-run="20260914020000">
+          <td class="qb-mono">20260914020000</td>
+          <td>2026-08</td>
+          <td>ICU一病区</td>
+          <td style="text-align: center;"><span class="qb-tag qb-tag-muted">定时</span></td>
+          <td style="text-align: center;"><span class="qb-tag qb-tag-success">成功</span></td>
+          <td style="text-align: center;">82/127</td>
+          <td style="text-align: center;">45</td>
+          <td style="text-align: right;">4m 12s</td>
+          <td>系统</td>
+          <td>2026-09-14 02:04:12</td>
+          <td>完成</td>
+          <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">查看</button></div></td>
+        </tr>
+        <tr data-run="20260913094500">
+          <td class="qb-mono">20260913094500</td>
+          <td>2026-07</td>
+          <td>全院</td>
+          <td style="text-align: center;"><span class="qb-tag qb-tag-info">手动</span></td>
+          <td style="text-align: center;"><span class="qb-tag qb-tag-success">成功</span></td>
+          <td style="text-align: center;">85/127</td>
+          <td style="text-align: center;">42</td>
+          <td style="text-align: right;">3m 55s</td>
+          <td>李信息</td>
+          <td>2026-09-13 09:48:55</td>
+          <td>完成</td>
+          <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">查看</button></div></td>
+        </tr>
+        <tr data-run="20260912180000">
+          <td class="qb-mono">20260912180000</td>
+          <td>2026-07</td>
+          <td>ICU二病区</td>
+          <td style="text-align: center;"><span class="qb-tag qb-tag-muted">定时</span></td>
+          <td style="text-align: center;"><span class="qb-tag qb-tag-warning">部分成功</span></td>
+          <td style="text-align: center;">80/127</td>
+          <td style="text-align: center;">44</td>
+          <td style="text-align: right;">5m 01s</td>
+          <td>系统</td>
+          <td>2026-09-12 18:05:01</td>
+          <td>3条指标SQL超时</td>
+          <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">查看</button></div></td>
+        </tr>
+        <tr data-run="20260911083000">
+          <td class="qb-mono">20260911083000</td>
+          <td>2026-06</td>
+          <td>全院</td>
+          <td style="text-align: center;"><span class="qb-tag qb-tag-info">手动</span></td>
+          <td style="text-align: center;"><span class="qb-tag qb-tag-success">成功</span></td>
+          <td style="text-align: center;">85/127</td>
+          <td style="text-align: center;">42</td>
+          <td style="text-align: right;">3m 18s</td>
+          <td>王主任</td>
+          <td>2026-09-11 08:33:18</td>
+          <td>完成</td>
+          <td style="text-align: center;"><div class="qb-actions"><button class="qb-btn-text primary">查看</button></div></td>
+        </tr>
             </tbody>
           </table>
         </section>

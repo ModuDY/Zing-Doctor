@@ -1,5 +1,5 @@
 <template>
-  <div style="padding: 20px; max-width: 1200px; margin: 0 auto;">
+  <div class="abx-theme" style="padding: 20px; max-width: 1200px; margin: 0 auto; min-height: 100vh; background: #fafaf9;">
     <el-page-header @back="goHome" content="疑似感染患者列表" style="margin-bottom: 16px" />
 
     <el-alert
@@ -62,6 +62,7 @@
 
 <script>
 import { fetchPatients } from '../api/antibiotic'
+import '../styles/abx-theme.css'
 
 export default {
   name: 'PatientList',

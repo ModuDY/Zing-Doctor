@@ -5,6 +5,7 @@ import com.zing.doctor.quality.dto.PeriodRange;
 import com.zing.doctor.quality.entity.QualityCalcRun;
 import com.zing.doctor.quality.service.QualityCalcService;
 import com.zing.doctor.quality.service.QualityExportService;
+import com.zing.doctor.quality.service.QualityCountRuleService;
 import com.zing.doctor.quality.service.QualityIndexSyncService;
 import com.zing.doctor.quality.service.QualityMonthlyService;
 import com.zing.doctor.quality.service.QualityQueryService;
@@ -19,6 +20,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -42,15 +44,18 @@ public class QualityController {
     private final QualityMonthlyService monthlyService;
     private final QualityExportService exportService;
     private final QualityIndexSyncService indexSyncService;
+    private final QualityCountRuleService countRuleService;
 
     public QualityController(QualityQueryService queryService, QualityCalcService calcService,
                              QualityMonthlyService monthlyService, QualityExportService exportService,
-                             QualityIndexSyncService indexSyncService) {
+                             QualityIndexSyncService indexSyncService,
+                             QualityCountRuleService countRuleService) {
         this.queryService = queryService;
         this.calcService = calcService;
         this.monthlyService = monthlyService;
         this.exportService = exportService;
         this.indexSyncService = indexSyncService;
+        this.countRuleService = countRuleService;
     }
 
     /**
@@ -66,6 +71,53 @@ public class QualityController {
         } catch (Exception e) {
             log.error("[质控] 看板查询失败", e);
             return Result.fail("查询失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 真正的业务指标列表：quality_count_rule 组装视图。
+     *
+     * <p>与 {@code /overview} 的区别要讲清楚 —— {@code /overview} 列的是<strong>原子项</strong>
+     * （quality_xxx，一个「多少人 / 多少天」的量，自身成不了率），
+     * 这里列的才是质控要管的<strong>指标</strong>：{@code 值 = 分子 ÷ 分母 × 放大系数}。
+     *
+     * <p>值不重算 SQL：分子分母的值已由引擎落在 quality_metric_result，此处只做一次除法。
+     *
+     * <p>口径待确认的指标（分子/分母含 quality_15/30/31）照常返回并带
+     * {@code pendingConfirm=true}，由页面降级提示，不阻塞其余指标。
+     */
+    @GetMapping("/rules")
+    public Result<List<Map<String, Object>>> rules(@RequestParam(required = false) String periodType,
+                                                   @RequestParam(required = false) String periodStart,
+                                                   @RequestParam(required = false) String departCode,
+                                                   @RequestParam(required = false) boolean includeHidden) {
+        try {
+            return Result.ok(countRuleService.list(periodType, periodStart, departCode, includeHidden));
+        } catch (Exception e) {
+            log.error("[质控] 指标规则查询失败", e);
+            return Result.fail("查询失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 从 ICU 侧同步指标规则（幂等，只插入 rule_id 尚不存在的）。
+     *
+     * <p><b>关于写保护</b>：这是写操作，但没纳入 {@code QualityConfigWriteInterceptor}
+     * （该拦截器只覆盖 {@code /api/quality/config/**}）。这里刻意不扩大拦截范围 ——
+     * 同步是幂等的「只增不删」，且覆盖不了本院已配置的 target/warning 四列，
+     * 风险等级远低于改口径；真要卡死这个口子，等有明确要求再扩。
+     */
+    @PostMapping("/rules/sync")
+    public Result<Map<String, Object>> syncRules() {
+        try {
+            int n = countRuleService.sync();
+            // 项目是 Java 8，不能用 Map.of（Java 9+）
+            Map<String, Object> data = new HashMap<>();
+            data.put("added", n);
+            return Result.ok(data);
+        } catch (Exception e) {
+            log.error("[质控] 同步指标规则失败", e);
+            return Result.fail("同步失败: " + e.getMessage());
         }
     }
 

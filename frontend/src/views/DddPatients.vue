@@ -1,11 +1,11 @@
 <template>
-  <div class="ddd-patients">
+  <div class="ddd-patients abx-theme">
     <div class="filter-bar">
       <div class="filter-left">
         <el-button @click="goBack">
           <el-icon><ArrowLeft /></el-icon> 返回总览
         </el-button>
-        <el-select v-model="selectedDepartCode" placeholder="选择科室" style="width: 180px" @change="loadData">
+        <el-select v-model="selectedDepartCode" placeholder="选择科室" style="width: 180px" popper-class="abx-popper" @change="loadData">
           <el-option
             v-for="dept in departments"
             :key="dept.org_code"
@@ -21,6 +21,7 @@
           end-placeholder="结束月份"
           value-format="YYYY-MM"
           :clearable="false"
+          popper-class="abx-popper"
           @change="loadData"
         />
         <el-button type="primary" @click="loadData" :loading="loading">
@@ -147,6 +148,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Refresh, ArrowDown, Document, DataAnalysis } from '@element-plus/icons-vue'
 import request from '../api/request'
+import '../styles/abx-theme.css'
 
 const router = useRouter()
 const loading = ref(false)
@@ -264,7 +266,7 @@ onMounted(async () => {
 <style scoped>
 .ddd-patients {
   padding: 16px;
-  background: #f5f7fa;
+  background: #fafaf9;
   min-height: 100vh;
 }
 
@@ -275,8 +277,9 @@ onMounted(async () => {
   margin-bottom: 16px;
   padding: 12px 16px;
   background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(28,25,23,0.04);
 }
 
 .filter-left, .filter-right {
@@ -290,9 +293,10 @@ onMounted(async () => {
   gap: 24px;
   padding: 16px 20px;
   background: #fff;
-  border-radius: 8px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
   margin-bottom: 16px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 4px rgba(28,25,23,0.04);
 }
 
 .summary-item {
@@ -303,13 +307,13 @@ onMounted(async () => {
 
 .summary-item .label {
   font-size: 13px;
-  color: #909399;
+  color: #78716c;
 }
 
 .summary-item .value {
   font-size: 22px;
   font-weight: 700;
-  color: #303133;
+  color: #292524;
 }
 
 .summary-item .value.text {
@@ -319,7 +323,7 @@ onMounted(async () => {
 
 .summary-item .unit {
   font-size: 12px;
-  color: #909399;
+  color: #78716c;
 }
 
 .patient-list {
@@ -330,9 +334,10 @@ onMounted(async () => {
 
 .patient-card {
   background: #fff;
-  border-radius: 8px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
   padding: 16px 20px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 4px rgba(28,25,23,0.04);
   cursor: pointer;
   transition: box-shadow 0.2s;
 }
@@ -371,17 +376,17 @@ onMounted(async () => {
 .patient-name {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: #292524;
 }
 
 .patient-gender-age {
   font-size: 13px;
-  color: #606266;
+  color: #44403c;
 }
 
 .patient-field {
   font-size: 12px;
-  color: #909399;
+  color: #78716c;
 }
 
 .patient-stats {
@@ -398,23 +403,23 @@ onMounted(async () => {
 .stat-label {
   display: block;
   font-size: 12px;
-  color: #909399;
+  color: #78716c;
   margin-bottom: 2px;
 }
 
 .stat-value {
   font-size: 16px;
   font-weight: 600;
-  color: #606266;
+  color: #44403c;
 }
 
 .stat.highlight .stat-value {
-  color: #409eff;
+  color: #0d9488;
 }
 
 .expand-icon {
   font-size: 18px;
-  color: #c0c4cc;
+  color: #a8a29e;
   transition: transform 0.3s;
 }
 
@@ -427,27 +432,27 @@ onMounted(async () => {
   padding-top: 10px;
   border-top: 1px solid #f0f0f0;
   font-size: 13px;
-  color: #606266;
+  color: #44403c;
 }
 
 .patient-main-drugs .label {
-  color: #909399;
+  color: #78716c;
 }
 
 .patient-main-drugs .drugs {
-  color: #409eff;
+  color: #0d9488;
 }
 
 .drug-detail {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px dashed #e4e7ed;
+  border-top: 1px dashed #d6d3d1;
 }
 
 .detail-title {
   font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: #292524;
   margin-bottom: 12px;
 }
 
@@ -458,7 +463,7 @@ onMounted(async () => {
 }
 
 .highlight {
-  color: #409eff;
+  color: #0d9488;
   font-weight: 600;
 }
 </style>

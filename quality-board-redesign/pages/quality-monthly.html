@@ -1,0 +1,1950 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>质控月度汇总 · 质控指标看板</title>
+    <style id="theme-vars">
+/* Quality Board Redesign — Warm Clean White */
+/* Brand prefix: qb */
+
+:root {
+  /* --- Primary warm orange scale --- */
+  --qb-orange-50: #fff7ed;
+  --qb-orange-100: #ffedd5;
+  --qb-orange-200: #fed7aa;
+  --qb-orange-300: #fdba74;
+  --qb-orange-400: #fb923c;
+  --qb-orange-500: #f97316;
+  --qb-orange-600: #ea580c;
+  --qb-orange-700: #c2410c;
+  --qb-orange-800: #9a3412;
+
+  /* --- Neutral warm gray scale --- */
+  --qb-stone-0: #ffffff;
+  --qb-stone-50: #fafaf9;
+  --qb-stone-100: #f5f5f4;
+  --qb-stone-200: #e7e5e4;
+  --qb-stone-300: #d6d3d1;
+  --qb-stone-400: #a8a29e;
+  --qb-stone-500: #78716c;
+  --qb-stone-600: #57534e;
+  --qb-stone-700: #44403c;
+  --qb-stone-800: #292524;
+  --qb-stone-900: #1c1917;
+
+  /* --- Semantic state colors --- */
+  --qb-state-success: #16a34a;
+  --qb-state-success-soft: #dcfce7;
+  --qb-state-warning: #d97706;
+  --qb-state-warning-soft: #fef3c7;
+  --qb-state-error: #dc2626;
+  --qb-state-error-soft: #fee2e2;
+  --qb-state-info: #0891b2;
+  --qb-state-info-soft: #cffafe;
+
+  /* --- Aliases required by head contract --- */
+  --qb-background: var(--qb-stone-50);
+  --qb-foreground: var(--qb-stone-900);
+  --qb-card: var(--qb-stone-0);
+  --qb-card-foreground: var(--qb-stone-900);
+  --qb-popover: var(--qb-stone-0);
+  --qb-popover-foreground: var(--qb-stone-900);
+  --qb-primary: var(--qb-orange-600);
+  --qb-primary-foreground: #ffffff;
+  --qb-secondary: var(--qb-stone-100);
+  --qb-secondary-foreground: var(--qb-stone-700);
+  --qb-muted: var(--qb-stone-100);
+  --qb-muted-foreground: var(--qb-stone-500);
+  --qb-border: var(--qb-stone-200);
+  --qb-input: var(--qb-stone-200);
+  --qb-ring: var(--qb-orange-400);
+
+  /* --- Radius scale (max 16px) --- */
+  --qb-radius-small: 4px;
+  --qb-radius-medium: 8px;
+  --qb-radius-large: 12px;
+  --qb-radius-full: 9999px;
+
+  /* --- Shadows (static alpha <= 0.05) --- */
+  --qb-shadow-sm: 0 1px 2px rgba(28, 25, 23, 0.04);
+  --qb-shadow-md: 0 4px 6px -1px rgba(28, 25, 23, 0.05), 0 2px 4px -2px rgba(28, 25, 23, 0.05);
+  --qb-shadow-lg: 0 10px 15px -3px rgba(28, 25, 23, 0.05), 0 4px 6px -4px rgba(28, 25, 23, 0.05);
+  --qb-shadow-float: 0 20px 25px -5px rgba(28, 25, 23, 0.08), 0 8px 10px -6px rgba(28, 25, 23, 0.08);
+}
+
+:root {
+  --qb-font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --qb-font-mono: "SF Mono", "Monaco", "Inconsolata", "Fira Code", "PingFang SC", monospace;
+  --qb-text-xs: 12px;
+  --qb-text-sm: 13px;
+  --qb-text-base: 14px;
+  --qb-text-md: 15px;
+  --qb-text-lg: 18px;
+  --qb-text-xl: 22px;
+  --qb-text-2xl: 28px;
+  --qb-leading-tight: 1.25;
+  --qb-leading-snug: 1.4;
+  --qb-leading-normal: 1.6;
+}
+
+html, body {
+  font-family: var(--qb-font-sans);
+  font-size: var(--qb-text-base);
+  line-height: var(--qb-leading-normal);
+  color: var(--qb-foreground);
+  background: var(--qb-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* { box-sizing: border-box; }
+
+.qb-page { padding: 24px; max-width: 1440px; margin: 0 auto; }
+
+.qb-card {
+  background: var(--qb-card);
+  border: 1px solid var(--qb-border);
+  border-radius: var(--qb-radius-large);
+  box-shadow: var(--qb-shadow-sm);
+}
+
+.qb-card-hover:hover {
+  box-shadow: var(--qb-shadow-md);
+  transform: translateY(-1px);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.qb-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--qb-primary);
+  color: var(--qb-primary-foreground);
+  border: 1px solid var(--qb-primary);
+  border-radius: var(--qb-radius-medium);
+  font-size: var(--qb-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.qb-btn-primary:hover { background: var(--qb-orange-700); border-color: var(--qb-orange-700); }
+
+.qb-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--qb-stone-0);
+  color: var(--qb-stone-700);
+  border: 1px solid var(--qb-border);
+  border-radius: var(--qb-radius-medium);
+  font-size: var(--qb-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.qb-btn-secondary:hover { background: var(--qb-stone-50); border-color: var(--qb-stone-300); }
+
+.qb-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: transparent;
+  color: var(--qb-stone-600);
+  border: 1px solid transparent;
+  border-radius: var(--qb-radius-medium);
+  font-size: var(--qb-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.qb-btn-ghost:hover { background: var(--qb-stone-100); color: var(--qb-stone-800); }
+
+.qb-input, .qb-select {
+  padding: 7px 12px;
+  background: var(--qb-stone-0);
+  color: var(--qb-foreground);
+  border: 1px solid var(--qb-input);
+  border-radius: var(--qb-radius-medium);
+  font-size: var(--qb-text-sm);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.qb-input:focus, .qb-select:focus { border-color: var(--qb-ring); box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12); }
+
+.qb-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--qb-radius-full);
+  font-size: var(--qb-text-xs);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.qb-tag-success { background: var(--qb-state-success-soft); color: var(--qb-state-success); }
+.qb-tag-warning { background: var(--qb-state-warning-soft); color: var(--qb-state-warning); }
+.qb-tag-error   { background: var(--qb-state-error-soft);   color: var(--qb-state-error);   }
+.qb-tag-info    { background: var(--qb-state-info-soft);    color: var(--qb-state-info);    }
+.qb-tag-muted   { background: var(--qb-stone-100);          color: var(--qb-stone-500);     }
+
+.qb-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--qb-text-sm); }
+.qb-table th, .qb-table td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--qb-border); }
+.qb-table th {
+  font-weight: 600; color: var(--qb-stone-600); background: var(--qb-stone-50);
+  font-size: var(--qb-text-xs); text-transform: uppercase; letter-spacing: 0.02em;
+}
+.qb-table tbody tr:hover { background: var(--qb-stone-50); }
+.qb-table td:last-child, .qb-table th:last-child { text-align: center; }
+
+.qb-link { color: var(--qb-primary); font-weight: 600; text-decoration: none; cursor: pointer; }
+.qb-link:hover { text-decoration: underline; }
+
+.qb-mono { font-family: var(--qb-font-mono); font-size: 12px; }
+.qb-empty { color: var(--qb-stone-400); }
+
+.qb-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.qb-dot-success { background: var(--qb-state-success); }
+.qb-dot-warning { background: var(--qb-state-warning); }
+.qb-dot-error   { background: var(--qb-state-error);   }
+.qb-dot-info    { background: var(--qb-state-info);    }
+.qb-dot-muted   { background: var(--qb-stone-300);     }
+
+/* Header */
+.qb-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
+.qb-header-title { font-size: var(--qb-text-xl); font-weight: 700; color: var(--qb-stone-900); margin: 0 0 4px; }
+.qb-header-sub { font-size: var(--qb-text-sm); color: var(--qb-stone-500); margin: 0; }
+
+/* Filter bar */
+.qb-filter-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 14px 18px; margin-bottom: 20px;
+}
+.qb-filter-left, .qb-filter-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* Overview cards */
+.qb-overview { padding: 20px; margin-bottom: 20px; }
+.qb-overview-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+.qb-overview-title { font-size: var(--qb-text-lg); font-weight: 700; color: var(--qb-stone-900); margin: 0; }
+.qb-overview-period { font-size: var(--qb-text-sm); color: var(--qb-stone-500); font-weight: 400; margin-left: 10px; }
+.qb-overview-tags { display: flex; gap: 8px; flex-wrap: wrap; }
+.qb-overview-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: var(--qb-stone-100); border-radius: var(--qb-radius-full); font-size: var(--qb-text-xs); color: var(--qb-stone-600); }
+.qb-overview-tag strong { color: var(--qb-primary); }
+
+.qb-stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.qb-stat-card { padding: 18px; border: 1px solid var(--qb-border); border-radius: var(--qb-radius-large); background: linear-gradient(180deg, #fff 0%, #fafaf9 100%); }
+.qb-stat-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.qb-stat-label { font-size: var(--qb-text-sm); color: var(--qb-stone-500); font-weight: 500; }
+.qb-stat-icon { width: 32px; height: 32px; border-radius: var(--qb-radius-medium); display: inline-flex; align-items: center; justify-content: center; }
+.qb-stat-icon.blue  { color: var(--qb-state-info);  background: var(--qb-state-info-soft); }
+.qb-stat-icon.green { color: var(--qb-state-success); background: var(--qb-state-success-soft); }
+.qb-stat-icon.orange { color: var(--qb-state-warning); background: var(--qb-state-warning-soft); }
+.qb-stat-icon.gray  { color: var(--qb-stone-500);  background: var(--qb-stone-100); }
+.qb-stat-value { font-size: var(--qb-text-2xl); font-weight: 700; color: var(--qb-stone-900); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.qb-stat-value.green { color: var(--qb-state-success); }
+.qb-stat-value.orange { color: var(--qb-state-warning); }
+.qb-stat-value.gray { color: var(--qb-stone-500); }
+.qb-stat-bar { height: 5px; border-radius: 3px; background: var(--qb-stone-100); margin-top: 12px; overflow: hidden; }
+.qb-stat-bar i { display: block; height: 100%; border-radius: 3px; }
+.qb-stat-bar i.green { background: var(--qb-state-success); }
+.qb-stat-bar i.orange { background: var(--qb-state-warning); }
+.qb-stat-bar i.gray { background: var(--qb-stone-300); }
+.qb-stat-foot { font-size: var(--qb-text-xs); color: var(--qb-stone-400); margin-top: 8px; }
+
+/* Tabs */
+.qb-tabs { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--qb-border); }
+.qb-tab {
+  padding: 12px 18px; font-size: var(--qb-text-sm); font-weight: 500; color: var(--qb-stone-500);
+  background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.qb-tab:hover { color: var(--qb-stone-700); }
+.qb-tab.active { color: var(--qb-primary); border-bottom-color: var(--qb-primary); }
+
+/* Tab panel */
+.qb-tab-panel { padding: 20px; }
+.qb-tab-note { font-size: var(--qb-text-sm); color: var(--qb-stone-500); margin-bottom: 16px; padding: 12px 16px; background: var(--qb-stone-50); border-radius: var(--qb-radius-medium); border-left: 3px solid var(--qb-orange-400); }
+
+/* Actions */
+.qb-actions { display: inline-flex; gap: 8px; }
+.qb-btn-text { padding: 4px 10px; font-size: var(--qb-text-xs); font-weight: 500; border-radius: var(--qb-radius-small); border: none; background: transparent; color: var(--qb-stone-600); cursor: pointer; }
+.qb-btn-text:hover { background: var(--qb-stone-100); }
+.qb-btn-text.primary { color: var(--qb-primary); }
+.qb-btn-text.primary:hover { background: var(--qb-orange-50); }
+.qb-btn-text.success { color: var(--qb-state-success); }
+.qb-btn-text.success:hover { background: var(--qb-state-success-soft); }
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .qb-stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .qb-filter-bar { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 640px) {
+  .qb-page { padding: 16px; }
+  .qb-stat-grid { grid-template-columns: 1fr; }
+  .qb-table th, .qb-table td { padding: 10px; }
+}
+/* Monthly specific */
+.qb-monthly-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+.qb-monthly-card { padding: 18px; border: 1px solid var(--qb-border); border-radius: var(--qb-radius-large); background: linear-gradient(180deg, #fff 0%, #fafaf9 100%); }
+.qb-monthly-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.qb-monthly-card-title { font-size: var(--qb-text-sm); color: var(--qb-stone-500); font-weight: 500; }
+.qb-monthly-card-value { font-size: var(--qb-text-2xl); font-weight: 700; color: var(--qb-stone-900); font-variant-numeric: tabular-nums; }
+.qb-monthly-card-value.green { color: var(--qb-state-success); }
+.qb-monthly-card-value.orange { color: var(--qb-state-warning); }
+.qb-monthly-trend { font-size: var(--qb-text-xs); color: var(--qb-stone-500); margin-top: 8px; }
+.qb-monthly-trend.up { color: var(--qb-state-success); }
+.qb-monthly-trend.down { color: var(--qb-state-error); }
+
+/* Monthly wide table highlights */
+.month-max { color: var(--qb-state-error); font-weight: 700; }
+.month-min { color: var(--qb-state-success); font-weight: 700; }
+.row-empty { color: var(--qb-stone-400); }
+.qb-wide-table td { white-space: nowrap; }
+
+/* Annual trend drawer */
+.qb-trend-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; cursor: pointer; user-select: none; transition: background .15s; }
+.qb-trend-header:hover { background: var(--qb-stone-50); }
+.qb-trend-body { animation: qb-slideDown .25s ease; transform-origin: top; }
+@keyframes qb-slideDown { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+.qb-btn-icon { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--qb-border); border-radius: var(--qb-radius-medium); background: #fff; color: var(--qb-stone-600); cursor: pointer; transition: transform .2s, border-color .15s; }
+.qb-btn-icon:hover { border-color: var(--qb-orange-400); color: var(--qb-primary); }
+.qb-btn-icon.open { transform: rotate(180deg); }
+.qb-trend-chart svg { display: block; }
+.qb-trend-chart .axis { stroke: var(--qb-stone-300); stroke-width: 1; }
+.qb-trend-chart .grid { stroke: var(--qb-stone-200); stroke-width: 1; stroke-dasharray: 3 3; }
+.qb-trend-chart .line { fill: none; stroke: var(--qb-orange-500); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 2px 4px rgba(234,88,12,.12)); }
+.qb-trend-chart .area { fill: url(#trendGradient); opacity: .18; }
+.qb-trend-chart .point { fill: #fff; stroke: var(--qb-orange-500); stroke-width: 2; cursor: pointer; transition: r .15s, stroke-width .15s; }
+.qb-trend-chart .point:hover { r: 6; stroke-width: 3; }
+.qb-trend-chart .point.active { fill: var(--qb-orange-500); r: 7; }
+.qb-trend-chart .label { font-size: 11px; fill: var(--qb-stone-500); }
+.qb-trend-tooltip { white-space: nowrap; }
+
+@media (max-width: 1100px) {
+  .qb-monthly-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .qb-monthly-grid { grid-template-columns: 1fr; }
+}
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-background: var(--qb-background);
+    --color-foreground: var(--qb-foreground);
+    --color-card: var(--qb-card);
+    --color-card-foreground: var(--qb-card-foreground);
+    --color-popover: var(--qb-popover);
+    --color-popover-foreground: var(--qb-popover-foreground);
+    --color-primary: var(--qb-primary);
+    --color-primary-foreground: var(--qb-primary-foreground);
+    --color-secondary: var(--qb-secondary);
+    --color-secondary-foreground: var(--qb-secondary-foreground);
+    --color-muted: var(--qb-muted);
+    --color-muted-foreground: var(--qb-muted-foreground);
+    --color-border: var(--qb-border);
+    --color-input: var(--qb-input);
+    --color-ring: var(--qb-ring);
+    --radius-sm: var(--qb-radius-small);
+    --radius-md: var(--qb-radius-medium);
+    --radius-lg: var(--qb-radius-large);
+  }
+  @layer base {
+    body { background: var(--qb-background); color: var(--qb-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style id="semantic-token-fallback">
+      .bg-background { background-color: var(--qb-background); }
+      .text-background { color: var(--qb-background); }
+      .border-background { border-color: var(--qb-background); }
+      .ring-background { --tw-ring-color: var(--qb-background); }
+      .bg-foreground { background-color: var(--qb-foreground); }
+      .text-foreground { color: var(--qb-foreground); }
+      .border-foreground { border-color: var(--qb-foreground); }
+      .ring-foreground { --tw-ring-color: var(--qb-foreground); }
+      .bg-card { background-color: var(--qb-card); }
+      .text-card { color: var(--qb-card); }
+      .border-card { border-color: var(--qb-card); }
+      .ring-card { --tw-ring-color: var(--qb-card); }
+      .bg-card-foreground { background-color: var(--qb-card-foreground); }
+      .text-card-foreground { color: var(--qb-card-foreground); }
+      .border-card-foreground { border-color: var(--qb-card-foreground); }
+      .ring-card-foreground { --tw-ring-color: var(--qb-card-foreground); }
+      .bg-popover { background-color: var(--qb-popover); }
+      .text-popover { color: var(--qb-popover); }
+      .border-popover { border-color: var(--qb-popover); }
+      .ring-popover { --tw-ring-color: var(--qb-popover); }
+      .bg-popover-foreground { background-color: var(--qb-popover-foreground); }
+      .text-popover-foreground { color: var(--qb-popover-foreground); }
+      .border-popover-foreground { border-color: var(--qb-popover-foreground); }
+      .ring-popover-foreground { --tw-ring-color: var(--qb-popover-foreground); }
+      .bg-primary { background-color: var(--qb-primary); }
+      .text-primary { color: var(--qb-primary); }
+      .border-primary { border-color: var(--qb-primary); }
+      .ring-primary { --tw-ring-color: var(--qb-primary); }
+      .bg-primary-foreground { background-color: var(--qb-primary-foreground); }
+      .text-primary-foreground { color: var(--qb-primary-foreground); }
+      .border-primary-foreground { border-color: var(--qb-primary-foreground); }
+      .ring-primary-foreground { --tw-ring-color: var(--qb-primary-foreground); }
+      .bg-secondary { background-color: var(--qb-secondary); }
+      .text-secondary { color: var(--qb-secondary); }
+      .border-secondary { border-color: var(--qb-secondary); }
+      .ring-secondary { --tw-ring-color: var(--qb-secondary); }
+      .bg-secondary-foreground { background-color: var(--qb-secondary-foreground); }
+      .text-secondary-foreground { color: var(--qb-secondary-foreground); }
+      .border-secondary-foreground { border-color: var(--qb-secondary-foreground); }
+      .ring-secondary-foreground { --tw-ring-color: var(--qb-secondary-foreground); }
+      .bg-muted { background-color: var(--qb-muted); }
+      .text-muted { color: var(--qb-muted); }
+      .border-muted { border-color: var(--qb-muted); }
+      .ring-muted { --tw-ring-color: var(--qb-muted); }
+      .bg-muted-foreground { background-color: var(--qb-muted-foreground); }
+      .text-muted-foreground { color: var(--qb-muted-foreground); }
+      .border-muted-foreground { border-color: var(--qb-muted-foreground); }
+      .ring-muted-foreground { --tw-ring-color: var(--qb-muted-foreground); }
+      .bg-border { background-color: var(--qb-border); }
+      .text-border { color: var(--qb-border); }
+      .border-border { border-color: var(--qb-border); }
+      .ring-border { --tw-ring-color: var(--qb-border); }
+      .bg-input { background-color: var(--qb-input); }
+      .text-input { color: var(--qb-input); }
+      .border-input { border-color: var(--qb-input); }
+      .ring-input { --tw-ring-color: var(--qb-input); }
+      .bg-ring { background-color: var(--qb-ring); }
+      .text-ring { color: var(--qb-ring); }
+      .border-ring { border-color: var(--qb-ring); }
+      .ring-ring { --tw-ring-color: var(--qb-ring); }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex; align-items: center; justify-content: center;
+        -webkit-mask-size: contain; mask-size: contain;
+        -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+        -webkit-mask-position: center; mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+    <main>
+      <div class="qb-page">
+        <!-- Header -->
+        <!-- Filter bar -->
+        <section class="qb-card qb-filter-bar">
+          <div class="qb-filter-left">
+            <input type="number" class="qb-input" value="2026" style="width: 90px;" />
+            <select class="qb-select" style="min-width: 160px;">
+              <option>全院</option>
+              <option>ICU 一病区</option>
+              <option>ICU 二病区</option>
+              <option>综合 ICU</option>
+            </select>
+            <select class="qb-select" style="min-width: 150px;">
+              <option>全部域</option>
+              <option>患者出入转</option>
+              <option>脓毒症_感染性休克</option>
+              <option>抗菌药物_细菌培养</option>
+              <option>DVT 预防</option>
+              <option>评分_资源</option>
+              <option>评估与筛查</option>
+              <option>设备相关</option>
+              <option>ARDS 专项</option>
+            </select>
+            <label style="display:inline-flex;align-items:center;gap:6px;font-size:var(--qb-text-sm);color:var(--qb-stone-600);cursor:pointer;">
+              <input type="checkbox" checked /> 只看有数据的指标
+            </label>
+            <button class="qb-btn-secondary"><i data-lucide="refresh-cw" class="w-4 h-4"></i>刷新</button>
+          </div>
+          <div class="qb-filter-right">
+            <button class="qb-btn-secondary"><i data-lucide="cpu" class="w-4 h-4"></i>重建汇总</button>
+            <button class="qb-btn-primary"><i data-lucide="download" class="w-4 h-4"></i>导出 Excel</button>
+          </div>
+        </section>
+        <!-- Annual trend (always visible) -->
+        <section class="qb-card" style="margin-bottom: 20px; overflow: hidden;">
+          <div class="qb-trend-header" data-dom-id="trend-toggle">
+            <div style="display:flex;align-items:center;gap:10px;font-weight:600;color:var(--qb-stone-900);">
+              <span style="display:inline-block;width:4px;height:16px;background:linear-gradient(180deg,var(--qb-orange-500),var(--qb-orange-400));border-radius:2px;"></span>
+              年度趋势（单指标 1-12 月）
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span style="font-size:var(--qb-text-xs);color:var(--qb-stone-500);" data-dom-id="trend-hint">切换指标查看走势</span>
+            </div>
+          </div>
+          <div class="qb-trend-body" data-dom-id="trend-body">
+            <div style="padding: 0 20px 16px; display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+              <label style="font-size:var(--qb-text-sm);color:var(--qb-stone-600);">选择指标：</label>
+              <select class="qb-select" data-dom-id="trend-select" style="min-width:340px;flex:1;">
+                <option value="148305094329981301">ICU床位使用率</option>
+                <option value="2018608604417425410">ICU患者收治率</option>
+                <option value="2018612181789638658">ICU患者收治床日率</option>
+                <option value="14830509432981302">ICU医师床位比</option>
+                <option value="148350943291303">ICU护士床位比</option>
+                <option value="1483050993981022">急性生理与慢性健康评分（APACHEⅡ）≥15分的患者收治率（入ICU24小时内）</option>
+                <option value="1483050943293980">深静脉血栓预防率</option>
+                <option value="2018618678217080834">深静脉血栓（仅）药物预防率</option>
+                <option value="2018621953943339009">深静脉血栓药物预防率</option>
+                <option value="2018858528564379650">深静脉血栓（仅）机械预防率</option>
+                <option value="2018861660463759362">深静脉血栓机械预防率</option>
+                <option value="2018864168351367169">（仅）下腔静脉滤器血栓预防率</option>
+              </select>
+            </div>
+            <div style="padding: 0 20px 20px;">
+              <div class="qb-trend-chart" data-dom-id="trend-chart" style="position:relative;height:320px;background:var(--qb-stone-50);border-radius:var(--qb-radius-medium);border:1px solid var(--qb-border);">
+                <svg data-dom-id="trend-svg" width="100%" height="100%" style="overflow:visible;"></svg>
+                <div data-dom-id="trend-tooltip" class="qb-trend-tooltip" style="position:absolute;display:none;padding:8px 12px;background:var(--qb-stone-800);color:#fff;border-radius:6px;font-size:12px;pointer-events:none;box-shadow:var(--qb-shadow-lg);z-index:10;"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Monthly wide table -->
+        <section class="qb-card qb-tab-panel" style="border-radius: 12px; overflow-x: auto;">
+          <div class="qb-tab-note">
+            月度汇总宽表（1-12 月横排）：率类按「分子分母先汇总再重算」为加权值，数类直接求和；高亮为年内最高/最低月份。          </div>
+
+          <table class="qb-table qb-wide-table" style="min-width: 2200px;">
+            <thead><tr>
+              <th style="min-width: 120px; position: sticky; left: 0; z-index: 2; background: var(--qb-stone-50);">规则ID</th>
+              <th style="min-width: 320px; position: sticky; left: 120px; z-index: 2; background: var(--qb-stone-50);">指标名称</th>
+              <th style="width: 60px; text-align: center;">单位</th>
+              <th style="width: 84px; text-align: right;">1月</th><th style="width: 84px; text-align: right;">2月</th><th style="width: 84px; text-align: right;">3月</th><th style="width: 84px; text-align: right;">4月</th><th style="width: 84px; text-align: right;">5月</th><th style="width: 84px; text-align: right;">6月</th>
+              <th style="width: 84px; text-align: right;">7月</th><th style="width: 84px; text-align: right;">8月</th><th style="width: 84px; text-align: right;">9月</th><th style="width: 84px; text-align: right;">10月</th><th style="width: 84px; text-align: right;">11月</th><th style="width: 84px; text-align: right;">12月</th>
+              <th style="width: 86px; text-align: right;">Q1</th><th style="width: 86px; text-align: right;">Q2</th><th style="width: 86px; text-align: right;">Q3</th><th style="width: 86px; text-align: right;">Q4</th>
+              <th style="width: 100px; text-align: right;">全年均值</th>
+              <th style="width: 76px; text-align: center;">最高月</th>
+              <th style="width: 76px; text-align: center;">最低月</th>
+            </tr></thead>
+            <tbody>
+      <tr data-rule="148305094329981301" data-name="ICU床位使用率">
+        <td class="rule-id qb-mono">148305094329981301</td>
+        <td class="name">ICU床位使用率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">25.11</td>
+        <td class="month " data-month="2">53.01</td>
+        <td class="month " data-month="3">80.92</td>
+        <td class="month " data-month="4">8.83</td>
+        <td class="month " data-month="5">36.74</td>
+        <td class="month " data-month="6">64.65</td>
+        <td class="month highlight" data-month="7">92.56</td>
+        <td class="month " data-month="8">20.47</td>
+        <td class="month " data-month="9">48.38</td>
+        <td class="month " data-month="10">76.29</td>
+        <td class="month highlight" data-month="11">4.20</td>
+        <td class="month " data-month="12">32.11</td>
+        <td class="quarter">53.01</td><td class="quarter">36.74</td><td class="quarter">53.80</td><td class="quarter">37.53</td>
+        <td class="total">45.27</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="2018608604417425410" data-name="ICU患者收治率">
+        <td class="rule-id qb-mono">2018608604417425410</td>
+        <td class="name">ICU患者收治率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">17.13</td>
+        <td class="month " data-month="2">45.04</td>
+        <td class="month " data-month="3">72.95</td>
+        <td class="month highlight" data-month="4">0.86</td>
+        <td class="month " data-month="5">28.77</td>
+        <td class="month " data-month="6">56.68</td>
+        <td class="month " data-month="7">84.59</td>
+        <td class="month " data-month="8">12.50</td>
+        <td class="month " data-month="9">40.41</td>
+        <td class="month " data-month="10">68.32</td>
+        <td class="month highlight" data-month="11">96.23</td>
+        <td class="month " data-month="12">24.13</td>
+        <td class="quarter">45.04</td><td class="quarter">28.77</td><td class="quarter">45.83</td><td class="quarter">62.89</td>
+        <td class="total">45.63</td><td class="max">11月</td><td class="min">4月</td>
+      </tr>
+      <tr data-rule="2018612181789638658" data-name="ICU患者收治床日率">
+        <td class="rule-id qb-mono">2018612181789638658</td>
+        <td class="name">ICU患者收治床日率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">25.11</td>
+        <td class="month " data-month="2">53.01</td>
+        <td class="month " data-month="3">80.92</td>
+        <td class="month " data-month="4">8.83</td>
+        <td class="month " data-month="5">36.74</td>
+        <td class="month " data-month="6">64.65</td>
+        <td class="month highlight" data-month="7">92.56</td>
+        <td class="month " data-month="8">20.47</td>
+        <td class="month " data-month="9">48.38</td>
+        <td class="month " data-month="10">76.29</td>
+        <td class="month highlight" data-month="11">4.20</td>
+        <td class="month " data-month="12">32.11</td>
+        <td class="quarter">53.01</td><td class="quarter">36.74</td><td class="quarter">53.80</td><td class="quarter">37.53</td>
+        <td class="total">45.27</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="14830509432981302" data-name="ICU医师床位比">
+        <td class="rule-id qb-mono">14830509432981302</td>
+        <td class="name">ICU医师床位比</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">19.82</td>
+        <td class="month " data-month="2">47.73</td>
+        <td class="month " data-month="3">75.64</td>
+        <td class="month highlight" data-month="4">3.55</td>
+        <td class="month " data-month="5">31.46</td>
+        <td class="month " data-month="6">59.37</td>
+        <td class="month " data-month="7">87.28</td>
+        <td class="month " data-month="8">15.19</td>
+        <td class="month " data-month="9">43.10</td>
+        <td class="month " data-month="10">71.01</td>
+        <td class="month highlight" data-month="11">98.92</td>
+        <td class="month " data-month="12">26.83</td>
+        <td class="quarter">47.73</td><td class="quarter">31.46</td><td class="quarter">48.52</td><td class="quarter">65.59</td>
+        <td class="total">48.33</td><td class="max">11月</td><td class="min">4月</td>
+      </tr>
+      <tr data-rule="148350943291303" data-name="ICU护士床位比">
+        <td class="rule-id qb-mono">148350943291303</td>
+        <td class="name">ICU护士床位比</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">23.81</td>
+        <td class="month " data-month="2">51.72</td>
+        <td class="month " data-month="3">79.63</td>
+        <td class="month " data-month="4">7.54</td>
+        <td class="month " data-month="5">35.45</td>
+        <td class="month " data-month="6">63.36</td>
+        <td class="month highlight" data-month="7">91.27</td>
+        <td class="month " data-month="8">19.18</td>
+        <td class="month " data-month="9">47.09</td>
+        <td class="month " data-month="10">75.00</td>
+        <td class="month highlight" data-month="11">2.90</td>
+        <td class="month " data-month="12">30.81</td>
+        <td class="quarter">51.72</td><td class="quarter">35.45</td><td class="quarter">52.51</td><td class="quarter">36.24</td>
+        <td class="total">43.98</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="1483050993981022" data-name="急性生理与慢性健康评分（APACHEⅡ）≥15分的患者收治率（入ICU24小时内）">
+        <td class="rule-id qb-mono">1483050993981022</td>
+        <td class="name">急性生理与慢性健康评分（APACHEⅡ）≥15分的患者收治率（入ICU24小时内）</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">28.45</td>
+        <td class="month " data-month="2">56.35</td>
+        <td class="month " data-month="3">84.26</td>
+        <td class="month " data-month="4">12.17</td>
+        <td class="month " data-month="5">40.08</td>
+        <td class="month " data-month="6">67.99</td>
+        <td class="month highlight" data-month="7">95.90</td>
+        <td class="month " data-month="8">23.81</td>
+        <td class="month " data-month="9">51.72</td>
+        <td class="month " data-month="10">79.63</td>
+        <td class="month highlight" data-month="11">7.54</td>
+        <td class="month " data-month="12">35.45</td>
+        <td class="quarter">56.35</td><td class="quarter">40.08</td><td class="quarter">57.14</td><td class="quarter">40.87</td>
+        <td class="total">48.61</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="1483050943293980" data-name="深静脉血栓预防率">
+        <td class="rule-id qb-mono">1483050943293980</td>
+        <td class="name">深静脉血栓预防率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">28.45</td>
+        <td class="month " data-month="2">56.35</td>
+        <td class="month " data-month="3">84.26</td>
+        <td class="month " data-month="4">12.17</td>
+        <td class="month " data-month="5">40.08</td>
+        <td class="month " data-month="6">67.99</td>
+        <td class="month highlight" data-month="7">95.90</td>
+        <td class="month " data-month="8">23.81</td>
+        <td class="month " data-month="9">51.72</td>
+        <td class="month " data-month="10">79.63</td>
+        <td class="month highlight" data-month="11">7.54</td>
+        <td class="month " data-month="12">35.45</td>
+        <td class="quarter">56.35</td><td class="quarter">40.08</td><td class="quarter">57.14</td><td class="quarter">40.87</td>
+        <td class="total">48.61</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="2018618678217080834" data-name="深静脉血栓（仅）药物预防率">
+        <td class="rule-id qb-mono">2018618678217080834</td>
+        <td class="name">深静脉血栓（仅）药物预防率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">31.78</td>
+        <td class="month " data-month="2">59.69</td>
+        <td class="month " data-month="3">87.60</td>
+        <td class="month " data-month="4">15.51</td>
+        <td class="month " data-month="5">43.42</td>
+        <td class="month " data-month="6">71.33</td>
+        <td class="month highlight" data-month="7">99.24</td>
+        <td class="month " data-month="8">27.15</td>
+        <td class="month " data-month="9">55.06</td>
+        <td class="month " data-month="10">82.97</td>
+        <td class="month highlight" data-month="11">10.88</td>
+        <td class="month " data-month="12">38.79</td>
+        <td class="quarter">59.69</td><td class="quarter">43.42</td><td class="quarter">60.48</td><td class="quarter">44.21</td>
+        <td class="total">51.95</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="2018621953943339009" data-name="深静脉血栓药物预防率">
+        <td class="rule-id qb-mono">2018621953943339009</td>
+        <td class="name">深静脉血栓药物预防率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">35.77</td>
+        <td class="month " data-month="2">63.68</td>
+        <td class="month highlight" data-month="3">91.59</td>
+        <td class="month " data-month="4">19.50</td>
+        <td class="month " data-month="5">47.41</td>
+        <td class="month " data-month="6">75.32</td>
+        <td class="month highlight" data-month="7">3.23</td>
+        <td class="month " data-month="8">31.14</td>
+        <td class="month " data-month="9">59.05</td>
+        <td class="month " data-month="10">86.96</td>
+        <td class="month " data-month="11">14.87</td>
+        <td class="month " data-month="12">42.78</td>
+        <td class="quarter">63.68</td><td class="quarter">47.41</td><td class="quarter">31.14</td><td class="quarter">48.20</td>
+        <td class="total">47.61</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="2018858528564379650" data-name="深静脉血栓（仅）机械预防率">
+        <td class="rule-id qb-mono">2018858528564379650</td>
+        <td class="name">深静脉血栓（仅）机械预防率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">39.76</td>
+        <td class="month " data-month="2">67.67</td>
+        <td class="month highlight" data-month="3">95.58</td>
+        <td class="month " data-month="4">23.49</td>
+        <td class="month " data-month="5">51.40</td>
+        <td class="month " data-month="6">79.31</td>
+        <td class="month highlight" data-month="7">7.22</td>
+        <td class="month " data-month="8">35.12</td>
+        <td class="month " data-month="9">63.03</td>
+        <td class="month " data-month="10">90.94</td>
+        <td class="month " data-month="11">18.85</td>
+        <td class="month " data-month="12">46.76</td>
+        <td class="quarter">67.67</td><td class="quarter">51.40</td><td class="quarter">35.12</td><td class="quarter">52.18</td>
+        <td class="total">51.59</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="2018861660463759362" data-name="深静脉血栓机械预防率">
+        <td class="rule-id qb-mono">2018861660463759362</td>
+        <td class="name">深静脉血栓机械预防率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">43.75</td>
+        <td class="month " data-month="2">71.66</td>
+        <td class="month highlight" data-month="3">99.56</td>
+        <td class="month " data-month="4">27.47</td>
+        <td class="month " data-month="5">55.38</td>
+        <td class="month " data-month="6">83.29</td>
+        <td class="month highlight" data-month="7">11.20</td>
+        <td class="month " data-month="8">39.11</td>
+        <td class="month " data-month="9">67.02</td>
+        <td class="month " data-month="10">94.93</td>
+        <td class="month " data-month="11">22.84</td>
+        <td class="month " data-month="12">50.75</td>
+        <td class="quarter">71.66</td><td class="quarter">55.38</td><td class="quarter">39.11</td><td class="quarter">56.17</td>
+        <td class="total">55.58</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="2018864168351367169" data-name="（仅）下腔静脉滤器血栓预防率">
+        <td class="rule-id qb-mono">2018864168351367169</td>
+        <td class="name">（仅）下腔静脉滤器血栓预防率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">47.73</td>
+        <td class="month " data-month="2">75.64</td>
+        <td class="month highlight" data-month="3">3.55</td>
+        <td class="month " data-month="4">31.46</td>
+        <td class="month " data-month="5">59.37</td>
+        <td class="month " data-month="6">87.28</td>
+        <td class="month " data-month="7">15.19</td>
+        <td class="month " data-month="8">43.10</td>
+        <td class="month " data-month="9">71.01</td>
+        <td class="month highlight" data-month="10">98.92</td>
+        <td class="month " data-month="11">26.83</td>
+        <td class="month " data-month="12">54.74</td>
+        <td class="quarter">42.31</td><td class="quarter">59.37</td><td class="quarter">43.10</td><td class="quarter">60.16</td>
+        <td class="total">51.24</td><td class="max">10月</td><td class="min">3月</td>
+      </tr>
+      <tr data-rule="2018864342377234433" data-name="下腔静脉滤器血栓预防率">
+        <td class="rule-id qb-mono">2018864342377234433</td>
+        <td class="name">下腔静脉滤器血栓预防率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">51.72</td>
+        <td class="month " data-month="2">79.63</td>
+        <td class="month " data-month="3">7.54</td>
+        <td class="month " data-month="4">35.45</td>
+        <td class="month " data-month="5">63.36</td>
+        <td class="month highlight" data-month="6">91.27</td>
+        <td class="month " data-month="7">19.18</td>
+        <td class="month " data-month="8">47.09</td>
+        <td class="month " data-month="9">75.00</td>
+        <td class="month highlight" data-month="10">2.90</td>
+        <td class="month " data-month="11">30.81</td>
+        <td class="month " data-month="12">58.72</td>
+        <td class="quarter">46.30</td><td class="quarter">63.36</td><td class="quarter">47.09</td><td class="quarter">30.81</td>
+        <td class="total">46.89</td><td class="max">6月</td><td class="min">10月</td>
+      </tr>
+      <tr data-rule="2018864456244199426" data-name="深静脉血栓相关死亡率">
+        <td class="rule-id qb-mono">2018864456244199426</td>
+        <td class="name">深静脉血栓相关死亡率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">19.82</td>
+        <td class="month " data-month="2">47.73</td>
+        <td class="month " data-month="3">75.64</td>
+        <td class="month highlight" data-month="4">3.55</td>
+        <td class="month " data-month="5">31.46</td>
+        <td class="month " data-month="6">59.37</td>
+        <td class="month " data-month="7">87.28</td>
+        <td class="month " data-month="8">15.19</td>
+        <td class="month " data-month="9">43.10</td>
+        <td class="month " data-month="10">71.01</td>
+        <td class="month highlight" data-month="11">98.92</td>
+        <td class="month " data-month="12">26.83</td>
+        <td class="quarter">47.73</td><td class="quarter">31.46</td><td class="quarter">48.52</td><td class="quarter">65.59</td>
+        <td class="total">48.33</td><td class="max">11月</td><td class="min">4月</td>
+      </tr>
+      <tr data-rule="2018864915344326658" data-name="深静脉血栓预防后深静脉血栓发生率">
+        <td class="rule-id qb-mono">2018864915344326658</td>
+        <td class="name">深静脉血栓预防后深静脉血栓发生率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">23.81</td>
+        <td class="month " data-month="2">51.72</td>
+        <td class="month " data-month="3">79.63</td>
+        <td class="month " data-month="4">7.54</td>
+        <td class="month " data-month="5">35.45</td>
+        <td class="month " data-month="6">63.36</td>
+        <td class="month highlight" data-month="7">91.27</td>
+        <td class="month " data-month="8">19.18</td>
+        <td class="month " data-month="9">47.09</td>
+        <td class="month " data-month="10">75.00</td>
+        <td class="month highlight" data-month="11">2.90</td>
+        <td class="month " data-month="12">30.81</td>
+        <td class="quarter">51.72</td><td class="quarter">35.45</td><td class="quarter">52.51</td><td class="quarter">36.24</td>
+        <td class="total">43.98</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="2018865101311377409" data-name="深静脉血栓预防后深静脉血栓相关死亡率">
+        <td class="rule-id qb-mono">2018865101311377409</td>
+        <td class="name">深静脉血栓预防后深静脉血栓相关死亡率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">27.80</td>
+        <td class="month " data-month="2">55.71</td>
+        <td class="month " data-month="3">83.62</td>
+        <td class="month " data-month="4">11.53</td>
+        <td class="month " data-month="5">39.44</td>
+        <td class="month " data-month="6">67.34</td>
+        <td class="month highlight" data-month="7">95.25</td>
+        <td class="month " data-month="8">23.16</td>
+        <td class="month " data-month="9">51.07</td>
+        <td class="month " data-month="10">78.98</td>
+        <td class="month highlight" data-month="11">6.89</td>
+        <td class="month " data-month="12">34.80</td>
+        <td class="quarter">55.71</td><td class="quarter">39.44</td><td class="quarter">56.49</td><td class="quarter">40.22</td>
+        <td class="total">47.97</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="2018865344782336001" data-name="进行深静脉血栓预防、诊断深静脉血栓的患者的死亡率">
+        <td class="rule-id qb-mono">2018865344782336001</td>
+        <td class="name">进行深静脉血栓预防、诊断深静脉血栓的患者的死亡率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">31.78</td>
+        <td class="month " data-month="2">59.69</td>
+        <td class="month " data-month="3">87.60</td>
+        <td class="month " data-month="4">15.51</td>
+        <td class="month " data-month="5">43.42</td>
+        <td class="month " data-month="6">71.33</td>
+        <td class="month highlight" data-month="7">99.24</td>
+        <td class="month " data-month="8">27.15</td>
+        <td class="month " data-month="9">55.06</td>
+        <td class="month " data-month="10">82.97</td>
+        <td class="month highlight" data-month="11">10.88</td>
+        <td class="month " data-month="12">38.79</td>
+        <td class="quarter">59.69</td><td class="quarter">43.42</td><td class="quarter">60.48</td><td class="quarter">44.21</td>
+        <td class="total">51.95</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="2018867883821039618" data-name="感染性休克患者1h内乳酸测定率">
+        <td class="rule-id qb-mono">2018867883821039618</td>
+        <td class="name">感染性休克患者1h内乳酸测定率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">39.76</td>
+        <td class="month " data-month="2">67.67</td>
+        <td class="month highlight" data-month="3">95.58</td>
+        <td class="month " data-month="4">23.49</td>
+        <td class="month " data-month="5">51.40</td>
+        <td class="month " data-month="6">79.31</td>
+        <td class="month highlight" data-month="7">7.22</td>
+        <td class="month " data-month="8">35.12</td>
+        <td class="month " data-month="9">63.03</td>
+        <td class="month " data-month="10">90.94</td>
+        <td class="month " data-month="11">18.85</td>
+        <td class="month " data-month="12">46.76</td>
+        <td class="quarter">67.67</td><td class="quarter">51.40</td><td class="quarter">35.12</td><td class="quarter">52.18</td>
+        <td class="total">51.59</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="2018867978570366977" data-name="感染性休克患者1h内血培养留取率">
+        <td class="rule-id qb-mono">2018867978570366977</td>
+        <td class="name">感染性休克患者1h内血培养留取率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">43.75</td>
+        <td class="month " data-month="2">71.66</td>
+        <td class="month highlight" data-month="3">99.56</td>
+        <td class="month " data-month="4">27.47</td>
+        <td class="month " data-month="5">55.38</td>
+        <td class="month " data-month="6">83.29</td>
+        <td class="month highlight" data-month="7">11.20</td>
+        <td class="month " data-month="8">39.11</td>
+        <td class="month " data-month="9">67.02</td>
+        <td class="month " data-month="10">94.93</td>
+        <td class="month " data-month="11">22.84</td>
+        <td class="month " data-month="12">50.75</td>
+        <td class="quarter">71.66</td><td class="quarter">55.38</td><td class="quarter">39.11</td><td class="quarter">56.17</td>
+        <td class="total">55.58</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="2018868134950797314" data-name="感染性休克患者1h内抗菌药物使用率">
+        <td class="rule-id qb-mono">2018868134950797314</td>
+        <td class="name">感染性休克患者1h内抗菌药物使用率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">47.73</td>
+        <td class="month " data-month="2">75.64</td>
+        <td class="month highlight" data-month="3">3.55</td>
+        <td class="month " data-month="4">31.46</td>
+        <td class="month " data-month="5">59.37</td>
+        <td class="month " data-month="6">87.28</td>
+        <td class="month " data-month="7">15.19</td>
+        <td class="month " data-month="8">43.10</td>
+        <td class="month " data-month="9">71.01</td>
+        <td class="month highlight" data-month="10">98.92</td>
+        <td class="month " data-month="11">26.83</td>
+        <td class="month " data-month="12">54.74</td>
+        <td class="quarter">42.31</td><td class="quarter">59.37</td><td class="quarter">43.10</td><td class="quarter">60.16</td>
+        <td class="total">51.24</td><td class="max">10月</td><td class="min">3月</td>
+      </tr>
+      <tr data-rule="148305094329310" data-name="感染性休克3h集束化治疗完成率">
+        <td class="rule-id qb-mono">148305094329310</td>
+        <td class="name">感染性休克3h集束化治疗完成率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">53.01</td>
+        <td class="month " data-month="2">80.92</td>
+        <td class="month " data-month="3">8.83</td>
+        <td class="month " data-month="4">36.74</td>
+        <td class="month " data-month="5">64.65</td>
+        <td class="month highlight" data-month="6">92.56</td>
+        <td class="month " data-month="7">20.47</td>
+        <td class="month " data-month="8">48.38</td>
+        <td class="month " data-month="9">76.29</td>
+        <td class="month highlight" data-month="10">4.20</td>
+        <td class="month " data-month="11">32.11</td>
+        <td class="month " data-month="12">60.02</td>
+        <td class="quarter">47.59</td><td class="quarter">64.65</td><td class="quarter">48.38</td><td class="quarter">32.11</td>
+        <td class="total">48.18</td><td class="max">6月</td><td class="min">10月</td>
+      </tr>
+      <tr data-rule="2018868918409035777" data-name="感染性休克6h集束化治疗完成率">
+        <td class="rule-id qb-mono">2018868918409035777</td>
+        <td class="name">感染性休克6h集束化治疗完成率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">55.71</td>
+        <td class="month " data-month="2">83.62</td>
+        <td class="month " data-month="3">11.53</td>
+        <td class="month " data-month="4">39.44</td>
+        <td class="month " data-month="5">67.34</td>
+        <td class="month highlight" data-month="6">95.25</td>
+        <td class="month " data-month="7">23.16</td>
+        <td class="month " data-month="8">51.07</td>
+        <td class="month " data-month="9">78.98</td>
+        <td class="month highlight" data-month="10">6.89</td>
+        <td class="month " data-month="11">34.80</td>
+        <td class="month " data-month="12">62.71</td>
+        <td class="quarter">50.29</td><td class="quarter">67.34</td><td class="quarter">51.07</td><td class="quarter">34.80</td>
+        <td class="total">50.88</td><td class="max">6月</td><td class="min">10月</td>
+      </tr>
+      <tr data-rule="2018887410428477442" data-name="收治的≤18岁的感染性休克患者数（包括ICU内发生）比例">
+        <td class="rule-id qb-mono">2018887410428477442</td>
+        <td class="name">收治的≤18岁的感染性休克患者数（包括ICU内发生）比例</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">39.76</td>
+        <td class="month " data-month="2">67.67</td>
+        <td class="month highlight" data-month="3">95.58</td>
+        <td class="month " data-month="4">23.49</td>
+        <td class="month " data-month="5">51.40</td>
+        <td class="month " data-month="6">79.31</td>
+        <td class="month highlight" data-month="7">7.22</td>
+        <td class="month " data-month="8">35.12</td>
+        <td class="month " data-month="9">63.03</td>
+        <td class="month " data-month="10">90.94</td>
+        <td class="month " data-month="11">18.85</td>
+        <td class="month " data-month="12">46.76</td>
+        <td class="quarter">67.67</td><td class="quarter">51.40</td><td class="quarter">35.12</td><td class="quarter">52.18</td>
+        <td class="total">51.59</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="2018888296504557569" data-name="收治的18-65岁的感染性休克患者数（包括ICU内发生）比例">
+        <td class="rule-id qb-mono">2018888296504557569</td>
+        <td class="name">收治的18-65岁的感染性休克患者数（包括ICU内发生）比例</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">43.75</td>
+        <td class="month " data-month="2">71.66</td>
+        <td class="month highlight" data-month="3">99.56</td>
+        <td class="month " data-month="4">27.47</td>
+        <td class="month " data-month="5">55.38</td>
+        <td class="month " data-month="6">83.29</td>
+        <td class="month highlight" data-month="7">11.20</td>
+        <td class="month " data-month="8">39.11</td>
+        <td class="month " data-month="9">67.02</td>
+        <td class="month " data-month="10">94.93</td>
+        <td class="month " data-month="11">22.84</td>
+        <td class="month " data-month="12">50.75</td>
+        <td class="quarter">71.66</td><td class="quarter">55.38</td><td class="quarter">39.11</td><td class="quarter">56.17</td>
+        <td class="total">55.58</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="2018888378524172289" data-name="收治的≥65岁的感染性休克患者数（包括ICU内发生）比例">
+        <td class="rule-id qb-mono">2018888378524172289</td>
+        <td class="name">收治的≥65岁的感染性休克患者数（包括ICU内发生）比例</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">47.73</td>
+        <td class="month " data-month="2">75.64</td>
+        <td class="month highlight" data-month="3">3.55</td>
+        <td class="month " data-month="4">31.46</td>
+        <td class="month " data-month="5">59.37</td>
+        <td class="month " data-month="6">87.28</td>
+        <td class="month " data-month="7">15.19</td>
+        <td class="month " data-month="8">43.10</td>
+        <td class="month " data-month="9">71.01</td>
+        <td class="month highlight" data-month="10">98.92</td>
+        <td class="month " data-month="11">26.83</td>
+        <td class="month " data-month="12">54.74</td>
+        <td class="quarter">42.31</td><td class="quarter">59.37</td><td class="quarter">43.10</td><td class="quarter">60.16</td>
+        <td class="total">51.24</td><td class="max">10月</td><td class="min">3月</td>
+      </tr>
+      <tr data-rule="2018888459285495809" data-name="收治的血流感染感染性休克患者数（包括ICU内发生）">
+        <td class="rule-id qb-mono">2018888459285495809</td>
+        <td class="name">收治的血流感染感染性休克患者数（包括ICU内发生）</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">59.69</td>
+        <td class="month " data-month="2">87.60</td>
+        <td class="month " data-month="3">15.51</td>
+        <td class="month " data-month="4">43.42</td>
+        <td class="month " data-month="5">71.33</td>
+        <td class="month highlight" data-month="6">99.24</td>
+        <td class="month " data-month="7">27.15</td>
+        <td class="month " data-month="8">55.06</td>
+        <td class="month " data-month="9">82.97</td>
+        <td class="month highlight" data-month="10">10.88</td>
+        <td class="month " data-month="11">38.79</td>
+        <td class="month " data-month="12">66.70</td>
+        <td class="quarter">54.27</td><td class="quarter">71.33</td><td class="quarter">55.06</td><td class="quarter">38.79</td>
+        <td class="total">54.86</td><td class="max">6月</td><td class="min">10月</td>
+      </tr>
+      <tr data-rule="2018888548506730497" data-name="收治的血流感染（CRBSI）感染性休克患者数（包括ICU内发生）比例">
+        <td class="rule-id qb-mono">2018888548506730497</td>
+        <td class="name">收治的血流感染（CRBSI）感染性休克患者数（包括ICU内发生）比例</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">51.72</td>
+        <td class="month " data-month="2">79.63</td>
+        <td class="month " data-month="3">7.54</td>
+        <td class="month " data-month="4">35.45</td>
+        <td class="month " data-month="5">63.36</td>
+        <td class="month highlight" data-month="6">91.27</td>
+        <td class="month " data-month="7">19.18</td>
+        <td class="month " data-month="8">47.09</td>
+        <td class="month " data-month="9">75.00</td>
+        <td class="month highlight" data-month="10">2.90</td>
+        <td class="month " data-month="11">30.81</td>
+        <td class="month " data-month="12">58.72</td>
+        <td class="quarter">46.30</td><td class="quarter">63.36</td><td class="quarter">47.09</td><td class="quarter">30.81</td>
+        <td class="total">46.89</td><td class="max">6月</td><td class="min">10月</td>
+      </tr>
+      <tr data-rule="2018892707754737665" data-name="收治的血流感染（非CRBSI）感染性休克患者数（包括ICU内发生）比例">
+        <td class="rule-id qb-mono">2018892707754737665</td>
+        <td class="name">收治的血流感染（非CRBSI）感染性休克患者数（包括ICU内发生）比例</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">55.71</td>
+        <td class="month " data-month="2">83.62</td>
+        <td class="month " data-month="3">11.53</td>
+        <td class="month " data-month="4">39.44</td>
+        <td class="month " data-month="5">67.34</td>
+        <td class="month highlight" data-month="6">95.25</td>
+        <td class="month " data-month="7">23.16</td>
+        <td class="month " data-month="8">51.07</td>
+        <td class="month " data-month="9">78.98</td>
+        <td class="month highlight" data-month="10">6.89</td>
+        <td class="month " data-month="11">34.80</td>
+        <td class="month " data-month="12">62.71</td>
+        <td class="quarter">50.29</td><td class="quarter">67.34</td><td class="quarter">51.07</td><td class="quarter">34.80</td>
+        <td class="total">50.88</td><td class="max">6月</td><td class="min">10月</td>
+      </tr>
+      <tr data-rule="2018894431475269634" data-name="收治的腹腔感染感染性休克患者数（包括ICU内发生）比例">
+        <td class="rule-id qb-mono">2018894431475269634</td>
+        <td class="name">收治的腹腔感染感染性休克患者数（包括ICU内发生）比例</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">63.68</td>
+        <td class="month highlight" data-month="2">91.59</td>
+        <td class="month " data-month="3">19.50</td>
+        <td class="month " data-month="4">47.41</td>
+        <td class="month " data-month="5">75.32</td>
+        <td class="month highlight" data-month="6">3.23</td>
+        <td class="month " data-month="7">31.14</td>
+        <td class="month " data-month="8">59.05</td>
+        <td class="month " data-month="9">86.96</td>
+        <td class="month " data-month="10">14.87</td>
+        <td class="month " data-month="11">42.78</td>
+        <td class="month " data-month="12">70.68</td>
+        <td class="quarter">58.26</td><td class="quarter">41.99</td><td class="quarter">59.05</td><td class="quarter">42.78</td>
+        <td class="total">50.52</td><td class="max">2月</td><td class="min">6月</td>
+      </tr>
+      <tr data-rule="2018894742445162497" data-name="收治的泌尿系感染感染性休克患者数（包括ICU内发生）比例">
+        <td class="rule-id qb-mono">2018894742445162497</td>
+        <td class="name">收治的泌尿系感染感染性休克患者数（包括ICU内发生）比例</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">31.78</td>
+        <td class="month " data-month="2">59.69</td>
+        <td class="month " data-month="3">87.60</td>
+        <td class="month " data-month="4">15.51</td>
+        <td class="month " data-month="5">43.42</td>
+        <td class="month " data-month="6">71.33</td>
+        <td class="month highlight" data-month="7">99.24</td>
+        <td class="month " data-month="8">27.15</td>
+        <td class="month " data-month="9">55.06</td>
+        <td class="month " data-month="10">82.97</td>
+        <td class="month highlight" data-month="11">10.88</td>
+        <td class="month " data-month="12">38.79</td>
+        <td class="quarter">59.69</td><td class="quarter">43.42</td><td class="quarter">60.48</td><td class="quarter">44.21</td>
+        <td class="total">51.95</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="2018894847147573249" data-name="收治的中枢神经系统感染感染性休克患者数（包括ICU内发生）比例">
+        <td class="rule-id qb-mono">2018894847147573249</td>
+        <td class="name">收治的中枢神经系统感染感染性休克患者数（包括ICU内发生）比例</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">35.77</td>
+        <td class="month " data-month="2">63.68</td>
+        <td class="month highlight" data-month="3">91.59</td>
+        <td class="month " data-month="4">19.50</td>
+        <td class="month " data-month="5">47.41</td>
+        <td class="month " data-month="6">75.32</td>
+        <td class="month highlight" data-month="7">3.23</td>
+        <td class="month " data-month="8">31.14</td>
+        <td class="month " data-month="9">59.05</td>
+        <td class="month " data-month="10">86.96</td>
+        <td class="month " data-month="11">14.87</td>
+        <td class="month " data-month="12">42.78</td>
+        <td class="quarter">63.68</td><td class="quarter">47.41</td><td class="quarter">31.14</td><td class="quarter">48.20</td>
+        <td class="total">47.61</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="2018894962750980097" data-name="收治的肺部感染感染性休克患者数（包括ICU内发生）比例">
+        <td class="rule-id qb-mono">2018894962750980097</td>
+        <td class="name">收治的肺部感染感染性休克患者数（包括ICU内发生）比例</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">39.76</td>
+        <td class="month " data-month="2">67.67</td>
+        <td class="month highlight" data-month="3">95.58</td>
+        <td class="month " data-month="4">23.49</td>
+        <td class="month " data-month="5">51.40</td>
+        <td class="month " data-month="6">79.31</td>
+        <td class="month highlight" data-month="7">7.22</td>
+        <td class="month " data-month="8">35.12</td>
+        <td class="month " data-month="9">63.03</td>
+        <td class="month " data-month="10">90.94</td>
+        <td class="month " data-month="11">18.85</td>
+        <td class="month " data-month="12">46.76</td>
+        <td class="quarter">67.67</td><td class="quarter">51.40</td><td class="quarter">35.12</td><td class="quarter">52.18</td>
+        <td class="total">51.59</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="2018895319849828353" data-name="收治的胆道感染感染性休克患者数（包括ICU内发生）比例">
+        <td class="rule-id qb-mono">2018895319849828353</td>
+        <td class="name">收治的胆道感染感染性休克患者数（包括ICU内发生）比例</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">43.75</td>
+        <td class="month " data-month="2">71.66</td>
+        <td class="month highlight" data-month="3">99.56</td>
+        <td class="month " data-month="4">27.47</td>
+        <td class="month " data-month="5">55.38</td>
+        <td class="month " data-month="6">83.29</td>
+        <td class="month highlight" data-month="7">11.20</td>
+        <td class="month " data-month="8">39.11</td>
+        <td class="month " data-month="9">67.02</td>
+        <td class="month " data-month="10">94.93</td>
+        <td class="month " data-month="11">22.84</td>
+        <td class="month " data-month="12">50.75</td>
+        <td class="quarter">71.66</td><td class="quarter">55.38</td><td class="quarter">39.11</td><td class="quarter">56.17</td>
+        <td class="total">55.58</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="2018895424493518850" data-name="收治的胃肠道感染感染性休克患者数（包括ICU内发生）比例">
+        <td class="rule-id qb-mono">2018895424493518850</td>
+        <td class="name">收治的胃肠道感染感染性休克患者数（包括ICU内发生）比例</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">47.73</td>
+        <td class="month " data-month="2">75.64</td>
+        <td class="month highlight" data-month="3">3.55</td>
+        <td class="month " data-month="4">31.46</td>
+        <td class="month " data-month="5">59.37</td>
+        <td class="month " data-month="6">87.28</td>
+        <td class="month " data-month="7">15.19</td>
+        <td class="month " data-month="8">43.10</td>
+        <td class="month " data-month="9">71.01</td>
+        <td class="month highlight" data-month="10">98.92</td>
+        <td class="month " data-month="11">26.83</td>
+        <td class="month " data-month="12">54.74</td>
+        <td class="quarter">42.31</td><td class="quarter">59.37</td><td class="quarter">43.10</td><td class="quarter">60.16</td>
+        <td class="total">51.24</td><td class="max">10月</td><td class="min">3月</td>
+      </tr>
+      <tr data-rule="2018895515874820097" data-name="收治的骨髓感染感染性休克患者数（包括ICU内发生）比例">
+        <td class="rule-id qb-mono">2018895515874820097</td>
+        <td class="name">收治的骨髓感染感染性休克患者数（包括ICU内发生）比例</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">51.72</td>
+        <td class="month " data-month="2">79.63</td>
+        <td class="month " data-month="3">7.54</td>
+        <td class="month " data-month="4">35.45</td>
+        <td class="month " data-month="5">63.36</td>
+        <td class="month highlight" data-month="6">91.27</td>
+        <td class="month " data-month="7">19.18</td>
+        <td class="month " data-month="8">47.09</td>
+        <td class="month " data-month="9">75.00</td>
+        <td class="month highlight" data-month="10">2.90</td>
+        <td class="month " data-month="11">30.81</td>
+        <td class="month " data-month="12">58.72</td>
+        <td class="quarter">46.30</td><td class="quarter">63.36</td><td class="quarter">47.09</td><td class="quarter">30.81</td>
+        <td class="total">46.89</td><td class="max">6月</td><td class="min">10月</td>
+      </tr>
+      <tr data-rule="2018895635043385346" data-name="收治的皮肤软组织感染感染性休克患者数（包括ICU内发生）">
+        <td class="rule-id qb-mono">2018895635043385346</td>
+        <td class="name">收治的皮肤软组织感染感染性休克患者数（包括ICU内发生）</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">55.71</td>
+        <td class="month " data-month="2">83.62</td>
+        <td class="month " data-month="3">11.53</td>
+        <td class="month " data-month="4">39.44</td>
+        <td class="month " data-month="5">67.34</td>
+        <td class="month highlight" data-month="6">95.25</td>
+        <td class="month " data-month="7">23.16</td>
+        <td class="month " data-month="8">51.07</td>
+        <td class="month " data-month="9">78.98</td>
+        <td class="month highlight" data-month="10">6.89</td>
+        <td class="month " data-month="11">34.80</td>
+        <td class="month " data-month="12">62.71</td>
+        <td class="quarter">50.29</td><td class="quarter">67.34</td><td class="quarter">51.07</td><td class="quarter">34.80</td>
+        <td class="total">50.88</td><td class="max">6月</td><td class="min">10月</td>
+      </tr>
+      <tr data-rule="2018895739468972034" data-name="收治的其他部位感染感染性休克患者数（包括ICU内发生）">
+        <td class="rule-id qb-mono">2018895739468972034</td>
+        <td class="name">收治的其他部位感染感染性休克患者数（包括ICU内发生）</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">59.69</td>
+        <td class="month " data-month="2">87.60</td>
+        <td class="month " data-month="3">15.51</td>
+        <td class="month " data-month="4">43.42</td>
+        <td class="month " data-month="5">71.33</td>
+        <td class="month highlight" data-month="6">99.24</td>
+        <td class="month " data-month="7">27.15</td>
+        <td class="month " data-month="8">55.06</td>
+        <td class="month " data-month="9">82.97</td>
+        <td class="month highlight" data-month="10">10.88</td>
+        <td class="month " data-month="11">38.79</td>
+        <td class="month " data-month="12">66.70</td>
+        <td class="quarter">54.27</td><td class="quarter">71.33</td><td class="quarter">55.06</td><td class="quarter">38.79</td>
+        <td class="total">54.86</td><td class="max">6月</td><td class="min">10月</td>
+      </tr>
+      <tr data-rule="2018895846687965186" data-name="收治的感染性休克患者死亡数（包括ICU内发生）">
+        <td class="rule-id qb-mono">2018895846687965186</td>
+        <td class="name">收治的感染性休克患者死亡数（包括ICU内发生）</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">63.68</td>
+        <td class="month highlight" data-month="2">91.59</td>
+        <td class="month " data-month="3">19.50</td>
+        <td class="month " data-month="4">47.41</td>
+        <td class="month " data-month="5">75.32</td>
+        <td class="month highlight" data-month="6">3.23</td>
+        <td class="month " data-month="7">31.14</td>
+        <td class="month " data-month="8">59.05</td>
+        <td class="month " data-month="9">86.96</td>
+        <td class="month " data-month="10">14.87</td>
+        <td class="month " data-month="11">42.78</td>
+        <td class="month " data-month="12">70.68</td>
+        <td class="quarter">58.26</td><td class="quarter">41.99</td><td class="quarter">59.05</td><td class="quarter">42.78</td>
+        <td class="total">50.52</td><td class="max">2月</td><td class="min">6月</td>
+      </tr>
+      <tr data-rule="2018873286487244801" data-name="ARDS患者采用保护性肺通气的比例">
+        <td class="rule-id qb-mono">2018873286487244801</td>
+        <td class="name">ARDS患者采用保护性肺通气的比例</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">27.80</td>
+        <td class="month " data-month="2">55.71</td>
+        <td class="month " data-month="3">83.62</td>
+        <td class="month " data-month="4">11.53</td>
+        <td class="month " data-month="5">39.44</td>
+        <td class="month " data-month="6">67.34</td>
+        <td class="month highlight" data-month="7">95.25</td>
+        <td class="month " data-month="8">23.16</td>
+        <td class="month " data-month="9">51.07</td>
+        <td class="month " data-month="10">78.98</td>
+        <td class="month highlight" data-month="11">6.89</td>
+        <td class="month " data-month="12">34.80</td>
+        <td class="quarter">55.71</td><td class="quarter">39.44</td><td class="quarter">56.49</td><td class="quarter">40.22</td>
+        <td class="total">47.97</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="2018873403755790337" data-name="ARDS患者采用俯卧位通气的比例">
+        <td class="rule-id qb-mono">2018873403755790337</td>
+        <td class="name">ARDS患者采用俯卧位通气的比例</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">31.78</td>
+        <td class="month " data-month="2">59.69</td>
+        <td class="month " data-month="3">87.60</td>
+        <td class="month " data-month="4">15.51</td>
+        <td class="month " data-month="5">43.42</td>
+        <td class="month " data-month="6">71.33</td>
+        <td class="month highlight" data-month="7">99.24</td>
+        <td class="month " data-month="8">27.15</td>
+        <td class="month " data-month="9">55.06</td>
+        <td class="month " data-month="10">82.97</td>
+        <td class="month highlight" data-month="11">10.88</td>
+        <td class="month " data-month="12">38.79</td>
+        <td class="quarter">59.69</td><td class="quarter">43.42</td><td class="quarter">60.48</td><td class="quarter">44.21</td>
+        <td class="total">51.95</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="1480594329381304" data-name="ICU镇痛评估率">
+        <td class="rule-id qb-mono">1480594329381304</td>
+        <td class="name">ICU镇痛评估率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">35.77</td>
+        <td class="month " data-month="2">63.68</td>
+        <td class="month highlight" data-month="3">91.59</td>
+        <td class="month " data-month="4">19.50</td>
+        <td class="month " data-month="5">47.41</td>
+        <td class="month " data-month="6">75.32</td>
+        <td class="month highlight" data-month="7">3.23</td>
+        <td class="month " data-month="8">31.14</td>
+        <td class="month " data-month="9">59.05</td>
+        <td class="month " data-month="10">86.96</td>
+        <td class="month " data-month="11">14.87</td>
+        <td class="month " data-month="12">42.78</td>
+        <td class="quarter">63.68</td><td class="quarter">47.41</td><td class="quarter">31.14</td><td class="quarter">48.20</td>
+        <td class="total">47.61</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="2046596316785082370" data-name="ICU医师床位比">
+        <td class="rule-id qb-mono">2046596316785082370</td>
+        <td class="name">ICU医师床位比</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">19.8</td>
+        <td class="month " data-month="2">47.7</td>
+        <td class="month " data-month="3">75.6</td>
+        <td class="month highlight" data-month="4">3.6</td>
+        <td class="month " data-month="5">31.5</td>
+        <td class="month " data-month="6">59.4</td>
+        <td class="month " data-month="7">87.3</td>
+        <td class="month " data-month="8">15.2</td>
+        <td class="month " data-month="9">43.1</td>
+        <td class="month " data-month="10">71.0</td>
+        <td class="month highlight" data-month="11">98.9</td>
+        <td class="month " data-month="12">26.8</td>
+        <td class="quarter">47.7</td><td class="quarter">31.5</td><td class="quarter">48.5</td><td class="quarter">65.6</td>
+        <td class="total">48.3</td><td class="max">11月</td><td class="min">4月</td>
+      </tr>
+      <tr data-rule="2046596830486659074" data-name="ICU护士床位比">
+        <td class="rule-id qb-mono">2046596830486659074</td>
+        <td class="name">ICU护士床位比</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">23.8</td>
+        <td class="month " data-month="2">51.7</td>
+        <td class="month " data-month="3">79.6</td>
+        <td class="month " data-month="4">7.5</td>
+        <td class="month " data-month="5">35.4</td>
+        <td class="month " data-month="6">63.4</td>
+        <td class="month highlight" data-month="7">91.3</td>
+        <td class="month " data-month="8">19.2</td>
+        <td class="month " data-month="9">47.1</td>
+        <td class="month " data-month="10">75.0</td>
+        <td class="month highlight" data-month="11">2.9</td>
+        <td class="month " data-month="12">30.8</td>
+        <td class="quarter">51.7</td><td class="quarter">35.4</td><td class="quarter">52.5</td><td class="quarter">36.2</td>
+        <td class="total">44.0</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="148309432931305" data-name="ICU镇静评估率">
+        <td class="rule-id qb-mono">148309432931305</td>
+        <td class="name">ICU镇静评估率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">31.78</td>
+        <td class="month " data-month="2">59.69</td>
+        <td class="month " data-month="3">87.60</td>
+        <td class="month " data-month="4">15.51</td>
+        <td class="month " data-month="5">43.42</td>
+        <td class="month " data-month="6">71.33</td>
+        <td class="month highlight" data-month="7">99.24</td>
+        <td class="month " data-month="8">27.15</td>
+        <td class="month " data-month="9">55.06</td>
+        <td class="month " data-month="10">82.97</td>
+        <td class="month highlight" data-month="11">10.88</td>
+        <td class="month " data-month="12">38.79</td>
+        <td class="quarter">59.69</td><td class="quarter">43.42</td><td class="quarter">60.48</td><td class="quarter">44.21</td>
+        <td class="total">51.95</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="2018876838051905537" data-name="ABI患者意识评估率">
+        <td class="rule-id qb-mono">2018876838051905537</td>
+        <td class="name">ABI患者意识评估率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">35.77</td>
+        <td class="month " data-month="2">63.68</td>
+        <td class="month highlight" data-month="3">91.59</td>
+        <td class="month " data-month="4">19.50</td>
+        <td class="month " data-month="5">47.41</td>
+        <td class="month " data-month="6">75.32</td>
+        <td class="month highlight" data-month="7">3.23</td>
+        <td class="month " data-month="8">31.14</td>
+        <td class="month " data-month="9">59.05</td>
+        <td class="month " data-month="10">86.96</td>
+        <td class="month " data-month="11">14.87</td>
+        <td class="month " data-month="12">42.78</td>
+        <td class="quarter">63.68</td><td class="quarter">47.41</td><td class="quarter">31.14</td><td class="quarter">48.20</td>
+        <td class="total">47.61</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="1483050943291009" data-name="ICU患者标化病死指数（StandardizedMortality Ratio）">
+        <td class="rule-id qb-mono">1483050943291009</td>
+        <td class="name">ICU患者标化病死指数（StandardizedMortality Ratio）</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">20.47</td>
+        <td class="month " data-month="2">48.38</td>
+        <td class="month " data-month="3">76.29</td>
+        <td class="month highlight" data-month="4">4.20</td>
+        <td class="month " data-month="5">32.11</td>
+        <td class="month " data-month="6">60.02</td>
+        <td class="month " data-month="7">87.93</td>
+        <td class="month " data-month="8">15.84</td>
+        <td class="month " data-month="9">43.75</td>
+        <td class="month " data-month="10">71.66</td>
+        <td class="month highlight" data-month="11">99.56</td>
+        <td class="month " data-month="12">27.47</td>
+        <td class="quarter">48.38</td><td class="quarter">32.11</td><td class="quarter">49.17</td><td class="quarter">66.23</td>
+        <td class="total">48.97</td><td class="max">11月</td><td class="min">4月</td>
+      </tr>
+      <tr data-rule="1483050943281010" data-name="ICU非计划气管插管拔管率">
+        <td class="rule-id qb-mono">1483050943281010</td>
+        <td class="name">ICU非计划气管插管拔管率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">40.41</td>
+        <td class="month " data-month="2">68.32</td>
+        <td class="month highlight" data-month="3">96.23</td>
+        <td class="month " data-month="4">24.13</td>
+        <td class="month " data-month="5">52.04</td>
+        <td class="month " data-month="6">79.95</td>
+        <td class="month highlight" data-month="7">7.86</td>
+        <td class="month " data-month="8">35.77</td>
+        <td class="month " data-month="9">63.68</td>
+        <td class="month " data-month="10">91.59</td>
+        <td class="month " data-month="11">19.50</td>
+        <td class="month " data-month="12">47.41</td>
+        <td class="quarter">68.32</td><td class="quarter">52.04</td><td class="quarter">35.77</td><td class="quarter">52.83</td>
+        <td class="total">52.24</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="1483050943293988" data-name="ICU患者预计病死率">
+        <td class="rule-id qb-mono">1483050943293988</td>
+        <td class="name">ICU患者预计病死率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">0.32</td>
+        <td class="month " data-month="2">0.60</td>
+        <td class="month " data-month="3">0.88</td>
+        <td class="month " data-month="4">0.16</td>
+        <td class="month " data-month="5">0.44</td>
+        <td class="month " data-month="6">0.72</td>
+        <td class="month highlight" data-month="7">1.00</td>
+        <td class="month " data-month="8">0.28</td>
+        <td class="month " data-month="9">0.56</td>
+        <td class="month " data-month="10">0.84</td>
+        <td class="month highlight" data-month="11">0.12</td>
+        <td class="month " data-month="12">0.39</td>
+        <td class="quarter">0.60</td><td class="quarter">0.44</td><td class="quarter">0.61</td><td class="quarter">0.45</td>
+        <td class="total">0.53</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="1483050943981011" data-name="ICU气管插管拔管后48h内再插管率">
+        <td class="rule-id qb-mono">1483050943981011</td>
+        <td class="name">ICU气管插管拔管后48h内再插管率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">48.38</td>
+        <td class="month " data-month="2">76.29</td>
+        <td class="month highlight" data-month="3">4.20</td>
+        <td class="month " data-month="4">32.11</td>
+        <td class="month " data-month="5">60.02</td>
+        <td class="month " data-month="6">87.93</td>
+        <td class="month " data-month="7">15.84</td>
+        <td class="month " data-month="8">43.75</td>
+        <td class="month " data-month="9">71.66</td>
+        <td class="month highlight" data-month="10">99.56</td>
+        <td class="month " data-month="11">27.47</td>
+        <td class="month " data-month="12">55.38</td>
+        <td class="quarter">42.96</td><td class="quarter">60.02</td><td class="quarter">43.75</td><td class="quarter">60.80</td>
+        <td class="total">51.88</td><td class="max">10月</td><td class="min">3月</td>
+      </tr>
+      <tr data-rule="1483050943981012" data-name="术后非计划转入率">
+        <td class="rule-id qb-mono">1483050943981012</td>
+        <td class="name">术后非计划转入率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">16.48</td>
+        <td class="month " data-month="2">44.39</td>
+        <td class="month " data-month="3">72.30</td>
+        <td class="month highlight" data-month="4">0.21</td>
+        <td class="month " data-month="5">28.12</td>
+        <td class="month " data-month="6">56.03</td>
+        <td class="month " data-month="7">83.94</td>
+        <td class="month " data-month="8">11.85</td>
+        <td class="month " data-month="9">39.76</td>
+        <td class="month " data-month="10">67.67</td>
+        <td class="month highlight" data-month="11">95.58</td>
+        <td class="month " data-month="12">23.49</td>
+        <td class="quarter">44.39</td><td class="quarter">28.12</td><td class="quarter">45.18</td><td class="quarter">62.25</td>
+        <td class="total">44.99</td><td class="max">11月</td><td class="min">4月</td>
+      </tr>
+      <tr data-rule="1483050943291013" data-name="转出ICU后48h内重返率">
+        <td class="rule-id qb-mono">1483050943291013</td>
+        <td class="name">转出ICU后48h内重返率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">24.46</td>
+        <td class="month " data-month="2">52.37</td>
+        <td class="month " data-month="3">80.28</td>
+        <td class="month " data-month="4">8.19</td>
+        <td class="month " data-month="5">36.10</td>
+        <td class="month " data-month="6">64.01</td>
+        <td class="month highlight" data-month="7">91.91</td>
+        <td class="month " data-month="8">19.82</td>
+        <td class="month " data-month="9">47.73</td>
+        <td class="month " data-month="10">75.64</td>
+        <td class="month highlight" data-month="11">3.55</td>
+        <td class="month " data-month="12">31.46</td>
+        <td class="quarter">52.37</td><td class="quarter">36.10</td><td class="quarter">53.15</td><td class="quarter">36.88</td>
+        <td class="total">44.63</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="148305094321014" data-name="呼吸机相关性肺炎发病率(例/千呼吸机日)">
+        <td class="rule-id qb-mono">148305094321014</td>
+        <td class="name">呼吸机相关性肺炎发病率(例/千呼吸机日)</td>
+        <td class="unit">‰</td>
+        <td class="month " data-month="1">324.32</td>
+        <td class="month " data-month="2">603.42</td>
+        <td class="month " data-month="3">882.51</td>
+        <td class="month " data-month="4">161.60</td>
+        <td class="month " data-month="5">440.70</td>
+        <td class="month " data-month="6">719.79</td>
+        <td class="month highlight" data-month="7">998.89</td>
+        <td class="month " data-month="8">277.98</td>
+        <td class="month " data-month="9">557.07</td>
+        <td class="month " data-month="10">836.17</td>
+        <td class="month highlight" data-month="11">115.26</td>
+        <td class="month " data-month="12">394.35</td>
+        <td class="quarter">603.42</td><td class="quarter">440.70</td><td class="quarter">611.31</td><td class="quarter">448.59</td>
+        <td class="total">526.00</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="1483050943293981" data-name="血管内导管相关血流感染发病率(例/千导管日)">
+        <td class="rule-id qb-mono">1483050943293981</td>
+        <td class="name">血管内导管相关血流感染发病率(例/千导管日)</td>
+        <td class="unit">‰</td>
+        <td class="month " data-month="1">404.06</td>
+        <td class="month " data-month="2">683.16</td>
+        <td class="month highlight" data-month="3">962.25</td>
+        <td class="month " data-month="4">241.35</td>
+        <td class="month " data-month="5">520.44</td>
+        <td class="month " data-month="6">799.53</td>
+        <td class="month highlight" data-month="7">78.63</td>
+        <td class="month " data-month="8">357.72</td>
+        <td class="month " data-month="9">636.81</td>
+        <td class="month " data-month="10">915.91</td>
+        <td class="month " data-month="11">195.00</td>
+        <td class="month " data-month="12">474.10</td>
+        <td class="quarter">683.16</td><td class="quarter">520.44</td><td class="quarter">357.72</td><td class="quarter">528.34</td>
+        <td class="total">522.41</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="2018877060886888449" data-name="导尿管相关泌尿系感染发病率(例/千导尿管日)">
+        <td class="rule-id qb-mono">2018877060886888449</td>
+        <td class="name">导尿管相关泌尿系感染发病率(例/千导尿管日)</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">43.75</td>
+        <td class="month " data-month="2">71.66</td>
+        <td class="month highlight" data-month="3">99.56</td>
+        <td class="month " data-month="4">27.47</td>
+        <td class="month " data-month="5">55.38</td>
+        <td class="month " data-month="6">83.29</td>
+        <td class="month highlight" data-month="7">11.20</td>
+        <td class="month " data-month="8">39.11</td>
+        <td class="month " data-month="9">67.02</td>
+        <td class="month " data-month="10">94.93</td>
+        <td class="month " data-month="11">22.84</td>
+        <td class="month " data-month="12">50.75</td>
+        <td class="quarter">71.66</td><td class="quarter">55.38</td><td class="quarter">39.11</td><td class="quarter">56.17</td>
+        <td class="total">55.58</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="148350943298306" data-name="ICU急性脑损伤患者意识评估率">
+        <td class="rule-id qb-mono">148350943298306</td>
+        <td class="name">ICU急性脑损伤患者意识评估率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">39.76</td>
+        <td class="month " data-month="2">67.67</td>
+        <td class="month highlight" data-month="3">95.58</td>
+        <td class="month " data-month="4">23.49</td>
+        <td class="month " data-month="5">51.40</td>
+        <td class="month " data-month="6">79.31</td>
+        <td class="month highlight" data-month="7">7.22</td>
+        <td class="month " data-month="8">35.12</td>
+        <td class="month " data-month="9">63.03</td>
+        <td class="month " data-month="10">90.94</td>
+        <td class="month " data-month="11">18.85</td>
+        <td class="month " data-month="12">46.76</td>
+        <td class="quarter">67.67</td><td class="quarter">51.40</td><td class="quarter">35.12</td><td class="quarter">52.18</td>
+        <td class="total">51.59</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="2018878630621937665" data-name="治疗性抗菌药物使用前病原学送检率">
+        <td class="rule-id qb-mono">2018878630621937665</td>
+        <td class="name">治疗性抗菌药物使用前病原学送检率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">51.72</td>
+        <td class="month " data-month="2">79.63</td>
+        <td class="month " data-month="3">7.54</td>
+        <td class="month " data-month="4">35.45</td>
+        <td class="month " data-month="5">63.36</td>
+        <td class="month highlight" data-month="6">91.27</td>
+        <td class="month " data-month="7">19.18</td>
+        <td class="month " data-month="8">47.09</td>
+        <td class="month " data-month="9">75.00</td>
+        <td class="month highlight" data-month="10">2.90</td>
+        <td class="month " data-month="11">30.81</td>
+        <td class="month " data-month="12">58.72</td>
+        <td class="quarter">46.30</td><td class="quarter">63.36</td><td class="quarter">47.09</td><td class="quarter">30.81</td>
+        <td class="total">46.89</td><td class="max">6月</td><td class="min">10月</td>
+      </tr>
+      <tr data-rule="2018879663909699586" data-name="治疗性抗菌药物使用前PCT送检率">
+        <td class="rule-id qb-mono">2018879663909699586</td>
+        <td class="name">治疗性抗菌药物使用前PCT送检率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">59.69</td>
+        <td class="month " data-month="2">87.60</td>
+        <td class="month " data-month="3">15.51</td>
+        <td class="month " data-month="4">43.42</td>
+        <td class="month " data-month="5">71.33</td>
+        <td class="month highlight" data-month="6">99.24</td>
+        <td class="month " data-month="7">27.15</td>
+        <td class="month " data-month="8">55.06</td>
+        <td class="month " data-month="9">82.97</td>
+        <td class="month highlight" data-month="10">10.88</td>
+        <td class="month " data-month="11">38.79</td>
+        <td class="month " data-month="12">66.70</td>
+        <td class="quarter">54.27</td><td class="quarter">71.33</td><td class="quarter">55.06</td><td class="quarter">38.79</td>
+        <td class="total">54.86</td><td class="max">6月</td><td class="min">10月</td>
+      </tr>
+      <tr data-rule="2018879799771594754" data-name="治疗性抗菌药物使用前G/GM实验送检率">
+        <td class="rule-id qb-mono">2018879799771594754</td>
+        <td class="name">治疗性抗菌药物使用前G/GM实验送检率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">31.78</td>
+        <td class="month " data-month="2">59.69</td>
+        <td class="month " data-month="3">87.60</td>
+        <td class="month " data-month="4">15.51</td>
+        <td class="month " data-month="5">43.42</td>
+        <td class="month " data-month="6">71.33</td>
+        <td class="month highlight" data-month="7">99.24</td>
+        <td class="month " data-month="8">27.15</td>
+        <td class="month " data-month="9">55.06</td>
+        <td class="month " data-month="10">82.97</td>
+        <td class="month highlight" data-month="11">10.88</td>
+        <td class="month " data-month="12">38.79</td>
+        <td class="quarter">59.69</td><td class="quarter">43.42</td><td class="quarter">60.48</td><td class="quarter">44.21</td>
+        <td class="total">51.95</td><td class="max">7月</td><td class="min">11月</td>
+      </tr>
+      <tr data-rule="2018879897138167810" data-name="治疗性抗菌药物使用前白介素送检率">
+        <td class="rule-id qb-mono">2018879897138167810</td>
+        <td class="name">治疗性抗菌药物使用前白介素送检率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">35.77</td>
+        <td class="month " data-month="2">63.68</td>
+        <td class="month highlight" data-month="3">91.59</td>
+        <td class="month " data-month="4">19.50</td>
+        <td class="month " data-month="5">47.41</td>
+        <td class="month " data-month="6">75.32</td>
+        <td class="month highlight" data-month="7">3.23</td>
+        <td class="month " data-month="8">31.14</td>
+        <td class="month " data-month="9">59.05</td>
+        <td class="month " data-month="10">86.96</td>
+        <td class="month " data-month="11">14.87</td>
+        <td class="month " data-month="12">42.78</td>
+        <td class="quarter">63.68</td><td class="quarter">47.41</td><td class="quarter">31.14</td><td class="quarter">48.20</td>
+        <td class="total">47.61</td><td class="max">3月</td><td class="min">7月</td>
+      </tr>
+      <tr data-rule="148309432981307" data-name="48h 内肠内营养（EN）启动率">
+        <td class="rule-id qb-mono">148309432981307</td>
+        <td class="name">48h 内肠内营养（EN）启动率</td>
+        <td class="unit">%</td>
+        <td class="month " data-month="1">47.73</td>
+        <td class="month " data-month="2">75.64</td>
+        <td class="month highlight" data-month="3">3.55</td>
+        <td class="month " data-month="4">31.46</td>
+        <td class="month " data-month="5">59.37</td>
+        <td class="month " data-month="6">87.28</td>
+        <td class="month " data-month="7">15.19</td>
+        <td class="month " data-month="8">43.10</td>
+        <td class="month " data-month="9">71.01</td>
+        <td class="month highlight" data-month="10">98.92</td>
+        <td class="month " data-month="11">26.83</td>
+        <td class="month " data-month="12">54.74</td>
+        <td class="quarter">42.31</td><td class="quarter">59.37</td><td class="quarter">43.10</td><td class="quarter">60.16</td>
+        <td class="total">51.24</td><td class="max">10月</td><td class="min">3月</td>
+      </tr>
+
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </main>
+    <script>
+      lucide.createIcons();
+
+      // ===== Monthly summary interaction mock =====
+      (function() {
+        const filterYear = document.querySelector('.qb-filter-left input[type="number"]');
+        const filterDept = document.querySelector('.qb-filter-left select:nth-of-type(1)');
+        const filterDomain = document.querySelector('.qb-filter-left select:nth-of-type(2)');
+        const filterHasData = document.querySelector('.qb-filter-left input[type="checkbox"]');
+        const btnRefresh = document.querySelector('.qb-filter-left button');
+        const btnRebuild = document.querySelector('.qb-filter-right button:nth-of-type(1)');
+        const btnExport = document.querySelector('.qb-filter-right button:nth-of-type(2)');
+        const tableRows = document.querySelectorAll('.qb-table tbody tr');
+
+        function showToast(message) {
+          let toast = document.getElementById('qb-toast');
+          if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'qb-toast';
+            toast.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:10px 16px;background:var(--qb-stone-800);color:#fff;border-radius:8px;font-size:13px;box-shadow:var(--qb-shadow-lg);z-index:9999;opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;';
+            document.body.appendChild(toast);
+          }
+          toast.textContent = message;
+          toast.style.opacity = '1'; toast.style.transform = 'translateY(0)';
+          setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(8px)'; }, 2200);
+        }
+
+        function applyFilters() {
+          const domain = filterDomain ? filterDomain.value : '全部域';
+          const dept = filterDept ? filterDept.value : '全院';
+          const year = filterYear ? filterYear.value : '2026';
+          const onlyHasData = filterHasData ? filterHasData.checked : false;
+          let visible = 0;
+          tableRows.forEach(row => {
+            const rowDomain = row.cells[2]?.textContent.trim();
+            const hasValue = !row.querySelector('.qb-empty');
+            const show = (domain === '全部域' || rowDomain === domain) && (!onlyHasData || hasValue);
+            row.style.display = show ? '' : 'none';
+            if (show) visible++;
+          });
+          showToast(`已筛选：${year} · ${dept} · ${domain} · 显示 ${visible} 条`);
+        }
+
+        [filterYear, filterDept, filterDomain, filterHasData].forEach(el => {
+          if (el) el.addEventListener('change', applyFilters);
+        });
+
+        if (btnRefresh) {
+          btnRefresh.addEventListener('click', () => {
+            btnRefresh.disabled = true;
+            const old = btnRefresh.innerHTML;
+            btnRefresh.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4" style="animation:spin 1s linear infinite;"></i>刷新中';
+            lucide.createIcons();
+            setTimeout(() => { btnRefresh.innerHTML = old; lucide.createIcons(); btnRefresh.disabled = false; showToast('月度汇总数据已刷新'); }, 900);
+          });
+        }
+
+        if (btnRebuild) {
+          btnRebuild.addEventListener('click', () => {
+            btnRebuild.disabled = true;
+            const old = btnRebuild.innerHTML;
+            btnRebuild.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4" style="animation:spin 1s linear infinite;"></i>重建中';
+            lucide.createIcons();
+            setTimeout(() => { btnRebuild.innerHTML = old; lucide.createIcons(); btnRebuild.disabled = false; showToast('年度汇总重建完成'); }, 1500);
+          });
+        }
+
+        if (btnExport) {
+          btnExport.addEventListener('click', () => {
+            showToast('正在导出 2026 年度汇总 Excel...);
+            setTimeout(() => showToast('导出完成：质控月度汇总_2026.xlsx'), 1000);
+          });
+        }
+
+        // Row click expands a detail row (single demo)
+        tableRows.forEach(row => {
+          row.style.cursor = 'pointer';
+          row.addEventListener('click', (e) => {
+            if (e.target.closest('button, a, input')) return;
+            const next = row.nextElementSibling;
+            if (next && next.classList.contains('qb-detail-row')) {
+              next.remove();
+              return;
+            }
+            const metricName = row.cells[1]?.textContent.trim();
+            const detail = document.createElement('tr');
+            detail.className = 'qb-detail-row';
+            detail.innerHTML = `<td colspan="22" style="background:var(--qb-stone-50);padding:16px 18px;">
+              <div style="font-weight:600;margin-bottom:8px;">${metricName} · 月度明细</div>
+              <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:6px;font-size:12px;color:var(--qb-stone-600);">
+                ${['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'].map((m,i)=>
+                  `<div style="text-align:center;padding:6px;background:#fff;border-radius:6px;border:1px solid var(--qb-border);">${m}<div style="font-weight:700;color:var(--qb-primary);margin-top:4px;">${(Math.random()*100).toFixed(1)}%</div></div>`
+                ).join('')}
+              </div>
+            </td>`;
+            row.parentNode.insertBefore(detail, next);
+          });
+        });
+
+        // ===== Annual trend: interactive chart driven by table row data =====
+        (function() {
+          const select = document.querySelector('[data-dom-id="trend-select"]');
+          const svg = document.querySelector('[data-dom-id="trend-svg"]');
+          const tooltip = document.querySelector('[data-dom-id="trend-tooltip"]');
+          const table = document.querySelector('.qb-wide-table tbody');
+          const chartWrap = document.querySelector('[data-dom-id="trend-chart"]');
+
+          const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+          function findRow(ruleId) {
+            return table && table.querySelector('tr[data-rule="' + ruleId + '"]');
+          }
+
+          function readRowData(row) {
+            const cells = row.querySelectorAll('td.month');
+            const values = [];
+            cells.forEach(td => values.push(parseFloat(td.textContent) || 0));
+            const unit = row.querySelector('td.unit')?.textContent.trim() || '';
+            const name = row.dataset.name || row.querySelector('td.name')?.textContent.trim() || '';
+            return { values, unit, name };
+          }
+
+          function getPoint(index, values, width, height, padding) {
+            const min = Math.min(...values) * 0.95;
+            const max = Math.max(...values) * 1.05;
+            const range = max - min || 1;
+            const x = padding.left + (index / (values.length - 1)) * (width - padding.left - padding.right);
+            const y = padding.top + (1 - (values[index] - min) / range) * (height - padding.top - padding.bottom);
+            return { x, y, value: values[index] };
+          }
+
+          function highlightRow(ruleId) {
+            table.querySelectorAll('tr').forEach(tr => tr.classList.remove('trend-active'));
+            const row = findRow(ruleId);
+            if (row) {
+              row.classList.add('trend-active');
+              row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+          }
+
+          function drawChart() {
+            if (!svg || !select) return;
+            const ruleId = select.value;
+            const row = findRow(ruleId);
+            if (!row) {
+              svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="var(--qb-stone-400)">未找到该指标月度数据</text>';
+              return;
+            }
+            const { values, unit, name } = readRowData(row);
+            const rect = svg.getBoundingClientRect();
+            const width = rect.width || chartWrap.clientWidth || 800;
+            const height = rect.height || 320;
+            const padding = { top: 40, right: 40, bottom: 48, left: 56 };
+            const min = Math.min(...values) * 0.95;
+            const max = Math.max(...values) * 1.05;
+
+            let html = `
+              <defs>
+                <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="var(--qb-orange-500)" stop-opacity="0.35"/>
+                  <stop offset="100%" stop-color="var(--qb-orange-500)" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <text class="chart-title" x="${padding.left}" y="24" fill="var(--qb-stone-800)" font-size="14" font-weight="600">${name}</text>
+            `;
+
+            // grid + Y labels
+            for (let i = 0; i <= 4; i++) {
+              const y = padding.top + (i / 4) * (height - padding.top - padding.bottom);
+              const val = max - (i / 4) * (max - min);
+              html += `<line class="grid" x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}"/>`;
+              html += `<text class="label" x="${padding.left - 10}" y="${y + 4}" text-anchor="end">${val.toFixed(1)}${unit}</text>`;
+            }
+
+            // X labels
+            months.forEach((m, i) => {
+              const x = padding.left + (i / 11) * (width - padding.left - padding.right);
+              html += `<text class="label" x="${x}" y="${height - padding.bottom + 20}" text-anchor="middle">${m}</text>`;
+            });
+
+            // area
+            let areaPath = `M ${padding.left} ${height - padding.bottom}`;
+            values.forEach((_, i) => {
+              const p = getPoint(i, values, width, height, padding);
+              areaPath += ` L ${p.x} ${p.y}`;
+            });
+            areaPath += ` L ${width - padding.right} ${height - padding.bottom} Z`;
+            html += `<path class="area" d="${areaPath}"/>`;
+
+            // line
+            let linePath = '';
+            values.forEach((_, i) => {
+              const p = getPoint(i, values, width, height, padding);
+              linePath += `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`;
+            });
+            html += `<path class="line" d="${linePath}"/>`;
+
+            // points
+            values.forEach((_, i) => {
+              const p = getPoint(i, values, width, height, padding);
+              html += `<circle class="point" cx="${p.x}" cy="${p.y}" r="5" data-index="${i}" data-value="${p.value.toFixed(2)}" data-month="${months[i]}"/>`;
+            });
+
+            svg.innerHTML = html;
+
+            // interactions
+            svg.querySelectorAll('.point').forEach(pt => {
+              pt.addEventListener('mouseenter', () => {
+                const x = parseFloat(pt.getAttribute('cx'));
+                const y = parseFloat(pt.getAttribute('cy'));
+                tooltip.style.display = 'block';
+                tooltip.innerHTML = `<strong>${pt.dataset.month}</strong><br/>${pt.dataset.value}${unit}`;
+                tooltip.style.left = `${x + 12}px`;
+                tooltip.style.top = `${y - 40}px`;
+              });
+              pt.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+              pt.addEventListener('click', () => {
+                svg.querySelectorAll('.point').forEach(p => p.classList.remove('active'));
+                pt.classList.add('active');
+                showToast(`${name} · ${pt.dataset.month} ${pt.dataset.value}${unit}`);
+              });
+            });
+
+            highlightRow(ruleId);
+          }
+
+          if (select) select.addEventListener('change', drawChart);
+
+          // Hover table row to preview trend
+          if (table) {
+            table.querySelectorAll('tr[data-rule]').forEach(tr => {
+              tr.addEventListener('mouseenter', () => {
+                if (select && tr.dataset.rule !== select.value) {
+                  select.value = tr.dataset.rule;
+                  drawChart();
+                }
+              });
+            });
+          }
+
+          // resize
+          let resizeTimer;
+          window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(drawChart, 150);
+          });
+
+          // init
+          setTimeout(drawChart, 100);
+        })();
+      })();
+    </script>
+    <style>
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .qb-detail-row td { border-bottom: 1px solid var(--qb-border); }
+      .qb-wide-table td.rule-id { font-size: var(--qb-text-xs); color: var(--qb-stone-400); font-family: ui-monospace, monospace; }
+      .qb-wide-table tr.trend-active td { background: var(--qb-orange-50); }
+      .qb-wide-table tr.trend-active td.name { color: var(--qb-primary); font-weight: 600; }
+      .qb-trend-chart .grid { stroke: var(--qb-stone-200); stroke-width: 1; stroke-dasharray: 3 3; }
+      .qb-trend-chart .label { fill: var(--qb-stone-500); font-size: 11px; }
+      .qb-trend-chart .area { fill: url(#trendGradient); }
+      .qb-trend-chart .line { fill: none; stroke: var(--qb-orange-500); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+      .qb-trend-chart .point { fill: #fff; stroke: var(--qb-orange-500); stroke-width: 2; cursor: pointer; transition: r 0.15s ease; }
+      .qb-trend-chart .point:hover { fill: var(--qb-orange-100); r: 7; }
+      .qb-trend-chart .point.active { fill: var(--qb-orange-500); r: 7; }
+      .qb-trend-tooltip { font-size: 12px; line-height: 1.4; }
+      .qb-trend-tooltip strong { display: block; margin-bottom: 2px; font-size: 13px; }
+    </style>
+</body>
+</html>
