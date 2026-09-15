@@ -2,6 +2,9 @@ target/
 *.class
 *.jar
 !.mvn/wrapper/maven-wrapper.jar
+# 达梦 JDBC 驱动随项目交付（pom 以 system scope + lib/ 相对路径引用），必须入库，
+# 否则全新检出/CI 上 Maven 解析不到该依赖，构建直接失败
+!lib/*.jar
 .idea/
 *.iml
 .vscode/

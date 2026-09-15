@@ -11,7 +11,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{js,vue,css}\"",
     "format:check": "prettier --check \"src/**/*.{js,vue,css}\"",
-    "audit:ci": "npm audit --omit=dev --audit-level=high"
+    "audit:ci": "node scripts/audit-ci.mjs"
   },
   "lint-staged": {
     "*.{js,mjs,vue}": [
