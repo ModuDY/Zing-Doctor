@@ -135,6 +135,9 @@
             <span class="note-meta" v-if="detail.note">上次保存：{{ detail.note.createBy }} {{ detail.note.createTime }}</span>
             <span class="note-meta" v-else>本班尚未填写</span>
             <div>
+              <el-button size="small" :loading="importing" @click="importPrevNote" style="margin-right: 6px">
+                <el-icon><Download /></el-icon>&nbsp;导入上一班
+              </el-button>
               <el-button v-if="detail.note" type="danger" plain size="small" @click="deleteNote">
                 <el-icon><Delete /></el-icon>&nbsp;删除
               </el-button>
@@ -266,7 +269,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, Clock, Warning, EditPen, Delete, Check } from '@element-plus/icons-vue'
+import { Refresh, Clock, Warning, EditPen, Delete, Check, Download } from '@element-plus/icons-vue'
 import request from '../api/request'
 import '../styles/abx-theme.css'
 
@@ -275,6 +278,7 @@ const route = useRoute()
 
 const loading = ref(false)
 const saving = ref(false)
+const importing = ref(false)
 const departments = ref([])
 const selectedDepartCode = ref('20070131')
 const shiftDate = ref(null)  // 交班日期，默认=后端返回的上一完整全天班的起始日期
@@ -411,6 +415,35 @@ async function saveNote() {
     console.error('病情变化保存失败', e)
   } finally {
     saving.value = false
+  }
+}
+
+/**
+ * 导入上一个班次的交班记录。
+ * 追加到输入框末尾（带班次前缀），绝不覆盖本班已写内容。
+ */
+async function importPrevNote() {
+  const p = detail.value?.patient || {}
+  if (!p.patient_no) return
+  importing.value = true
+  try {
+    const prev = await request.get('/handover/previous-note', {
+      params: { inHospitalNo: p.patient_no, shiftDate: shiftDate.value || '' }
+    })
+    const text = prev && prev.conditionChange ? prev.conditionChange.trim() : ''
+    if (!text) {
+      ElMessage.info('上一个班次没有交班记录')
+      return
+    }
+    const day = prev.shiftBeginTime ? String(prev.shiftBeginTime).substring(5, 10) : ''
+    const block = (day ? `【上一班 ${day}】\n` : '【上一班】\n') + text
+    noteText.value = noteText.value.trim() ? noteText.value.trim() + '\n\n' + block : block
+    ElMessage.success('已追加到末尾，可直接修改')
+  } catch (e) {
+    console.error('导入上一班记录失败', e)
+    ElMessage.warning('导入失败：' + (e?.message || '请稍后重试'))
+  } finally {
+    importing.value = false
   }
 }
 

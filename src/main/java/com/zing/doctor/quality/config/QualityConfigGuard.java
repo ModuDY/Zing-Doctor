@@ -1,5 +1,6 @@
 package com.zing.doctor.quality.config;
 
+import com.zing.doctor.common.OperatorContext;
 import com.zing.doctor.external.ExternalLinkContext;
 import com.zing.doctor.external.ExternalLinkInterceptor;
 import com.zing.doctor.external.SignatureUtil;
@@ -116,8 +117,9 @@ public class QualityConfigGuard {
     /**
      * 解析真实操作人，用于变更历史与审计留痕。
      *
-     * <p>取值优先级：{@code X-Operator} 请求头（SSO/网关注入）→ 外链业务参数
-     * {@code realname} → {@code username} → {@code userId} → 服务端配置的
+     * <p>取值优先级：{@code X-Operator} 请求头（SSO/网关注入）→ 直连登录账号的真实姓名
+     * （由服务端签发的令牌反解后查库得到，不可伪造）→ 外链业务参数 {@code realname} →
+     * {@code username} → {@code userId} → 服务端配置的
      * {@code zing.quality.config-default-operator} → {@code unknown}。
      *
      * <p><b>这是审计归属，不是身份认证</b>：外链参数与请求头都可由调用方伪造，
@@ -130,6 +132,12 @@ public class QualityConfigGuard {
         String fromHeader = request.getHeader(HEADER_OPERATOR);
         if (StringUtils.hasText(fromHeader)) {
             return normalize(fromHeader);
+        }
+        // 直连登录：姓名由服务端签发令牌反解出的账号查库得到，不接受请求参数覆盖。
+        // 排在 X-Operator 之后——网关注入的真实身份仍是最可信的一档。
+        String fromLogin = OperatorContext.currentOrNull(request);
+        if (StringUtils.hasText(fromLogin)) {
+            return normalize(fromLogin);
         }
         Object ctx = request.getAttribute(ExternalLinkInterceptor.ATTR_CONTEXT);
         if (ctx instanceof ExternalLinkContext) {

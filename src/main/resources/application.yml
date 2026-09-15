@@ -73,6 +73,16 @@ zing:
       # 医生系统对外基础地址（含端口），如 http://100.120.1.104:2001；
       # 配置后外链 302 强制跳转到该地址，避免外部系统（ICU 从 80 端口等）端口差异导致 404；留空用相对路径
       base-url: ${EXTERNAL_LINK_BASE_URL:}
+    # 直连登录（区别于外链免登录：账号密码登录换 JWT）
+    auth:
+      # JWT 签名密钥（生产必须通过环境变量 AUTH_JWT_SECRET 注入）
+      jwt-secret: ${AUTH_JWT_SECRET:zing-doctor-auth-secret-please-change}
+      # 令牌有效期（小时），超时后需重新登录
+      expire-hours: ${AUTH_EXPIRE_HOURS:8}
+      # 首次启动自动创建的管理员账号（已存在同名账号时不覆盖）
+      admin-username: ${ADMIN_USERNAME:admin}
+      admin-password: ${ADMIN_PASSWORD:zing@123}
+      admin-real-name: ${ADMIN_REAL_NAME:系统管理员}
     # 第一维度：经验性抗感染治疗决策 - ICU 数据提供方式
     # mock：内置示例数据（P0 默认，无需真实 ICU 库即可跑通流程）
     # sql ：基于 ICU 系统真实表结构只读查询 zing_icu_db_prod（SqlIcuPatientServiceImpl）

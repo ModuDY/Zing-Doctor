@@ -19,6 +19,9 @@ public interface HandoverService {
     /** 单患者交班详情（抽屉懒加载），shiftDate 为空时默认取最近一个已封板全天班次 */
     HandoverPatientDetail getPatientDetail(String inHospitalNo, String shiftDate);
 
+    /** 该患者"上一个班次"的手工交班记录（供医生一键导入本班输入框），没有则返回 null */
+    HandoverNote getPreviousNote(String inHospitalNo, String shiftDate);
+
     /** 保存/更新本班病情变化（一患者一班一条，重复提交走更新，保留首次创建人/时间） */
     HandoverNote saveNote(HandoverNote note);
 

@@ -25,6 +25,9 @@
               <span>{{ r.createBy || '—' }}</span>
               <span :class="['record-tag', recTagClass(r)]">{{ scoreTypeLabel(r) }}</span>
               <span v-if="r.hasPdf === 1" class="record-tag pdf-tag" @click.stop="viewPdf(r)">PDF文书</span>
+              <!-- 归档：待归档→点击推送到院方归档接口→已归档；已归档再点只撤销标记（不调接口） -->
+              <span :class="['record-tag', 'archive-tag', r.archiveStatus === 1 ? 'done' : 'todo']"
+                    @click.stop="toggleArchive(r)">{{ r.archiveStatus === 1 ? '已归档' : '待归档' }}</span>
               <span class="record-tag del-tag" @click.stop="removeRecord(r)">删除</span>
             </div>
           </div>
@@ -42,7 +45,6 @@
       <span class="patient-meta">住院号：<b>{{ patient.inHospitalNo || inHospitalNo || '—' }}</b></span>
       <span class="patient-meta">入科时间：<b>{{ fmtTime(patient.inDepartTime) }}</b></span>
       <span :class="['resp-flag', { on: inputs.respSupport === 1 }]">{{ inputs.respSupport === 1 ? '有创呼吸支持' : '无呼吸支持' }}</span>
-      <button class="btn-trend" @click="openTotalTrend">评分历史趋势</button>
     </div>
       <!-- ===== 总览条：SOFA 总分 + 6 器官当前分值 ===== -->
       <div class="overview">
@@ -415,19 +417,6 @@
       </div>
     </div>
 
-    <!-- 总分趋势弹窗 -->
-    <div class="modal-mask" v-if="showTrend" @click.self="closeTotalTrend">
-      <div class="modal">
-        <div class="modal-head">
-          <h3>SOFA 评分历史趋势</h3>
-          <button class="modal-close" @click="closeTotalTrend">×</button>
-        </div>
-        <div class="modal-body">
-          <div ref="totalTrendRef" style="width:100%;height:280px;"></div>
-        </div>
-      </div>
-    </div>
-
     <!-- 评分文书预览弹窗（与 APACHE II 一致：打印 / 导出 PDF / 关闭） -->
     <div class="modal-mask" v-if="showReportModal" @click.self="showReportModal = false">
       <div class="modal report-modal">
@@ -635,7 +624,8 @@ import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import {
   fetchSofaAssessment, fetchSofaAssessmentByNo, saveSofaRecord, fetchSofaRecords, deleteSofaRecord,
-  fetchSofaTrend, fetchSofaRecordPdf, attachSofaRecordPdf, fetchSofaGcsRecords
+  fetchSofaTrend, fetchSofaRecordPdf, attachSofaRecordPdf, fetchSofaGcsRecords,
+  pushSofaArchive, unmarkSofaArchive
 } from '../api/sofa'
 import { isExternalMode } from '../utils/external'
 import { useStaffSignature } from '../utils/staffSignature'
@@ -1527,8 +1517,31 @@ function buildRecord() {
     // GCS 汇总：医生弹窗同步/手工录入后随记录落库，供文书与历史复核（后端仅在缺分值时兜底重算）
     gcsTotal: isEmptyNum(inputs.gcs) ? null : Number(inputs.gcs),
     gcsDetail: gcsDetailText.value || null,
-    remark: baseRemark,
-    createBy: realname.value || username.value || 'doctor'
+    remark: baseRemark
+    // createBy 不传：由后端按服务端解析出的操作人覆盖，避免前端把它改成别人
+  }
+}
+
+/**
+ * 文书归档：
+ *   待归档 → 调院方归档接口推送该条文书 → 成功后标记「已归档」；
+ *   已是「已归档」时再点只撤销标记，不调用院方接口（只改本地状态）。
+ */
+async function toggleArchive(r) {
+  if (!r || !r.id) return
+  try {
+    if (r.archiveStatus === 1) {
+      await unmarkSofaArchive(r.id)
+      r.archiveStatus = 0
+      ElMessage.success('已撤销归档标记')
+    } else {
+      await pushSofaArchive(r.id)
+      r.archiveStatus = 1
+      ElMessage.success('归档成功')
+    }
+  } catch (e) {
+    console.error('归档失败', e)
+    ElMessage.error(e?.response?.data?.message || e?.message || '归档失败')
   }
 }
 
@@ -1752,69 +1765,6 @@ function boxClass(s) {
   return 'green'
 }
 
-// ---------------- 总分趋势弹窗 ----------------
-
-const showTrend = ref(false)
-const totalTrendRef = ref(null)
-let totalTrend = null
-
-async function openTotalTrend() {
-  showTrend.value = true
-  await nextTick()
-  const el = totalTrendRef.value
-  if (!el) return
-  if (totalTrend) { totalTrend.dispose(); totalTrend = null }
-  totalTrend = echarts.init(el)
-  totalTrend.showLoading({ text: '加载中…', color: '#409eff', textColor: '#999', maskColor: 'rgba(255,255,255,0.8)' })
-
-  let data = []
-  try {
-    const pid = patient.patientId || patientId.value
-    if (pid) data = await fetchSofaTrend(pid, 'total', toBackend(rangeStart.value), toBackend(rangeEnd.value))
-  } catch (e) {
-    console.warn('总分趋势加载失败', e)
-  }
-  totalTrend.hideLoading()
-
-  const points = (Array.isArray(data) ? data : [])
-    .filter(p => p && p.time && p.value !== null && p.value !== undefined)
-    .map(p => [String(p.time), Number(p.value)])
-    .sort((a, b) => a[0].localeCompare(b[0]))
-
-  if (!points.length) {
-    totalTrend.setOption({
-      title: { text: '暂无趋势数据', left: 'center', top: 'middle', textStyle: { color: '#909399', fontSize: 13, fontWeight: 'normal' } },
-      xAxis: { show: false },
-      yAxis: { show: false },
-      series: []
-    }, true)
-    return
-  }
-
-  totalTrend.setOption({
-    tooltip: { trigger: 'axis' },
-    grid: { left: 50, right: 24, top: 30, bottom: 52 },
-    xAxis: { type: 'category', data: points.map(p => fmtTime(p[0])), axisLabel: { fontSize: 10, color: '#909399', rotate: 30 } },
-    yAxis: { name: 'SOFA', type: 'value', min: 0, nameTextStyle: { fontSize: 10, color: '#909399' }, axisLabel: { fontSize: 10, color: '#909399' } },
-    series: [{
-      type: 'line',
-      data: points.map(p => p[1]),
-      smooth: true,
-      symbol: 'circle',
-      symbolSize: 6,
-      lineStyle: { color: '#409eff', width: 2 },
-      itemStyle: { color: '#409eff' },
-      areaStyle: { color: 'rgba(64,158,255,0.12)' }
-    }]
-  }, true)
-  totalTrend.resize()
-}
-
-function closeTotalTrend() {
-  showTrend.value = false
-  if (totalTrend) { totalTrend.dispose(); totalTrend = null }
-}
-
 // ---- 来源三态（自动初评 / 已复核 / 手工评分） ----
 
 /** 自动类来源：定时任务 daily、自动取数 auto */
@@ -2012,6 +1962,12 @@ function base64ToBlob(base64, type) {
 .record-tag.pdf-tag:hover { background: #d3f0c0; }
 .record-tag.del-tag { cursor: pointer; }
 .record-tag.del-tag:hover { background: #fef0f0; color: #f56c6c; }
+/* 归档状态标签：待归档（橙，可点击推送）/ 已归档（绿，点击撤销标记） */
+.record-tag.archive-tag { cursor: pointer; }
+.record-tag.archive-tag.todo { background: #fdf6ec; color: #e6a23c; }
+.record-tag.archive-tag.todo:hover { background: #fbe9d0; }
+.record-tag.archive-tag.done { background: #e1f3d8; color: #389e0d; }
+.record-tag.archive-tag.done:hover { background: #d3f0c0; }
 .record-empty { text-align: center; color: #c0c4cc; font-size: 13px; padding: 40px 0; }
 
 .main { flex: 1; min-width: 0; padding: 12px 18px 24px; }
@@ -2024,8 +1980,6 @@ function base64ToBlob(base64, type) {
 .patient-meta b { color: #303133; font-weight: 600; }
 .patient-row .resp-flag { font-size: 13px; padding: 3px 12px; border-radius: 14px; background: #f4f4f5; color: #909399; }
 .patient-row .resp-flag.on { background: #e1f3d8; color: #389e0d; }
-.btn-trend { margin-left: auto; height: 32px; border: 1px solid #dcdfe6; background: #fff; color: #606266; font-size: 13px; padding: 0 14px; border-radius: 4px; cursor: pointer; transition: all .2s; }
-.btn-trend:hover { color: #409eff; border-color: #c6e2ff; background: #ecf5ff; }
 
 /* ===== 总览条：总分卡 + 6 器官小卡 ===== */
 .overview { display: flex; gap: 10px; background: #fafafa; border: 1px solid #ebeef5; border-radius: 6px; padding: 10px; margin-top: 12px; margin-bottom: 12px; }

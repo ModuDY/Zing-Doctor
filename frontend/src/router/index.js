@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { captureExternalContext } from '../utils/external'
+import { captureExternalContext, hasExternalContext } from '../utils/external'
+import { isLoggedIn } from '../utils/auth'
 
 /**
  * 路由规范：
@@ -9,6 +10,12 @@ import { captureExternalContext } from '../utils/external'
  */
 const routes = [
   { path: '/', redirect: '/page/abx-patient-list' },
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('../views/Login.vue'),
+    meta: { title: '登录' }
+  },
   {
     path: '/page/abx-patient-list',
     name: 'patientList',
@@ -142,6 +149,12 @@ const routes = [
     meta: { title: '质控指标配置' }
   },
   {
+    path: '/page/param-config',
+    name: 'paramConfig',
+    component: () => import('../views/ParamConfig.vue'),
+    meta: { title: '参数设置' }
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'notFound',
     component: () => import('../views/NotFound.vue'),
@@ -154,10 +167,25 @@ const router = createRouter({
   routes
 })
 
+/**
+ * 访问控制：两条合法通道，任一满足即放行。
+ *   1) 第三方系统外链进入（URL 带 extToken 或 expire+sign）—— 免登录，逻辑保持原有；
+ *   2) 已在本系统登录（本地存有 JWT）。
+ * 两者都不满足才跳转登录页，并带上来源地址便于登录后原路返回。
+ */
 router.beforeEach((to) => {
   // 外链打开时捕获签名上下文（pageCode/expire/sign），供 /api 调用鉴权
   captureExternalContext()
   document.title = to.meta.title ? `${to.meta.title} · 医生系统` : '医生系统'
+
+  if (to.name === 'login') {
+    // 已登录时不该再看登录页
+    return isLoggedIn() ? { path: '/' } : true
+  }
+  if (hasExternalContext() || isLoggedIn()) {
+    return true
+  }
+  return { path: '/login', query: { redirect: to.fullPath } }
 })
 
 export default router

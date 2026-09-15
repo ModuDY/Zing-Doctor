@@ -2,6 +2,7 @@ package com.zing.doctor.module.sofa.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zing.doctor.common.BizException;
+import com.zing.doctor.common.OperatorContext;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.module.sofa.dto.SofaAssessmentView;
 import com.zing.doctor.module.sofa.entity.SofaConfig;
@@ -896,15 +897,21 @@ public class SofaServiceImpl implements SofaService {
             record.setDeltaSofa(record.getTotalScore() - last.getTotalScore());
         }
 
+        // 操作人一律由服务端解析并覆盖：请求体里即使带着 createBy 也不采信，
+        // 否则改一下请求就能把评分记录署成别人的名字
+        String operator = OperatorContext.current();
         if (record.getId() == null) {
             record.setCreateTime(LocalDateTime.now());
+            record.setCreateBy(operator);
             scoreRecordMapper.insert(record);
         } else {
             record.setUpdateTime(LocalDateTime.now());
+            record.setUpdateBy(operator);
             scoreRecordMapper.updateById(record);
         }
-        log.info("SOFA 评分保存完成: id={}, inHospitalNo={}, total={}, delta={}",
-                record.getId(), record.getInHospitalNo(), record.getTotalScore(), record.getDeltaSofa());
+        log.info("SOFA 评分保存完成: id={}, inHospitalNo={}, total={}, delta={}, operator={}",
+                record.getId(), record.getInHospitalNo(), record.getTotalScore(),
+                record.getDeltaSofa(), operator);
         return record;
     }
 
@@ -980,6 +987,7 @@ public class SofaServiceImpl implements SofaService {
         SofaScoreRecord r = scoreRecordMapper.selectById(id);
         if (r == null) return false;
         r.setStatus(0);
+        r.setUpdateBy(OperatorContext.current());
         r.setUpdateTime(LocalDateTime.now());
         scoreRecordMapper.updateById(r);
         return true;
@@ -1066,6 +1074,7 @@ public class SofaServiceImpl implements SofaService {
         if (pdfName != null && !pdfName.trim().isEmpty()) {
             r.setPdfName(pdfName.trim());
         }
+        r.setUpdateBy(OperatorContext.current());
         r.setUpdateTime(LocalDateTime.now());
         scoreRecordMapper.updateById(r);
         log.info("SOFA 文书已归档: id={}, inHospitalNo={}, 大小≈{}KB",
@@ -1118,7 +1127,6 @@ public class SofaServiceImpl implements SofaService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime dayStart = now.toLocalDate().atStartOfDay();
 
         for (Map<String, Object> p : patients) {
             scanned++;
@@ -1129,12 +1137,13 @@ public class SofaServiceImpl implements SofaService {
                 continue;
             }
             try {
-                // 幂等：当日已有评分记录则跳过（定时任务重复执行/手动补跑都安全）
-                Long todayCount = scoreRecordMapper.selectCount(new LambdaQueryWrapper<SofaScoreRecord>()
+                // 幂等：已存在任何评分记录则跳过（定时任务重复执行/手动补跑都安全）。
+                // 产品口径（2026-09-15）：SOFA 改为「入科满 24h 后终身一条」，与 APACHE II 一致。
+                // 评分历史趋势功能已下线，历史记录列表仅用于回看/补评。
+                Long existCount = scoreRecordMapper.selectCount(new LambdaQueryWrapper<SofaScoreRecord>()
                         .eq(SofaScoreRecord::getInHospitalNo, no)
-                        .eq(SofaScoreRecord::getStatus, 1)
-                        .ge(SofaScoreRecord::getScoreTime, dayStart));
-                if (todayCount != null && todayCount > 0) {
+                        .eq(SofaScoreRecord::getStatus, 1));
+                if (existCount != null && existCount > 0) {
                     skipped++;
                     continue;
                 }
@@ -1257,19 +1266,8 @@ public class SofaServiceImpl implements SofaService {
                     if (v != null) out.add(trendPoint(toStr(r.get("item_time")), round(v / 88.4, 2)));
                 }
                 break;
-            // 总分：历史评分
-            case "total":
-                for (SofaScoreRecord r : scoreRecordMapper.selectList(new LambdaQueryWrapper<SofaScoreRecord>()
-                        .eq(SofaScoreRecord::getInHospitalNo, inHospitalNo)
-                        .eq(SofaScoreRecord::getStatus, 1)
-                        .ge(SofaScoreRecord::getScoreTime, startTime)
-                        .le(SofaScoreRecord::getScoreTime, endTime)
-                        .orderByAsc(SofaScoreRecord::getScoreTime))) {
-                    if (r.getTotalScore() != null) {
-                        out.add(trendPoint(String.valueOf(r.getScoreTime()), r.getTotalScore().doubleValue()));
-                    }
-                }
-                break;
+            // 注：原「total（SOFA 总分历史趋势）」分支已随评分历史趋势功能一并删除，
+            //     此处仅保留 6 个器官指标，供评分页「来源」弹窗核对取数依据。
             default:
                 break;
         }

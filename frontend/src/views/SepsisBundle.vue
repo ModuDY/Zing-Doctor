@@ -7,6 +7,38 @@
     </div>
 
     <div v-else v-loading="loading" class="page-body">
+      <div class="sepsis-body">
+      <!-- 左侧：评估记录列表（形式与 SOFA / APACHE II 评分记录一致） -->
+      <aside class="side">
+        <div class="side-head">
+          <span>评估记录</span>
+          <span class="count">{{ historyList.length }}</span>
+        </div>
+        <div class="side-add">
+          <button class="add-record-btn" @click="onNewAssess">
+            <span class="plus">＋</span>
+            新建评估
+          </button>
+          <button class="side-ghost-btn" @click="goWordConfig" title="抗菌药物识别词库配置">词库配置</button>
+        </div>
+        <div class="record-list">
+          <div v-for="(item, index) in historyList" :key="item.id"
+               :class="['record-item', { active: currentAssessId === item.id }]"
+               @click="onSelectRecord(item)">
+            <div class="record-top">
+              <span class="record-time">第{{ historyList.length - index }}次 · {{ fmtTime(item.createTime) }}</span>
+              <span :class="['record-score', recordScoreClass(item)]">{{ recordDoneCount(item) }}</span>
+            </div>
+            <div class="record-meta">
+              <span v-if="currentAssessId === item.id" class="record-tag cur-tag">当前</span>
+              <span class="record-tag del-tag" @click.stop="onDeleteAssess(item)">删除</span>
+            </div>
+          </div>
+          <div v-if="!historyList.length" class="record-empty">暂无评估记录</div>
+        </div>
+      </aside>
+
+      <div class="main">
       <!-- 患者信息横条（含内嵌进度条） -->
       <div class="card patient-bar">
         <div class="p-cell"><label>姓名</label><b>{{ data.patientName || '—' }}</b></div>
@@ -36,6 +68,20 @@
               value-format="YYYY-MM-DD HH:mm:ss"
               size="small"
               style="width: 170px"
+              popper-class="abx-popper"
+            />
+          </div>
+          <div class="p-cell">
+            <label>记录时间</label>
+            <el-date-picker
+              v-model="recordTime"
+              type="datetime"
+              placeholder="选择记录时间"
+              format="YYYY-MM-DD HH:mm"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              size="small"
+              style="width: 170px"
+              :disabled-date="disableFutureDate"
               popper-class="abx-popper"
             />
           </div>
@@ -75,37 +121,6 @@
               <span class="step-name">{{ data.bundle6hCompleted === 1 ? '已完成' : '待完成' }}</span>
             </div>
           </div>
-        </div>
-      </div>
-
-      <!-- 评估切换栏 -->
-      <div class="card assess-bar">
-        <div class="assess-left">
-          <span class="assess-label">评估记录</span>
-          <el-select v-model="currentAssessId" placeholder="选择评估记录" style="width: 300px" popper-class="abx-popper" @change="onAssessChange">
-            <el-option label="新建评估" :value="null" />
-            <el-option
-              v-for="(item, index) in historyList"
-              :key="item.id"
-              :label="`第${historyList.length - index}次评估 - ${fmtTime(item.createTime)}${currentAssessId === item.id ? '（当前）' : ''}`"
-              :value="item.id"
-            />
-          </el-select>
-          <button class="btn btn-primary" @click="onNewAssess">
-            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-            新建评估
-          </button>
-        </div>
-        <div class="assess-right">
-          <span class="assess-count">共 <strong>{{ historyList.length }}</strong> 次评估</span>
-          <button v-if="currentAssessId" class="btn btn-danger-ghost" @click="onDeleteAssess" title="删除当前评估记录">
-            <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>
-            删除评估
-          </button>
-          <button class="btn btn-ghost" @click="goWordConfig" title="抗菌药物识别词库配置">
-            <svg viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
-            词库配置
-          </button>
         </div>
       </div>
 
@@ -248,28 +263,51 @@
       <div class="bottom-grid">
         <!-- 感染相关信息 -->
         <div class="card">
-          <div class="block-title"><span class="dot dot-cyan"></span>感染相关信息</div>
+          <div class="block-title">
+            <span class="dot dot-cyan"></span>感染相关信息
+            <span class="ref-window" v-if="data.refWindowStart">
+              参考数据窗口 {{ data.refWindowStart }} ~ {{ data.refWindowEnd }}
+            </span>
+          </div>
           <div class="info-grid">
             <div class="info-block">
               <div class="info-label">感染部位</div>
-              <div class="value-tags" v-if="infectionSiteList.length">
-                <span class="value-tag" v-for="(v, i) in infectionSiteList" :key="i">{{ v }}</span>
+              <div class="opt-group">
+                <button v-for="opt in INFECTION_SITE_OPTIONS" :key="opt" type="button"
+                        class="opt-btn" :class="{ on: selInfectionSite.includes(opt) }"
+                        @click="toggleOpt(selInfectionSite, opt)">{{ opt }}</button>
               </div>
-              <div class="info-value" v-else>—</div>
+              <div class="ref-tags">
+                <span class="ref-tag prefix">系统参考</span>
+                <span class="ref-tag" v-for="v in infectionSiteRefList" :key="v">{{ v }}</span>
+                <span v-if="!infectionSiteRefList.length" class="ref-tag empty">窗口内无数据</span>
+              </div>
             </div>
             <div class="info-block">
               <div class="info-label">致病菌</div>
-              <div class="value-tags" v-if="pathogenList.length">
-                <span class="value-tag" v-for="(v, i) in pathogenList" :key="i">{{ v }}</span>
+              <div class="opt-group">
+                <button v-for="opt in PATHOGEN_OPTIONS" :key="opt" type="button"
+                        class="opt-btn" :class="{ on: selPathogen.includes(opt) }"
+                        @click="toggleOpt(selPathogen, opt)">{{ opt }}</button>
               </div>
-              <div class="info-value" v-else>—</div>
+              <div class="ref-tags">
+                <span class="ref-tag prefix">系统参考</span>
+                <span class="ref-tag" v-for="v in pathogenRefList" :key="v">{{ v }}</span>
+                <span v-if="!pathogenRefList.length" class="ref-tag empty">窗口内无数据</span>
+              </div>
             </div>
             <div class="info-block">
               <div class="info-label">抗菌药物</div>
-              <div class="value-tags" v-if="antibioticList.length">
-                <span class="value-tag" v-for="(v, i) in antibioticList" :key="i">{{ v }}</span>
+              <div class="opt-group">
+                <button v-for="opt in ANTIBIOTIC_OPTIONS" :key="opt" type="button"
+                        class="opt-btn" :class="{ on: selAntibiotic.includes(opt) }"
+                        @click="toggleOpt(selAntibiotic, opt)">{{ opt }}</button>
               </div>
-              <div class="info-value" v-else>—</div>
+              <div class="ref-tags">
+                <span class="ref-tag prefix">系统参考</span>
+                <span class="ref-tag" v-for="v in antibioticRefList" :key="v">{{ v }}</span>
+                <span v-if="!antibioticRefList.length" class="ref-tag empty">窗口内无数据</span>
+              </div>
             </div>
           </div>
         </div>
@@ -314,6 +352,8 @@
           返回
         </button>
       </div>
+      </div><!-- /.main -->
+      </div><!-- /.sepsis-body -->
     </div>
   </div>
 </template>
@@ -332,8 +372,20 @@ const inHospitalNo = computed(() => route.query.inHospitalNo || route.params.inH
 
 const loading = ref(false)
 const diagnosisTime = ref('')
+/** 记录时间：医生可改，同时决定三块「系统参考」14 天窗口的结束点 */
+const recordTime = ref('')
 const historyList = ref([])
 const currentAssessId = ref(null)
+
+/** 记录时间不得晚于当前时间（否则参考窗口会算到未来） */
+const disableFutureDate = (t) => t.getTime() > Date.now()
+
+/** 当前时间字符串 yyyy-MM-dd HH:mm:ss */
+function nowStr() {
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
 
 const data = reactive({
   id: null,
@@ -370,6 +422,12 @@ const data = reactive({
   infectionSite: '',
   pathogen: '',
   antibiotic: '',
+  // 系统参考值（只读展示，不入库）
+  infectionSiteRef: '',
+  pathogenRef: '',
+  antibioticRef: '',
+  refWindowStart: '',
+  refWindowEnd: '',
   fluidReason: { volumeOverload: false, organInjury: false, capillaryLeak: false, other: '' }
 })
 
@@ -382,6 +440,46 @@ const infectionSiteList = computed(() => splitMulti(data.infectionSite))
 const pathogenList = computed(() => splitMulti(data.pathogen))
 const antibioticList = computed(() => splitMulti(data.antibiotic))
 const infectionSiteText = computed(() => infectionSiteList.value[0] || '')
+
+/* ===== 感染相关信息：医生勾选的枚举项 =====
+   这三块的下拉值固定为下列枚举，医生点选哪个就存哪个（以「、」拼接入库）；
+   后端自动取到的原始药名/菌名只作为「系统参考」展示，不入库。 */
+const INFECTION_SITE_OPTIONS = [
+  '血流感染', 'CRBSI血流感染', '非CRBSI血流感染', '肺部感染', '腹腔感染', '泌尿系感染',
+  '中枢神经系统感染', '胆道感染', '胃肠道感染', '骨髓感染', '皮肤软组织感染', '其他部位感染'
+]
+const PATHOGEN_OPTIONS = [
+  '鲍曼不动杆菌', '绿脓杆菌', '大肠杆菌', '肺炎克雷伯菌', '嗜麦芽窄食假单孢菌',
+  'MRSA', '屎肠球菌', '粪肠球菌', '念珠菌', '其他院内感染致病菌'
+]
+const ANTIBIOTIC_OPTIONS = [
+  '青霉素类', '第一代头孢菌素类', '第二代头孢菌素类', '第三代头孢菌素类', '第四代头孢菌素类',
+  'β-内酰胺类', '碳青霉烯类', '氨基糖苷类', '大环内酯类', '喹诺酮类', '糖肽类',
+  '磺胺类和甲氧苄啶', '林可酰胺类', '四环素类', '酰胺醇类', '硝基咪唑类', '抗真菌药物', '其他抗菌药物'
+]
+
+const selInfectionSite = ref([])
+const selPathogen = ref([])
+const selAntibiotic = ref([])
+
+// 系统参考值（后端按「评估记录创建时间往前 14 天」窗口自动取到，仅展示）
+const infectionSiteRefList = computed(() => splitMulti(data.infectionSiteRef))
+const pathogenRefList = computed(() => splitMulti(data.pathogenRef))
+const antibioticRefList = computed(() => splitMulti(data.antibioticRef))
+
+// 注意：模板里传入的是已解包的数组（ref 在模板中自动 unwrap），这里直接按数组操作
+function toggleOpt(arr, val) {
+  const i = arr.indexOf(val)
+  if (i >= 0) arr.splice(i, 1)
+  else arr.push(val)
+}
+
+/** 把已保存的字符串回填到勾选态；只保留仍在枚举表里的值，避免历史脏数据变成幽灵选中 */
+function syncSelections() {
+  selInfectionSite.value = splitMulti(data.infectionSite).filter(v => INFECTION_SITE_OPTIONS.includes(v))
+  selPathogen.value = splitMulti(data.pathogen).filter(v => PATHOGEN_OPTIONS.includes(v))
+  selAntibiotic.value = splitMulti(data.antibiotic).filter(v => ANTIBIOTIC_OPTIONS.includes(v))
+}
 
 /* ===== 1H项目列表（乳酸测量+动态监测合并为一项） ===== */
 const bundle1hItems = computed(() => {
@@ -550,6 +648,8 @@ async function loadData(assessId = null) {
         data.fluidReason = { volumeOverload: false, organInjury: false, capillaryLeak: false, other: '' }
       }
       diagnosisTime.value = res.diagnosisTime || ''
+      recordTime.value = res.createTime || ''
+      syncSelections()
     }
   } catch (e) {
     console.error('加载脓毒症集束化治疗数据失败', e)
@@ -559,34 +659,109 @@ async function loadData(assessId = null) {
   }
 }
 
-/* ===== 评估记录切换 ===== */
-function onAssessChange(val) {
-  if (val) {
-    loadData(val)
-  } else {
-    resetForNewAssess()
+async function onNewAssess() {
+  currentAssessId.value = null
+  resetForNewAssess()
+  recordTime.value = nowStr()
+  // 新建态必须主动触发一次自动计算（不落库），否则 1H/3H/6H 与三块系统参考全是空的
+  const ok = await runCalculate()
+  ElMessage.success(ok ? '已切换到新建评估模式，并按当前时间完成自动计算' : '已切换到新建评估模式')
+}
+
+/* ===== 自动计算（预览，不落库） =====
+   新建评估、或改了记录时间/确诊时间后点「重新评估」都走这里。
+   keepManual=true 时只刷新详情与系统参考，保留医生当前已勾选的项目。 */
+const B1_BOOLS = ['lactateMeasured', 'lactateMonitor', 'bloodCultureBeforeAntibiotic', 'broadSpectrumAntibiotic', 'fluidResuscitation', 'norepinephrine']
+const B3_BOOLS = ['lactateMeasured', 'bloodCultureBeforeAntibiotic', 'broadSpectrumAntibiotic', 'fluidResuscitation']
+const B6_BOOLS = ['vasopressor', 'reassessVolume', 'repeatLactate']
+
+function omitKeys(obj, keys) {
+  const o = { ...(obj || {}) }
+  keys.forEach(k => { delete o[k] })
+  return o
+}
+
+async function runCalculate() {
+  if (!inHospitalNo.value) return false
+  // 编辑态：在该记录基础上重算，保留医生已勾选项目；新建态：全量填充
+  const keepManual = !!data.id
+  loading.value = true
+  try {
+    const params = {
+      inHospitalNo: inHospitalNo.value,
+      recordTime: normTime(recordTime.value),
+      diagnosisTime: normTime(diagnosisTime.value)
+    }
+    if (data.id) params.id = data.id
+    const res = await request.get('/sepsis/bundle/calculate', { params })
+    if (res) applyCalcResult(res, keepManual)
+    return true
+  } catch (e) {
+    console.error('自动计算失败', e)
+    ElMessage.error('自动计算失败')
+    return false
+  } finally {
+    loading.value = false
   }
 }
 
-function onNewAssess() {
-  currentAssessId.value = null
-  resetForNewAssess()
-  ElMessage.success('已切换到新建评估模式')
+function applyCalcResult(res, keepManual) {
+  if (res.id) data.id = res.id
+  if (res.createTime) recordTime.value = res.createTime
+  if (res.bundle1h) data.bundle1h = { ...data.bundle1h, ...(keepManual ? omitKeys(res.bundle1h, B1_BOOLS) : res.bundle1h) }
+  if (res.bundle3h) data.bundle3h = { ...data.bundle3h, ...(keepManual ? omitKeys(res.bundle3h, B3_BOOLS) : res.bundle3h) }
+  if (res.bundle6h) data.bundle6h = { ...data.bundle6h, ...(keepManual ? omitKeys(res.bundle6h, B6_BOOLS) : res.bundle6h) }
+  data.infectionSiteRef = res.infectionSiteRef || ''
+  data.pathogenRef = res.pathogenRef || ''
+  data.antibioticRef = res.antibioticRef || ''
+  data.refWindowStart = res.refWindowStart || ''
+  data.refWindowEnd = res.refWindowEnd || ''
+  if (res.diagnosisTime) diagnosisTime.value = res.diagnosisTime
+  if (res.fluidReason) data.fluidReason = res.fluidReason
+  if (res.patientName) data.patientName = res.patientName
+  if (res.shockType) data.shockType = res.shockType
+  if (res.inDepartTime) data.inDepartTime = res.inDepartTime
+  if (res.outDepartTime) data.outDepartTime = res.outDepartTime
+  // 后端不写 bundle*Completed，这里按算出的勾选重算，否则进度条永远停在「待完成」
+  syncCompletedFlags()
 }
 
 function goWordConfig() {
   router.push({ path: '/page/abx-word-config', query: { inHospitalNo: inHospitalNo.value } })
 }
 
+/* ===== 评估记录列表（左侧，形式同 SOFA / APACHE II） ===== */
+function onSelectRecord(item) {
+  if (!item || currentAssessId.value === item.id) return
+  currentAssessId.value = item.id
+  loadData(item.id)
+}
+
+/** 记录条徽标：1H/3H/6H 三个模块中已完成的个数（0~3） */
+function recordDoneCount(item) {
+  if (!item) return 0
+  return (item.bundle1hCompleted === 1 ? 1 : 0)
+       + (item.bundle3hCompleted === 1 ? 1 : 0)
+       + (item.bundle6hCompleted === 1 ? 1 : 0)
+}
+function recordScoreClass(item) {
+  const n = recordDoneCount(item)
+  if (n >= 3) return 'green'
+  if (n > 0) return 'orange'
+  return 'gray'
+}
+
 /* ===== 删除评估记录 ===== */
-async function onDeleteAssess() {
+async function onDeleteAssess(item) {
+  const id = (item && item.id) || currentAssessId.value
+  if (!id) return
   try {
-    await ElMessageBox.confirm('确定删除当前评估记录吗？删除后不可恢复。', '删除评估', { type: 'warning', customClass: 'abx-overlay' })
+    await ElMessageBox.confirm('确定删除该评估记录吗？删除后不可恢复。', '删除评估', { type: 'warning', customClass: 'abx-overlay' })
   } catch {
     return
   }
   try {
-    await request.post('/sepsis/bundle/delete', null, { params: { id: currentAssessId.value } })
+    await request.post('/sepsis/bundle/delete', null, { params: { id } })
     ElMessage.success('删除成功')
     currentAssessId.value = null
     resetForNewAssess()
@@ -608,6 +783,11 @@ function resetForNewAssess() {
   data.bundle3h = { lactateMeasured: false, lactate3h: '', bloodCultureBeforeAntibiotic: false, broadSpectrumAntibiotic: false, fluidResuscitation: false, fluidAmount: 0, fluidTarget: 0, cvp: '', map: '', norepiDose: '', scvo2: '', urineOutput: '' }
   data.bundle6h = { vasopressor: false, reassessVolume: false, repeatLactate: false, lactate6h: '', lactateMonitorCount: 0, norepiDose: '' }
   data.fluidReason = { volumeOverload: false, organInjury: false, capillaryLeak: false, other: '' }
+  // 三块改为医生逐次勾选，新建评估时不沿用上一次的选择
+  data.infectionSite = ''
+  data.pathogen = ''
+  data.antibiotic = ''
+  syncSelections()
   if (!data.inHospitalNo) data.inHospitalNo = inHospitalNo.value
   if (!data.patientName) data.patientName = ''
   // 不重新加载最新记录，避免覆盖空模板
@@ -695,9 +875,18 @@ function onBundle6hAllChange(val) {
 
 /* ===== 保存 ===== */
 async function onSave() {
+  // 记录时间不得晚于当前时间
+  if (recordTime.value) {
+    const rt = new Date(String(recordTime.value).replace(/-/g, '/')).getTime()
+    if (!isNaN(rt) && rt > Date.now()) {
+      ElMessage.warning('记录时间不能晚于当前时间')
+      return
+    }
+  }
   try {
     const payload = {
       id: data.id,
+      createTime: normTime(recordTime.value),
       patientId: data.patientId,
       inHospitalNo: data.inHospitalNo,
       patientName: data.patientName,
@@ -710,9 +899,10 @@ async function onSave() {
       bundle1hData: JSON.stringify(data.bundle1h),
       bundle3hData: JSON.stringify(data.bundle3h),
       bundle6hData: JSON.stringify(data.bundle6h),
-      infectionSite: data.infectionSite,
-      pathogen: data.pathogen,
-      antibiotic: data.antibiotic,
+      // 三块按医生实际勾选的枚举值入库（、拼接）；参考值不入
+      infectionSite: selInfectionSite.value.join('、'),
+      pathogen: selPathogen.value.join('、'),
+      antibiotic: selAntibiotic.value.join('、'),
       fluidReason: data.fluidReason ? JSON.stringify(data.fluidReason) : null
     }
     let savedId = data.id
@@ -738,8 +928,11 @@ async function onSave() {
   }
 }
 
-function onRefresh() {
-  loadData(currentAssessId.value)
+async function onRefresh() {
+  // 按当前「记录时间 + 确诊时间」重算：新建态走新建预览，编辑态在其基础上重算并保留勾选。
+  // 不能再用 loadData(null) —— 它拉的是最新一条已有记录，新建时点它会把旧数据覆盖回来。
+  if (!recordTime.value) recordTime.value = nowStr()
+  await runCalculate()
   ElMessage.success('已重新评估')
 }
 
@@ -769,6 +962,166 @@ onMounted(() => {
   max-width: 1920px;
   margin: 0 auto;
 }
+
+/* ===== 左右分栏：左侧评估记录列表（同 SOFA / APACHE II），右侧评估内容 ===== */
+.sepsis-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.side {
+  width: 232px;
+  flex-shrink: 0;
+  background: #fff;
+  border: 1px solid #e7e5e4;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(28, 25, 23, 0.04);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 48px);
+  position: sticky;
+  top: 16px;
+}
+.side-head {
+  height: 46px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f5f5f4;
+  font-weight: 600;
+  font-size: 14px;
+  color: #1c1917;
+}
+.side-head .count {
+  background: #ccfbf1;
+  color: #0f766e;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.side-add {
+  padding: 10px;
+  border-bottom: 1px solid #f5f5f4;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.add-record-btn {
+  width: 100%;
+  height: 36px;
+  background: linear-gradient(135deg, #0d9488, #14b8a6);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.25);
+}
+.add-record-btn:hover {
+  background: linear-gradient(135deg, #14b8a6, #0d9488);
+}
+.add-record-btn .plus { font-size: 18px; line-height: 1; }
+.side-ghost-btn {
+  width: 100%;
+  height: 30px;
+  background: #fff;
+  color: #57534e;
+  border: 1px solid #e7e5e4;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.side-ghost-btn:hover {
+  border-color: #99f6e4;
+  color: #0f766e;
+}
+.record-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+.record-item {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid #e7e5e4;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fff;
+}
+.record-item:hover {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+}
+.record-item.active {
+  border-color: #0d9488;
+  background: #f0fdfa;
+}
+.record-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.record-time {
+  font-size: 12px;
+  color: #44403c;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.record-score {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 50%;
+}
+.record-score.green { background: #dcfce7; color: #16a34a; }
+.record-score.orange { background: #fef3c7; color: #d97706; }
+.record-score.gray { background: #f5f5f4; color: #a8a29e; }
+.record-meta {
+  font-size: 11px;
+  color: #a8a29e;
+  line-height: 1.8;
+}
+.record-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: #f5f5f4;
+  color: #78716c;
+}
+.record-tag.cur-tag { background: #ccfbf1; color: #0f766e; }
+.record-tag.del-tag { cursor: pointer; }
+.record-tag.del-tag:hover { background: #fee2e2; color: #dc2626; }
+.record-empty {
+  text-align: center;
+  color: #a8a29e;
+  font-size: 12px;
+  padding: 28px 0;
+}
+.main {
+  flex: 1;
+  min-width: 0;
+}
 .warn-bar {
   padding: 16px 24px;
 }
@@ -777,10 +1130,11 @@ onMounted(() => {
 .card {
   background: #fff;
   border-radius: 10px;
-  padding: 16px 18px;
+  /* 左侧记录列表占掉 232px 后整体收紧，空间从 1H/3H/6H 模块压出来 */
+  padding: 12px 14px;
   box-shadow: 0 1px 4px rgba(28, 25, 23, 0.04);
   border: 1px solid #e7e5e4;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .block-title {
@@ -1029,8 +1383,8 @@ onMounted(() => {
 .bundle-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 .bundle-card {
   background: #fff;
@@ -1048,7 +1402,7 @@ onMounted(() => {
   border-top: 3px solid #d97706;
 }
 .bundle-card-header {
-  padding: 14px 18px;
+  padding: 10px 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1102,12 +1456,12 @@ onMounted(() => {
 }
 
 .bundle-card-body {
-  padding: 14px 18px;
+  padding: 10px 14px;
   flex: 1;
 }
 .bundle-item {
-  padding: 10px 12px;
-  margin-bottom: 8px;
+  padding: 7px 10px;
+  margin-bottom: 6px;
   background: #fafaf9;
   border-radius: 6px;
   border-left: 3px solid #d6d3d1;
@@ -1226,7 +1580,7 @@ onMounted(() => {
 }
 
 .bundle-card-footer {
-  padding: 10px 18px;
+  padding: 8px 14px;
   border-top: 1px solid #e7e5e4;
   background: #fafaf9;
   display: flex;
@@ -1266,7 +1620,8 @@ onMounted(() => {
 }
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* 三块改为多选按钮后每块都要横向铺开，单列才放得下 */
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 .info-block {
@@ -1275,9 +1630,9 @@ onMounted(() => {
   border-radius: 6px;
 }
 .info-label {
-  font-size: 11px;
-  color: #78716c;
-  font-weight: 500;
+  font-size: 13px;
+  color: #292524;
+  font-weight: 700;
   margin-bottom: 6px;
 }
 .info-value {
@@ -1295,10 +1650,68 @@ onMounted(() => {
   font-size: 12px;
   color: #0f766e;
   background: #f0fdfa;
-  border: 1px solid #d9ecff;
+  border: 1px solid #99f6e4;
   padding: 2px 8px;
   border-radius: 4px;
   line-height: 1.5;
+}
+/* 感染相关信息：参考窗口 / 系统参考值 / 多选枚举按钮 */
+.ref-window {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+  color: #a8a29e;
+}
+/* 系统参考：与 1H/3H/6H 项目下方的提示信息同款，放在勾选按钮组下面 */
+.ref-tags {
+  margin-left: 24px;
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ref-tag {
+  font-size: 11px;
+  color: #0f766e;
+  background: #f0fdfa;
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  line-height: 1.5;
+}
+.ref-tag.prefix {
+  color: #78716c;
+  background: #f5f5f4;
+}
+.ref-tag.empty {
+  color: #a8a29e;
+  background: #f5f5f4;
+}
+.opt-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.opt-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #57534e;
+  background: #ffffff;
+  border: 1px solid #e7e5e4;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.opt-btn:hover {
+  border-color: #99f6e4;
+  color: #0f766e;
+}
+.opt-btn.on {
+  color: #ffffff;
+  background: #0d9488;
+  border-color: #0d9488;
+  font-weight: 500;
 }
 
 /* 液体复苏未达原因 */
@@ -1390,6 +1803,18 @@ onMounted(() => {
   }
   .bottom-grid {
     grid-template-columns: 1fr;
+  }
+  /* 窄屏时记录列表改为顶部横排，不再挤压右侧内容 */
+  .sepsis-body {
+    flex-direction: column;
+  }
+  .side {
+    width: 100%;
+    max-height: 260px;
+    position: static;
+  }
+  .main {
+    width: 100%;
   }
   .p-progress-area {
     min-width: 100%;

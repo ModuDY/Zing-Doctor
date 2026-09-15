@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { ElMessage, ElLoading } from 'element-plus'
 import { getExternalHeaders } from '../utils/external'
+import { getAuthHeaders, clearSession } from '../utils/auth'
 
 const request = axios.create({
   baseURL: '/api',
@@ -87,9 +88,27 @@ function notifyError(config, friendly) {
   ElMessage.error(isWriteRequest(config) ? '操作未成功：' + friendly : friendly)
 }
 
-// 请求注入外链鉴权头
+/**
+ * 会话失效后回到登录页，并带上当前地址，登录成功可原路返回。
+ * 这里直接用 location 跳转而不用 router：request 被大量模块间接引用，
+ * 引入 router 容易形成循环依赖。
+ */
+function redirectToLogin() {
+  if (window.location.pathname === '/login') return
+  const redirect = encodeURIComponent(window.location.pathname + window.location.search)
+  window.location.href = '/login?redirect=' + redirect
+}
+
+const SESSION_EXPIRED_TEXT = '登录已失效，请重新登录'
+
+/** 是否为登录链路自身的请求：这类 401 不代表会话过期，不能跳登录页 */
+function isAuthRequest(url) {
+  return /\/auth\/(login|info|logout)/.test(String(url || ''))
+}
+
+// 请求注入鉴权头：直连登录令牌 + 外链凭证（两者可并存，后端任一通过即放行）
 request.interceptors.request.use((config) => {
-  Object.assign(config.headers, getExternalHeaders())
+  Object.assign(config.headers, getExternalHeaders(), getAuthHeaders())
   enterRequest()
   return config
 }, (err) => {
@@ -102,6 +121,14 @@ request.interceptors.response.use(
   (resp) => {
     leaveRequest()
     const res = resp.data
+    // 会话过期：清本地令牌并回登录页。登录链路自身的 401（账号密码错）不在此处理。
+    if (res.code === 401 && !isAuthRequest(resp.config.url)) {
+      console.error('[api]', resp.config.url, res.code, res.message)
+      clearSession()
+      ElMessage.error(SESSION_EXPIRED_TEXT)
+      redirectToLogin()
+      return Promise.reject(new Error(SESSION_EXPIRED_TEXT))
+    }
     if (res.code !== 0) {
       console.error('[api]', resp.config.url, res.code, res.message)
       const friendly = friendlyMessage(res.message)
@@ -114,6 +141,13 @@ request.interceptors.response.use(
   },
   (err) => {
     leaveRequest()
+    // HTTP 层返回 401（未经全局异常处理包装的场景）同样按会话失效处理
+    if (err.response && err.response.status === 401 && !isAuthRequest(err.config && err.config.url)) {
+      clearSession()
+      ElMessage.error(SESSION_EXPIRED_TEXT)
+      redirectToLogin()
+      return Promise.reject(new Error(SESSION_EXPIRED_TEXT))
+    }
     const data = err.response && err.response.data
     const raw = (data && (data.message || data.msg)) || err.message || '网络错误'
     console.error('[api]', err.config && err.config.url, err.response && err.response.status, raw)

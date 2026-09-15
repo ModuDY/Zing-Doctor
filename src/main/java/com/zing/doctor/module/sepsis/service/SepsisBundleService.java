@@ -13,6 +13,17 @@ public interface SepsisBundleService {
     SepsisBundleView getBundleDetail(String inHospitalNo);
 
     /**
+     * 预览计算：按给定的记录时间 / 确诊时间跑一遍自动评估，<b>不落库</b>。
+     * 供「新建评估」和「改时间后重新评估」使用。
+     *
+     * @param inHospitalNo  住院号
+     * @param recordTime    记录时间（yyyy-MM-dd HH:mm:ss），决定三块系统参考的 14 天窗口结束点；为空则用当前时间
+     * @param diagnosisTime 确诊时间（yyyy-MM-dd HH:mm:ss）；为空则由后端从诊断信息推断
+     * @param id            在该记录基础上重算（保留它已保存的手动勾选）；为 null 表示纯新建预览
+     */
+    SepsisBundleView calculateBundle(String inHospitalNo, String recordTime, String diagnosisTime, Long id);
+
+    /**
      * 获取患者历史评估记录列表
      */
     List<SepsisBundleRecord> getHistoryList(String inHospitalNo);

@@ -27,6 +27,9 @@
             <span>{{ rec.createBy || '—' }}</span>
             <span :class="['record-tag', recTagClass(rec)]">{{ scoreTypeLabel(rec) }}</span>
             <span v-if="rec.hasPdf === 1" class="record-tag pdf-tag" @click.stop="viewSavedPdf(rec)">PDF文书</span>
+            <!-- 归档：待归档→点击推送到院方归档接口→已归档；已归档再点只撤销标记（不调接口） -->
+            <span :class="['record-tag', 'archive-tag', rec.archiveStatus === 1 ? 'done' : 'todo']"
+                  @click.stop="toggleArchive(rec)">{{ rec.archiveStatus === 1 ? '已归档' : '待归档' }}</span>
             <!-- 删除按钮与 SOFA 一致，直接放在记录条里；@click.stop 防止连带触发 selectRecord -->
             <span class="record-tag del-tag" @click.stop="deleteRecord(rec)">删除</span>
           </div>
@@ -696,6 +699,7 @@ import html2canvas from 'html2canvas'
 import axios from 'axios'
 import request from '../api/request'
 import { getExternalHeaders, isExternalMode } from '../utils/external'
+import { getAuthHeaders } from '../utils/auth'
 import { useStaffSignature } from '../utils/staffSignature'
 
 const route = useRoute()
@@ -1461,7 +1465,7 @@ async function saveRecord() {
       dataEndTime: toBackendDateTime(fetchEndTime.value),
       gcsDetail: `E${form.gcsEye}V${form.gcsVerbal}M${form.gcsMotor}`,
       remark: form.remark,
-      createBy: realname.value || username.value || form.doctor || 'doctor',
+      // createBy 不传：由后端按服务端解析出的操作人覆盖，避免前端把它改成别人
       // 阶段1不带PDF大字段，文书走阶段2单独补传
       pdfData: null,
       pdfName: null
@@ -1507,12 +1511,35 @@ async function saveRecord() {
 }
 
 /** 删除指定记录（左侧记录条内的「删除」，与 SOFA 一致） */
+/**
+ * 文书归档：
+ *   待归档 → 调院方归档接口推送该条文书 → 成功后标记「已归档」；
+ *   已是「已归档」时再点只撤销标记，不调用院方接口（只改本地状态）。
+ */
+async function toggleArchive(rec) {
+  if (!rec || !rec.id) return
+  try {
+    if (rec.archiveStatus === 1) {
+      await request.post('/archive/unmark', null, { params: { biz: 'APACHE2', id: rec.id } })
+      rec.archiveStatus = 0
+      ElMessage.success('已撤销归档标记')
+    } else {
+      await request.post('/archive/push', null, { params: { biz: 'APACHE2', id: rec.id } })
+      rec.archiveStatus = 1
+      ElMessage.success('归档成功')
+    }
+  } catch (e) {
+    console.error('归档失败', e)
+    ElMessage.error(e?.response?.data?.message || e?.message || '归档失败')
+  }
+}
+
 async function deleteRecord(rec) {
   if (!rec || !rec.id) return
   try {
     await ElMessageBox.confirm(`确定删除 ${formatDisplayTime(rec.scoreTime)} 的评分记录吗？`, '确认删除', { type: 'warning' })
-    const res = await request.delete(`/apache2/record/${rec.id}`,
-      { params: { operator: 'doctor' }, silentError: true })
+    // 不再传 operator：操作人由服务端从登录态/外链身份解析，前端传什么都不采信
+    const res = await request.delete(`/apache2/record/${rec.id}`, { silentError: true })
     if (res) {
       ElMessage.success('删除成功')
       // 删掉的正是当前打开的那条时清空选中，避免之后保存误更新到已删记录
@@ -2019,7 +2046,7 @@ async function viewSavedPdf(rec) {
   try {
     const resp = await axios.get(`/api/apache2/record/${rec.id}/pdf`, {
       params: { disposition: 'inline', t: Date.now() },
-      headers: getExternalHeaders(),
+      headers: { ...getExternalHeaders(), ...getAuthHeaders() },
       responseType: 'blob',
       timeout: 60000
     })
@@ -2255,6 +2282,12 @@ async function viewSavedPdf(rec) {
 /* 记录条内删除按钮（与 SOFA 记录条一致） */
 .record-tag.del-tag { cursor: pointer; }
 .record-tag.del-tag:hover { background: #fef0f0; color: #f56c6c; }
+/* 归档状态标签：待归档（橙，可点击推送）/ 已归档（绿，点击撤销标记） */
+.record-tag.archive-tag { cursor: pointer; }
+.record-tag.archive-tag.todo { background: #fdf6ec; color: #e6a23c; }
+.record-tag.archive-tag.todo:hover { background: #fbe9d0; }
+.record-tag.archive-tag.done { background: #e1f3d8; color: #389e0d; }
+.record-tag.archive-tag.done:hover { background: #d3f0c0; }
 
 /* 离屏文书渲染源：移出视口但保留真实尺寸供 html2canvas 渲染 */
 .report-offscreen { position: absolute; left: -9999px; top: 0; width: 794px; pointer-events: none; }

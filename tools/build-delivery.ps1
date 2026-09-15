@@ -118,6 +118,11 @@ Copy-Item "$root\docker-compose.yml" $work -Force
 Copy-Item "$root\Dockerfile" $work -Force
 Copy-Item "$root\install.sh" $work -Force
 Copy-Item "$root\README.md" $work -Force
+# 数据库变更清单：install.sh 不会执行 SQL（容器无达梦客户端），故把清单放包根目录，
+# 部署方解压第一眼就能看到，避免「代码更新了但表没改」导致页面直接 500。
+if (Test-Path "$root\DATABASE-CHANGES.md") {
+    Copy-Item "$root\DATABASE-CHANGES.md" $work -Force
+}
 
 $fe = Join-Path $work 'frontend'
 New-Item -ItemType Directory -Force -Path $fe | Out-Null
@@ -146,9 +151,17 @@ $lines = New-Object System.Collections.ArrayList
 [void]$lines.Add('生成时间：' + (Get-Date -Format 'yyyy-MM-dd HH:mm'))
 [void]$lines.Add('形态：' + $formDesc)
 [void]$lines.Add('')
+[void]$lines.Add('## ⚠️ 升级前先看：DATABASE-CHANGES.md')
+[void]$lines.Add('')
+[void]$lines.Add('应用容器里没有达梦客户端，install.sh **不会**自动执行 SQL。')
+[void]$lines.Add('本次交付若含表结构变更，必须先人工在数据库上执行 **DATABASE-CHANGES.md** 里的语句，')
+[void]$lines.Add('否则新代码打开页面直接 500（典型报错：`无效的列名[xxx]`）。')
+[void]$lines.Add('执行完无需重启容器，刷新页面即可生效。')
+[void]$lines.Add('')
 [void]$lines.Add('解压后顶层目录就是 zing-doctor/（可直接覆盖上一次的部署目录）。')
 [void]$lines.Add('')
 [void]$lines.Add('## 目录')
+[void]$lines.Add('- **DATABASE-CHANGES.md** 数据库变更清单（升级先看，含本次需手工执行的 SQL）')
 [void]$lines.Add('- app/zing-doctor.jar   后端可执行 jar（JDK 8+，8081，已含达梦驱动）')
 [void]$lines.Add('- frontend/dist/        前端静态产物')
 [void]$lines.Add('- frontend/nginx.conf   /api、/entry 反代 + history 回退')
@@ -181,6 +194,7 @@ $lines = New-Object System.Collections.ArrayList
 [void]$lines.Add('```')
 [void]$lines.Add('')
 [void]$lines.Add('## 常见坑')
+[void]$lines.Add('- **表结构变更必须手工执行 SQL**：见 DATABASE-CHANGES.md。容器里没有 disql，install.sh 不会代跑；漏执行的表现为：相关页面打开即 500（`无效的列名[xxx]`）。')
 [void]$lines.Add('- 前端 dist 是 bind mount：**不要 `rm -rf frontend/dist`**（目录 inode 变化后容器仍挂旧空目录，表现为 403/500 或页面不更新），要用覆盖内容的方式。')
 [void]$lines.Add('- **不要在部署目录内部解压**新包（会多出一层 zing-doctor/zing-doctor，install.sh 部署的还是里面那份）。')
 [void]$lines.Add('- 不要整目录覆盖 docker-compose.yml（会还原你改过的达梦地址 / EXTERNAL_LINK_BASE_URL）。')

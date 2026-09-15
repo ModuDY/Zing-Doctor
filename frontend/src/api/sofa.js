@@ -55,6 +55,16 @@ export function autoGenerateSofa(departCode, overHours) {
   return request.post('/sofa/auto-generate', null, { params: { departCode, overHours } })
 }
 
+/** 文书归档推送：调院方归档接口，成功后该记录标记「已归档」 */
+export function pushSofaArchive(id) {
+  return request.post('/archive/push', null, { params: { biz: 'SOFA', id } })
+}
+
+/** 撤销归档标记：只改本地状态，不调院方接口 */
+export function unmarkSofaArchive(id) {
+  return request.post('/archive/unmark', null, { params: { biz: 'SOFA', id } })
+}
+
 /** 配置列表（含停用项；configType 为空返回全部） */
 export function fetchSofaConfig(configType) {
   return request.get(configType ? `/sofa/config/${configType}` : '/sofa/config')

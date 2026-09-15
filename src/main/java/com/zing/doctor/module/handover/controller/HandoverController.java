@@ -49,6 +49,19 @@ public class HandoverController {
         }
     }
 
+    /** 上一班次的手工交班记录（一键导入用），没有则返回 null */
+    @GetMapping("/previous-note")
+    public Result<HandoverNote> previousNote(
+            @RequestParam String inHospitalNo,
+            @RequestParam(required = false) String shiftDate) {
+        try {
+            return Result.ok(handoverService.getPreviousNote(inHospitalNo, shiftDate));
+        } catch (Exception e) {
+            log.error("加载上一班交班记录失败: inHospitalNo={}, shiftDate={}", inHospitalNo, shiftDate, e);
+            return Result.fail("加载失败: " + e.getMessage());
+        }
+    }
+
     /** 保存/更新本班病情变化（一患者一班一条） */
     @PostMapping("/save-note")
     public Result<HandoverNote> saveNote(@RequestBody HandoverNote note) {

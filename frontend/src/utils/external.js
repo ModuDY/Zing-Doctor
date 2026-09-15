@@ -13,6 +13,8 @@ const KEY_EXPIRE = 'extExpire'
 const KEY_SIGN = 'extSign'
 const KEY_TOKEN = 'extToken'
 const KEY_MODE = 'extMode'
+/** 外链带来的医生身份（姓名优先，其次工号）：供后端写 create_by / update_by */
+const KEY_OPERATOR = 'extOperator'
 
 /** 从当前 URL 捕获外链上下文（有完整上下文才写入，避免覆盖已登录态） */
 export function captureExternalContext() {
@@ -29,6 +31,14 @@ export function captureExternalContext() {
     if (m) pageCode = decodeURIComponent(m[1])
   }
   if (!pageCode) return
+  // 捕获医生身份：/entry 302 后的 URL 上带着第三方传来的 realname/username。
+  // 它不会自动出现在后续 /api 请求的 query 上，故在此暂存，再由请求头统一带过去。
+  const operator = q.get('realname') || q.get('userName') || q.get('username') || q.get('userId') || ''
+  if (operator) {
+    sessionStorage.setItem(KEY_OPERATOR, operator)
+  } else {
+    sessionStorage.removeItem(KEY_OPERATOR)
+  }
   if (expire && sign) {
     sessionStorage.setItem(KEY_PAGE, pageCode)
     sessionStorage.setItem(KEY_EXPIRE, expire)
@@ -58,6 +68,11 @@ export function getExternalHeaders() {
   const sign = sessionStorage.getItem(KEY_SIGN)
   const token = sessionStorage.getItem(KEY_TOKEN)
   headers['X-External-PageCode'] = pageCode
+  // 操作人身份：后端据此写 create_by / update_by，不由各页面自行传递（不可信）
+  const operator = sessionStorage.getItem(KEY_OPERATOR)
+  if (operator) {
+    headers['X-External-Operator'] = operator
+  }
   if (expire && sign) {
     headers['X-External-Expire'] = expire
     headers['X-External-Sign'] = sign
@@ -109,6 +124,12 @@ export function appendExternalContext(url) {
   const expire = sessionStorage.getItem(KEY_EXPIRE)
   const sign = sessionStorage.getItem(KEY_SIGN)
   const parts = [`pageCode=${encodeURIComponent(pageCode)}`]
+  // 带上医生身份：否则站内跳过去的页面丢失 realname，既显示不出名字也记不到操作人。
+  // 用 realname 为键名，与目标页面既有的「评分医师」展示逻辑一致。
+  const operator = sessionStorage.getItem(KEY_OPERATOR)
+  if (operator) {
+    parts.push(`realname=${encodeURIComponent(operator)}`)
+  }
   if (token) {
     parts.push(`extToken=${encodeURIComponent(token)}`)
   } else if (expire && sign) {

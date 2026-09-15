@@ -78,6 +78,16 @@ public class Apache2ScoreRecord {
 
     private String remark;
 
+    /** 归档状态：0待归档 1已归档（成功推送到院方文书归档接口后置 1） */
+    private Integer archiveStatus;
+
+    /** 最近一次归档成功时间 */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime archiveTime;
+
+    /** 文书归档路径（按参数设置页的归档目录规则生成） */
+    private String filePath;
+
     /** 评分文书PDF的Base64（不含data前缀）；默认查询不返回，避免列表臃肿 */
     @TableField(value = "\"pdf_data\"", select = false)
     private String pdfData;

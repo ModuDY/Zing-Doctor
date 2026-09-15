@@ -1,5 +1,6 @@
 package com.zing.doctor.module.sepsis.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
@@ -103,12 +104,44 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
 
     @Override
     public SepsisBundleView getBundleDetail(String inHospitalNo) {
+        return buildView(inHospitalNo, getByInHospitalNo(inHospitalNo), null, null);
+    }
+
+    @Override
+    public SepsisBundleView calculateBundle(String inHospitalNo, String recordTime, String diagnosisTime, Long id) {
+        // 传 id = 在该记录基础上按新时间重算（保留它已保存的手动勾选）；不传 = 纯新建预览。
+        // 两者都只算不存。
+        SepsisBundleRecord record = (id != null) ? bundleRecordMapper.selectById(id) : null;
+        return buildView(inHospitalNo, record, parseDateTime(recordTime), parseDateTime(diagnosisTime));
+    }
+
+    /**
+     * 构建评估视图（getBundleDetail / calculateBundle 共用）
+     *
+     * @param record                 已保存记录，可为 null（新建、或该患者尚无记录）
+     * @param overrideRecordTime     覆盖记录时间（决定三块系统参考的 14 天窗口结束点），可为 null
+     * @param overrideDiagnosisTime  覆盖确诊时间，可为 null
+     */
+    private SepsisBundleView buildView(String inHospitalNo, SepsisBundleRecord record,
+                                       LocalDateTime overrideRecordTime, LocalDateTime overrideDiagnosisTime) {
         // 每次评估前刷新抗菌药词库快照（配置页修改即时生效；识别器自身也有 5 分钟兜底刷新）
         abxDrugRecognizer.refresh();
         SepsisBundleView view = new SepsisBundleView();
 
-        // 1. 查询已保存的记录
-        SepsisBundleRecord record = getByInHospitalNo(inHospitalNo);
+        // 传入的时间只参与计算，不回写数据库：在记录副本上覆盖，避免污染真实记录
+        SepsisBundleRecord effective = record;
+        if (overrideRecordTime != null || overrideDiagnosisTime != null) {
+            effective = (record != null) ? copyRecord(record) : new SepsisBundleRecord();
+            if (overrideRecordTime != null) {
+                effective.setCreateTime(overrideRecordTime);
+            } else if (record == null) {
+                effective.setCreateTime(LocalDateTime.now());
+            }
+            if (overrideDiagnosisTime != null) {
+                effective.setDiagnosisTime(overrideDiagnosisTime);
+            }
+        }
+
         // 保存已手动修改的项目状态（自动评估后需要恢复）
         SepsisBundleView.BundleItem savedBundle1h = null;
         SepsisBundleView.BundleItem savedBundle3h = null;
@@ -116,6 +149,7 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
 
         if (record != null) {
             view.setId(record.getId());
+            view.setCreateTime(record.getCreateTime() != null ? record.getCreateTime().format(DT_FMT) : null);
             view.setPatientId(record.getPatientId());
             view.setInHospitalNo(record.getInHospitalNo());
             view.setPatientName(record.getPatientName());
@@ -149,9 +183,17 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
             }
         }
 
+        // 记录时间 / 确诊时间被前端覆盖时，视图同样展示覆盖后的值（仅展示，不回写数据库）
+        if (effective != null && effective.getCreateTime() != null) {
+            view.setCreateTime(effective.getCreateTime().format(DT_FMT));
+        }
+        if (overrideDiagnosisTime != null) {
+            view.setDiagnosisTime(overrideDiagnosisTime.format(DT_FMT));
+        }
+
         // 2. 从 ICU 系统自动获取数据并判断
         try {
-            autoAssessBundle(view, inHospitalNo, record);
+            autoAssessBundle(view, inHospitalNo, effective);
         } catch (Exception e) {
             log.error("自动评估脓毒症集束化治疗失败: inHospitalNo={}", inHospitalNo, e);
         }
@@ -293,6 +335,24 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
             view.setDiagnosisTime(diagnosisTime.format(DT_FMT));
         }
 
+        // ========== 三块「参考值」的取数窗口 ==========
+        // 口径：本条评估记录的创建时间往前 14 天（新建评估时 = 当前时间）。
+        // 只作用于「感染部位/致病菌/抗菌药物」三块的系统参考值；
+        // 1H/3H/6H 集束化项目的判定仍用各自原始列表，不受此窗口影响。
+        LocalDateTime refEnd = (record != null && record.getCreateTime() != null)
+                ? record.getCreateTime() : LocalDateTime.now();
+        LocalDateTime refStart = refEnd.minusDays(14);
+        view.setRefWindowStart(refStart.format(DT_FMT));
+        view.setRefWindowEnd(refEnd.format(DT_FMT));
+        // 窗口内的诊断（感染部位参考用）；休克类型、液体复苏原因判定继续用全量 diagnosisList
+        List<Map<String, Object>> refDiagnosisList = diagnosisList.stream()
+                .filter(d -> {
+                    Object t = d.get("diag_time") != null ? d.get("diag_time") : d.get("create_time");
+                    LocalDateTime dt = parseDateTime(str(t));
+                    return dt != null && !dt.isBefore(refStart) && !dt.isAfter(refEnd);
+                })
+                .collect(Collectors.toList());
+
         // 体重
         Double weight = null;
         Object weightObj = patient.get("weight");
@@ -325,12 +385,23 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
         List<Map<String, Object>> vasopressorList = icuPatientMapper.selectVasopressorAdvice(inHospitalNo);
 
         // 获取细菌培养结果（致病菌）
+        // 窗口 = [评估记录创建时间 - 14天, 评估记录创建时间]
         List<Map<String, Object>> bacteriaList = icuPatientMapper.selectBacteriaCultureForStats(
-                diagnosisTime.minusDays(30).format(DT_FMT),
-                diagnosisTime.plusDays(30).format(DT_FMT),
+                refStart.format(DT_FMT),
+                refEnd.format(DT_FMT),
                 "");
         bacteriaList = bacteriaList.stream()
                 .filter(b -> inHospitalNo.equals(str(b.get("in_hospital_no"))))
+                .collect(Collectors.toList());
+
+        // 抗菌药物【系统参考】专用：同样收窄到 14 天窗口。
+        // 上面 antibioticList 保持全量——1H「抗菌药物前血培养」「应用广谱抗菌药物」判定依赖它，不能收窄。
+        List<Map<String, Object>> refAntibioticList = icuPatientMapper.selectAntibioticAdvice(
+                inHospitalNo, refStart.format(DT_FMT), refEnd.format(DT_FMT));
+        refAntibioticList = (refAntibioticList == null ? new ArrayList<Map<String, Object>>() : refAntibioticList)
+                .stream()
+                .filter(a -> isBroadSpectrum(str(a.get("name"))))
+                .filter(a -> !isNonAntibiotic(str(a.get("name"))))
                 .collect(Collectors.toList());
 
         // ========== 1H 项目评估 ==========
@@ -626,10 +697,12 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
 
         view.setBundle6h(bundle6h);
 
-        // ========== 感染部位自动判断 ==========
-        if (view.getInfectionSite() == null || view.getInfectionSite().isEmpty()) {
+        // ========== 感染部位 / 致病菌 / 抗菌药物：系统参考值 ==========
+        // 这三个字段只用于页面「参考」展示，不写库、不覆盖医生勾选结果。
+        // 医生勾选的枚举值存在 infectionSite / pathogen / antibiotic 上，由前端提交后入库。
+        {
             Set<String> infectionSites = new LinkedHashSet<>();
-            for (Map<String, Object> diag : diagnosisList) {
+            for (Map<String, Object> diag : refDiagnosisList) {
                 String diagName = str(diag.get("diag_name"));
                 for (Map.Entry<String, String> entry : INFECTION_SITE_MAP.entrySet()) {
                     if (diagName.contains(entry.getKey())) {
@@ -638,13 +711,10 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
                     }
                 }
             }
-            if (!infectionSites.isEmpty()) {
-                view.setInfectionSite(String.join("、", infectionSites));
-            }
+            view.setInfectionSiteRef(String.join("、", infectionSites));
         }
 
-        // ========== 致病菌自动填充 ==========
-        if ((view.getPathogen() == null || view.getPathogen().isEmpty()) && !bacteriaList.isEmpty()) {
+        {
             Set<String> pathogens = new LinkedHashSet<>();
             for (Map<String, Object> b : bacteriaList) {
                 String bacteriaName = str(b.get("bacteria_name"));
@@ -652,23 +722,18 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
                     pathogens.add(bacteriaName);
                 }
             }
-            if (!pathogens.isEmpty()) {
-                view.setPathogen(String.join("、", pathogens));
-            }
+            view.setPathogenRef(String.join("、", pathogens));
         }
 
-        // ========== 抗生素自动填充 ==========
-        // 始终按当前词库配置（isSolvent + isNonAntibiotic + 去重）实时重算并覆盖，
-        // 保证词库配置修改后，历史评估记录展示的抗菌药物列表也立即按新规则生效。
         {
             Set<String> antibiotics = new LinkedHashSet<>();
-            for (Map<String, Object> abx : antibioticList) {
+            for (Map<String, Object> abx : refAntibioticList) {
                 String name = str(abx.get("name"));
                 if (name != null && !name.isEmpty()) {
                     antibiotics.add(name);
                 }
             }
-            view.setAntibiotic(String.join("、", antibiotics));
+            view.setAntibioticRef(String.join("、", antibiotics));
         }
 
         // ========== 液体复苏未达标原因自动判断 ==========
@@ -695,7 +760,11 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
     @Override
     public SepsisBundleRecord saveBundle(SepsisBundleRecord record) {
         // 每次保存都是新的评估记录（支持多次评估）
-        record.setCreateTime(LocalDateTime.now());
+        // 记录时间由前端传入（医生可改，用于补录过去的评估）；为空时才取当前时间。
+        // 它同时决定三块「系统参考」14 天窗口的结束点。
+        if (record.getCreateTime() == null) {
+            record.setCreateTime(LocalDateTime.now());
+        }
         record.setUpdateTime(LocalDateTime.now());
         if (record.getStatus() == null) {
             record.setStatus(1);
@@ -706,11 +775,9 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
 
     @Override
     public SepsisBundleRecord updateBundle(SepsisBundleRecord record) {
-        // 保护已保存的感染信息（感染部位/致病菌/抗菌药物）：
-        // 展示层抗菌药列表按当前词库实时重算，但更新评估记录时不得覆盖历史保存值，保证数据可追溯
-        record.setInfectionSite(null);
-        record.setPathogen(null);
-        record.setAntibiotic(null);
+        // 感染部位/致病菌/抗菌药物 改为医生勾选的枚举值，必须允许更新（旧逻辑置 null 会丢勾选）。
+        // 系统自动取到的原始值只放在 *Ref 字段展示，不入库，因此这里不存在"覆盖历史值"的问题。
+        // createTime（记录时间）允许医生回改：传入非空即更新，为空时 updateById 会跳过该字段。
         record.setUpdateTime(LocalDateTime.now());
         bundleRecordMapper.updateById(record);
         return record;
@@ -759,6 +826,7 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
         SepsisBundleView view = new SepsisBundleView();
         // 填充基本信息
         view.setId(record.getId());
+        view.setCreateTime(record.getCreateTime() != null ? record.getCreateTime().format(DT_FMT) : null);
         view.setPatientId(record.getPatientId());
         view.setInHospitalNo(record.getInHospitalNo());
         view.setPatientName(record.getPatientName());
@@ -815,6 +883,13 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
     }
 
     // ========== 工具方法 ==========
+
+    /** 拷贝一条记录：用于在不改动数据库的前提下，覆盖时间参与预览计算 */
+    private SepsisBundleRecord copyRecord(SepsisBundleRecord src) {
+        SepsisBundleRecord copy = new SepsisBundleRecord();
+        BeanUtil.copyProperties(src, copy);
+        return copy;
+    }
 
     /**
      * 判断休克类型

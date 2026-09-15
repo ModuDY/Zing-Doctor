@@ -173,7 +173,7 @@ public class SofaController {
     /**
      * 单指标趋势，供评分页「来源」弹窗趋势图。
      *
-     * @param metricKey resp / coag / liver / cardio / neuro / renal / total
+     * @param metricKey resp / coag / liver / cardio / neuro / renal
      */
     @GetMapping("/metric-trend/{patientId}")
     public Result<List<Map<String, Object>>> metricTrend(@PathVariable String patientId,

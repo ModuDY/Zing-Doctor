@@ -1,6 +1,7 @@
 import axios from 'axios'
 import request from './request'
 import { getExternalHeaders } from '../utils/external'
+import { getAuthHeaders } from '../utils/auth'
 
 /**
  * 质控指标中台 API 客户端。
@@ -304,7 +305,7 @@ export function reloadQualityConfig() {
 export function exportQualityXlsx(year, departCode) {
   return axios.get('/api/quality/export', {
     params: { year, departCode },
-    headers: getExternalHeaders(),
+    headers: { ...getExternalHeaders(), ...getAuthHeaders() },
     responseType: 'blob',
     timeout: 120000
   })

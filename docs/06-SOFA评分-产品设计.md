@@ -1,7 +1,8 @@
 # SOFA 评分（序贯器官衰竭评估）· 产品设计方案
 
 > 版本：设计稿 v1 · 2026-09-11
-> 定位：在现有 APACHE II 评分基础上，新增 SOFA 动态器官功能评估，服务于 **Sepsis-3 脓毒症判定**、病情恶化预警与疗效评估。
+> 变更：2026-09-15 —— ① 自动评分改为「入科满 24h 后**终身一条**」（与 APACHE II 对齐）；② 定时任务 cron 由「每 6 小时一次（01/07/13/19）」降为 **每天 01:00**；③ 「SOFA 评分历史趋势」功能下线（前端入口与弹窗删除，后端 `metricKey=total` 分支删除）
+> 定位：在现有 APACHE II 评分基础上，新增 SOFA 器官功能评估，服务于 **Sepsis-3 脓毒症判定**与病情严重度评价。
 
 ## 一、背景与定位
 
@@ -9,14 +10,14 @@
 
 | 维度 | APACHE II（已实现） | SOFA（本方案） |
 |---|---|---|
-| 用途 | 入科病情严重度分级、**院内死亡风险预测** | **器官功能动态评估**、脓毒症判定、疗效/恶化趋势 |
-| 时点 | 入科时 / 24h / 48h 一次 | **每日**动态复评（可 24h/48h/72h 序列） |
+| 用途 | 入科病情严重度分级、**院内死亡风险预测** | **器官功能评估**、脓毒症判定 |
+| 时点 | 入科时一次（一人一条） | 入科满 24h 自动一次（**终身一条**）；医生可手动补评 |
 | 取值口径 | 取数窗口内最差值 | 取数窗口内最差值（默认过去 24h） |
 | 分值 | 0~71（A+B+C+D） | 0~24（6 器官各 0~4） |
 
 ### 1.2 与现有模块的联动
 
-- **脓毒症集束化（`sepsis-bundle`）**：SOFA 是 Sepsis-3 判定核心——「疑似感染 + SOFA 较基线升高 ≥2 分」即脓毒症；集束化页可引用 SOFA 结果。
+- **脓毒症集束化（`sepsis-bundle`）**：SOFA 是 Sepsis-3 判定核心——「疑似感染 + SOFA 较基线升高 ≥2 分」即脓毒症；集束化页可引用 SOFA 结果。⚠️ 自动评分改为终身一条后，ΔSOFA 不再由定时任务自动产生，需医生手动补评才能形成基线 + 复评序列。
 - **第一维度（经验性抗感染决策）**：决策页可显示当前 SOFA 作为治疗强度参考。
 - **ARDS 监测**：SOFA 呼吸项与 ARDS 分级共用「氧合」数据，可互相跳转。
 - **APACHE II 评分页**：同患者可在两套评分间一键切换。
@@ -206,7 +207,7 @@
    - 胆红素：µmol/L → mg/dL（÷17.1）
    - 肌酐：µmol/L → mg/dL（÷88.4，APACHE II 已验证）
    - 尿量：mL/24h（窗口内求和）
-6. **每日复评**：配合定时任务，为在科超 24h 患者自动生成当日 SOFA（幂等，逻辑同 `Apache2AutoScoreTask`）。
+6. **自动初评（终身一条）**：配合定时任务，为在科超 24h 患者自动生成 SOFA 初评；**同一患者只要已存在任意一条评分记录即跳过**（幂等，逻辑同 `Apache2AutoScoreTask`）。需要动态跟踪时由医生手动补评，补评记录与自动记录共存于左侧历史列表。
 
 ## 五、数据库设计（`zing_doctor_db_prod`）
 
@@ -226,7 +227,7 @@
 | gcs_total / gcs_detail | INT / VARCHAR | GCS 与 E/V/M 明细 |
 | respiratory_support | TINYINT | 是否有呼吸支持 |
 | data_start_time / data_end_time | TIMESTAMP | 取数范围 |
-| delta_sofa | INT | 较上一次评分的变化（可为负），用于恶化预警 |
+| delta_sofa | INT | 较上一次评分的变化（可为负）。⚠️ 自动评分改为终身一条后不再自动生成多日序列，仅医生手动补评多条时才有值；「评分历史趋势」已下线，科室总览的 ΔSOFA 预警列仅供参考 |
 | remark / status / create_by / create_time / update_by / update_time | — | 同现有表规范 |
 
 索引：`in_hospital_no`、`depart_code`、`score_time`。
@@ -262,17 +263,16 @@
 
 | 接口 | 方法 | 说明 |
 |---|---|---|
-| `/api/sofa/patients/{patientId}/assessment` | GET | 单患者 SOFA 评估（6 项 + 总分 + 上次对比） |
-| `/api/sofa/patients/by-no/assessment` | GET | 按住院号（ICU 外链用） |
-| `/api/sofa/auto-fetch/{patientId}` | GET | 按取数范围自动取数（返回 6 项原始值 + 呼吸支持 + 尿量 + GCS） |
-| `/api/sofa/metric-trend/{patientId}` | GET | 单指标趋势（复用 APACHE II 交互范式） |
-| `/api/sofa/record` | POST | 保存/更新评分（`score_type` 区分来源） |
-| `/api/sofa/patient/{inHospitalNo}/records` | GET | 历史评分列表 |
-| `/api/sofa/record/{id}` | DELETE | 逻辑删除 |
+| `/api/sofa/assessment/{patientId}` | GET | 单患者 SOFA 评估（6 项 + 总分 + 体重来源；`startTime/endTime` 指定取数范围） |
+| `/api/sofa/assessment/by-no` | GET | 按住院号查询（ICU 外链入口） |
+| `/api/sofa/record` | POST | 保存/更新评分（`score_type`：`daily`/`auto` 自动初评、`reviewed` 已复核、`custom` 手工） |
+| `/api/sofa/records` | GET | 历史评分列表（`inHospitalNo`，按评分时间倒序） |
+| `/api/sofa/record/delete` | POST | 逻辑删除（`id`） |
 | `/api/sofa/auto-generate` | POST | 手动触发自动初评（与定时任务同逻辑，幂等 + 互斥锁） |
 | `/api/sofa/overview` | GET | 科室总览：评分分布、ΔSOFA 恶化预警 |
-| `/api/sofa/metric-trend/{patientId}` | GET | 单指标趋势（resp/coag/liver/cardio/neuro/renal/total），供「来源」弹窗 |
+| `/api/sofa/metric-trend/{patientId}` | GET | 单指标趋势（`metricKey` = resp/coag/liver/cardio/neuro/renal），供「来源」弹窗核对取数依据；⚠️ 原 `total`（总分趋势）已下线 |
 | `/api/sofa/record/{id}/pdf` | GET | 取文书 PDF（Base64 + 文件名） |
+| `/api/sofa/patient/{patientId}/gcs-records` | GET | 重症系统已评估 GCS 记录（GCS 弹窗同步/选择用） |
 | `/api/sofa/record/{id}/pdf` | POST | 补传文书 PDF（与主体保存解耦） |
 | `/api/sofa/config`、`/config/{configType}` | GET | 配置列表（含停用项，带 status） |
 | `/api/sofa/config/save` | POST | 配置新增/更新 |
@@ -288,8 +288,11 @@ module/sofa/
 ├── service/impl/SofaServiceImpl.java      ← 6 项评分规则 + 取数
 ├── entity/SofaScoreRecord.java · SofaConfig.java
 ├── mapper/SofaScoreRecordMapper.java · SofaConfigMapper.java
+├── task/SofaAutoScoreTask.java                ← 定时初评（每天 01:00，终身一条）
 └── dto/SofaAssessmentView.java（6 项子对象 + totalScore + deltaSofa）
 ```
+
+> 上表接口按 `SofaController` 实测代码核对（2026-09-15）；设计稿早期写过的 `/patients/{patientId}/assessment`、`/by-no/assessment`、`/auto-fetch/{patientId}`、`/patient/{inHospitalNo}/records`、`/record/{id}` DELETE 等路径，实际实现已分别合并/改名为上表形式。
 
 新增 ICU 查询（`IcuPatientMapper`，`@DS("icu")` 只读）：
 - `selectPlateletRecordsByRange(inHospitalNo, startTime, endTime)`
@@ -313,8 +316,10 @@ module/sofa/
 │ 神经 GCS      │ 肾            │        总分 / ΔSOFA 对比       │
 │ (E/V/M)      │ 肌酐 / 24h尿量 │  0~24 + 较上次 ↑↓ 变化         │
 └──────────────┴──────────────┴────────────────────────────────┘
-   ▸ 每项右侧「来源」按钮 → 弹窗（当前值 + 命中区间 + 得分 + 趋势图）
-   ▸ 支持自动取数 / 手工修正 / 保存 / 历史列表
+   ▸ 每项右侧「来源」按钮 → 弹窗（当前值 + 命中区间 + 得分 + 该指标数据趋势图）
+   ▸ 支持自动取数 / 分值手工修正 / 保存 / 左侧历史列表（新建、切换、删除）
+   ▸ ⚠️ 「SOFA 评分历史趋势」入口已于 2026-09-15 下线：自动评分改为终身一条后无自动多日序列。
+      「来源」弹窗内的单指标趋势保留，用于核对本次取数依据
 ```
 
 **直接复用 APACHE II 的交互范式**（本项目已验证有效）：
@@ -353,10 +358,10 @@ module/sofa/
 
 ### P1（✅ 已实现）
 1. ✅ `sofa-overview` 总览 + ΔSOFA 恶化预警
-2. ✅ 每日自动评分定时任务（`SofaAutoScoreTask`，默认每天 02:30；幂等 + 互斥锁；cron/开关/入科小时数均可配置）
-   - 取数范围 = **评估时点前 24h**（标准 SOFA 口径；入科不足 24h 从入科时间起算）。不可用「当日 0 点→现在」，否则 02:30 触发时窗口仅 2.5h，多数指标无数据记 0 分，且尿量判据（要求窗口 ≥20h）会被直接跳过
+2. ✅ 自动评分定时任务（`SofaAutoScoreTask`，cron 默认 `0 0 1 * * ?` 即**每天 01:00**；幂等粒度为「已有任何记录则跳过」= **终身一条**；互斥锁；cron/开关/入科小时数均可配置）
+   - 取数范围 = **评估时点前 24h**（标准 SOFA 口径；入科不足 24h 从入科时间起算）。不可用「当日 0 点→现在」，否则 01:00 触发时窗口仅 1h，多数指标无数据记 0 分，且尿量判据（要求窗口 ≥20h）会被直接跳过
 3. ✅ 评分文书（PDF）：离屏 DOM + html2canvas/jsPDF，复用 APACHE II 的「主体先落库、PDF 后补传」解耦方案；历史列表可查看已归档文书
-4. ✅ 单指标趋势图：`/api/sofa/metric-trend`，来源弹窗内按 6 项 + 总分展示，并高亮评分实际取用点
+4. ✅ 单指标趋势图：`/api/sofa/metric-trend`，来源弹窗内按 **6 个器官指标**展示，并高亮评分实际取用点。⚠️ 原「总分历史趋势」（`metricKey=total` + 页面「评分历史趋势」按钮/弹窗）已于 2026-09-15 下线
 5. ✅ 配置管理后台页面（`sofa-config`）：支持新增/编辑/启停/逻辑删除
 6. ✅ **六项分值手工修正**：每张器官卡片的分值可选 0~4 直接覆盖自动值，适用于镇静患者 GCS 取镇静前、
    升压药剂量无法归一、`ventilator_code` 误判呼吸支持等场景；总分按修正后实时重算，
@@ -376,7 +381,7 @@ module/sofa/
 | 升压药剂量口径 | 现取「取数窗口内在效的最高泵速」还原剂量（含窗口起点的在效泵速），未实现「需持续 ≥1h 的最高档」约束；若按后者口径评估需另行确认 |
 
 ### P2
-1. SOFA 序列趋势图（多日 6 项堆叠）
+1. SOFA 序列趋势图（多日 6 项堆叠）—— ⚠️ 当前自动评分为「终身一条」，无自动多日序列；若要恢复按天留痕，需同步改 `SofaServiceImpl` 的幂等条件（已有记录即跳过 → 当日已有记录才跳过）与 `SofaAutoScoreTask` 的 cron
 2. 与 APACHE II 双评分对照视图
 3. 质控统计（评分完成率、ΔSOFA 分布）
 
@@ -405,5 +410,5 @@ module/sofa/
 | `selectOxygenationHistory` | ARDS | PaO₂/FiO₂ |
 | `selectLatestVentilatorParams` | ARDS | 呼吸支持判断 |
 | 「来源」弹窗 + 趋势图交互 | APACHE II | 前端交互范式 |
-| 自动初评定时任务 + 幂等 + 互斥锁 | APACHE II | 每日评分 |
+| 自动初评定时任务 + 幂等 + 互斥锁 | APACHE II | 入科满 24h 自动初评（与 APACHE II 同为「一人一条」） |
 | 主体/PDF 解耦保存 | APACHE II | 文书归档 |

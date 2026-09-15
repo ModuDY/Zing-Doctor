@@ -53,6 +53,12 @@
           <span class="nav-icon">🗓️</span>
           <span class="nav-label">质控月度汇总</span>
         </router-link>
+
+        <div class="nav-divider">系统设置</div>
+        <router-link to="/page/param-config" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">参数设置</span>
+        </router-link>
       </nav>
 
       <div class="sidebar-footer">
@@ -60,8 +66,10 @@
           <div class="user-avatar">{{ userInitial }}</div>
           <div class="user-info">
             <div class="user-name">{{ userName }}</div>
-            <div class="user-role">ICU 医生</div>
+            <div class="user-role">{{ userRoleText }}</div>
           </div>
+          <!-- 仅直连登录时出现；外链访问由第三方系统控制会话，不显示 -->
+          <button v-if="loggedIn" class="logout-btn" title="退出登录" @click="handleLogout">退出</button>
         </div>
       </div>
     </aside>
@@ -74,19 +82,51 @@
 </template>
 
 <script>
+import { ElMessageBox } from 'element-plus'
+import { logout as logoutApi } from '../api/auth'
+import { getUser, isLoggedIn, clearSession } from '../utils/auth'
+
 export default {
   name: 'MainLayout',
   computed: {
+    loggedIn() {
+      return isLoggedIn()
+    },
     userName() {
-      // 从 sessionStorage / URL 参数取登录者姓名，外链时可能有 realname
+      // 优先展示第三方/外链传入的姓名；没有时退回登录账号，兼顾两种访问方式
+      const u = getUser()
       const name = sessionStorage.getItem('doctor_realname')
       if (name) return name
       const params = new URLSearchParams(window.location.search)
-      return params.get('realname') || '医生'
+      return params.get('realname') || (u && (u.realName || u.username)) || '医生'
+    },
+    userRoleText() {
+      return this.loggedIn ? '已登录' : 'ICU 医生'
     },
     userInitial() {
       const n = this.userName
       return n ? n.charAt(0) : '医'
+    }
+  },
+  methods: {
+    async handleLogout() {
+      try {
+        await ElMessageBox.confirm('确定要退出登录吗？', '退出登录', {
+          confirmButtonText: '退出',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+      } catch (e) {
+        return
+      }
+      // 通知后端失败也要清本地令牌，否则点了退出却还停在登录态
+      try {
+        await logoutApi()
+      } catch (e) {
+        console.error('退出登录接口调用失败（已忽略）', e)
+      }
+      clearSession()
+      window.location.href = '/login'
     }
   }
 }
@@ -212,6 +252,26 @@ export default {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* 退出登录：仅直连登录会话出现，靠右排布 */
+.logout-btn {
+  margin-left: auto;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #78716c;
+  background: transparent;
+  border: 1px solid #e7e5e4;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.logout-btn:hover {
+  color: #dc2626;
+  background: #fef2f2;
+  border-color: #fecaca;
 }
 
 .user-avatar {

@@ -2,6 +2,7 @@ package com.zing.doctor.module.apache2.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.zing.doctor.common.OperatorContext;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.module.apache2.entity.Apache2Config;
 import com.zing.doctor.module.apache2.entity.Apache2ScoreRecord;
@@ -459,16 +460,21 @@ public class Apache2ServiceImpl implements Apache2Service {
         // 记录 PDF 大小便于排查（不打印内容本身）
         int pdfLen = record.getPdfData() == null ? 0 : record.getPdfData().length();
         long t0 = System.currentTimeMillis();
+        // 操作人一律由服务端解析并覆盖：请求体里即使带着 createBy 也不采信，
+        // 否则改一下请求就能把评分记录署成别人的名字
+        String operator = OperatorContext.current();
         if (record.getId() == null) {
             record.setCreateTime(LocalDateTime.now());
             record.setStatus(1);
+            record.setCreateBy(operator);
             scoreRecordMapper.insert(record);
         } else {
             record.setUpdateTime(LocalDateTime.now());
+            record.setUpdateBy(operator);
             scoreRecordMapper.updateById(record);
         }
-        log.info("APACHE2评分保存完成: id={}, inHospitalNo={}, pdfBase64Len={}, 耗时={}ms",
-                record.getId(), record.getInHospitalNo(), pdfLen, System.currentTimeMillis() - t0);
+        log.info("APACHE2评分保存完成: id={}, inHospitalNo={}, pdfBase64Len={}, operator={}, 耗时={}ms",
+                record.getId(), record.getInHospitalNo(), pdfLen, operator, System.currentTimeMillis() - t0);
         // 大字段不随保存接口回传（下载走 /record/{id}/pdf），避免响应体再次携带约 1MB base64 拖慢/超限
         record.setPdfData(null);
         return record;
@@ -487,6 +493,7 @@ public class Apache2ServiceImpl implements Apache2Service {
             uw.eq(Apache2ScoreRecord::getId, id)
                     .set(Apache2ScoreRecord::getPdfData, pdfData)
                     .set(Apache2ScoreRecord::getPdfName, pdfName)
+                    .set(Apache2ScoreRecord::getUpdateBy, OperatorContext.current())
                     .set(Apache2ScoreRecord::getUpdateTime, LocalDateTime.now());
             int rows = scoreRecordMapper.update(null, uw);
             log.info("APACHE2文书PDF补传完成: id={}, pdfBase64Len={}, rows={}, 耗时={}ms",
@@ -502,10 +509,11 @@ public class Apache2ServiceImpl implements Apache2Service {
 
     @Override
     public boolean deleteScore(Long id, String operator) {
+        // operator 入参保留只为兼容旧调用方，不再采信：把它改成别人的名字只是一个请求的事
         Apache2ScoreRecord record = scoreRecordMapper.selectById(id);
         if (record != null) {
             record.setStatus(0);
-            record.setUpdateBy(operator);
+            record.setUpdateBy(OperatorContext.current());
             record.setUpdateTime(LocalDateTime.now());
             scoreRecordMapper.updateById(record);
             return true;

@@ -23,7 +23,7 @@ public interface SofaScoreRecordMapper extends BaseMapper<SofaScoreRecord> {
             + "\"resp_score\",\"coag_score\",\"liver_score\",\"cardio_score\",\"neuro_score\",\"renal_score\",\"total_score\", "
             + "\"resp_data\",\"coag_data\",\"liver_data\",\"cardio_data\",\"neuro_data\",\"renal_data\",\"vasopressor_json\", "
             + "\"urine_ml\",\"gcs_total\",\"gcs_detail\",\"respiratory_support\",\"weight_used\",\"weight_source\",\"delta_sofa\", "
-            + "\"data_start_time\",\"data_end_time\",\"remark\",\"pdf_name\",\"status\",\"create_by\",\"create_time\",\"update_by\",\"update_time\", "
+            + "\"data_start_time\",\"data_end_time\",\"remark\",\"archive_status\",\"archive_time\",\"file_path\",\"pdf_name\",\"status\",\"create_by\",\"create_time\",\"update_by\",\"update_time\", "
             + "CASE WHEN \"pdf_data\" IS NULL THEN 0 ELSE 1 END AS \"has_pdf\" "
             + "FROM \"zing_doctor_db_prod\".\"sofa_score_record\" "
             + "WHERE \"in_hospital_no\" = #{inHospitalNo} AND \"status\" = 1 "

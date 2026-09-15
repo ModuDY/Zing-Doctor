@@ -65,7 +65,7 @@ public interface SofaService {
      * 单指标趋势数据，供评分页「来源」弹窗趋势图。
      *
      * @param metricKey resp 氧合指数 / coag 血小板 / liver 总胆红素 / cardio MAP /
-     *                  neuro GCS / renal 肌酐 / total SOFA 总分（取历史评分）
+     *                  neuro GCS / renal 肌酐（total SOFA 总分趋势已下线）
      * @return {time,value} 列表（时间升序）
      */
     List<Map<String, Object>> getMetricTrend(String patientId, String metricKey, String startTime, String endTime);

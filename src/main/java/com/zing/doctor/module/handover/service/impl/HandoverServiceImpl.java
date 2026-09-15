@@ -444,6 +444,49 @@ public class HandoverServiceImpl implements HandoverService {
         return detail;
     }
 
+    @Override
+    public HandoverNote getPreviousNote(String inHospitalNo, String shiftDate) {
+        if (isBlank(inHospitalNo)) {
+            throw new BizException("缺少住院号");
+        }
+        Map<String, Object> patient = icuPatientMapper.selectPatientByInHospitalNo(inHospitalNo);
+        String dc = patient == null ? "" : str(patient.get("depart_code"));
+        ResolvedShift rs = resolveShiftOrDate(dc.isEmpty() ? DEFAULT_DEPART : dc, shiftDate);
+
+        // 判定口径：同一住院号下 shift_begin_time 严格早于本班开始时间的最近一条有效记录。
+        // 刻意不反推"上一个班次的区间"——config_shift 改过班次时边界算不准，直接按时间倒序取更稳。
+        List<HandoverNote> list = handoverNoteMapper.selectList(new LambdaQueryWrapper<HandoverNote>()
+                .eq(HandoverNote::getInHospitalNo, inHospitalNo)
+                .eq(HandoverNote::getStatus, 1)
+                .lt(HandoverNote::getShiftBeginTime, rs.start)
+                .orderByDesc(HandoverNote::getShiftBeginTime)
+                .orderByDesc(HandoverNote::getId)
+                .last("LIMIT 1"));
+        return list == null || list.isEmpty() ? null : list.get(0);
+    }
+
+    /** 班次区间：用户指定了交班日期则按该日期算全天班，否则取最近一个已封板班次 */
+    private ResolvedShift resolveShiftOrDate(String departCode, String shiftDate) {
+        if (shiftDate != null && !shiftDate.trim().isEmpty()) {
+            String sd = shiftDate.trim().length() >= 10 ? shiftDate.trim().substring(0, 10) : shiftDate.trim();
+            ResolvedShift rs = new ResolvedShift();
+            rs.end = LocalDateTime.parse(sd + " 07:00:00", DT_FMT);
+            rs.start = rs.end.minusDays(1).withHour(7).withMinute(1).withSecond(0).withNano(0);
+            rs.now = LocalDateTime.now();
+            rs.shiftName = sd + " 全天班";
+            rs.source = "user";
+            ShiftRange dto = new ShiftRange();
+            dto.setStartTime(fmt(rs.start));
+            dto.setEndTime(fmt(rs.end));
+            dto.setNowTime(fmt(rs.now));
+            dto.setShiftName(sd + " 全天班");
+            dto.setSource("user");
+            rs.dto = dto;
+            return rs;
+        }
+        return resolveShift(departCode);
+    }
+
     /** 抗菌药白名单判断（61个核心抗菌药通用名，和脓毒症集束化治疗保持一致） */
     private boolean isBroadSpectrumAntibiotic(String name) {
         if (name == null || name.isEmpty()) return false;

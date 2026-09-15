@@ -1,5 +1,5 @@
 <template>
-  <MainLayout v-if="!externalMode">
+  <MainLayout v-if="useLayout">
     <PageBoundary>
       <router-view />
     </PageBoundary>
@@ -20,6 +20,12 @@ export default {
   data() {
     return {
       externalMode: isExternalMode()
+    }
+  },
+  computed: {
+    // 外链模式下第三方系统只需要功能页；登录页是独立整屏页面，两种模式都不套侧边栏
+    useLayout() {
+      return !this.externalMode && this.$route.name !== 'login'
     }
   }
 }

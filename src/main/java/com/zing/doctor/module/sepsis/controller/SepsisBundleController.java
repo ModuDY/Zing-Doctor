@@ -53,6 +53,23 @@ public class SepsisBundleController {
     }
 
     /**
+     * 预览计算（不落库）：新建评估、或修改记录时间/确诊时间后重新计算 1H/3H/6H 与三块系统参考
+     */
+    @GetMapping("/calculate")
+    public Result<SepsisBundleView> calculate(@RequestParam String inHospitalNo,
+                                              @RequestParam(required = false) String recordTime,
+                                              @RequestParam(required = false) String diagnosisTime,
+                                              @RequestParam(required = false) Long id) {
+        try {
+            SepsisBundleView view = sepsisBundleService.calculateBundle(inHospitalNo, recordTime, diagnosisTime, id);
+            return Result.ok(view);
+        } catch (Exception e) {
+            log.error("预览计算脓毒症集束化治疗失败: inHospitalNo={}", inHospitalNo, e);
+            return Result.fail("计算失败: " + e.getMessage());
+        }
+    }
+
+    /**
      * 获取患者历史评估记录列表
      */
     @GetMapping("/history")

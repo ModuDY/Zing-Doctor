@@ -20,7 +20,7 @@ public interface Apache2ScoreRecordMapper extends BaseMapper<Apache2ScoreRecord>
     @Select("SELECT \"id\",\"patient_id\",\"in_hospital_no\",\"patient_name\",\"depart_code\",\"score_time\",\"score_type\", "
             + "\"age_score\",\"chronic_score\",\"gcs_score\",\"physiology_score\",\"total_score\",\"mortality_rate\",\"aps_data\", "
             + "\"diagnosis_type\",\"diagnosis_weight\",\"emergency_surgery\",\"chronic_health\",\"gcs_detail\", "
-            + "\"data_start_time\",\"data_end_time\",\"remark\",\"pdf_name\",\"status\",\"create_by\",\"create_time\",\"update_by\",\"update_time\", "
+            + "\"data_start_time\",\"data_end_time\",\"remark\",\"archive_status\",\"archive_time\",\"file_path\",\"pdf_name\",\"status\",\"create_by\",\"create_time\",\"update_by\",\"update_time\", "
             + "CASE WHEN \"pdf_data\" IS NULL THEN 0 ELSE 1 END AS \"has_pdf\" "
             + "FROM \"zing_doctor_db_prod\".\"apache2_score_record\" "
             + "WHERE \"in_hospital_no\" = #{inHospitalNo} AND \"status\" = 1 "
