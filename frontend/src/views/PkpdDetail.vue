@@ -379,12 +379,6 @@ function pkpdTypeTag(type) {
   return 'info'
 }
 
-function abxStatusTag(code) {
-  if (code === 'executing') return 'warning'
-  if (code === 'completed') return 'success'
-  return 'info'
-}
-
 onMounted(() => {
   loadData()
 })
@@ -432,7 +426,6 @@ watch(() => route.query.inHospitalNo, () => {
 .dot-purple { background: #8b6fd8; }
 .dot-green { background: #16a34a; }
 .dot-orange { background: #d97706; }
-.dot-gray { background: #78716c; }
 
 /* 患者信息横条 */
 .patient-bar {

@@ -887,13 +887,6 @@ const ageOptions = computed(() => {
     { label: '65-74', score: 5 }, { label: '≥75', score: 6 }
   ].map((o, i) => ({ ...o, checked: i === hit }))
 })
-// B 慢性健康选项
-const chronicOptions = computed(() => [
-  { key: 'elective', label: '非手术或择期手术后', score: 2 },
-  { key: 'nonoperative', label: '不能手术或急症手术后', score: 5 },
-  { key: 'none', label: '无上述情况', score: 0 }
-].map(o => ({ ...o, checked: form.chronicHealth === o.key })))
-
 // D 生理指标表：每项 9 列区间文本 + 命中列（列号 0-8，-1 表示无值）
 const dRows = computed(() => {
   const sc = scoreResult.apsScores || {}
@@ -950,9 +943,6 @@ const dRows = computed(() => {
       hit: hit(wbc, v => v >= 40 ? 0 : v >= 20 ? 2 : v >= 15 ? 3 : v >= 3 ? 4 : v >= 1 ? 6 : 8), score: sc.wbc || 0 }
   ]
 })
-const diagnosisTypeText = computed(() => {
-  return form.diagnosisType === 'nonoperative' ? '非手术类' : form.diagnosisType === 'operative' ? '手术类' : '以上都不是'
-})
 // GCS 勾选网格：列头 6→1，三行（睁眼/语言/运动），每格 {text,checked}；文案对齐纸质评分表
 const GCS_HEADS = [6, 5, 4, 3, 2, 1]
 const GCS_PAPER = {
@@ -976,24 +966,11 @@ const selectedDiagnosisName = computed(() => {
   if (form.diagnosisType === 'operative') return form.selectedOpFactor || '—'
   return '—'
 })
-const chronicText = computed(() => ({ none: '无慢性器官功能不全', nonoperative: '非手术/急诊手术后（+5）', elective: '择期手术后（+2）' }[form.chronicHealth] || '—'))
 /** 数值统一保留两位小数（空值/非数字按 0.00 显示） */
 function fmt2(v) {
   const n = Number(v)
   return isNaN(n) ? '0.00' : n.toFixed(2)
 }
-const scoreTypeText = computed(() => ({ admission: '入科时', '24h': '入科24小时', '48h': '入科48小时', custom: '自定义' }[currentRecord.value?.scoreType] || '自定义'))
-const clinicalAdvice = computed(() => {
-  const t = scoreResult.totalScore || 0
-  const m = scoreResult.mortalityRate || 0
-  let level
-  if (t >= 40) level = '病情极危重，死亡风险极高，需立即组织多学科抢救、强化器官功能支持，并与家属充分沟通病情与预后。'
-  else if (t >= 30) level = '病情危重，需严密生命体征监护与积极器官功能支持，建议缩短复评间隔、动态评估疗效。'
-  else if (t >= 20) level = '病情较重，建议加强监护、及时处理异常生理指标，警惕器官功能恶化。'
-  else if (t >= 10) level = '病情中等，建议按重症规范监护治疗，关注各项生理指标变化趋势。'
-  else level = '病情相对平稳，预计死亡风险较低，继续常规监护与对症治疗。'
-  return `APACHE II 总分 ${t} 分，模型预计院内死亡率约 ${Number(m).toFixed(2)}%。${level}`
-})
 
 const showGcsModal = ref(false)
 // 从重症系统同步 GCS（Z_ICU_GCS）
@@ -1008,7 +985,6 @@ const weightTab = ref('nonoperative')
 const sourceMetric = ref('')
 const sourceTrendChartRef = ref(null)
 let sourceTrendChart = null
-const sourceTrendData = ref([])
 
 // 氧合是派生项（FiO2 决定评分分支，PaO2 或 A-aDO2 出分），
 // 来源弹窗需展示三要素而非单一“当前值”，故单独计算。
@@ -1239,27 +1215,6 @@ function applyFetchPreset() {
   }
 }
 
-/** 当前区间回显（MM-dd HH:mm ~ MM-dd HH:mm） */
-const rangeText = computed(() => {
-  const s = fmtRangeInput(fetchStartTime.value)
-  const e = fmtRangeInput(fetchEndTime.value)
-  return (s && e) ? `${s} ~ ${e}` : '—'
-})
-
-/** 快捷区间标签：让医生一眼看到当前区间是怎么来的 */
-const rangeTag = computed(() => {
-  if (fetchPreset.value === '24h') return '最近24小时'
-  if (fetchPreset.value === '48h') return '最近48小时'
-  if (fetchPreset.value === 'admission_after') return '入科后24h'
-  if (fetchPreset.value === 'admission_before') return '入科前24h'
-  if (fetchPreset.value === 'custom') return '自定义'
-  return ''
-})
-
-function fmtRangeInput(v) {
-  const s = String(v || '')
-  return s.length >= 16 ? `${s.slice(5, 10)} ${s.slice(11, 16)}` : s
-}
 
 function parseLocalInput(v) {
   if (!v) return null

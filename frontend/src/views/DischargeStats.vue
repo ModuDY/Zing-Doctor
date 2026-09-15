@@ -74,7 +74,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Download, Warning } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
@@ -283,10 +283,4 @@ onMounted(async () => {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
-.empty-tip {
-  text-align: center;
-  padding: 60px 0;
-  color: #909399;
-  font-size: 14px;
-}
 </style>

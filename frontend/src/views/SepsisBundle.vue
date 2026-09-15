@@ -439,8 +439,6 @@ function splitMulti(str) {
   return str.split(/[,，;；、\n]/).map(s => s.trim()).filter(s => s && s !== '—' && s !== '-')
 }
 const infectionSiteList = computed(() => splitMulti(data.infectionSite))
-const pathogenList = computed(() => splitMulti(data.pathogen))
-const antibioticList = computed(() => splitMulti(data.antibiotic))
 const infectionSiteText = computed(() => infectionSiteList.value[0] || '')
 
 /* ===== 感染相关信息：医生勾选的枚举项 =====
@@ -1293,18 +1291,6 @@ onMounted(() => {
 }
 .step-line.filled .fill { width: 100%; }
 
-/* 评估切换栏 */
-.assess-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 18px;
-}
-.assess-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
 .assess-label {
   font-size: 14px;
   font-weight: 600;
@@ -1329,36 +1315,6 @@ onMounted(() => {
   border-color: #99f6e4;
   background: #f0fdfa;
 }
-.btn-primary {
-  background: #0d9488;
-  border-color: #0d9488;
-  color: #fff;
-}
-.btn-primary:hover {
-  background: #115e59;
-  border-color: #115e59;
-  color: #fff;
-}
-.btn-ghost {
-  background: #fff;
-  border-color: #99f6e4;
-  color: #0f766e;
-}
-.btn-ghost:hover {
-  background: #f0fdfa;
-  border-color: #0f766e;
-  color: #115e59;
-}
-.btn-danger-ghost {
-  background: #fff;
-  border-color: #fecaca;
-  color: #dc2626;
-}
-.btn-danger-ghost:hover {
-  background: #fee2e2;
-  border-color: #dc2626;
-  color: #dc2626;
-}
 .btn-success {
   background: #16a34a;
   border-color: #16a34a;
@@ -1378,15 +1334,6 @@ onMounted(() => {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.assess-count {
-  font-size: 13px;
-  color: #78716c;
-}
-.assess-count strong {
-  color: #0f766e;
-  font-size: 16px;
-}
-
 /* 三个时间节点卡片 */
 .bundle-grid {
   display: grid;
@@ -1642,26 +1589,6 @@ onMounted(() => {
   color: #292524;
   font-weight: 700;
   margin-bottom: 6px;
-}
-.info-value {
-  font-size: 14px;
-  color: #44403c;
-  font-weight: 600;
-  line-height: 1.5;
-}
-.value-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.value-tag {
-  font-size: 12px;
-  color: #0f766e;
-  background: #f0fdfa;
-  border: 1px solid #99f6e4;
-  padding: 2px 8px;
-  border-radius: 4px;
-  line-height: 1.5;
 }
 /* 感染相关信息：参考窗口 / 系统参考值 / 多选枚举按钮 */
 .ref-window {

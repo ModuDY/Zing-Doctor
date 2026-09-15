@@ -155,7 +155,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick, computed } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import * as echarts from '../utils/echarts'
 import request from '../api/request'

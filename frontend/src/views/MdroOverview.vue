@@ -168,11 +168,6 @@ let rankChart = null
 let classChart = null
 let specimenChart = null
 
-const dateRangeText = computed(() => {
-  if (!dateRange.value || dateRange.value.length < 2) return '--'
-  return `${dateRange.value[0]} ~ ${dateRange.value[1]}`
-})
-
 // 默认当月
 function initDefaultDate() {
   const now = new Date()
@@ -420,12 +415,6 @@ onMounted(() => {
   color: #78716c;
   font-weight: 400;
   margin-left: 4px;
-}
-
-.metric-target {
-  font-size: 12px;
-  color: #16a34a;
-  margin-top: 6px;
 }
 
 .metric-sub {

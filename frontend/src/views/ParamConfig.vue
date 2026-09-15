@@ -617,9 +617,4 @@ onMounted(loadAll)
 
 .form-tip { font-size: 11px; color: #a8a29e; line-height: 1.5; margin-top: 2px; }
 .w-full { width: 100%; }
-.gm-tip {
-  font-size: 12px; color: #78716c; background: #f5f7fa; border-radius: 4px;
-  padding: 8px 10px; margin-bottom: 10px; line-height: 1.6;
-}
-.gm-add { margin-top: 10px; }
 </style>

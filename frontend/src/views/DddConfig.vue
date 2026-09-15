@@ -374,9 +374,4 @@ onMounted(() => {
   font-weight: 600;
   color: #292524;
 }
-
-.highlight {
-  color: #0d9488;
-  font-weight: 600;
-}
 </style>

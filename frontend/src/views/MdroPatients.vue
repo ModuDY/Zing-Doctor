@@ -153,7 +153,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Refresh, ArrowDown, Document, FirstAidKit, Warning } from '@element-plus/icons-vue'
 import request from '../api/request'

@@ -61,16 +61,6 @@ export function fetchQualityMetric(code, params) {
   return request.get('/quality/metric', { params: { code, ...params } })
 }
 
-/** 追溯第 3 层：算子链 + 编译后 SQL + 扫描行数（按批次号精确回溯） */
-export function fetchQualityTrace(runId, code) {
-  return request.get('/quality/metric/trace', { params: { runId, code } })
-}
-
-/** 追溯第 4 层：患者级命中明细（按需生成，点数字看到人） */
-export function fetchQualityPatients(code, params) {
-  return request.get('/quality/metric/patients', { params: { code, ...params } })
-}
-
 /** 覆盖率报告：可算 / 空壳 / 待接数据源的承诺清单 */
 export function fetchQualityCoverage() {
   return request.get('/quality/coverage')

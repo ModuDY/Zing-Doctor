@@ -267,14 +267,13 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Clock, Warning, EditPen, Delete, Check, Download } from '@element-plus/icons-vue'
 import request from '../api/request'
 import '../styles/abx-theme.css'
 
 const router = useRouter()
-const route = useRoute()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -290,7 +289,6 @@ const s = computed(() => overview.summary || {})
 // 交班医生（本地记忆，避免每次重填；外链传参 realname=姓名默认填充）
 const routeQuery = new URLSearchParams(window.location.search)
 const linkRealname = routeQuery.get('realname') || ''
-const linkUsername = routeQuery.get('username') || ''
 const currentDoctor = ref(localStorage.getItem('handoverDoctor') || linkRealname || '')
 
 // 详情抽屉

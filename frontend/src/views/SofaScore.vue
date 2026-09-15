@@ -1158,28 +1158,6 @@ function toBackend(v) {
   return v.replace('T', ' ') + (v.length === 16 ? ':00' : '')
 }
 
-/** 当前区间回显（MM-dd HH:mm ~ MM-dd HH:mm） */
-const rangeText = computed(() => {
-  const s = fmtRangeInput(rangeStart.value)
-  const e = fmtRangeInput(rangeEnd.value)
-  return (s && e) ? `${s} ~ ${e}` : '—'
-})
-
-/** 快捷区间标签：让医生一眼看到当前区间是怎么来的 */
-const rangeTag = computed(() => {
-  if (activeRange.value === 24) return '最近24小时'
-  if (activeRange.value === 48) return '最近48小时'
-  if (activeRange.value === 'admission_after') return '入科后24h'
-  if (activeRange.value === 'admission_before') return '入科前24h'
-  if (activeRange.value === 'custom') return '自定义'
-  return ''
-})
-
-function fmtRangeInput(v) {
-  const s = String(v || '')
-  return s.length >= 16 ? `${s.slice(5, 10)} ${s.slice(11, 16)}` : s
-}
-
 function parseLocalInput(v) {
   if (!v) return null
   const d = new Date(String(v).replace(' ', 'T'))
@@ -1264,12 +1242,6 @@ function fmtTime(t) {
   return s.length > 16 ? s.slice(0, 16) : s
 }
 
-function scoreClass(s) {
-  if (s === null || s === undefined) return ''
-  if (s >= 10) return 'high'
-  if (s >= 6) return 'mid'
-  return 'low'
-}
 
 async function loadAssessment() {
   // 统一入口校验：所有取数（快捷区间 / 按入科时间 / 手动点按钮）都走这里

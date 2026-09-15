@@ -50,11 +50,6 @@ export function attachSofaRecordPdf(id, pdfData, pdfName) {
   return request.post(`/sofa/record/${id}/pdf`, { pdfData, pdfName })
 }
 
-/** 手动触发自动初评（幂等） */
-export function autoGenerateSofa(departCode, overHours) {
-  return request.post('/sofa/auto-generate', null, { params: { departCode, overHours } })
-}
-
 /** 文书归档推送：调院方归档接口，成功后该记录标记「已归档」 */
 export function pushSofaArchive(id) {
   return request.post('/archive/push', null, { params: { biz: 'SOFA', id } })

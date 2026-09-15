@@ -413,10 +413,6 @@ onMounted(async () => {
   color: #44403c;
 }
 
-.stat.highlight .stat-value {
-  color: #0d9488;
-}
-
 .expand-icon {
   font-size: 18px;
   color: #a8a29e;
@@ -456,14 +452,4 @@ onMounted(async () => {
   margin-bottom: 12px;
 }
 
-.detail-actions {
-  margin-top: 12px;
-  display: flex;
-  gap: 12px;
-}
-
-.highlight {
-  color: #0d9488;
-  font-weight: 600;
-}
 </style>

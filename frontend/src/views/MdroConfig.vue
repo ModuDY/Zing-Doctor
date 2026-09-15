@@ -393,8 +393,4 @@ onMounted(() => {
   box-shadow: 0 1px 2px rgba(28,25,23,0.04);
 }
 
-.bacteria-name {
-  font-weight: 500;
-  color: #292524;
-}
 </style>

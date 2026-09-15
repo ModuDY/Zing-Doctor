@@ -358,41 +358,6 @@ export default {
   background: #fafaf9;
 }
 
-/* 顶部深蓝导航条 */
-.top-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 24px;
-  height: 56px;
-  background: linear-gradient(90deg, #134e4a, #0f766e);
-  color: #fff;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-.back-btn {
-  color: #fff !important;
-  font-size: 15px;
-  padding: 0 6px;
-}
-.top-title {
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 1px;
-}
-.top-right {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.top-patient {
-  font-size: 14px;
-  color: #99f6e4;
-}
-
 .page-body {
   padding: 16px 24px 32px;
   max-width: 1920px;
@@ -497,7 +462,6 @@ export default {
 .abx-name { font-weight: 600; color: #292524; }
 .abx-freq { font-weight: 400; font-size: 12px; color: #0f766e; background: #ccfbf1; padding: 1px 5px; border-radius: 3px; margin-left: 4px; }
 .abx-method { font-size: 12px; color: #78716c; }
-.abx-tag { margin-left: auto; }
 .abx-list .empty-li { background: none; border: none; color: #a8a29e; }
 
 /* 推荐方案 */

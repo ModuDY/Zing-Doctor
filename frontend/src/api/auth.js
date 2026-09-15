@@ -12,11 +12,6 @@ export function login(username, password) {
   return request.post('/auth/login', { username, password }, { silentError: true })
 }
 
-/** 当前登录者信息（刷新后据此恢复右上角显示；令牌失效时返回 401） */
-export function fetchLoginInfo() {
-  return request.get('/auth/info', { silentError: true })
-}
-
 /** 退出登录（令牌无状态，服务端不做会话清理） */
 export function logout() {
   return request.post('/auth/logout', { silentError: true })
