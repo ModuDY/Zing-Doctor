@@ -27,9 +27,17 @@
             <span>{{ rec.createBy || '—' }}</span>
             <span :class="['record-tag', recTagClass(rec)]">{{ scoreTypeLabel(rec) }}</span>
             <span v-if="rec.hasPdf === 1" class="record-tag pdf-tag" @click.stop="viewSavedPdf(rec)">PDF文书</span>
-            <!-- 归档：待归档→点击推送到院方归档接口→已归档；已归档再点只撤销标记（不调接口） -->
-            <span :class="['record-tag', 'archive-tag', rec.archiveStatus === 1 ? 'done' : 'todo']"
+            <!-- 归档口径：自动初评（auto/daily）只是系统内部评估草稿，未经医生确认，不作为文书归档；
+                 医生打开复核并保存后来源转为「手工评分」，才可归档。
+                 已确认但还没文书时显示「无文书」；有文书时：待归档→推送院方接口→已归档，
+                 已归档再点只撤销标记（不调接口） -->
+            <span v-if="isAutoRecord(rec)" class="record-tag archive-tag none"
+                  title="系统自动初评属于内部评估草稿，需医生打开复核并保存后才能归档">草稿不归档</span>
+            <span v-else-if="rec.hasPdf === 1"
+                  :class="['record-tag', 'archive-tag', rec.archiveStatus === 1 ? 'done' : 'todo']"
                   @click.stop="toggleArchive(rec)">{{ rec.archiveStatus === 1 ? '已归档' : '待归档' }}</span>
+            <span v-else class="record-tag archive-tag none"
+                  title="该记录尚未生成评分文书，打开后保存一次即可归档">无文书</span>
             <!-- 删除按钮与 SOFA 一致，直接放在记录条里；@click.stop 防止连带触发 selectRecord -->
             <span class="record-tag del-tag" @click.stop="deleteRecord(rec)">删除</span>
           </div>
@@ -1090,7 +1098,9 @@ function selectRecord(rec) {
   calculateScore()
 }
 
-// ---- 来源三态（自动评分 / 已复核 / 手工评分）：显示口径与 SOFA 完全一致 ----
+// ---- 来源两态（自动评分 / 手工评分）：显示口径与 SOFA 完全一致 ----
+// 库里只有 auto（系统自动初评）与 custom（医生保存，含对自动初评的复核确认）等取值；
+// 历史设计里的 reviewed 从未落过库，相关分支已清除，不要再加回来。
 
 /** 自动类来源：自动初评 auto、每日定时 daily */
 function isAutoRecord(r) {
@@ -1099,14 +1109,11 @@ function isAutoRecord(r) {
 
 function scoreTypeLabel(r) {
   if (!r) return ''
-  if (r.scoreType === 'reviewed') return '已复核'
-  if (isAutoRecord(r)) return '自动评分'
-  return '手工评分'
+  return isAutoRecord(r) ? '自动评分' : '手工评分'
 }
 
 function recTagClass(r) {
   if (!r) return 'manual'
-  if (r.scoreType === 'reviewed') return 'reviewed'
   return isAutoRecord(r) ? 'auto' : 'manual'
 }
 
@@ -1518,6 +1525,16 @@ async function saveRecord() {
  */
 async function toggleArchive(rec) {
   if (!rec || !rec.id) return
+  // 同 SOFA：自动初评草稿业务上不属于可归档文书，后端同样会拒绝，提前给出可读提示
+  if (isAutoRecord(rec)) {
+    ElMessage.warning('自动初评属于内部评估草稿，打开复核并保存后才能归档')
+    return
+  }
+  // 归档前提是已有文书 PDF，无文书时后端会拒绝，这里提前给出可读提示
+  if (rec.hasPdf !== 1) {
+    ElMessage.warning('该记录尚未生成评分文书，打开后保存一次即可归档')
+    return
+  }
   try {
     if (rec.archiveStatus === 1) {
       await request.post('/archive/unmark', null, { params: { biz: 'APACHE2', id: rec.id } })
@@ -2083,7 +2100,6 @@ async function viewSavedPdf(rec) {
 .record-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; background: #f4f4f5; color: #909399; }
 .record-tag.auto { background: #ecf5ff; color: #409eff; }
 .record-tag.manual { background: #fdf6ec; color: #e6a23c; }
-.record-tag.reviewed { background: #e1f3d8; color: #389e0d; }
 .record-empty { text-align: center; color: #c0c4cc; font-size: 13px; padding: 40px 0; }
 .add-record-btn { width: 100%; height: 36px; background: linear-gradient(135deg, #409eff, #66b1ff); color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 6px rgba(64,158,255,0.3); }
 .add-record-btn:hover { background: linear-gradient(135deg, #66b1ff, #409eff); }
@@ -2288,6 +2304,8 @@ async function viewSavedPdf(rec) {
 .record-tag.archive-tag.todo:hover { background: #fbe9d0; }
 .record-tag.archive-tag.done { background: #e1f3d8; color: #389e0d; }
 .record-tag.archive-tag.done:hover { background: #d3f0c0; }
+/* 无文书：不可点击，仅说明这条记录还不能归档（自动初评记录常见） */
+.record-tag.archive-tag.none { background: #f4f4f5; color: #c0c4cc; cursor: default; }
 
 /* 离屏文书渲染源：移出视口但保留真实尺寸供 html2canvas 渲染 */
 .report-offscreen { position: absolute; left: -9999px; top: 0; width: 794px; pointer-events: none; }

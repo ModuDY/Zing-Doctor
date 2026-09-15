@@ -74,9 +74,19 @@ public class SepsisBundleRecord {
 
     private String createBy;
 
+    /**
+     * 记录时间（业务字段：医生可回改，用于补录过去的评估）。
+     *
+     * <p>必须显式标注 {@code @JsonFormat}：Jackson 对 LocalDateTime 默认只认 ISO
+     * （{@code 2026-09-16T14:30:00}），而前端统一提交 {@code yyyy-MM-dd HH:mm:ss}（空格分隔）。
+     * 漏标会导致请求体在进 Controller 之前就反序列化失败，返回 400「提交的数据格式有误」，
+     * Controller 里的 try-catch 拦不到 —— 与 HandoverNote 曾踩过的坑同源。
+     */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createTime;
 
     private String updateBy;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updateTime;
 }

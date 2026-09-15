@@ -25,9 +25,17 @@
               <span>{{ r.createBy || '—' }}</span>
               <span :class="['record-tag', recTagClass(r)]">{{ scoreTypeLabel(r) }}</span>
               <span v-if="r.hasPdf === 1" class="record-tag pdf-tag" @click.stop="viewPdf(r)">PDF文书</span>
-              <!-- 归档：待归档→点击推送到院方归档接口→已归档；已归档再点只撤销标记（不调接口） -->
-              <span :class="['record-tag', 'archive-tag', r.archiveStatus === 1 ? 'done' : 'todo']"
+              <!-- 归档口径：自动初评（auto/daily）只是系统内部评估草稿，未经医生确认，不作为文书归档；
+                   医生打开复核并保存后来源转为「手工评分」，才可归档。
+                   已确认但还没文书时显示「无文书」；有文书时：待归档→推送院方接口→已归档，
+                   已归档再点只撤销标记（不调接口） -->
+              <span v-if="isAutoRecord(r)" class="record-tag archive-tag none"
+                    title="系统自动初评属于内部评估草稿，需医生打开复核并保存后才能归档">草稿不归档</span>
+              <span v-else-if="r.hasPdf === 1"
+                    :class="['record-tag', 'archive-tag', r.archiveStatus === 1 ? 'done' : 'todo']"
                     @click.stop="toggleArchive(r)">{{ r.archiveStatus === 1 ? '已归档' : '待归档' }}</span>
+              <span v-else class="record-tag archive-tag none"
+                    title="该记录尚未生成评分文书，打开后保存一次即可归档">无文书</span>
               <span class="record-tag del-tag" @click.stop="removeRecord(r)">删除</span>
             </div>
           </div>
@@ -1529,6 +1537,18 @@ function buildRecord() {
  */
 async function toggleArchive(r) {
   if (!r || !r.id) return
+  // 自动初评草稿：业务上不属于可归档文书，后端同样会拒绝，这里提前给出可读提示
+  if (isAutoRecord(r)) {
+    ElMessage.warning('自动初评属于内部评估草稿，打开复核并保存后才能归档')
+    return
+  }
+  // 归档的前提是有文书 PDF：后端会直接拒绝。列表已按 hasPdf 隐藏该按钮，
+  // 这里是二次兜底——列表数据是异步刷新的，
+  // 医生可能在文书上传完成前就点到，此时给出可读提示好过弹一条红色报错。
+  if (r.hasPdf !== 1) {
+    ElMessage.warning('该记录尚未生成评分文书，打开后保存一次即可归档')
+    return
+  }
   try {
     if (r.archiveStatus === 1) {
       await unmarkSofaArchive(r.id)
@@ -1765,7 +1785,9 @@ function boxClass(s) {
   return 'green'
 }
 
-// ---- 来源三态（自动初评 / 已复核 / 手工评分） ----
+// ---- 来源两态（自动评分 / 手工评分）----
+// 库里只有 auto、daily（系统自动初评）与 custom（医生保存，含对自动初评的复核确认）三种取值；
+// 历史设计里的 reviewed 从未落过库，相关分支已清除，不要再加回来。
 
 /** 自动类来源：定时任务 daily、自动取数 auto */
 function isAutoRecord(r) {
@@ -1774,14 +1796,11 @@ function isAutoRecord(r) {
 
 function scoreTypeLabel(r) {
   if (!r) return ''
-  if (r.scoreType === 'reviewed') return '已复核'
-  if (isAutoRecord(r)) return '自动评分'
-  return '手工评分'
+  return isAutoRecord(r) ? '自动评分' : '手工评分'
 }
 
 function recTagClass(r) {
   if (!r) return 'manual'
-  if (r.scoreType === 'reviewed') return 'reviewed'
   return isAutoRecord(r) ? 'auto' : 'manual'
 }
 
@@ -1957,7 +1976,6 @@ function base64ToBlob(base64, type) {
 .record-tag { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; background: #f4f4f5; color: #909399; }
 .record-tag.auto { background: #ecf5ff; color: #409eff; }
 .record-tag.manual { background: #fdf6ec; color: #e6a23c; }
-.record-tag.reviewed { background: #e1f3d8; color: #389e0d; }
 .record-tag.pdf-tag { background: #e1f3d8; color: #389e0d; cursor: pointer; }
 .record-tag.pdf-tag:hover { background: #d3f0c0; }
 .record-tag.del-tag { cursor: pointer; }
@@ -1968,6 +1986,8 @@ function base64ToBlob(base64, type) {
 .record-tag.archive-tag.todo:hover { background: #fbe9d0; }
 .record-tag.archive-tag.done { background: #e1f3d8; color: #389e0d; }
 .record-tag.archive-tag.done:hover { background: #d3f0c0; }
+/* 无文书：不可点击，仅说明这条记录还不能归档（自动初评记录常见） */
+.record-tag.archive-tag.none { background: #f4f4f5; color: #c0c4cc; cursor: default; }
 .record-empty { text-align: center; color: #c0c4cc; font-size: 13px; padding: 40px 0; }
 
 .main { flex: 1; min-width: 0; padding: 12px 18px 24px; }

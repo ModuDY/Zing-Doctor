@@ -272,41 +272,43 @@
           <div class="info-grid">
             <div class="info-block">
               <div class="info-label">感染部位</div>
-              <div class="opt-group">
-                <button v-for="opt in INFECTION_SITE_OPTIONS" :key="opt" type="button"
-                        class="opt-btn" :class="{ on: selInfectionSite.includes(opt) }"
-                        @click="toggleOpt(selInfectionSite, opt)">{{ opt }}</button>
-              </div>
+              <!-- 系统参考放按钮组上方：医生先看系统取到的值，再决定勾哪一项。
+                   放在按钮下面时会被一屏按钮顶到看不见，失去参考意义 -->
               <div class="ref-tags">
                 <span class="ref-tag prefix">系统参考</span>
                 <span class="ref-tag" v-for="v in infectionSiteRefList" :key="v">{{ v }}</span>
                 <span v-if="!infectionSiteRefList.length" class="ref-tag empty">窗口内无数据</span>
               </div>
+              <div class="opt-group">
+                <button v-for="opt in INFECTION_SITE_OPTIONS" :key="opt" type="button"
+                        class="opt-btn" :class="{ on: selInfectionSite.includes(opt) }"
+                        @click="toggleOpt(selInfectionSite, opt)">{{ opt }}</button>
+              </div>
             </div>
             <div class="info-block">
               <div class="info-label">致病菌</div>
-              <div class="opt-group">
-                <button v-for="opt in PATHOGEN_OPTIONS" :key="opt" type="button"
-                        class="opt-btn" :class="{ on: selPathogen.includes(opt) }"
-                        @click="toggleOpt(selPathogen, opt)">{{ opt }}</button>
-              </div>
               <div class="ref-tags">
                 <span class="ref-tag prefix">系统参考</span>
                 <span class="ref-tag" v-for="v in pathogenRefList" :key="v">{{ v }}</span>
                 <span v-if="!pathogenRefList.length" class="ref-tag empty">窗口内无数据</span>
               </div>
+              <div class="opt-group">
+                <button v-for="opt in PATHOGEN_OPTIONS" :key="opt" type="button"
+                        class="opt-btn" :class="{ on: selPathogen.includes(opt) }"
+                        @click="toggleOpt(selPathogen, opt)">{{ opt }}</button>
+              </div>
             </div>
             <div class="info-block">
               <div class="info-label">抗菌药物</div>
-              <div class="opt-group">
-                <button v-for="opt in ANTIBIOTIC_OPTIONS" :key="opt" type="button"
-                        class="opt-btn" :class="{ on: selAntibiotic.includes(opt) }"
-                        @click="toggleOpt(selAntibiotic, opt)">{{ opt }}</button>
-              </div>
               <div class="ref-tags">
                 <span class="ref-tag prefix">系统参考</span>
                 <span class="ref-tag" v-for="v in antibioticRefList" :key="v">{{ v }}</span>
                 <span v-if="!antibioticRefList.length" class="ref-tag empty">窗口内无数据</span>
+              </div>
+              <div class="opt-group">
+                <button v-for="opt in ANTIBIOTIC_OPTIONS" :key="opt" type="button"
+                        class="opt-btn" :class="{ on: selAntibiotic.includes(opt) }"
+                        @click="toggleOpt(selAntibiotic, opt)">{{ opt }}</button>
               </div>
             </div>
           </div>
@@ -966,7 +968,9 @@ onMounted(() => {
 /* ===== 左右分栏：左侧评估记录列表（同 SOFA / APACHE II），右侧评估内容 ===== */
 .sepsis-body {
   display: flex;
-  align-items: flex-start;
+  /* 与 SOFA / APACHE II 一致：侧栏与右侧主区等高（stretch），
+     原来是 flex-start —— 侧栏高度会塌成「记录条数」决定的内容高度，记录少时卡片只占一小截 */
+  align-items: stretch;
   gap: 14px;
 }
 .side {
@@ -978,7 +982,9 @@ onMounted(() => {
   box-shadow: 0 1px 4px rgba(28, 25, 23, 0.04);
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 48px);
+  /* 占满视口高度（上对 16px sticky 偏移、下留 32px），记录列表 flex:1 撑满剩余空间并内部滚动。
+     原来只给了 max-height，高度由内容撑，记录少时白卡片矮一截，看着不像「展开」 */
+  height: calc(100vh - 48px);
   position: sticky;
   top: 16px;
 }
@@ -1049,6 +1055,8 @@ onMounted(() => {
 }
 .record-list {
   flex: 1;
+  /* 固定高度父容器内允许收缩，否则记录多了会顶破侧栏而不是在内部滚动 */
+  min-height: 0;
   overflow-y: auto;
   padding: 8px;
 }
@@ -1662,10 +1670,10 @@ onMounted(() => {
   font-weight: 400;
   color: #a8a29e;
 }
-/* 系统参考：与 1H/3H/6H 项目下方的提示信息同款，放在勾选按钮组下面 */
+/* 系统参考：放在勾选按钮组「上方」——医生先看系统取到的值，再决定勾哪一项。
+   原放在按钮下方，一屏按钮会把它顶到看不见，等于没有参考。 */
 .ref-tags {
-  margin-left: 24px;
-  margin-top: 6px;
+  margin-bottom: 6px;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -1679,9 +1687,11 @@ onMounted(() => {
   display: inline-block;
   line-height: 1.5;
 }
+/* 「系统参考」标识：上移后作为引导视线的一行，用青色实底强调，与后面的参考值区分开 */
 .ref-tag.prefix {
-  color: #78716c;
-  background: #f5f5f4;
+  color: #0f766e;
+  background: #ccfbf1;
+  font-weight: 600;
 }
 .ref-tag.empty {
   color: #a8a29e;

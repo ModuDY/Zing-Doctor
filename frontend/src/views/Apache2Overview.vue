@@ -305,14 +305,13 @@ function fmt2(v) {
   return isNaN(n) ? '0.00' : n.toFixed(2)
 }
 
-// 与评分页保持同一口径：auto/daily=自动评分、reviewed=已复核、其余=手工评分
-// （admission/24h/48h 为历史遗留取值，保留原样展示）
+// 与评分页保持同一口径：auto/daily=自动评分、custom=手工评分
+// （admission/24h/48h 为历史遗留取值，保留原样展示；reviewed 从未落库，已移除）
 function scoreTypeText(type) {
   const map = {
     auto: '自动评分',
     daily: '自动评分',
     custom: '手工评分',
-    reviewed: '已复核',
     admission: '入科时',
     '24h': '24小时',
     '48h': '48小时'

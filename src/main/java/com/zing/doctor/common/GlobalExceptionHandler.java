@@ -41,8 +41,14 @@ public class GlobalExceptionHandler {
         while (root.getCause() != null) {
             root = root.getCause();
         }
-        String detail = root.getMessage() == null ? "" : root.getMessage();
-        String hint = (detail.contains("LocalDateTime") || detail.contains("yyyy-MM-dd") || detail.contains("DateTimeParse"))
+        // 判断必须同时看「异常链顶层」和「根因」：
+        // Jackson 顶层消息才带类型与字段名（Cannot deserialize value of type java.time.LocalDateTime ...），
+        // 而根因是 DateTimeParseException，消息只有 "Text '2026-09-16 14:30:00' could not be parsed at index 10"，
+        // 既没有类型名也没有类名 —— 只看根因会把时间格式错误误报成笼统的「数据格式有误」。
+        String detail = (e.getMessage() == null ? "" : e.getMessage())
+                + " | " + (root.getMessage() == null ? "" : root.getMessage());
+        String hint = (detail.contains("LocalDateTime") || detail.contains("LocalDate") || detail.contains("yyyy-MM-dd")
+                || detail.contains("DateTimeParse") || detail.contains("could not be parsed"))
                 ? "提交的时间格式有误，应为 yyyy-MM-dd HH:mm:ss，请刷新页面后重试"
                 : "提交的数据格式有误，请检查输入后重试";
         return Result.fail(400, hint);

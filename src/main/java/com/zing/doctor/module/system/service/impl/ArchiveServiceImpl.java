@@ -19,8 +19,11 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,6 +51,15 @@ public class ArchiveServiceImpl implements ArchiveService {
     private static final String DOC_CODE_SOFA = "sofa";
     private static final String DOC_CODE_APACHE2 = "apache2";
 
+    /**
+     * 草稿来源：系统自动初评（score_type = auto / daily）。
+     *
+     * <p>业务口径：自动初评只是系统内部的评估草稿，未经医生复核确认，
+     * 不属于「需要归档的文书」——只有医生打开复核并保存过（score_type 转为 custom 等）
+     * 的记录才允许推送归档。
+     */
+    private static final Set<String> DRAFT_SCORE_TYPES = new HashSet<>(Arrays.asList("auto", "daily"));
+
     /** 归档目录里允许出现的占位符；出现其它 #xxx# 一律视为配置错误 */
     private static final Pattern PLACEHOLDER = Pattern.compile("#[A-Za-z_]+#");
 
@@ -72,6 +84,12 @@ public class ArchiveServiceImpl implements ArchiveService {
 
         // 1. 取记录主体 + PDF 大字段（pdf_data 默认不随行返回，单独取）
         ArchiveTarget t = loadTarget(bizCode, id);
+
+        // 1.1 自动初评是内部评估草稿，医生未复核保存前不作为文书归档（业务口径）
+        if (isDraftScoreType(t.scoreType)) {
+            throw new IllegalStateException("自动初评属于系统内部评估草稿，需医生打开复核并保存后才能归档");
+        }
+
         if (!StringUtils.hasText(t.pdfData)) {
             throw new IllegalStateException("该记录还没有评分文书 PDF，请先保存评分生成文书后再归档");
         }
@@ -235,6 +253,7 @@ public class ArchiveServiceImpl implements ArchiveService {
             t.scoreTime = r.getScoreTime();
             t.createTime = r.getCreateTime();
             t.createBy = r.getCreateBy();
+            t.scoreType = r.getScoreType();
             t.pdfName = r.getPdfName();
             t.filePath = r.getFilePath();
             t.pdfData = p == null ? null : p.getPdfData();
@@ -249,6 +268,7 @@ public class ArchiveServiceImpl implements ArchiveService {
             t.scoreTime = r.getScoreTime();
             t.createTime = r.getCreateTime();
             t.createBy = r.getCreateBy();
+            t.scoreType = r.getScoreType();
             t.pdfName = r.getPdfName();
             t.filePath = r.getFilePath();
             t.pdfData = p == null ? null : p.getPdfData();
@@ -315,6 +335,11 @@ public class ArchiveServiceImpl implements ArchiveService {
         }
     }
 
+    /** 是否系统自动初评草稿：未经医生确认的评估不作为文书归档 */
+    private boolean isDraftScoreType(String scoreType) {
+        return scoreType != null && DRAFT_SCORE_TYPES.contains(scoreType.trim().toLowerCase());
+    }
+
     private String normalizeBiz(String biz) {
         if (!StringUtils.hasText(biz)) {
             throw new IllegalArgumentException("业务类型不能为空");
@@ -350,6 +375,8 @@ public class ArchiveServiceImpl implements ArchiveService {
         String filePath;
         String docCode;
         String scoreDate;
+        /** 记录来源：auto / daily 为系统自动初评草稿，custom 等为医生确认过 */
+        String scoreType;
     }
 
     /** 归档失败时携带接口原始返回，便于前端提示 */
