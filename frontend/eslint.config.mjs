@@ -17,6 +17,24 @@ export default [
   // 关闭所有与 Prettier 冲突的格式类规则（格式统一交给 Prettier）
   prettier,
   {
+    // Node 环境脚本（构建配置、依赖审计门禁脚本）：跑在 Node 里，
+    // 需要用 process 等 Node 全局，不能套浏览器 globals 的那套限制。
+    files: ['scripts/**/*.{js,mjs}', '*.mjs', 'vite.config.mjs', 'eslint.config.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        URL: 'readonly',
+        Buffer: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        require: 'readonly',
+        module: 'readonly',
+        exports: 'readonly'
+      }
+    }
+  },
+  {
     files: ['**/*.{js,mjs,vue}'],
     languageOptions: {
       ecmaVersion: 2023,

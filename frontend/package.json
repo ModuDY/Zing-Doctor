@@ -13,15 +13,6 @@
     "format:check": "prettier --check \"src/**/*.{js,vue,css}\"",
     "audit:ci": "node scripts/audit-ci.mjs"
   },
-  "lint-staged": {
-    "*.{js,mjs,vue}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.css": [
-      "prettier --write"
-    ]
-  },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
     "axios": "^1.6.8",
@@ -39,7 +30,6 @@
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.11.0",
-    "lint-staged": "^17.5.1",
     "prettier": "^3.9.6",
     "unplugin-element-plus": "^0.11.2",
     "unplugin-vue-components": "^32.1.0",

@@ -48,10 +48,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 安装 Node 20
+      # 用 Node 22 LTS：ESLint 10 的 engines 要求 ^20.19.0 || ^22.13.0 || >=24，
+      # 早期 20.x（如 20.18）会触发 EBADENGINE 甚至 lint 启动失败。
+      # 版本来自 frontend/.nvmrc（单一来源，本地/CI 一致），lock 由 npm 10 系列生成，
+      # 避免「本地 npm 11 生成的 lock，在 CI 的 npm 10 下 npm ci 校验失败」。
+      - name: 安装 Node（版本取自 frontend/.nvmrc）
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: frontend/.nvmrc
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
