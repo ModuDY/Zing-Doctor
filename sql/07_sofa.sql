@@ -18,8 +18,9 @@
 -- ---------------------------------------------------------------------
 -- 1) SOFA 评分记录表
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_sofa_score_record" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."sofa_score_record" (
-    "id"                  BIGINT        IDENTITY(1,1) NOT NULL,
+    "id"                  BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_sofa_score_record".NEXTVAL NOT NULL,
     "patient_id"          VARCHAR(64),
     "in_hospital_no"      VARCHAR(64)   NOT NULL,
     "patient_name"        VARCHAR(64),
@@ -98,8 +99,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_sofa_time"    ON "zing_doctor_db_prod"."
 -- ---------------------------------------------------------------------
 -- 2) SOFA 配置表（表空时才写入默认种子，不覆盖院内调整）
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_sofa_config" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."sofa_config" (
-    "id"           BIGINT       IDENTITY(1,1) NOT NULL,
+    "id"           BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_sofa_config".NEXTVAL NOT NULL,
     "config_type"  VARCHAR(32)  NOT NULL,
     "config_key"   VARCHAR(128) NOT NULL,
     "config_value" VARCHAR(500),

@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"quality_metric_patient\"")
 public class QualityMetricPatient {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     private String runId;

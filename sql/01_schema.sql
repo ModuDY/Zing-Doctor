@@ -13,12 +13,27 @@
 --        disql SYSDBA/Sa_20250815@100.120.1.102:14236
 --        SQL> start /opt/zing-doctor/sql/01_schema.sql
 -- =====================================================================
+--
+-- 【主键策略】本库所有表都不使用 IDENTITY 自增，改由程序生成 15 位全局唯一 ID
+-- （毫秒时间戳13 + 机器号1 + 序列号1，见 com.zing.doctor.common.ZingIdGenerator）。
+-- 自增 ID 从 1 开始，多院区合并或导历史数据时必然撞车，故整体替换。
+--
+-- 每张表配一个 SEQ_<表名> 序列并作为 id 列的默认值，它**只**服务于初始化脚本里
+-- 那些不写 id 列的 INSERT；程序运行期插入一律自带 id，默认值不生效。
+-- 若达梦版本不支持「序列作列默认值」，把 id 列改回普通 NOT NULL 并改用
+-- BEFORE INSERT 触发器填值即可，程序端代码不需要任何调整。
+--
+-- 重建库时若报「序列已存在」，先执行：
+--   SELECT 'DROP SEQUENCE "zing_doctor_db_prod"."'||SEQUENCE_NAME||'";'
+--     FROM ALL_SEQUENCES WHERE SEQUENCE_OWNER='zing_doctor_db_prod';
+-- 把查询结果整体执行一遍，再重跑本脚本。
 
 -- ---------------------------------------------------------------------
 -- 页面注册表：每个可外链打开的功能页面在此登记（外链 pageCode 唯一）
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_page_config" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."zing_page_config" (
-    "id"            BIGINT       IDENTITY(1,1) NOT NULL,
+    "id"            BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_zing_page_config".NEXTVAL NOT NULL,
     "page_code"     VARCHAR(64)  NOT NULL,
     "page_name"     VARCHAR(128) NOT NULL,
     "frontend_path" VARCHAR(255) NOT NULL,
@@ -42,8 +57,9 @@ CREATE UNIQUE INDEX "zing_doctor_db_prod"."uk_zing_page_config_page_code"
 -- ---------------------------------------------------------------------
 -- 外链访问日志：记录外部系统（ICU）外链进入医生系统的访问
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_external_access_log" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."zing_external_access_log" (
-    "id"            BIGINT      IDENTITY(1,1) NOT NULL,
+    "id"            BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_zing_external_access_log".NEXTVAL NOT NULL,
     "page_code"     VARCHAR(64) NOT NULL,
     "source_system" VARCHAR(64) DEFAULT 'icu' NOT NULL,
     "ip"            VARCHAR(64),
@@ -63,8 +79,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_zing_external_access_log_time" ON "zing_
 -- ---------------------------------------------------------------------
 -- 抗感染决策记录：第一维度（经验性抗感染治疗决策）医生决策留痕
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_decision_record" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."zing_decision_record" (
-    "id"               BIGINT       IDENTITY(1,1) NOT NULL,
+    "id"               BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_zing_decision_record".NEXTVAL NOT NULL,
     "patient_id"       VARCHAR(64)  NOT NULL,
     "patient_no"       VARCHAR(64),
     "page_code"        VARCHAR(64)  DEFAULT 'abx-decision',
@@ -104,8 +121,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_zing_decision_record_status"  ON "zing_d
 -- ---------------------------------------------------------------------
 -- 抗感染方案推荐日志：一次决策记录对应的系统推荐方案明细（可多条）
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_advice_log" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."zing_advice_log" (
-    "id"                 BIGINT       IDENTITY(1,1) NOT NULL,
+    "id"                 BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_zing_advice_log".NEXTVAL NOT NULL,
     "decision_record_id" BIGINT       NOT NULL,
     "drug_name"          VARCHAR(128) NOT NULL,
     "dose_plan"          VARCHAR(255),
@@ -130,8 +148,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_zing_advice_log_record" ON "zing_doctor_
 -- 抗菌药物 DDD 值配置表：第三维度（使用强度分析）的核心知识库
 -- 初始数据按 WHO ATC/DDD 最新版本录入，支持后台页面修改
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_ddd_config" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."zing_ddd_config" (
-    "id"            BIGINT       IDENTITY(1,1) NOT NULL,
+    "id"            BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_zing_ddd_config".NEXTVAL NOT NULL,
     "drug_name"     VARCHAR(128) NOT NULL,
     "atc_code"      VARCHAR(32),
     "ddd_value"     DECIMAL(10,4) NOT NULL,
@@ -168,8 +187,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_zing_ddd_config_level" ON "zing_doctor_d
 -- 由于 ICU 库细菌名称中无耐药关键词，MDRO 精确判定需药敏结果支持，
 -- 本表用于细菌分类统计和高风险细菌标记。
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_mdro_config" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."zing_mdro_config" (
-    "id"             BIGINT       IDENTITY(1,1) NOT NULL,
+    "id"             BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_zing_mdro_config".NEXTVAL NOT NULL,
     "config_type"    VARCHAR(20)  NOT NULL,
     "bacteria_name"  VARCHAR(128),
     "bacteria_class" VARCHAR(20),
@@ -197,8 +217,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_zing_mdro_config_risk"  ON "zing_doctor_
 -- 脓毒症休克集束化治疗记录表
 -- 用于记录脓毒症/感染性休克患者1H/3H/6H集束化治疗完成情况
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_sepsis_bundle_record" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."sepsis_bundle_record" (
-    "id"                  BIGINT       IDENTITY(1,1) NOT NULL,
+    "id"                  BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_sepsis_bundle_record".NEXTVAL NOT NULL,
     "patient_id"          VARCHAR(64),
     "in_hospital_no"      VARCHAR(64)  NOT NULL,
     "patient_name"        VARCHAR(64),
@@ -252,8 +273,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_sepsis_bundle_time"    ON "zing_doctor_d
 -- 抗菌药物识别词库配置表（脓毒症集束化：广谱抗菌药白名单 + 非抗菌药黑名单）
 -- 后台页面 abx-word-config 可增删改，启动/评估时加载，表空时回退内置默认
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_abx_word_config" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."zing_abx_word_config" (
-    "id"          BIGINT       IDENTITY(1,1) NOT NULL,
+    "id"          BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_zing_abx_word_config".NEXTVAL NOT NULL,
     "word_type"   VARCHAR(32)  NOT NULL,
     "keyword"     VARCHAR(128) NOT NULL,
     "category"    VARCHAR(64),
@@ -277,8 +299,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_zing_abx_word_type_status" ON "zing_doct
 -- 病情变化（condition_change）为 P0 手工录入字段；下一班计划/待办字段 P1 预留
 -- 一个患者一个"已封板全天班次"一条，按 (in_hospital_no, shift_begin_time) 唯一
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_doctor_handover" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."zing_doctor_handover" (
-    "id"               BIGINT       IDENTITY(1,1) NOT NULL,
+    "id"               BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_zing_doctor_handover".NEXTVAL NOT NULL,
     "patient_id"       VARCHAR(64),
     "in_hospital_no"   VARCHAR(64)  NOT NULL,
     "patient_name"     VARCHAR(64),
@@ -318,8 +341,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_zdh_shift"  ON "zing_doctor_db_prod"."zi
 -- APACHE II 评分记录表
 -- 支持多次评分（入科时/24h/48h/自定义），每次评分一条记录
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_apache2_score_record" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."apache2_score_record" (
-    "id"                BIGINT       IDENTITY(1,1) NOT NULL,
+    "id"                BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_apache2_score_record".NEXTVAL NOT NULL,
     "patient_id"        VARCHAR(64),
     "in_hospital_no"    VARCHAR(64)  NOT NULL,
     "patient_name"      VARCHAR(64),
@@ -387,8 +411,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_apache2_time"    ON "zing_doctor_db_prod
 -- APACHE II 配置表
 -- 监护item_code配置、检验lis_item_code配置、慢性健康关键词配置
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_apache2_config" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."apache2_config" (
-    "id"           BIGINT       IDENTITY(1,1) NOT NULL,
+    "id"           BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_apache2_config".NEXTVAL NOT NULL,
     "config_type"  VARCHAR(32)  NOT NULL,
     "config_key"   VARCHAR(128) NOT NULL,
     "config_value" VARCHAR(500),

@@ -23,8 +23,9 @@
 --   SQL> start /opt/zing-doctor/sql/06_abx_drug_dict.sql
 -- =====================================================================
 
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_abx_drug_dict" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."zing_abx_drug_dict" (
-    "id"                BIGINT       IDENTITY(1,1) NOT NULL,
+    "id"                BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_zing_abx_drug_dict".NEXTVAL NOT NULL,
     "drug_code"         VARCHAR(64)  NOT NULL,
     "drug_name"         VARCHAR(255),
     "drug_short_name"   VARCHAR(255),

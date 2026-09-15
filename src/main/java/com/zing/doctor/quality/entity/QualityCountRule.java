@@ -34,7 +34,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"quality_count_rule\"")
 public class QualityCountRule {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** ICU 侧规则 id；本表唯一约束，用于幂等同步 */

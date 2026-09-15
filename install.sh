@@ -85,33 +85,99 @@ info "达梦：$DM_HOST_PORT  连接账号：$ADMIN_USER（目标模式 zing_doc
 #   00_init_user.sql：CREATE SCHEMA "zing_doctor_db_prod" AUTHORIZATION SYSDBA
 #   01_schema.sql   ：建表（SQL 内显式 "zing_doctor_db_prod"."xxx" 模式前缀）
 #   02_seed.sql     ：初始化页面注册数据
-init_db() {
-  local logfile=/tmp/zing-dbinit.log
-  local DISQL=""
-  local p=""
-
-  # 通道 a：本机 disql（扩展搜索路径 + find 兜底）
-  command -v disql >/dev/null 2>&1 && DISQL="disql"
-  if [ -z "$DISQL" ]; then
+# ---------- disql 探测（全局：全量初始化与增量升级共用）----------
+DB_DISQL=""
+detect_disql() {
+  local p
+  # ⚠️ 全部用 if 而非 `cmd && var=...`：脚本开头有 `set -e`，
+  # `cmd && var=...` 在 cmd 失败时整条 AND-list 返回非 0，会让 install.sh 直接退出
+  # （典型：服务器没装 disql 时，`command -v disql` 失败 → 脚本静默中断）。
+  if command -v disql >/dev/null 2>&1; then
+    DB_DISQL="disql"
+  fi
+  if [ -z "$DB_DISQL" ]; then
     for p in /opt/dmdbms/bin/disql /dm8/bin/disql /opt/dm8/bin/disql /dmdbms/bin/disql \
              /home/dmdba/dmdbms/bin/disql /usr/local/dmdbms/bin/disql \
              /data/dmdbms/bin/disql /app/dmdbms/bin/disql /usr/local/bin/disql; do
-      [ -x "$p" ] && { DISQL="$p"; break; }
+      if [ -x "$p" ]; then DB_DISQL="$p"; break; fi
     done
   fi
   # find 兜底搜索（限时3秒，避免卡住）
-  if [ -z "$DISQL" ]; then
-    DISQL="$(timeout 3 find / -name disql -type f 2>/dev/null | head -1)"
-    [ -n "$DISQL" ] && info "通过 find 定位 disql: $DISQL"
+  if [ -z "$DB_DISQL" ]; then
+    DB_DISQL="$(timeout 3 find / -name disql -type f 2>/dev/null | head -1)"
+    if [ -n "$DB_DISQL" ]; then info "通过 find 定位 disql: $DB_DISQL"; fi
   fi
+}
+detect_disql
+
+# ---------- 增量升级（幂等脚本，可重复执行）----------
+# 老库（表已存在）会跳过全量初始化，新增的表/列就靠这里自动补上，
+# 避免「代码更新了、表没改」导致页面 500（典型：无效的列名[param_type]）。
+# 只放**幂等**脚本：每个 DDL 都先判断存在性，重跑不会报「对象已存在」。
+# 一次性脚本（如 06_abx_drug_dict.sql 的裸 CREATE TABLE）不要加进来。
+INCREMENTAL_SQL=("13_auth.sql" "14_param_framework.sql")
+
+apply_incremental() {
+  local files=()
+  local f p
+  for f in "${INCREMENTAL_SQL[@]}"; do files+=("$ROOT/sql/$f"); done
+  local logfile=/tmp/zing-db-incr.log
+
+  if [ -n "$DB_DISQL" ]; then
+    info "应用增量脚本（本机 disql）：${INCREMENTAL_SQL[*]}"
+    if cat "${files[@]}" | "$DB_DISQL" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" >"$logfile" 2>&1; then
+      info "增量脚本执行完成"; return 0
+    fi
+    warn "增量脚本返回非 0（详见 $logfile）：多为「对象已存在」提示，可忽略"
+    return 0
+  fi
+
+  local CID="$(docker ps --format '{{.Names}} {{.Image}}' 2>/dev/null | grep -iE 'dm8|dameng' | head -1 | awk '{print $1}')"
+  if [ -n "$CID" ]; then
+    for p in /opt/dmdbms/bin/disql /dm8/bin/disql /opt/dm8/bin/disql; do
+      if docker exec "$CID" test -x "$p" 2>/dev/null; then
+        info "应用增量脚本（容器 $CID disql）：${INCREMENTAL_SQL[*]}"
+        cat "${files[@]}" | docker exec -i "$CID" "$p" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" >"$logfile" 2>&1 \
+          || warn "增量脚本返回非 0（详见 $logfile）"
+        return 0
+      fi
+    done
+  fi
+
+  if command -v java >/dev/null 2>&1 && [ -f "lib/DmJdbcDriver18-8.1.3.140.jar" ]; then
+    local _cp=""
+    if [ -f "tools/db-init/DbInit.class" ]; then
+      _cp="tools/db-init"
+    elif [ -f "tools/db-init-classes/DbInit.class" ]; then
+      _cp="tools/db-init-classes"
+    fi
+    if [ -n "$_cp" ]; then
+      info "应用增量脚本（JDBC 工具）：${INCREMENTAL_SQL[*]}"
+      java -cp "lib/DmJdbcDriver18-8.1.3.140.jar:$_cp" \
+           DbInit "jdbc:dm://$DM_HOST_PORT" "$ADMIN_USER" "$ADMIN_PASS" "${files[@]}" \
+        || warn "增量脚本返回非 0"
+      return 0
+    fi
+  fi
+
+  warn "未找到可用通道自动应用增量脚本，请手动执行 sql/：${INCREMENTAL_SQL[*]}"
+}
+
+init_db() {
+  local logfile=/tmp/zing-dbinit.log
+  local DISQL="$DB_DISQL"
+  local p=""
   # 表已存在则跳过初始化（重复部署场景，避免报错）
+  # ⚠️ 表名是双引号小写建的，比较必须统一 UPPER；否则老库识别不出来，会去重跑全量并报错
   if [ -n "$DISQL" ]; then
-    local _exist="$(echo "SELECT COUNT(*) FROM all_tables WHERE owner='ZING_DOCTOR_DB_PROD' AND table_name='ZING_PAGE_CONFIG';" \
+    local _exist="$(echo "SELECT COUNT(*) FROM all_tables WHERE UPPER(owner)='ZING_DOCTOR_DB_PROD' AND UPPER(table_name)='ZING_PAGE_CONFIG';" \
          | "$DISQL" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" 2>/dev/null \
          | grep -oE '[0-9]+' | tail -1)"
     if [ "$_exist" = "1" ]; then
-      info "检测到 zing_doctor_db_prod.zing_page_config 表已存在，跳过数据库初始化（如需重建请先 DROP SCHEMA）"
-      warn "老库升级：请手动执行增量脚本（只执行一次）sql/06_abx_drug_dict.sql，否则抗菌药识别词库刷新会持续告警“无效的表或视图名[zing_abx_drug_dict]”"
+      info "检测到 zing_doctor_db_prod.zing_page_config 表已存在，跳过全量初始化（如需重建请先 DROP SCHEMA）"
+      # 老库升级：自动套用增量脚本（幂等），不再要求人工执行 SQL
+      apply_incremental
+      warn "老库升级：sql/06_abx_drug_dict.sql 为一次性脚本，若从未执行过需手动执行一次，否则抗菌药识别词库刷新会持续告警“无效的表或视图名[zing_abx_drug_dict]”"
       warn "老库升级：使用质控指标中台需手动执行 sql/09_quality.sql（幂等），否则质控看板/月度汇总页会因表不存在而报错，且 quality-board / quality-monthly 未注册导致外链被拒"
       warn "老库升级：使用质控指标「可视化配置」需手动执行 sql/10_quality_config.sql，否则配置真源三张表（quality_metric_def / quality_fact_def / quality_def_history）不存在，且 quality-config 未注册导致 /entry/quality-config 外链报 404「未注册的页面」"
       warn "老库升级：使用质控「真指标」（分子÷分母）需手动执行 sql/11_quality_count_rule.sql，否则看板「质控指标」页取不到规则；建表后还要在看板点一次「同步指标规则」从 ICU 侧灌数"
@@ -121,7 +187,7 @@ init_db() {
 
   if [ -n "$DISQL" ]; then
     info "通道 a：本机 disql 初始化达梦（建模式+建表+种子）..."
-    if cat "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" "$ROOT/sql/06_abx_drug_dict.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" "$ROOT/sql/10_quality_config.sql" "$ROOT/sql/11_quality_count_rule.sql" \
+    if cat "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" "$ROOT/sql/06_abx_drug_dict.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" "$ROOT/sql/10_quality_config.sql" "$ROOT/sql/11_quality_count_rule.sql" "$ROOT/sql/12_archive.sql" "$ROOT/sql/13_auth.sql" "$ROOT/sql/14_param_framework.sql" \
          | "$DISQL" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" >"$logfile" 2>&1; then
       info "达梦初始化完成（本机 disql，模式 zing_doctor_db_prod）"; return 0
     fi
@@ -134,7 +200,7 @@ init_db() {
     info "通道 b：达梦容器 $CID 初始化..."
     for p in /opt/dmdbms/bin/disql /dm8/bin/disql /opt/dm8/bin/disql; do
       if docker exec "$CID" test -x "$p" 2>/dev/null; then
-        if cat "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" "$ROOT/sql/06_abx_drug_dict.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" "$ROOT/sql/10_quality_config.sql" "$ROOT/sql/11_quality_count_rule.sql" \
+        if cat "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" "$ROOT/sql/06_abx_drug_dict.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" "$ROOT/sql/10_quality_config.sql" "$ROOT/sql/11_quality_count_rule.sql" "$ROOT/sql/12_archive.sql" "$ROOT/sql/13_auth.sql" "$ROOT/sql/14_param_framework.sql" \
              | docker exec -i "$CID" "$p" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" >"$logfile" 2>&1; then
           info "达梦初始化完成（容器 $CID，模式 zing_doctor_db_prod）"; return 0
         fi
@@ -166,7 +232,7 @@ init_db() {
               "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" \
               "$ROOT/sql/03_icu_indexes.sql" "$ROOT/sql/05_apache2_pdf.sql" "$ROOT/sql/06_abx_drug_dict.sql" \
               "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" \
-              "$ROOT/sql/10_quality_config.sql" "$ROOT/sql/11_quality_count_rule.sql"; then
+              "$ROOT/sql/10_quality_config.sql" "$ROOT/sql/11_quality_count_rule.sql" "$ROOT/sql/12_archive.sql" "$ROOT/sql/13_auth.sql" "$ROOT/sql/14_param_framework.sql"; then
         info "达梦初始化完成（JDBC 工具，模式 zing_doctor_db_prod + ICU 库性能索引 + APACHE2 PDF列）"; return 0
       fi
       warn "JDBC 工具执行失败（详见上方日志）"

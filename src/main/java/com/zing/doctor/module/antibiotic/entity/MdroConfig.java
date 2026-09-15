@@ -20,7 +20,7 @@ public class MdroConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** 配置类型：bacteria_class细菌分类, high_risk高风险细菌, specimen标本类型 */

@@ -141,3 +141,85 @@ SELECT 'ARCHIVE_DIR', '归档目录', '/ICU/#in_hospital_no#/#doc_code#/#score_d
 ```
 
 **执行后配置**：进「参数设置」页面把 `ARCHIVE_API_URL` 填成院方归档接口地址，`ARCHIVE_DIR` 按院方实际目录结构调整（默认值可直接用）。
+
+---
+
+### 2026-09-16 · 直连登录鉴权 + 参数框架
+
+> ✅ **本批次已由 `install.sh` 自动执行**：新库走全量初始化，老库（已初始化过）走增量升级，
+> 两个脚本都是幂等的，重跑不会有副作用。
+> 只有当服务器既没有 `disql`、也没有达梦容器、也没有 `java` 时才会降级为手工执行，
+> 届时 `install.sh` 会直接打印提示。下面内容保留为**手工兜底**与执行后自检用。
+
+**涉及**
+
+- 新建 `zing_sys_user`（直连登录账号表：账号密码登录，区别于外链免登录）
+- `zing_sys_param` 增加 `param_type` / `options` / `default_value` / `required` / `regex` 五列
+- 新建 `zing_param_group`（参数分组表）+ 预置 5 个分组（文书归档 / 外链集成 / 评分配置 / 质控配置 / 系统设置）
+- 新增 3 个「外链工号自动注册」参数，**开关默认关**
+
+**不执行的后果**：
+
+- 不建 `zing_sys_user` → 直连打开页面登录报 500（表不存在）
+- 不加那五列 → **参数设置页打开即 500**（`无效的列名[param_type]`）
+- 不建 `zing_param_group` → 参数设置页左侧分组导航空白，参数列表取不到分组
+
+**① 直连登录账号表**
+
+可直接执行 `sql/13_auth.sql`（幂等：表已存在报「对象已存在」可忽略）。核心语句：
+
+```sql
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_sys_user" START WITH 1 INCREMENT BY 1;
+CREATE TABLE "zing_doctor_db_prod"."zing_sys_user" (
+    "id"              BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_zing_sys_user".NEXTVAL NOT NULL,
+    "username"        VARCHAR(64)  NOT NULL,
+    "real_name"       VARCHAR(64),
+    "password_hash"   VARCHAR(200) NOT NULL,
+    "status"          TINYINT      DEFAULT 1,
+    "last_login_time" TIMESTAMP,
+    "create_time"     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "update_time"     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT "pk_zing_sys_user" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "uk_zing_sys_user_name" ON "zing_doctor_db_prod"."zing_sys_user" ("username");
+```
+
+> 管理员账号**不用手工插**：后端首次启动自动写入 `admin / zing@123`，已有同名账号不覆盖。
+> 要改初始口令：启动时用环境变量 `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `AUTH_JWT_SECRET` 覆盖。
+
+**② 参数框架**
+
+可直接执行 `sql/14_param_framework.sql`（幂等：列名已存在 / 对象已存在均报错可忽略）。核心语句：
+
+```sql
+ALTER TABLE "zing_doctor_db_prod"."zing_sys_param" ADD COLUMN "param_type"    VARCHAR(20)   DEFAULT 'text';
+ALTER TABLE "zing_doctor_db_prod"."zing_sys_param" ADD COLUMN "options"       VARCHAR(1000);
+ALTER TABLE "zing_doctor_db_prod"."zing_sys_param" ADD COLUMN "default_value" VARCHAR(1000);
+ALTER TABLE "zing_doctor_db_prod"."zing_sys_param" ADD COLUMN "required"      TINYINT       DEFAULT 0;
+ALTER TABLE "zing_doctor_db_prod"."zing_sys_param" ADD COLUMN "regex"         VARCHAR(200);
+
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_param_group" START WITH 1 INCREMENT BY 1;
+CREATE TABLE "zing_doctor_db_prod"."zing_param_group" (
+    "id"          BIGINT       DEFAULT "zing_doctor_db_prod"."SEQ_zing_param_group".NEXTVAL NOT NULL,
+    "group_code"  VARCHAR(64)  NOT NULL,
+    "group_name"  VARCHAR(128) NOT NULL,
+    "sort_no"     INT          DEFAULT 0,
+    "icon"        VARCHAR(64),
+    "remark"      VARCHAR(500),
+    "status"      TINYINT      DEFAULT 1,
+    "create_time" TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "update_time" TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT "pk_zing_param_group" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "uk_zing_param_group_code" ON "zing_doctor_db_prod"."zing_param_group" ("group_code");
+```
+
+**执行后自检**：
+
+```sql
+SELECT "group_code", "group_name" FROM "zing_doctor_db_prod"."zing_param_group" ORDER BY "sort_no";
+SELECT "param_key", "param_value", "param_type"
+  FROM "zing_doctor_db_prod"."zing_sys_param" ORDER BY "param_group", "sort_no";
+```
+
+**执行后配置**：进「参数设置」→「外链集成」分组，`AUTO_REGISTER_ENABLED` 默认 **关闭**（外链 token 是固定明文，开启后任何持有外链者都能注册账号），需要时再打开。

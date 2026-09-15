@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"quality_index\"")
 public class QualityIndex {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** 指标编号 quality_xxx */

@@ -19,8 +19,9 @@
 -- ---------------------------------------------------------------------
 -- 1) 系统参数表
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_sys_param" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."zing_sys_param" (
-    "id"           BIGINT        IDENTITY(1,1) NOT NULL,
+    "id"           BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_zing_sys_param".NEXTVAL NOT NULL,
     "param_key"    VARCHAR(64)   NOT NULL,
     "param_name"   VARCHAR(128)  NOT NULL,
     "param_value"  VARCHAR(1000),
@@ -48,8 +49,9 @@ COMMENT ON COLUMN "zing_doctor_db_prod"."zing_sys_param"."status"      IS '状�
 -- ---------------------------------------------------------------------
 -- 2) 归档推送流水表：记录每次归档/撤销的时间、file_path 与对方响应，便于追溯
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_archive_log" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."zing_archive_log" (
-    "id"             BIGINT        IDENTITY(1,1) NOT NULL,
+    "id"             BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_zing_archive_log".NEXTVAL NOT NULL,
     "biz"            VARCHAR(32),
     "record_id"      BIGINT,
     "in_hospital_no" VARCHAR(64),

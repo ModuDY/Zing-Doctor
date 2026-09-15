@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"sepsis_bundle_record\"")
 public class SepsisBundleRecord {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     private String patientId;

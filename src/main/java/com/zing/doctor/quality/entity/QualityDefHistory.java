@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"quality_def_history\"")
 public class QualityDefHistory {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** METRIC 指标 / FACT 事实层 */

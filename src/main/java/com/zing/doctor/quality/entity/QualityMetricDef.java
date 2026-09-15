@@ -24,7 +24,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"quality_metric_def\"")
 public class QualityMetricDef {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** 指标编号 quality_xxx */

@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"zing_doctor_handover\"")
 public class HandoverNote {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     @TableField("patient_id")

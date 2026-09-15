@@ -30,8 +30,9 @@
 --   SQL> start /opt/zing-doctor/sql/11_quality_count_rule.sql
 -- =====================================================================
 
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_quality_count_rule" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."quality_count_rule" (
-    "id"                  BIGINT         IDENTITY(1,1) NOT NULL,
+    "id"                  BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_quality_count_rule".NEXTVAL NOT NULL,
     -- ICU 侧 quality_count_rule.id。用 rule_id 而非用源 id 当主键：
     -- 本院将来可能自建规则，不能依赖外部主键空间。
     "rule_id"             VARCHAR(64)    NOT NULL,

@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"sofa_score_record\"")
 public class SofaScoreRecord {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** ICU 患者 ID（patient_info.id） */

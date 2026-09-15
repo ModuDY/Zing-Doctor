@@ -59,6 +59,14 @@ mybatis-plus:
 
 # 医生系统自身配置
 zing:
+  # 机器号（0~99）：算法生成主键时会拼进 ID 中。单实例部署保持 0 即可；
+  # 将来横向扩多副本，各实例必须配不同值，否则同一秒可能生成相同 ID。
+  worker-id: ${WORKER_ID:0}
+  # 慢 SQL 埋点：执行耗时超过阈值的 SQL 会连同参数打到日志（WARN 级别）。
+  # 用于定位性能瓶颈，跑一段时间拿到真实慢 SQL 清单后再决定建哪些索引。
+  # 填 0 表示关闭埋点。
+  slow-sql:
+    threshold-ms: ${SLOW_SQL_THRESHOLD_MS:1000}
   doctor:
     # 外链免登录签名配置
     external-link:

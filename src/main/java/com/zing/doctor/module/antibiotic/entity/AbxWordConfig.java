@@ -19,7 +19,7 @@ public class AbxWordConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** 词类型：broad_spectrum 广谱抗菌药白名单 / non_antibiotic 非抗菌药黑名单 */

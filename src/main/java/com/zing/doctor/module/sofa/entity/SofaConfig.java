@@ -25,7 +25,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"sofa_config\"")
 public class SofaConfig {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     private String configType;

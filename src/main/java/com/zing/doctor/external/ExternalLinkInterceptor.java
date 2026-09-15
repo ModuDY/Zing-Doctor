@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.zing.doctor.common.BizException;
 import com.zing.doctor.common.OperatorContext;
 import com.zing.doctor.module.system.service.AuthService;
+import com.zing.doctor.module.system.service.impl.ExternalUserAutoRegister;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -45,6 +46,8 @@ public class ExternalLinkInterceptor implements HandlerInterceptor {
     private final ExternalLinkProperties properties;
 
     private final AuthService authService;
+
+    private final ExternalUserAutoRegister autoRegister;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
@@ -94,8 +97,28 @@ public class ExternalLinkInterceptor implements HandlerInterceptor {
         }
 
         request.setAttribute(ATTR_CONTEXT, ctx);
-        request.setAttribute(OperatorContext.ATTR_OPERATOR, operatorFromExternal(request, ctx));
+        String operator = operatorFromExternal(request, ctx);
+        request.setAttribute(OperatorContext.ATTR_OPERATOR, operator);
+        // 工号自动注册：开关默认关，开启后为外链带来的工号建直连登录账号。
+        // 放在鉴权通过之后——能通过校验的请求才有资格触发注册
+        autoRegister.onExternalVisit(workNoFrom(ctx), operator);
         return true;
+    }
+
+    /**
+     * 外链带来的工号（医生在第三方系统的职工号）。
+     *
+     * <p>各院区字段命名不统一，逐个尝试；取不到就不注册，不影响外链访问本身。
+     */
+    private String workNoFrom(ExternalLinkContext ctx) {
+        String[] keys = {"username", "userName", "workNo", "empNo", "userId", "operatorId"};
+        for (String key : keys) {
+            String value = ctx.param(key);
+            if (StrUtil.isNotBlank(value)) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     /**

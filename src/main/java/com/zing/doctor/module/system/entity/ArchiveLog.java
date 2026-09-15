@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"zing_archive_log\"")
 public class ArchiveLog {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** 业务：SOFA / APACHE2 */

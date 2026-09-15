@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"quality_fact_def\"")
 public class QualityFactDef {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** 事实层名，同时作为物化表名后缀 */

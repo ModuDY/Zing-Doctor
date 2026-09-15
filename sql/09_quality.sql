@@ -24,8 +24,9 @@
 --    指标编号 / 名称 / 分类 / 展示配置 / 实现状态 / 口径版本
 --    数据来源：classpath:quality/metrics/*.yaml（引擎启动同步，避免 SQL 与配置双维护）
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_quality_index" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."quality_index" (
-    "id"                  BIGINT        IDENTITY(1,1) NOT NULL,
+    "id"                  BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_quality_index".NEXTVAL NOT NULL,
     "index_code"          VARCHAR(32)   NOT NULL,
     "index_name"          VARCHAR(200),
     "domain_code"         VARCHAR(32),
@@ -77,8 +78,9 @@ CREATE UNIQUE INDEX "zing_doctor_db_prod"."uk_quality_index_code" ON "zing_docto
 -- ---------------------------------------------------------------------
 -- 2) 计算批次表（血缘第 1 层）
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_quality_calc_run" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."quality_calc_run" (
-    "id"               BIGINT       IDENTITY(1,1) NOT NULL,
+    "id"               BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_quality_calc_run".NEXTVAL NOT NULL,
     "run_id"           VARCHAR(40)  NOT NULL,
     "period_type"      VARCHAR(16),
     "period_start"     TIMESTAMP,
@@ -114,8 +116,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_quality_run_period" ON "zing_doctor_db_p
 -- ---------------------------------------------------------------------
 -- 3) 指标结果表（血缘第 2 层；含老系统对比值，供双跑核对）
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_quality_metric_result" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."quality_metric_result" (
-    "id"               BIGINT        IDENTITY(1,1) NOT NULL,
+    "id"               BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_quality_metric_result".NEXTVAL NOT NULL,
     "run_id"           VARCHAR(40),
     "metric_code"      VARCHAR(32)   NOT NULL,
     "metric_name"      VARCHAR(200),
@@ -154,8 +157,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_quality_result_period" ON "zing_doctor_d
 -- 4) 算子 / SQL 追溯表（血缘第 3 层）
 --    因为所有计算都经统一引擎，血缘是引擎自动捕获，不靠人工标注
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_quality_calc_trace" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."quality_calc_trace" (
-    "id"                 BIGINT       IDENTITY(1,1) NOT NULL,
+    "id"                 BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_quality_calc_trace".NEXTVAL NOT NULL,
     "run_id"             VARCHAR(40),
     "metric_code"        VARCHAR(32),
     "dim_key"            VARCHAR(64),
@@ -181,8 +185,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_quality_trace_run" ON "zing_doctor_db_pr
 -- ---------------------------------------------------------------------
 -- 5) 患者级命中明细（血缘第 4 层：数字 → 到人）
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_quality_metric_patient" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."quality_metric_patient" (
-    "id"             BIGINT      IDENTITY(1,1) NOT NULL,
+    "id"             BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_quality_metric_patient".NEXTVAL NOT NULL,
     "run_id"         VARCHAR(40),
     "metric_code"    VARCHAR(32),
     "period_start"   TIMESTAMP,
@@ -208,8 +213,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_quality_patient_no" ON "zing_doctor_db_p
 -- ---------------------------------------------------------------------
 -- 6) 月度汇总宽表（1-12 月横排，页面直读 + xlsx 导出）
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_quality_monthly_report" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."quality_monthly_report" (
-    "id"          BIGINT        IDENTITY(1,1) NOT NULL,
+    "id"          BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_quality_monthly_report".NEXTVAL NOT NULL,
     "year"        INT           NOT NULL,
     "index_code"  VARCHAR(32)   NOT NULL,
     "index_name"  VARCHAR(200),

@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"zing_sys_param\"")
 public class SysParam {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** 参数键（唯一） */
@@ -33,6 +33,21 @@ public class SysParam {
     private String paramGroup;
 
     private Integer sortNo;
+
+    /** 参数类型：text / textarea / number / switch / select，页面据此渲染控件 */
+    private String paramType;
+
+    /** select 选项 JSON：[{"label":"显示名","value":"存储值"}] */
+    private String options;
+
+    /** 默认值（参数值为空时取用） */
+    private String defaultValue;
+
+    /** 是否必填：1 必填 / 0 选填 */
+    private Integer required;
+
+    /** 校验正则（可选，保存时校验参数值） */
+    private String regex;
 
     /** 状态：1启用 0停用 */
     private Integer status;

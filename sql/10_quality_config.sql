@@ -25,8 +25,9 @@
 --    与 YAML 的 MetricDefinition 一一对应；字段增减需同步 Repository 映射。
 --    expr_version 由服务端在口径变化时自动 +1，页面不手填。
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_quality_metric_def" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."quality_metric_def" (
-    "id"                      BIGINT        IDENTITY(1,1) NOT NULL,
+    "id"                      BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_quality_metric_def".NEXTVAL NOT NULL,
     "index_code"              VARCHAR(32)   NOT NULL,
     "index_name"              VARCHAR(200),
     "domain_code"             VARCHAR(32),
@@ -79,8 +80,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_qmd_domain" ON "zing_doctor_db_prod"."qu
 -- B) 事实层定义表（配置真源，页面可编辑）
 --    与 YAML 的 FactDefinition 一一对应；List<String> 统一以 JSON 数组存 TEXT。
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_quality_fact_def" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."quality_fact_def" (
-    "id"                 BIGINT      IDENTITY(1,1) NOT NULL,
+    "id"                 BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_quality_fact_def".NEXTVAL NOT NULL,
     "fact_name"          VARCHAR(64) NOT NULL,
     "domain_code"        VARCHAR(32),
     "status"             VARCHAR(16) DEFAULT 'ACTIVE',
@@ -115,8 +117,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_qfd_domain" ON "zing_doctor_db_prod"."qu
 -- C) 配置变更历史（口径回溯；与编辑功能同期上线，不能后补）
 --    snapshot 存变更后的完整 JSON —— 任何一版口径都能原样还原。
 -- ---------------------------------------------------------------------
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_quality_def_history" START WITH 1 INCREMENT BY 1;
 CREATE TABLE "zing_doctor_db_prod"."quality_def_history" (
-    "id"           BIGINT      IDENTITY(1,1) NOT NULL,
+    "id"           BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_quality_def_history".NEXTVAL NOT NULL,
     "def_type"     VARCHAR(16) NOT NULL,
     "def_key"      VARCHAR(64) NOT NULL,
     "expr_version" INT,

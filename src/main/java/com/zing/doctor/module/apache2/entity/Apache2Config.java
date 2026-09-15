@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"apache2_config\"")
 public class Apache2Config {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** 配置类型：observe_item监护item_code/lis_item检验item_code/chronic_keyword慢性健康关键词 */

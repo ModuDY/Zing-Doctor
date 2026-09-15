@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"zing_sys_user\"")
 public class SysUser {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** 登录账号（唯一） */

@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 @TableName("\"zing_doctor_db_prod\".\"quality_monthly_report\"")
 public class QualityMonthlyReport {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** year 为达梦保留字，显式加引号 */
