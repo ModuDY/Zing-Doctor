@@ -167,6 +167,7 @@ public class PkpdServiceImpl implements PkpdService {
         }
 
         renal.setCreatinine(creatinine);
+        renal.setLatestCreatinine(creatinine);
         renal.setCreatinineUnit(unit);
 
         // 肌酐单位换算：μmol/L → mg/dL（除以 88.4）
@@ -182,26 +183,42 @@ public class PkpdServiceImpl implements PkpdService {
         Integer age = patient.getAge();
         BigDecimal weight = patient.getWeight();
         String gender = patient.getGender();
-        if (age != null && weight != null && gender != null) {
-            BigDecimal crcl = calcCrclCockcroftGault(age, weight, crMgDl, gender);
-            renal.setCrcl(crcl);
+        boolean hasAge = age != null;
+        boolean hasWeight = weight != null;
+        boolean hasGender = gender != null && !gender.trim().isEmpty();
 
-            // CKD-EPI eGFR
+        // CKD-EPI eGFR 与 KDIGO 分级：只需要年龄、性别、肌酐，与体重无关
+        if (hasAge && hasGender) {
             BigDecimal egfr = calcEgfrCkdEpi(age, crMgDl, gender);
             renal.setEgfr(egfr);
 
-            // 肾功能分级（基于 eGFR，KDIGO）
             String[] stage = classifyRenalStage(egfr);
             renal.setRenalStage(stage[0]);
             renal.setRenalStageText(stage[1]);
+        }
 
+        // Cockcroft-Gault CrCl：需要年龄、体重、性别三者
+        if (hasAge && hasWeight && hasGender) {
+            BigDecimal crcl = calcCrclCockcroftGault(age, weight, crMgDl, gender);
+            renal.setCrcl(crcl);
             renal.setFormulaNote("Cockcroft-Gault: CrCl=[(140-年龄)×体重]/[72×Scr(mg/dL)]（女性×0.85）；CKD-EPI eGFR 公式");
         } else {
-            renal.setCrcl(null);
-            renal.setEgfr(null);
-            renal.setRenalStage("unknown");
-            renal.setRenalStageText("年龄/体重/性别不全");
-            renal.setFormulaNote("患者年龄、体重、性别信息不全，无法计算肌酐清除率");
+            List<String> missing = new ArrayList<>();
+            if (!hasAge) missing.add("年龄");
+            if (!hasWeight) missing.add("体重");
+            if (!hasGender) missing.add("性别");
+            String missingText = String.join("、", missing);
+
+            if (hasAge && hasGender) {
+                // 已能计算 eGFR / KDIGO 分级，仅 CrCl 因缺体重无法给出
+                renal.setFormulaNote("缺少" + missingText + "，Cockcroft-Gault 肌酐清除率无法计算；肾功能分级已按 CKD-EPI eGFR 估算");
+            } else {
+                // eGFR 也缺必要参数，分级出不来
+                renal.setEgfr(null);
+                renal.setRenalStage("unknown");
+                renal.setRenalStageText("缺少" + missingText);
+                renal.setFormulaNote("患者缺少" + missingText + "信息，无法计算肌酐清除率及肾功能分级");
+            }
         }
 
         return renal;

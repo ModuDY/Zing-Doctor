@@ -11,8 +11,11 @@ import java.util.List;
 @Data
 public class RenalAssessment {
 
-    /** 最新肌酐值 */
+    /** 最新肌酐值（与 creatinine 同值，前端展示用） */
     private BigDecimal creatinine;
+
+    /** 前端展示用：最新肌酐值（与 creatinine 同值，保持命名一致） */
+    private BigDecimal latestCreatinine;
 
     /** 肌酐单位 */
     private String creatinineUnit;
