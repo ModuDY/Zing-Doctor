@@ -1,0 +1,297 @@
+{
+  "data": [
+    {
+      "id": "page-quality-board",
+      "title": "质控指标看板",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789390203000,
+      "canvasData": {
+        "x": 504,
+        "y": 0,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 4351,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-1daa050e",
+          "measuredAt": 1789406267038
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/quality-board.html",
+        "interactions": [
+          {
+            "domId": "tab-coverage",
+            "targetPageId": "page-quality-coverage",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-coverage']",
+            "hidden": true,
+            "label": "切换到覆盖率报告"
+          },
+          {
+            "domId": "tab-facts",
+            "targetPageId": "page-quality-facts",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-facts']",
+            "hidden": true,
+            "label": "切换到事实层"
+          },
+          {
+            "domId": "tab-runs",
+            "targetPageId": "page-quality-runs",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-runs']",
+            "hidden": true,
+            "label": "切换到计算批次"
+          },
+          {
+            "domId": "metric-value-link",
+            "targetPageId": "page-quality-detail",
+            "trigger": "click",
+            "selector": ".metric-value",
+            "hidden": false,
+            "label": "查看指标详情"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-quality-coverage",
+      "title": "覆盖率报告",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789390203000,
+      "canvasData": {
+        "x": -12,
+        "y": 0,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 6759,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-247eb4ca",
+          "measuredAt": 1789405257604
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/quality-coverage.html",
+        "interactions": [
+          {
+            "domId": "tab-board",
+            "targetPageId": "page-quality-board",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-board']",
+            "hidden": true,
+            "label": "切换到质控指标看板"
+          },
+          {
+            "domId": "tab-facts",
+            "targetPageId": "page-quality-facts",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-facts']",
+            "hidden": true,
+            "label": "切换到事实层"
+          },
+          {
+            "domId": "tab-runs",
+            "targetPageId": "page-quality-runs",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-runs']",
+            "hidden": true,
+            "label": "切换到计算批次"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-quality-facts",
+      "title": "事实层",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789390203000,
+      "canvasData": {
+        "x": 2094,
+        "y": 0,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 1047,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-bc708765",
+          "measuredAt": 1789405257604
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/quality-facts.html",
+        "interactions": [
+          {
+            "domId": "tab-board",
+            "targetPageId": "page-quality-board",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-board']",
+            "hidden": true,
+            "label": "切换到质控指标看板"
+          },
+          {
+            "domId": "tab-coverage",
+            "targetPageId": "page-quality-coverage",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-coverage']",
+            "hidden": true,
+            "label": "切换到覆盖率报告"
+          },
+          {
+            "domId": "tab-runs",
+            "targetPageId": "page-quality-runs",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-runs']",
+            "hidden": true,
+            "label": "切换到计算批次"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-quality-runs",
+      "title": "计算批次",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789390203000,
+      "canvasData": {
+        "x": 1098,
+        "y": 468,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 901,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-2b066b9c",
+          "measuredAt": 1789405257604
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/quality-runs.html",
+        "interactions": [
+          {
+            "domId": "tab-board",
+            "targetPageId": "page-quality-board",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-board']",
+            "hidden": true,
+            "label": "切换到质控指标看板"
+          },
+          {
+            "domId": "tab-coverage",
+            "targetPageId": "page-quality-coverage",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-coverage']",
+            "hidden": true,
+            "label": "切换到覆盖率报告"
+          },
+          {
+            "domId": "tab-facts",
+            "targetPageId": "page-quality-facts",
+            "trigger": "click",
+            "selector": "[data-dom-id='tab-facts']",
+            "hidden": true,
+            "label": "切换到事实层"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-quality-detail",
+      "title": "指标详情抽屉",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789390203000,
+      "canvasData": {
+        "x": 2688,
+        "y": 0,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 901,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-1499a18d",
+          "measuredAt": 1789405257604
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/quality-detail.html",
+        "interactions": [
+          {
+            "domId": "drawer-backdrop",
+            "targetPageId": "page-quality-board",
+            "trigger": "click",
+            "selector": "[data-dom-id='drawer-backdrop']",
+            "hidden": true,
+            "label": "关闭抽屉"
+          },
+          {
+            "domId": "drawer-close",
+            "targetPageId": "page-quality-board",
+            "trigger": "click",
+            "selector": "[data-dom-id='drawer-close']",
+            "hidden": true,
+            "label": "关闭抽屉"
+          }
+        ]
+      }
+    },
+    {
+      "id": "page-quality-monthly",
+      "title": "质控月度汇总",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789390203000,
+      "canvasData": {
+        "x": 1098,
+        "y": 0,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 3483,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-c53e7039",
+          "measuredAt": 1789406806750
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/quality-monthly.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-quality-config",
+      "title": "质控指标配置",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789390203000,
+      "canvasData": {
+        "x": 1596,
+        "y": 9,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 7088,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-e45f9567",
+          "measuredAt": 1789405257604
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/quality-config.html",
+        "interactions": []
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": false,
+    "deviceType": "desktop",
+    "projectName": "质控指标看板重设计",
+    "visualEditorEnabled": false,
+    "showEdge": false
+  }
+}

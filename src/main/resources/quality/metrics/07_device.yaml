@@ -1,0 +1,21 @@
+# =====================================================================
+# 指标层 · 导管 / 管路 / 院感（9 条）
+#
+# 全部依赖同一条缺失数据源：管路/导管事件表。事实层 fact_device 已写好
+# （置入/拔除时间、是否计划拔管、是否相关感染），缺的只是源头那张表。
+# 因此这里全部标 PENDING_SOURCE / PLACEHOLDER，页面显示「待接数据源」。
+#
+# 为什么不全标 PENDING_SOURCE：VAP / 导管留置天数这类指标的口径本身也还待定
+# （VAP 需要呼吸机相关肺炎判定标准、留置天数需要装置与周期的切分规则），
+# 与「有口径但缺源」不是同一类问题，分开标注便于和业务方对话。
+# =====================================================================
+
+- {code: quality_17,  name: "非计划气管插管拔管数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 11, remark: "待接 tubeList。事实层已备 device_pair 与 unplanned_removal，缺源。老脚本存在循环变量泄漏（多条管路互相覆盖），新实现按 device_id 逐条判定"}
+- {code: quality_18,  name: "ICU患者气管插管拔管数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 12, remark: "待接 tubeList"}
+- {code: quality_19,  name: "气管插管计划拔管后48h内再插管数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 13, remark: "待接 tubeList。老脚本时间桶错位（把拔管当天的再插管算到次日），新实现按 time_window 算子在同一患者内配对，避免跨患者误配"}
+- {code: quality_24,  name: "发生呼吸机相关性肺炎（VAP）数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 18, remark: "空壳：VAP 判定标准待与院感科确认（是否采用 CDC/NHSN 的 VAE 定义、感染窗口多长）"}
+- {code: quality_25,  name: "患者有创机械通气天数", domain: 导管_管路_院感, fact: fact_device, unit: "天", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 19, remark: "空壳：需明确「同一次住院多次上机是否合并、跨月如何切分」"}
+- {code: quality_26,  name: "发生血管内导管相关血流感染（CRBSI）数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 20, remark: "待接管路表。老脚本数据源错配（指向脓毒症 bundle），此处按管路表 + infection_flag 实现，不复用旧口径"}
+- {code: quality_27,  name: "患者血管内导管留置天数", domain: 导管_管路_院感, fact: fact_device, unit: "天", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 21, remark: "空壳：口径待定，同 quality_25"}
+- {code: quality_425, name: "导尿管相关泌尿系感染发生例数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 62, remark: "空壳：CAUTI 判定标准待与院感科确认"}
+- {code: quality_426, name: "导尿管留置总天数", domain: 导管_管路_院感, fact: fact_device, unit: "天", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 63, remark: "空壳：口径待定"}

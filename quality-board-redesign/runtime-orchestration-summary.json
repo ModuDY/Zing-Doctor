@@ -1,0 +1,623 @@
+{
+  "schemaVersion": "2026.07.11.0",
+  "skillProvenance": {
+    "name": "solo-design",
+    "version": "2026.08.06.19.15.08",
+    "version_source": "skill-release-manifest.json",
+    "release": "prompt-base-cloud-ssot-migration",
+    "read_status": "loaded"
+  },
+  "project": {
+    "operation": "edit",
+    "resolvedLane": "existing_edit_add_comparison",
+    "inPlaceEditAllowed": true,
+    "intentProfile": {
+      "caseFamily": "complex_html_page",
+      "surface": "project",
+      "pageKind": "data-dashboard",
+      "audience": "临床质控人员 / ICU 医生",
+      "businessTone": "温暖、清晰、可信赖的医疗数据看板",
+      "density": "information-dense"
+    },
+    "selectedIntentWorkflowRead": true,
+    "contextRequirementsLoaded": [
+      {
+        "path": "intent-workflows/intent-project-mutation/INTENT_WORKFLOW.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "intent-workflows/intent-project-complex-build/INTENT_WORKFLOW.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "shared-runtime/runtime-boundaries/lane-runtime-contracts.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "shared-runtime/agent-dispatch-runtime/lane-dispatch-index.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "shared-runtime/agent-dispatch-runtime/shared-page-rendering-kernel.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "delivery-quality/page-rendering-quality-gate.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "delivery-quality/design-artifact-validation.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "delivery-quality/delivery-evidence-contract.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "visual-experience/visual-experience-guidelines.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      },
+      {
+        "path": "visual-experience/visual-checkpoint-protocol.md",
+        "readStatus": "loaded",
+        "bodyRead": true
+      }
+    ],
+    "contextReadScope": "complex_html_page lane runbooks + shared rendering kernel + delivery/quality + visual-experience guidelines",
+    "readScopeLedger": [],
+    "designRead": "ICU 质控指标看板 / 临床质控人员 / 温暖可信赖 / 高密度数据 / 避免冰冷高对比压迫感",
+    "designDials": {
+      "layoutVariance": 3,
+      "motionIntensity": 2,
+      "visualDensity": 4
+    },
+    "styleDefinitionBrief": "温暖简洁白：纯白底色 + 暖橙主色 + 柔和暖灰层次，用绿色/琥珀状态色区分计算状态，减轻 ICU 数据看板的压迫感。",
+    "styleContinuityAnchors": {
+      "colorSystem": "warm-orange primary on warm-stone neutrals",
+      "typographySystem": "PingFang SC / Microsoft YaHei system stack, 12–22px scale",
+      "surfaceDepthModel": "border-led cards, shadow alpha <= 0.05, drawer uses float shadow",
+      "radiusScale": "4/8/12px restrained",
+      "staticShadowAlphaMax": 0.05
+    },
+    "sharedProjectShellContract": {
+      "shellRegions": [
+        "header-brand",
+        "filter-bar",
+        "overview-cards",
+        "tab-navigation",
+        "page-footer"
+      ],
+      "activeNavSlot": "SLOT:activeTab",
+      "contentSlot": "SLOT:tabPanel",
+      "stateGroupId": "quality-board-tabs",
+      "baseStatePageId": "page-quality-board"
+    },
+    "cssPreflightEvidence": {
+      "command": "node apply-html-head-contract.mjs colors_and_type.css .preflight/preflight.html --title='质控指标看板' --lang=zh-CN --prefix=qb",
+      "nodePath": "C:\\Users\\11515\\AppData\\Roaming\\TRAE SOLO CN\\ModularData\\ai-agent\\vm\\tools\\node\\node.exe",
+      "exitCode": 0,
+      "outputFile": "d:\\work\\ZING\\quality-board-redesign\\.preflight\\preflight.html",
+      "status": "success"
+    },
+    "generationTree": {
+      "root": {
+        "nodeId": "gen-project-shell",
+        "kind": "project-shell",
+        "pageIds": [
+          "page-quality-board",
+          "page-quality-coverage",
+          "page-quality-facts",
+          "page-quality-runs",
+          "page-quality-detail"
+        ],
+        "output": "partials/project-shell.html",
+        "sharedRegions": [
+          "header-brand",
+          "filter-bar",
+          "overview-cards",
+          "tab-navigation",
+          "page-footer",
+          "base-styles"
+        ],
+        "privateRegions": [],
+        "mutableSlots": [
+          "SLOT:activeTab",
+          "SLOT:tabPanel"
+        ],
+        "status": "completed",
+        "children": [
+          {
+            "nodeId": "gen-quality-board",
+            "kind": "page-leaf",
+            "pageIds": [
+              "page-quality-board"
+            ],
+            "output": "pages/quality-board.html",
+            "sharedRegions": [],
+            "privateRegions": [
+              "board-metrics-table"
+            ],
+            "mutableSlots": [
+              "SLOT:activeTab=board",
+              "SLOT:tabPanel=metrics"
+            ],
+            "status": "completed",
+            "children": []
+          },
+          {
+            "nodeId": "gen-quality-coverage",
+            "kind": "page-leaf",
+            "pageIds": [
+              "page-quality-coverage"
+            ],
+            "output": "pages/quality-coverage.html",
+            "sharedRegions": [],
+            "privateRegions": [
+              "coverage-summary",
+              "coverage-table"
+            ],
+            "mutableSlots": [
+              "SLOT:activeTab=coverage",
+              "SLOT:tabPanel=coverage"
+            ],
+            "status": "completed",
+            "children": []
+          },
+          {
+            "nodeId": "gen-quality-facts",
+            "kind": "page-leaf",
+            "pageIds": [
+              "page-quality-facts"
+            ],
+            "output": "pages/quality-facts.html",
+            "sharedRegions": [],
+            "privateRegions": [
+              "facts-table"
+            ],
+            "mutableSlots": [
+              "SLOT:activeTab=facts",
+              "SLOT:tabPanel=facts"
+            ],
+            "status": "completed",
+            "children": []
+          },
+          {
+            "nodeId": "gen-quality-runs",
+            "kind": "page-leaf",
+            "pageIds": [
+              "page-quality-runs"
+            ],
+            "output": "pages/quality-runs.html",
+            "sharedRegions": [],
+            "privateRegions": [
+              "runs-table"
+            ],
+            "mutableSlots": [
+              "SLOT:activeTab=runs",
+              "SLOT:tabPanel=runs"
+            ],
+            "status": "completed",
+            "children": []
+          },
+          {
+            "nodeId": "gen-quality-detail",
+            "kind": "page-leaf",
+            "pageIds": [
+              "page-quality-detail"
+            ],
+            "output": "pages/quality-detail.html",
+            "sharedRegions": [
+              "drawer-backdrop"
+            ],
+            "privateRegions": [
+              "metric-detail-drawer"
+            ],
+            "mutableSlots": [
+              "SLOT:activeTab=board",
+              "SLOT:tabPanel=detail"
+            ],
+            "status": "completed",
+            "children": []
+          }
+        ]
+      }
+    },
+    "dispatchPreflightManifest": [],
+    "expectedDispatches": [],
+    "validationRunDiscipline": {
+      "maxFullValidationRuns": 2,
+      "softWarningsTriggerRepair": false,
+      "blockingRepairMode": "targeted-once",
+      "forbiddenRepairTriggers": [
+        "soft-warning-only",
+        "provenance-warning-only",
+        "style-warning-only"
+      ]
+    },
+    "validationHistory": [
+      {
+        "runAt": "2026-09-14T00:00:00+08:00",
+        "status": "passed",
+        "checks": [
+          {
+            "name": "html-well-formed",
+            "status": "passed"
+          },
+          {
+            "name": "design-file-valid-json",
+            "status": "passed"
+          },
+          {
+            "name": "page-nodes-registered",
+            "status": "passed"
+          },
+          {
+            "name": "html-src-exists",
+            "status": "passed"
+          },
+          {
+            "name": "interactions-wired",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "runAt": "2026-09-14T13:46:25.364Z",
+        "status": "passed",
+        "checks": [
+          {
+            "name": "html-well-formed",
+            "status": "passed"
+          },
+          {
+            "name": "design-file-valid-json",
+            "status": "passed"
+          },
+          {
+            "name": "page-nodes-registered",
+            "status": "passed"
+          },
+          {
+            "name": "html-src-exists",
+            "status": "passed"
+          },
+          {
+            "name": "interactions-wired",
+            "status": "passed"
+          }
+        ]
+      }
+    ],
+    "validationRepairLedger": [],
+    "validationSnapshot": {
+      "pagesGenerated": 5,
+      "interactionsRegistered": 15,
+      "filesPresent": [
+        "colors_and_type.css",
+        "pages/quality-board.html",
+        "pages/quality-coverage.html",
+        "pages/quality-facts.html",
+        "pages/quality-runs.html",
+        "pages/quality-detail.html",
+        "quality-board-redesign.design",
+        "generation-tree.json"
+      ]
+    },
+    "artifactReadinessEvidence": {
+      "designFileValid": true,
+      "htmlFilesExist": true,
+      "cssFileExists": true,
+      "interactionsRegistered": true,
+      "allPagesReferenced": true
+    },
+    "lowValueCallWatchdog": {
+      "noProgressNextAction": "proceed_to_dispatch_or_readiness"
+    },
+    "sourceAuthorityLock": {
+      "locked": false,
+      "sourceType": "none"
+    },
+    "visualQualityCheckpoints": [
+      {
+        "id": "visual-anchor",
+        "description": "顶部筛选栏 + 四张总览卡作为稳定视觉锚点，暖橙主按钮用于触发计算",
+        "status": "completed"
+      },
+      {
+        "id": "information-hierarchy",
+        "description": "周期/科室 → 总览指标 → Tab 导航 → 表格内容，三层信息层级",
+        "status": "completed"
+      },
+      {
+        "id": "composition-structure",
+        "description": "左侧固定指标编号/名称，右侧操作列，中间数值与状态；卡片式表格头",
+        "status": "completed"
+      },
+      {
+        "id": "implementation-strategy",
+        "description": "每个页面独立承载完整外壳与 Tab 面板，通过 data-dom-id 与 .design interactions 实现状态切换",
+        "status": "completed"
+      }
+    ]
+  },
+  "designSource": {
+    "operatingMode": "free-explore",
+    "cssFilePath": "colors_and_type.css",
+    "brandPrefix": "qb",
+    "styleConstraints": {
+      "primaryHueCount": 1,
+      "radiusMax": 16,
+      "staticShadowAlphaMax": 0.05,
+      "allowsSecondaryAccent": false
+    }
+  },
+  "pages": [
+    {
+      "nodeId": "page-quality-board",
+      "title": "质控指标看板",
+      "htmlSrc": "pages/quality-board.html",
+      "pageIndex": 1,
+      "pageType": "information-dense",
+      "visualNorthStar": "温暖医疗数据看板：四张总览卡 + 可折叠域分组表格，数值可下钻",
+      "compositionPattern": "dashboard-list: filter-bar / summary-cards / tabs / grouped data table",
+      "continuityAnchors": [
+        "shared-shell-filter-cards-tabs",
+        "warm-stone-card-surfaces",
+        "orange-primary-actions"
+      ],
+      "componentPlan": [
+        "filter-bar",
+        "summary-cards",
+        "tabs",
+        "collapsible-groups",
+        "data-table",
+        "action-buttons"
+      ],
+      "chartsRequired": false,
+      "imagePlan": []
+    },
+    {
+      "nodeId": "page-quality-coverage",
+      "title": "覆盖率报告",
+      "htmlSrc": "pages/quality-coverage.html",
+      "pageIndex": 2,
+      "pageType": "information-dense",
+      "visualNorthStar": "承诺清单式报告：域汇总卡 + 逐条指标明细表",
+      "compositionPattern": "summary-table: domain-summary / detail-table",
+      "continuityAnchors": [
+        "shared-shell-filter-cards-tabs",
+        "warm-stone-card-surfaces",
+        "orange-primary-actions"
+      ],
+      "componentPlan": [
+        "summary-table",
+        "detail-table",
+        "status-tags"
+      ],
+      "chartsRequired": false,
+      "imagePlan": []
+    },
+    {
+      "nodeId": "page-quality-facts",
+      "title": "事实层",
+      "htmlSrc": "pages/quality-facts.html",
+      "pageIndex": 3,
+      "pageType": "information-dense",
+      "visualNorthStar": "DWD 事实层清单：状态标签 + 源表 + 可展开编译 SQL",
+      "compositionPattern": "master-detail-table: fact-list / expandable-sql",
+      "continuityAnchors": [
+        "shared-shell-filter-cards-tabs",
+        "warm-stone-card-surfaces",
+        "orange-primary-actions"
+      ],
+      "componentPlan": [
+        "data-table",
+        "expandable-row",
+        "code-block"
+      ],
+      "chartsRequired": false,
+      "imagePlan": []
+    },
+    {
+      "nodeId": "page-quality-runs",
+      "title": "计算批次",
+      "htmlSrc": "pages/quality-runs.html",
+      "pageIndex": 4,
+      "pageType": "information-dense",
+      "visualNorthStar": "批次历史列表：状态标签 + 成功/失败/占位计数 + 耗时",
+      "compositionPattern": "data-table: run-history",
+      "continuityAnchors": [
+        "shared-shell-filter-cards-tabs",
+        "warm-stone-card-surfaces",
+        "orange-primary-actions"
+      ],
+      "componentPlan": [
+        "data-table",
+        "status-tags",
+        "progress-bar"
+      ],
+      "chartsRequired": false,
+      "imagePlan": []
+    },
+    {
+      "nodeId": "page-quality-detail",
+      "title": "指标详情抽屉",
+      "htmlSrc": "pages/quality-detail.html",
+      "pageIndex": 5,
+      "pageType": "information-dense",
+      "visualNorthStar": "右侧抽屉下钻：指标元信息 + 结果卡 + 血缘 SQL + 患者明细",
+      "compositionPattern": "drawer-overlay: base-page + right-drawer",
+      "continuityAnchors": [
+        "shared-shell-filter-cards-tabs",
+        "warm-stone-card-surfaces",
+        "drawer-backdrop"
+      ],
+      "componentPlan": [
+        "drawer",
+        "description-list",
+        "result-cards",
+        "data-table",
+        "code-block"
+      ],
+      "chartsRequired": false,
+      "imagePlan": []
+    }
+  ],
+  "wiringPlan": [
+    {
+      "from": "page-quality-board",
+      "domId": "tab-coverage",
+      "to": "page-quality-coverage",
+      "hideEdge": true,
+      "label": "切换到覆盖率报告"
+    },
+    {
+      "from": "page-quality-board",
+      "domId": "tab-facts",
+      "to": "page-quality-facts",
+      "hideEdge": true,
+      "label": "切换到事实层"
+    },
+    {
+      "from": "page-quality-board",
+      "domId": "tab-runs",
+      "to": "page-quality-runs",
+      "hideEdge": true,
+      "label": "切换到计算批次"
+    },
+    {
+      "from": "page-quality-board",
+      "domId": "metric-value-link",
+      "to": "page-quality-detail",
+      "hideEdge": false,
+      "label": "查看指标详情"
+    },
+    {
+      "from": "page-quality-coverage",
+      "domId": "tab-board",
+      "to": "page-quality-board",
+      "hideEdge": true,
+      "label": "切换到指标看板"
+    },
+    {
+      "from": "page-quality-coverage",
+      "domId": "tab-facts",
+      "to": "page-quality-facts",
+      "hideEdge": true,
+      "label": "切换到事实层"
+    },
+    {
+      "from": "page-quality-coverage",
+      "domId": "tab-runs",
+      "to": "page-quality-runs",
+      "hideEdge": true,
+      "label": "切换到计算批次"
+    },
+    {
+      "from": "page-quality-facts",
+      "domId": "tab-board",
+      "to": "page-quality-board",
+      "hideEdge": true,
+      "label": "切换到指标看板"
+    },
+    {
+      "from": "page-quality-facts",
+      "domId": "tab-coverage",
+      "to": "page-quality-coverage",
+      "hideEdge": true,
+      "label": "切换到覆盖率报告"
+    },
+    {
+      "from": "page-quality-facts",
+      "domId": "tab-runs",
+      "to": "page-quality-runs",
+      "hideEdge": true,
+      "label": "切换到计算批次"
+    },
+    {
+      "from": "page-quality-runs",
+      "domId": "tab-board",
+      "to": "page-quality-board",
+      "hideEdge": true,
+      "label": "切换到指标看板"
+    },
+    {
+      "from": "page-quality-runs",
+      "domId": "tab-coverage",
+      "to": "page-quality-coverage",
+      "hideEdge": true,
+      "label": "切换到覆盖率报告"
+    },
+    {
+      "from": "page-quality-runs",
+      "domId": "tab-facts",
+      "to": "page-quality-facts",
+      "hideEdge": true,
+      "label": "切换到事实层"
+    },
+    {
+      "from": "page-quality-detail",
+      "domId": "drawer-backdrop",
+      "to": "page-quality-board",
+      "hideEdge": true,
+      "label": "关闭抽屉"
+    },
+    {
+      "from": "page-quality-detail",
+      "domId": "drawer-close",
+      "to": "page-quality-board",
+      "hideEdge": true,
+      "label": "关闭抽屉"
+    }
+  ],
+  "hiddenInteractionPlan": [
+    {
+      "pageId": "page-quality-board",
+      "hiddenSelectors": [
+        "[data-dom-id='tab-coverage']",
+        "[data-dom-id='tab-facts']",
+        "[data-dom-id='tab-runs']"
+      ]
+    },
+    {
+      "pageId": "page-quality-coverage",
+      "hiddenSelectors": [
+        "[data-dom-id='tab-board']",
+        "[data-dom-id='tab-facts']",
+        "[data-dom-id='tab-runs']"
+      ]
+    },
+    {
+      "pageId": "page-quality-facts",
+      "hiddenSelectors": [
+        "[data-dom-id='tab-board']",
+        "[data-dom-id='tab-coverage']",
+        "[data-dom-id='tab-runs']"
+      ]
+    },
+    {
+      "pageId": "page-quality-runs",
+      "hiddenSelectors": [
+        "[data-dom-id='tab-board']",
+        "[data-dom-id='tab-coverage']",
+        "[data-dom-id='tab-facts']"
+      ]
+    },
+    {
+      "pageId": "page-quality-detail",
+      "hiddenSelectors": [
+        "[data-dom-id='drawer-backdrop']",
+        "[data-dom-id='drawer-close']"
+      ]
+    }
+  ]
+}

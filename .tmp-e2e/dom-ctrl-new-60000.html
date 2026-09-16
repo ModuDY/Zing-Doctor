@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-err="ERROR:[api] /sofa/overview 401 缺少外链 signature/token || WARN:总览查询失败： 缺少外链 signature/token"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOFA 评分总览 · 医生系统</title>
+  <script type="module" crossorigin="" src="/assets/index-j6FcxnT6.js"></script>
+  <link rel="stylesheet" crossorigin="" href="/assets/index-CuTv164E.css">
+<script>
+window.__errs = [];
+function __flush() { document.documentElement.setAttribute('data-err', window.__errs.join(' || ')); }
+window.addEventListener('error', function (e) {
+  window.__errs.push('ERR:' + (e.message || '') + ' @ ' + (e.filename || '') + ':' + (e.lineno || ''));
+  __flush();
+}, true);
+window.addEventListener('unhandledrejection', function (e) {
+  window.__errs.push('REJ:' + ((e.reason && (e.reason.message || e.reason)) || ''));
+  __flush();
+});
+['error', 'warn'].forEach(function (k) {
+  var o = console[k];
+  console[k] = function () {
+    try { window.__errs.push(k.toUpperCase() + ':' + Array.prototype.join.call(arguments, ' ')); __flush(); } catch (err) {}
+    o.apply(console, arguments);
+  };
+});
+</script><link rel="modulepreload" as="script" crossorigin="" href="/assets/SofaOverview-CTzuIjRI.js"><link rel="modulepreload" as="script" crossorigin="" href="/assets/sofa-CWCTAwWk.js"><link rel="modulepreload" as="script" crossorigin="" href="/assets/request-EuiHQEf0.js"><link rel="stylesheet" crossorigin="" href="/assets/SofaOverview-CmQUD3Rj.css"></head>
+<body>
+  <div id="app" data-v-app=""><div data-v-9608287c="" class="main-layout"><aside data-v-9608287c="" class="sidebar"><div class="sidebar-logo" data-v-9608287c=""><div class="logo-icon" data-v-9608287c="">抗</div><div class="logo-text" data-v-9608287c=""><div class="logo-title" data-v-9608287c="">医生决策系统</div><div class="logo-sub" data-v-9608287c="">ICU 抗生素分析</div></div></div><nav data-v-9608287c="" class="sidebar-nav"><a data-v-9608287c="" href="/page/abx-patient-list" class="nav-item"><span data-v-9608287c="" class="nav-icon">📋</span><span data-v-9608287c="" class="nav-label">疑似感染患者</span></a><a data-v-9608287c="" href="/page/abx-decision" class="nav-item"><span data-v-9608287c="" class="nav-icon">💊</span><span data-v-9608287c="" class="nav-label">抗感染决策</span></a><a data-v-9608287c="" href="/page/abx-pkpd" class="nav-item"><span data-v-9608287c="" class="nav-icon">⚗️</span><span data-v-9608287c="" class="nav-label">PK/PD 剂量优化</span></a><a data-v-9608287c="" href="/page/abx-ddd" class="nav-item"><span data-v-9608287c="" class="nav-icon">📊</span><span data-v-9608287c="" class="nav-label">使用强度分析</span></a><a data-v-9608287c="" href="/page/abx-ddd-config" class="nav-item"><span data-v-9608287c="" class="nav-icon">⚙️</span><span data-v-9608287c="" class="nav-label">DDD 配置管理</span></a><a data-v-9608287c="" href="/page/abx-mdro" class="nav-item"><span data-v-9608287c="" class="nav-icon">🦠</span><span data-v-9608287c="" class="nav-label">细菌培养监测</span></a><a data-v-9608287c="" href="/page/abx-mdro-config" class="nav-item"><span data-v-9608287c="" class="nav-icon">🔬</span><span data-v-9608287c="" class="nav-label">细菌配置管理</span></a><a data-v-9608287c="" href="/page/sepsis-bundle" class="nav-item"><span data-v-9608287c="" class="nav-icon">💊</span><span data-v-9608287c="" class="nav-label">脓毒症集束化治疗</span></a></nav><div data-v-9608287c="" class="sidebar-footer"><div data-v-9608287c="" class="footer-user"><div data-v-9608287c="" class="user-avatar">医</div><div data-v-9608287c="" class="user-info"><div data-v-9608287c="" class="user-name">医生</div><div data-v-9608287c="" class="user-role">ICU 医生</div></div></div></div></aside><main data-v-9608287c="" class="main-content"><div data-v-b2799b12="" class="sofa-ov"><div data-v-b2799b12="" class="head"><h2 data-v-b2799b12="">SOFA 评分总览</h2><div data-v-b2799b12="" class="filters"><input data-v-b2799b12="" class="tb-input" placeholder="科室编码（留空=全部）"><input data-v-b2799b12="" class="tb-input" type="datetime-local"><span data-v-b2799b12="" class="sep">~</span><input data-v-b2799b12="" class="tb-input" type="datetime-local"><button data-v-b2799b12="" class="btn">近7天</button><button data-v-b2799b12="" class="btn">近30天</button><button data-v-b2799b12="" class="btn btn-primary">查询</button></div></div><div data-v-b2799b12="" class="stat-grid"><div data-v-b2799b12="" class="stat-card"><div data-v-b2799b12="" class="stat-label">评分记录数</div><div data-v-b2799b12="" class="stat-value">0</div><div data-v-b2799b12="" class="stat-sub">当前时间范围</div></div><div data-v-b2799b12="" class="stat-card"><div data-v-b2799b12="" class="stat-label">平均总分</div><div data-v-b2799b12="" class="stat-value">0.00</div><div data-v-b2799b12="" class="stat-sub">SOFA 总分（0~24）</div></div><div data-v-b2799b12="" class="stat-card"><div data-v-b2799b12="" class="stat-label">高分患者数</div><div data-v-b2799b12="" class="stat-value">0</div><div data-v-b2799b12="" class="stat-sub">总分 ≥ 10 分</div></div><div data-v-b2799b12="" class="stat-card warn"><div data-v-b2799b12="" class="stat-label">ΔSOFA 恶化预警</div><div data-v-b2799b12="" class="stat-value">0</div><div data-v-b2799b12="" class="stat-sub">较上次升高 ≥ 2 分</div></div></div><div data-v-b2799b12="" class="panel"><div data-v-b2799b12="" class="panel-title">总分分布</div><div data-v-b2799b12="" class="dist"></div></div><!----><div data-v-b2799b12="" class="panel"><div data-v-b2799b12="" class="panel-title">评分记录<span data-v-b2799b12="" class="count">0</span></div><div data-v-b2799b12="" class="empty">暂无评分记录</div></div></div></main></div></div>
+
+
+
+<div id="message_1" class="el-message el-message--error is-center el-message-fade-leave-from el-message-fade-leave-active" role="alert" style="top: 16px; z-index: 2001;"><!--v-if--><i class="el-icon el-message__icon el-message-icon--error"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><path fill="currentColor" d="M512 64a448 448 0 1 1 0 896 448 448 0 0 1 0-896m0 393.664L407.936 353.6a38.4 38.4 0 1 0-54.336 54.336L457.664 512 353.6 616.064a38.4 38.4 0 1 0 54.336 54.336L512 566.336 616.064 670.4a38.4 38.4 0 1 0 54.336-54.336L566.336 512 670.4 407.936a38.4 38.4 0 1 0-54.336-54.336z"></path></svg></i><p class="el-message__content">缺少外链 signature/token</p><!--v-if--></div></body></html>

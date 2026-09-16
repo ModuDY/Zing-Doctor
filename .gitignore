@@ -1,0 +1,38 @@
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+# 达梦 JDBC 驱动随项目交付（pom 以 system scope + lib/ 相对路径引用），必须入库，
+# 否则全新检出/CI 上 Maven 解析不到该依赖，构建直接失败
+!lib/*.jar
+.idea/
+*.iml
+.vscode/
+.DS_Store
+logs/
+node_modules/
+frontend/dist/
+frontend/node_modules/
+application-local.yml
+
+# 部署包与运行时二进制
+*.zip
+*.tar.gz
+tools/docker-compose/
+
+# 本地打包工具链（Node/Maven 等临时安装，不入库）
+.tools/
+
+# 预览图与临时文件（frontend/public/logo.png 为源码资源，不受影响）
+sofa-*.png
+sofa-*-preview*
+A_high_fidelity_UI_mockup_*.png
+_pack_tmp.ps1
+.preview/
+
+# 运行与构建日志（app-out.log / app-err.log / frontend/vite-*.log 等，
+# 每次运行都会变化，不应入库；frontend/public/logo.png 为源码资源，不受影响）
+*.log
+
+# CodeBuddy IDE 本地规则/技能包（本地开发辅助，非项目成果，不入库）
+.codebuddy/

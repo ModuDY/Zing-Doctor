@@ -1,0 +1,123 @@
+{
+  "root": {
+    "nodeId": "gen-project-shell",
+    "kind": "project-shell",
+    "pageIds": [
+      "page-quality-board",
+      "page-quality-coverage",
+      "page-quality-facts",
+      "page-quality-runs",
+      "page-quality-detail"
+    ],
+    "output": "partials/project-shell.html",
+    "sharedRegions": [
+      "header-brand",
+      "filter-bar",
+      "overview-cards",
+      "tab-navigation",
+      "page-footer",
+      "base-styles"
+    ],
+    "privateRegions": [],
+    "mutableSlots": [
+      "SLOT:activeTab",
+      "SLOT:tabPanel"
+    ],
+    "status": "completed",
+    "children": [
+      {
+        "nodeId": "gen-quality-board",
+        "kind": "page-leaf",
+        "pageIds": [
+          "page-quality-board"
+        ],
+        "output": "pages/quality-board.html",
+        "sharedRegions": [],
+        "privateRegions": [
+          "board-metrics-table"
+        ],
+        "mutableSlots": [
+          "SLOT:activeTab=board",
+          "SLOT:tabPanel=metrics"
+        ],
+        "status": "completed",
+        "children": []
+      },
+      {
+        "nodeId": "gen-quality-coverage",
+        "kind": "page-leaf",
+        "pageIds": [
+          "page-quality-coverage"
+        ],
+        "output": "pages/quality-coverage.html",
+        "sharedRegions": [],
+        "privateRegions": [
+          "coverage-summary",
+          "coverage-table"
+        ],
+        "mutableSlots": [
+          "SLOT:activeTab=coverage",
+          "SLOT:tabPanel=coverage"
+        ],
+        "status": "completed",
+        "children": []
+      },
+      {
+        "nodeId": "gen-quality-facts",
+        "kind": "page-leaf",
+        "pageIds": [
+          "page-quality-facts"
+        ],
+        "output": "pages/quality-facts.html",
+        "sharedRegions": [],
+        "privateRegions": [
+          "facts-table"
+        ],
+        "mutableSlots": [
+          "SLOT:activeTab=facts",
+          "SLOT:tabPanel=facts"
+        ],
+        "status": "completed",
+        "children": []
+      },
+      {
+        "nodeId": "gen-quality-runs",
+        "kind": "page-leaf",
+        "pageIds": [
+          "page-quality-runs"
+        ],
+        "output": "pages/quality-runs.html",
+        "sharedRegions": [],
+        "privateRegions": [
+          "runs-table"
+        ],
+        "mutableSlots": [
+          "SLOT:activeTab=runs",
+          "SLOT:tabPanel=runs"
+        ],
+        "status": "completed",
+        "children": []
+      },
+      {
+        "nodeId": "gen-quality-detail",
+        "kind": "page-leaf",
+        "pageIds": [
+          "page-quality-detail"
+        ],
+        "output": "pages/quality-detail.html",
+        "sharedRegions": [
+          "drawer-backdrop"
+        ],
+        "privateRegions": [
+          "metric-detail-drawer"
+        ],
+        "mutableSlots": [
+          "SLOT:activeTab=board",
+          "SLOT:tabPanel=detail"
+        ],
+        "status": "completed",
+        "children": []
+      }
+    ]
+  }
+}

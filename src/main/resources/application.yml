@@ -1,0 +1,138 @@
+server:
+  port: 8081
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: zing-doctor
+  datasource:
+    dynamic:
+      primary: doctor
+      strict: true
+      # 数据源懒加载：应用启动时不强制初始化连接池，便于无库环境下启动与容错
+      lazy: true
+      # 数据库：达梦 DM8。schema（模式）在 SQL 中显式引用（如 "zing_icu_db_prod"."patient_info"），
+      # 因此 URL 不带 schema 参数，仅需连接账号具备目标 schema 的访问权限。
+      # P0 直接使用 SYSDBA（默认模式即 SYSDBA，表建于此）；生产可改用独立账号（见 docs/04-安装部署手册.md）。
+      # 连接信息可用环境变量覆盖（Docker 部署在 docker-compose.yml 中注入）。
+      datasource:
+        doctor:
+          driver-class-name: dm.jdbc.driver.DmDriver
+          url: jdbc:dm://${DM_DOCTOR_HOST:100.120.1.102}:${DM_DOCTOR_PORT:14236}
+          username: ${DM_DOCTOR_USER:SYSDBA}
+          password: ${DM_DOCTOR_PASSWORD:Sa_20250815}
+          # 显式连接池：拿连接最多等10s即快速失败（默认30s干等会放大“保存一直转圈”），避免慢操作占满池后无限排队
+          hikari:
+            connection-timeout: 10000
+            maximum-pool-size: 10
+            minimum-idle: 2
+            max-lifetime: 1800000
+            connection-test-query: SELECT 1
+        icu:
+          driver-class-name: dm.jdbc.driver.DmDriver
+          url: jdbc:dm://${DM_ICU_HOST:100.120.1.102}:${DM_ICU_PORT:14236}
+          username: ${DM_ICU_USER:SYSDBA}
+          password: ${DM_ICU_PASSWORD:Sa_20250815}
+          read-only: true
+          hikari:
+            connection-timeout: 10000
+            maximum-pool-size: 10
+            minimum-idle: 2
+            max-lifetime: 1800000
+            connection-test-query: SELECT 1
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.zing.doctor.module.**.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    # 不使用 StdOutImpl：它会把含约1MB pdf_data 的整条 insert SQL 同步打印到控制台，
+    # 大字段保存时被日志IO拖慢、甚至撑爆容器日志。需要排查SQL时可临时改 org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# 医生决策系统自身配置
+zing:
+  # 机器号（0~99）：算法生成主键时会拼进 ID 中。单实例部署保持 0 即可；
+  # 将来横向扩多副本，各实例必须配不同值，否则同一秒可能生成相同 ID。
+  worker-id: ${WORKER_ID:0}
+  # 慢 SQL 埋点：执行耗时超过阈值的 SQL 会连同参数打到日志（WARN 级别）。
+  # 用于定位性能瓶颈，跑一段时间拿到真实慢 SQL 清单后再决定建哪些索引。
+  # 填 0 表示关闭埋点。
+  slow-sql:
+    threshold-ms: ${SLOW_SQL_THRESHOLD_MS:1000}
+  doctor:
+    # 外链免登录签名配置
+    external-link:
+      # 签名密钥（生产必须通过环境变量 EXTERNAL_LINK_SECRET 注入，不要写死）
+      secret: ${EXTERNAL_LINK_SECRET:zing-doctor-dev-secret-change-me}
+      # ICU 明文外链静态密钥（URL 参数名 extToken；ICU 系统配外链模板时写死该值，生产用环境变量 ICU_LINK_TOKEN 注入）
+      icu-token: ${ICU_LINK_TOKEN:zing-icu-link-token-2026}
+      # 签名有效期（毫秒），默认 10 分钟
+      expire-ms: 600000
+      # 允许免登录访问的页面 code 白名单（逗号分隔），留空表示放行已注册页面
+      allow-page-codes: ""
+      # 医生决策系统对外基础地址（含端口），如 http://100.120.1.104:2001；
+      # 配置后外链 302 强制跳转到该地址，避免外部系统（ICU 从 80 端口等）端口差异导致 404；留空用相对路径
+      base-url: ${EXTERNAL_LINK_BASE_URL:}
+      # 外链未携带医生身份（realname / username 等）时的默认操作人。
+      # 不配则评分记录的 create_by、配置变更历史一律记成 unknown —— 看着像系统故障，
+      # 实际是 ICU 侧外链模板没配 realname。它不是真人姓名（粒度是「一类来源」），
+      # 只用于让审计字段可读；要精确到人，仍须 ICU 侧在模板里带上 realname。
+      default-operator: ${EXTERNAL_LINK_DEFAULT_OPERATOR:}
+    # 直连登录（区别于外链免登录：账号密码登录换 JWT）
+    auth:
+      # JWT 签名密钥（生产必须通过环境变量 AUTH_JWT_SECRET 注入）
+      jwt-secret: ${AUTH_JWT_SECRET:zing-doctor-auth-secret-please-change}
+      # 令牌有效期（小时），超时后需重新登录
+      expire-hours: ${AUTH_EXPIRE_HOURS:8}
+      # 首次启动自动创建的管理员账号（已存在同名账号时不覆盖）
+      admin-username: ${ADMIN_USERNAME:admin}
+      admin-password: ${ADMIN_PASSWORD:zing@123}
+      admin-real-name: ${ADMIN_REAL_NAME:系统管理员}
+    # 第一维度：经验性抗感染治疗决策 - ICU 数据提供方式
+    # mock：内置示例数据（P0 默认，无需真实 ICU 库即可跑通流程）
+    # sql ：基于 ICU 系统真实表结构只读查询 zing_icu_db_prod（SqlIcuPatientServiceImpl）
+    #       切换后需保证 ICU 只读数据源连接与 zing_icu_db_prod 表结构可用
+    icu-data-provider: ${ICU_DATA_PROVIDER:mock}
+  # 质控指标中台
+  quality:
+    # 配置真源：
+    #   db   指标口径读配置表，页面可编辑、保存即热生效（需先执行 sql/10_quality_config.sql）
+    #   yaml 读 quality/*.yaml，页面只读（改造前行为）
+    # 安全兜底：配置表不可用（未建表/连不上）时启动会自动回退 yaml 并打 WARN，
+    # 看板照常有数，不会因为配置表问题把整个质控拖垮。
+    # 回退方式：把下面改成 yaml 或设环境变量 QUALITY_CONFIG_SOURCE=yaml。
+    config-source: ${QUALITY_CONFIG_SOURCE:db}
+    # 外部配置目录（可选）。非空时优先读该目录下的 sources.yaml / facts / metrics，
+    # 缺失则回退 classpath；db 真源下仅数据源层（sources.yaml）仍从此处读取。
+    config-dir: ${QUALITY_CONFIG_DIR:}
+    # ---- 配置写接口保护（POST /api/quality/config/**）----
+    # 背景：改一行条件就能改全院质控口径，而配置页与只读看板共用同一套外链鉴权
+    #（拿到外链即可改口径），风险等级不匹配，因此写接口单独再加一层。
+    # 只读看板接口不受影响；GET 请求一律放行。
+    #
+    # 推荐：IP 白名单（浏览器端零改动，只有信息科/质控科的工作站能提交）。
+    #       逗号分隔，支持前缀匹配，例：100.120.1.104,10.0.0.
+    # 配置途径（优先级从高到低）：
+    #   ① 部署目录 ./config/application.yml（install.sh 自动生成，运维可直接改，推荐）
+    #   ② 环境变量 QUALITY_CONFIG_WRITE_IP_WHITELIST
+    #   ③ 改本行默认值（会进交付包，换院部署时也生效，一般不建议）
+    config-write-ip-whitelist: ${QUALITY_CONFIG_WRITE_IP_WHITELIST:}
+    # 可选：写接口令牌。配置后写请求必须带请求头 X-Quality-Config-Token。
+    #       前端可用构建变量 VITE_QUALITY_CONFIG_WRITE_TOKEN 注入。
+    config-write-token: ${QUALITY_CONFIG_WRITE_TOKEN:}
+    # 默认操作人：内网直连打开配置页（无 X-Operator 头、无外链 realname）时，
+    # 变更历史里记录的名字；不配则记 unknown，事后无法追溯是谁改的口径。
+    # 值取自服务端配置、不接受请求传入，因此不会被使用方伪造。
+    # 粒度是「这台工作站」不是「这个人」：精确到人需外链带 realname 或接 SSO 后网关注入 X-Operator。
+    config-default-operator: ${QUALITY_CONFIG_DEFAULT_OPERATOR:}
+    # !! 上面两项都不配时，写接口一律拒绝（403）——刻意的 fail-closed：
+    #    宁可让部署方显式开一次口子，也不要默认放开一个能改生产口径的入口。
+    #    启动日志会打印当前写保护状态，便于确认是否已生效。

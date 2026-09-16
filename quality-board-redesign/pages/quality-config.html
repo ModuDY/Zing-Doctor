@@ -1,0 +1,2049 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>质控指标配置 · 质控指标看板</title>
+    <style id="theme-vars">
+/* Quality Board Redesign — Warm Clean White */
+/* Brand prefix: qb */
+
+:root {
+  /* --- Primary warm orange scale --- */
+  --qb-orange-50: #fff7ed;
+  --qb-orange-100: #ffedd5;
+  --qb-orange-200: #fed7aa;
+  --qb-orange-300: #fdba74;
+  --qb-orange-400: #fb923c;
+  --qb-orange-500: #f97316;
+  --qb-orange-600: #ea580c;
+  --qb-orange-700: #c2410c;
+  --qb-orange-800: #9a3412;
+
+  /* --- Neutral warm gray scale --- */
+  --qb-stone-0: #ffffff;
+  --qb-stone-50: #fafaf9;
+  --qb-stone-100: #f5f5f4;
+  --qb-stone-200: #e7e5e4;
+  --qb-stone-300: #d6d3d1;
+  --qb-stone-400: #a8a29e;
+  --qb-stone-500: #78716c;
+  --qb-stone-600: #57534e;
+  --qb-stone-700: #44403c;
+  --qb-stone-800: #292524;
+  --qb-stone-900: #1c1917;
+
+  /* --- Semantic state colors --- */
+  --qb-state-success: #16a34a;
+  --qb-state-success-soft: #dcfce7;
+  --qb-state-warning: #d97706;
+  --qb-state-warning-soft: #fef3c7;
+  --qb-state-error: #dc2626;
+  --qb-state-error-soft: #fee2e2;
+  --qb-state-info: #0891b2;
+  --qb-state-info-soft: #cffafe;
+
+  /* --- Aliases required by head contract --- */
+  --qb-background: var(--qb-stone-50);
+  --qb-foreground: var(--qb-stone-900);
+  --qb-card: var(--qb-stone-0);
+  --qb-card-foreground: var(--qb-stone-900);
+  --qb-popover: var(--qb-stone-0);
+  --qb-popover-foreground: var(--qb-stone-900);
+  --qb-primary: var(--qb-orange-600);
+  --qb-primary-foreground: #ffffff;
+  --qb-secondary: var(--qb-stone-100);
+  --qb-secondary-foreground: var(--qb-stone-700);
+  --qb-muted: var(--qb-stone-100);
+  --qb-muted-foreground: var(--qb-stone-500);
+  --qb-border: var(--qb-stone-200);
+  --qb-input: var(--qb-stone-200);
+  --qb-ring: var(--qb-orange-400);
+
+  /* --- Radius scale (max 16px) --- */
+  --qb-radius-small: 4px;
+  --qb-radius-medium: 8px;
+  --qb-radius-large: 12px;
+  --qb-radius-full: 9999px;
+
+  /* --- Shadows (static alpha <= 0.05) --- */
+  --qb-shadow-sm: 0 1px 2px rgba(28, 25, 23, 0.04);
+  --qb-shadow-md: 0 4px 6px -1px rgba(28, 25, 23, 0.05), 0 2px 4px -2px rgba(28, 25, 23, 0.05);
+  --qb-shadow-lg: 0 10px 15px -3px rgba(28, 25, 23, 0.05), 0 4px 6px -4px rgba(28, 25, 23, 0.05);
+  --qb-shadow-float: 0 20px 25px -5px rgba(28, 25, 23, 0.08), 0 8px 10px -6px rgba(28, 25, 23, 0.08);
+}
+
+:root {
+  --qb-font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --qb-font-mono: "SF Mono", "Monaco", "Inconsolata", "Fira Code", "PingFang SC", monospace;
+  --qb-text-xs: 12px;
+  --qb-text-sm: 13px;
+  --qb-text-base: 14px;
+  --qb-text-md: 15px;
+  --qb-text-lg: 18px;
+  --qb-text-xl: 22px;
+  --qb-text-2xl: 28px;
+  --qb-leading-tight: 1.25;
+  --qb-leading-snug: 1.4;
+  --qb-leading-normal: 1.6;
+}
+
+html, body {
+  font-family: var(--qb-font-sans);
+  font-size: var(--qb-text-base);
+  line-height: var(--qb-leading-normal);
+  color: var(--qb-foreground);
+  background: var(--qb-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* { box-sizing: border-box; }
+
+.qb-page { padding: 24px; max-width: 1440px; margin: 0 auto; }
+
+.qb-card {
+  background: var(--qb-card);
+  border: 1px solid var(--qb-border);
+  border-radius: var(--qb-radius-large);
+  box-shadow: var(--qb-shadow-sm);
+}
+
+.qb-card-hover:hover {
+  box-shadow: var(--qb-shadow-md);
+  transform: translateY(-1px);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.qb-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--qb-primary);
+  color: var(--qb-primary-foreground);
+  border: 1px solid var(--qb-primary);
+  border-radius: var(--qb-radius-medium);
+  font-size: var(--qb-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.qb-btn-primary:hover { background: var(--qb-orange-700); border-color: var(--qb-orange-700); }
+
+.qb-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--qb-stone-0);
+  color: var(--qb-stone-700);
+  border: 1px solid var(--qb-border);
+  border-radius: var(--qb-radius-medium);
+  font-size: var(--qb-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.qb-btn-secondary:hover { background: var(--qb-stone-50); border-color: var(--qb-stone-300); }
+
+.qb-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: transparent;
+  color: var(--qb-stone-600);
+  border: 1px solid transparent;
+  border-radius: var(--qb-radius-medium);
+  font-size: var(--qb-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.qb-btn-ghost:hover { background: var(--qb-stone-100); color: var(--qb-stone-800); }
+
+.qb-input, .qb-select {
+  padding: 7px 12px;
+  background: var(--qb-stone-0);
+  color: var(--qb-foreground);
+  border: 1px solid var(--qb-input);
+  border-radius: var(--qb-radius-medium);
+  font-size: var(--qb-text-sm);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.qb-input:focus, .qb-select:focus { border-color: var(--qb-ring); box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12); }
+
+.qb-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--qb-radius-full);
+  font-size: var(--qb-text-xs);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.qb-tag-success { background: var(--qb-state-success-soft); color: var(--qb-state-success); }
+.qb-tag-warning { background: var(--qb-state-warning-soft); color: var(--qb-state-warning); }
+.qb-tag-error   { background: var(--qb-state-error-soft);   color: var(--qb-state-error);   }
+.qb-tag-info    { background: var(--qb-state-info-soft);    color: var(--qb-state-info);    }
+.qb-tag-muted   { background: var(--qb-stone-100);          color: var(--qb-stone-500);     }
+.qb-tag.on      { background: var(--qb-state-success-soft); color: var(--qb-state-success); }
+.qb-tag.off     { background: var(--qb-stone-100);          color: var(--qb-stone-500);     }
+.qb-tag.pend    { background: var(--qb-state-warning-soft); color: var(--qb-state-warning); }
+
+.qb-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--qb-text-sm); }
+.qb-table th, .qb-table td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--qb-border); }
+.qb-table th {
+  font-weight: 600; color: var(--qb-stone-600); background: var(--qb-stone-50);
+  font-size: var(--qb-text-xs); text-transform: uppercase; letter-spacing: 0.02em;
+}
+.qb-table tbody tr:hover { background: var(--qb-stone-50); }
+.qb-table td:last-child, .qb-table th:last-child { text-align: center; }
+
+.qb-link { color: var(--qb-primary); font-weight: 600; text-decoration: none; cursor: pointer; }
+.qb-link:hover { text-decoration: underline; }
+
+.qb-mono { font-family: var(--qb-font-mono); font-size: 12px; }
+.qb-empty { color: var(--qb-stone-400); }
+
+.qb-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.qb-dot-success { background: var(--qb-state-success); }
+.qb-dot-warning { background: var(--qb-state-warning); }
+.qb-dot-error   { background: var(--qb-state-error);   }
+.qb-dot-info    { background: var(--qb-state-info);    }
+.qb-dot-muted   { background: var(--qb-stone-300);     }
+
+/* Header */
+.qb-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
+.qb-header-title { font-size: var(--qb-text-xl); font-weight: 700; color: var(--qb-stone-900); margin: 0 0 4px; }
+.qb-header-sub { font-size: var(--qb-text-sm); color: var(--qb-stone-500); margin: 0; }
+
+/* Filter bar */
+.qb-filter-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 14px 18px; margin-bottom: 20px;
+}
+.qb-filter-left, .qb-filter-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* Overview cards */
+.qb-overview { padding: 20px; margin-bottom: 20px; }
+.qb-overview-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+.qb-overview-title { font-size: var(--qb-text-lg); font-weight: 700; color: var(--qb-stone-900); margin: 0; }
+.qb-overview-period { font-size: var(--qb-text-sm); color: var(--qb-stone-500); font-weight: 400; margin-left: 10px; }
+.qb-overview-tags { display: flex; gap: 8px; flex-wrap: wrap; }
+.qb-overview-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: var(--qb-stone-100); border-radius: var(--qb-radius-full); font-size: var(--qb-text-xs); color: var(--qb-stone-600); }
+.qb-overview-tag strong { color: var(--qb-primary); }
+
+.qb-stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.qb-stat-card { padding: 18px; border: 1px solid var(--qb-border); border-radius: var(--qb-radius-large); background: linear-gradient(180deg, #fff 0%, #fafaf9 100%); }
+.qb-stat-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.qb-stat-label { font-size: var(--qb-text-sm); color: var(--qb-stone-500); font-weight: 500; }
+.qb-stat-icon { width: 32px; height: 32px; border-radius: var(--qb-radius-medium); display: inline-flex; align-items: center; justify-content: center; }
+.qb-stat-icon.blue  { color: var(--qb-state-info);  background: var(--qb-state-info-soft); }
+.qb-stat-icon.green { color: var(--qb-state-success); background: var(--qb-state-success-soft); }
+.qb-stat-icon.orange { color: var(--qb-state-warning); background: var(--qb-state-warning-soft); }
+.qb-stat-icon.gray  { color: var(--qb-stone-500);  background: var(--qb-stone-100); }
+.qb-stat-value { font-size: var(--qb-text-2xl); font-weight: 700; color: var(--qb-stone-900); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.qb-stat-value.green { color: var(--qb-state-success); }
+.qb-stat-value.orange { color: var(--qb-state-warning); }
+.qb-stat-value.gray { color: var(--qb-stone-500); }
+.qb-stat-bar { height: 5px; border-radius: 3px; background: var(--qb-stone-100); margin-top: 12px; overflow: hidden; }
+.qb-stat-bar i { display: block; height: 100%; border-radius: 3px; }
+.qb-stat-bar i.green { background: var(--qb-state-success); }
+.qb-stat-bar i.orange { background: var(--qb-state-warning); }
+.qb-stat-bar i.gray { background: var(--qb-stone-300); }
+.qb-stat-foot { font-size: var(--qb-text-xs); color: var(--qb-stone-400); margin-top: 8px; }
+
+/* Tabs */
+.qb-tabs { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--qb-border); }
+.qb-tab {
+  padding: 12px 18px; font-size: var(--qb-text-sm); font-weight: 500; color: var(--qb-stone-500);
+  background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.qb-tab:hover { color: var(--qb-stone-700); }
+.qb-tab.active { color: var(--qb-primary); border-bottom-color: var(--qb-primary); }
+
+/* Tab panel */
+.qb-tab-panel { padding: 20px; }
+.qb-tab-note { font-size: var(--qb-text-sm); color: var(--qb-stone-500); margin-bottom: 16px; padding: 12px 16px; background: var(--qb-stone-50); border-radius: var(--qb-radius-medium); border-left: 3px solid var(--qb-orange-400); }
+
+/* Banner & toolbar */
+.qb-banner { display: flex; align-items: center; gap: 10px; padding: 12px 16px; margin-bottom: 16px; border-radius: var(--qb-radius-medium); font-size: var(--qb-text-sm); }
+.qb-banner-info { background: var(--qb-state-info-soft); color: var(--qb-state-info); }
+.qb-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+
+/* Actions */
+.qb-actions { display: inline-flex; gap: 8px; }
+.qb-btn-text { padding: 4px 10px; font-size: var(--qb-text-xs); font-weight: 500; border-radius: var(--qb-radius-small); border: none; background: transparent; color: var(--qb-stone-600); cursor: pointer; }
+.qb-btn-text:hover { background: var(--qb-stone-100); }
+.qb-btn-text.primary { color: var(--qb-primary); }
+.qb-btn-text.primary:hover { background: var(--qb-orange-50); }
+.qb-btn-text.success { color: var(--qb-state-success); }
+.qb-btn-text.success:hover { background: var(--qb-state-success-soft); }
+.qb-btn-text.danger { color: var(--qb-state-error); }
+.qb-btn-text.danger:hover { background: var(--qb-state-error-soft); }
+.qb-btn-text:disabled { color: var(--qb-stone-400); cursor: not-allowed; }
+.qb-btn-text:disabled:hover { background: transparent; }
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .qb-stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .qb-filter-bar { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 640px) {
+  .qb-page { padding: 16px; }
+  .qb-stat-grid { grid-template-columns: 1fr; }
+  .qb-table th, .qb-table td { padding: 10px; }
+}
+/* Toggle switch */
+.qb-switch {
+  position: relative; display: inline-block; width: 40px; height: 22px;
+}
+.qb-switch input { opacity: 0; width: 0; height: 0; }
+.qb-switch-slider {
+  position: absolute; cursor: pointer; inset: 0;
+  background: var(--qb-stone-300); border-radius: var(--qb-radius-full);
+  transition: background 0.2s ease;
+}
+.qb-switch-slider:before {
+  content: ""; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px;
+  background: white; border-radius: 50%; transition: transform 0.2s ease;
+}
+.qb-switch input:checked + .qb-switch-slider { background: var(--qb-primary); }
+.qb-switch input:checked + .qb-switch-slider:before { transform: translateX(18px); }
+
+/* Config editable */
+.qb-config-input {
+  width: 80px; padding: 4px 8px; font-size: var(--qb-text-xs);
+  border: 1px solid var(--qb-border); border-radius: var(--qb-radius-small);
+  outline: none;
+}
+.qb-config-input:focus { border-color: var(--qb-ring); box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.12); }
+
+/* Frequency tag */
+.qb-freq-tag { display: inline-flex; padding: 2px 8px; border-radius: var(--qb-radius-small); font-size: var(--qb-text-xs); background: var(--qb-stone-100); color: var(--qb-stone-600); }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-background: var(--qb-background);
+    --color-foreground: var(--qb-foreground);
+    --color-card: var(--qb-card);
+    --color-card-foreground: var(--qb-card-foreground);
+    --color-popover: var(--qb-popover);
+    --color-popover-foreground: var(--qb-popover-foreground);
+    --color-primary: var(--qb-primary);
+    --color-primary-foreground: var(--qb-primary-foreground);
+    --color-secondary: var(--qb-secondary);
+    --color-secondary-foreground: var(--qb-secondary-foreground);
+    --color-muted: var(--qb-muted);
+    --color-muted-foreground: var(--qb-muted-foreground);
+    --color-border: var(--qb-border);
+    --color-input: var(--qb-input);
+    --color-ring: var(--qb-ring);
+    --radius-sm: var(--qb-radius-small);
+    --radius-md: var(--qb-radius-medium);
+    --radius-lg: var(--qb-radius-large);
+  }
+  @layer base {
+    body { background: var(--qb-background); color: var(--qb-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style id="semantic-token-fallback">
+      .bg-background { background-color: var(--qb-background); }
+      .text-background { color: var(--qb-background); }
+      .border-background { border-color: var(--qb-background); }
+      .ring-background { --tw-ring-color: var(--qb-background); }
+      .bg-foreground { background-color: var(--qb-foreground); }
+      .text-foreground { color: var(--qb-foreground); }
+      .border-foreground { border-color: var(--qb-foreground); }
+      .ring-foreground { --tw-ring-color: var(--qb-foreground); }
+      .bg-card { background-color: var(--qb-card); }
+      .text-card { color: var(--qb-card); }
+      .border-card { border-color: var(--qb-card); }
+      .ring-card { --tw-ring-color: var(--qb-card); }
+      .bg-card-foreground { background-color: var(--qb-card-foreground); }
+      .text-card-foreground { color: var(--qb-card-foreground); }
+      .border-card-foreground { border-color: var(--qb-card-foreground); }
+      .ring-card-foreground { --tw-ring-color: var(--qb-card-foreground); }
+      .bg-popover { background-color: var(--qb-popover); }
+      .text-popover { color: var(--qb-popover); }
+      .border-popover { border-color: var(--qb-popover); }
+      .ring-popover { --tw-ring-color: var(--qb-popover); }
+      .bg-popover-foreground { background-color: var(--qb-popover-foreground); }
+      .text-popover-foreground { color: var(--qb-popover-foreground); }
+      .border-popover-foreground { border-color: var(--qb-popover-foreground); }
+      .ring-popover-foreground { --tw-ring-color: var(--qb-popover-foreground); }
+      .bg-primary { background-color: var(--qb-primary); }
+      .text-primary { color: var(--qb-primary); }
+      .border-primary { border-color: var(--qb-primary); }
+      .ring-primary { --tw-ring-color: var(--qb-primary); }
+      .bg-primary-foreground { background-color: var(--qb-primary-foreground); }
+      .text-primary-foreground { color: var(--qb-primary-foreground); }
+      .border-primary-foreground { border-color: var(--qb-primary-foreground); }
+      .ring-primary-foreground { --tw-ring-color: var(--qb-primary-foreground); }
+      .bg-secondary { background-color: var(--qb-secondary); }
+      .text-secondary { color: var(--qb-secondary); }
+      .border-secondary { border-color: var(--qb-secondary); }
+      .ring-secondary { --tw-ring-color: var(--qb-secondary); }
+      .bg-secondary-foreground { background-color: var(--qb-secondary-foreground); }
+      .text-secondary-foreground { color: var(--qb-secondary-foreground); }
+      .border-secondary-foreground { border-color: var(--qb-secondary-foreground); }
+      .ring-secondary-foreground { --tw-ring-color: var(--qb-secondary-foreground); }
+      .bg-muted { background-color: var(--qb-muted); }
+      .text-muted { color: var(--qb-muted); }
+      .border-muted { border-color: var(--qb-muted); }
+      .ring-muted { --tw-ring-color: var(--qb-muted); }
+      .bg-muted-foreground { background-color: var(--qb-muted-foreground); }
+      .text-muted-foreground { color: var(--qb-muted-foreground); }
+      .border-muted-foreground { border-color: var(--qb-muted-foreground); }
+      .ring-muted-foreground { --tw-ring-color: var(--qb-muted-foreground); }
+      .bg-border { background-color: var(--qb-border); }
+      .text-border { color: var(--qb-border); }
+      .border-border { border-color: var(--qb-border); }
+      .ring-border { --tw-ring-color: var(--qb-border); }
+      .bg-input { background-color: var(--qb-input); }
+      .text-input { color: var(--qb-input); }
+      .border-input { border-color: var(--qb-input); }
+      .ring-input { --tw-ring-color: var(--qb-input); }
+      .bg-ring { background-color: var(--qb-ring); }
+      .text-ring { color: var(--qb-ring); }
+      .border-ring { border-color: var(--qb-ring); }
+      .ring-ring { --tw-ring-color: var(--qb-ring); }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex; align-items: center; justify-content: center;
+        -webkit-mask-size: contain; mask-size: contain;
+        -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+        -webkit-mask-position: center; mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+    <main>
+      <div class="qb-page">
+        <!-- Header -->
+        <!-- Filter bar -->
+        <section class="qb-card qb-filter-bar">
+          <div class="qb-filter-left"></div>
+          <div class="qb-filter-right">
+            <button class="qb-btn-secondary"><i data-lucide="refresh-cw" class="w-4 h-4"></i>刷新</button>
+            <button class="qb-btn-secondary"><i data-lucide="upload" class="w-4 h-4"></i>重载配置</button>
+          </div>
+        </section>
+        <!-- Data source banner -->
+        <div class="qb-banner qb-banner-info">
+          <span class="qb-dot qb-dot-info"></span>
+          <span>配置真源：数据库 ｜ 保存即生效 ｜ 操作人：张质控</span>
+        </div>
+
+        <!-- Config panel -->
+        <section class="qb-card qb-tab-panel" style="border-radius: 12px;">
+          <nav class="qb-tabs" style="margin: -8px 0 16px; border-bottom: 1px solid var(--qb-border);">
+            <button class="qb-tab active" data-dom-id="config-tab-metric">指标配置</button>
+            <button class="qb-tab" data-dom-id="config-tab-fact">事实层</button>
+            <button class="qb-tab" data-dom-id="config-tab-history">变更历史</button>
+          </nav>
+
+          <!-- 指标配置 -->
+          <div data-dom-id="config-panel-metric">
+            <div class="qb-toolbar">
+              <select class="qb-select" data-dom-id="config-filter-domain" style="min-width: 150px;">
+                <option value="">全部域</option>
+                <option>患者流转</option>
+                <option>脓毒症_感染性休克</option>
+                <option>抗菌药送检</option>
+                <option>DVT预防</option>
+                <option>评分_资源</option>
+                <option>导管_管路_院感</option>
+                <option>评估依从</option>
+                <option>ARDS专项</option>
+              </select>
+              <select class="qb-select" data-dom-id="config-filter-status" style="min-width: 140px;">
+                <option value="">全部状态</option>
+                <option value="IMPL">已实现</option>
+                <option value="PENDING_SOURCE">待接数据源</option>
+                <option value="PLACEHOLDER">口径待定</option>
+                <option value="MANUAL">人工录入</option>
+              </select>
+              <input type="text" class="qb-input" data-dom-id="config-filter-keyword" placeholder="搜索编号 / 名称 / 事实层" style="min-width: 220px;" />
+              <button class="qb-btn-secondary"><i data-lucide="download" class="w-4 h-4"></i>导出配置</button>
+              <button class="qb-btn-secondary"><i data-lucide="upload" class="w-4 h-4"></i>导入配置</button>
+              <span data-dom-id="config-metric-count" style="font-size:var(--qb-text-sm);color:var(--qb-stone-500);">共 127 条</span>
+            </div>
+            <table class="qb-table" data-dom-id="config-table-metric">
+              <thead><tr><th style="width: 110px;">编号</th><th>指标名称</th><th style="width: 130px;">所属域</th><th style="width: 100px;">事实层</th><th style="width: 90px; text-align: center;">计算类型</th><th style="width: 90px; text-align: center;">状态</th><th style="width: 80px; text-align: center;">版本</th><th style="width: 130px; text-align: center;">操作</th></tr></thead>
+              <tbody>
+              <tr data-code="quality_0" data-domain="患者流转" data-status="IMPL">
+                <td class="code">quality_0</td>
+                <td class="name">收治人数（转入+入院）</td>
+                <td class="domain">患者流转</td>
+                <td class="fact">fact_patient_stay</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_2" data-domain="患者流转" data-status="IMPL">
+                <td class="code">quality_2</td>
+                <td class="name">ICU收治患者床日数</td>
+                <td class="domain">患者流转</td>
+                <td class="fact">fact_patient_stay</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_9" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_9</td>
+                <td class="name">完成3h集束化治疗的患者数</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_10" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_10</td>
+                <td class="name">入ICU诊断为感染性休克</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_11" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_11</td>
+                <td class="name">入ICU诊断为感染性休克并全部完成6h bundle</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_12" data-domain="抗菌药送检" data-status="IMPL">
+                <td class="code">quality_12</td>
+                <td class="name">使用抗菌药物前病原学检验标本送检</td>
+                <td class="domain">抗菌药送检</td>
+                <td class="fact">fact_abx_culture</td>
+                <td class="type">RATE</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_13" data-domain="抗菌药送检" data-status="IMPL">
+                <td class="code">quality_13</td>
+                <td class="name">使用抗菌药物治疗</td>
+                <td class="domain">抗菌药送检</td>
+                <td class="fact">fact_abx_culture</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_14" data-domain="DVT预防" data-status="PENDING_SOURCE">
+                <td class="code">quality_14</td>
+                <td class="name">进行深静脉血栓预防的患者数</td>
+                <td class="domain">DVT预防</td>
+                <td class="fact">fact_dvt</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_15" data-domain="评分_资源" data-status="IMPL">
+                <td class="code">quality_15</td>
+                <td class="name">ICU收治患者预计病死率(%)</td>
+                <td class="domain">评分_资源</td>
+                <td class="fact">fact_score_resource</td>
+                <td class="type">AVG</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_16" data-domain="患者流转" data-status="IMPL">
+                <td class="code">quality_16</td>
+                <td class="name">ICU死亡患者数</td>
+                <td class="domain">患者流转</td>
+                <td class="fact">fact_patient_stay</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_17" data-domain="导管_管路_院感" data-status="PENDING_SOURCE">
+                <td class="code">quality_17</td>
+                <td class="name">非计划气管插管拔管数</td>
+                <td class="domain">导管_管路_院感</td>
+                <td class="fact">fact_device</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_18" data-domain="导管_管路_院感" data-status="PENDING_SOURCE">
+                <td class="code">quality_18</td>
+                <td class="name">ICU患者气管插管拔管数</td>
+                <td class="domain">导管_管路_院感</td>
+                <td class="fact">fact_device</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_19" data-domain="导管_管路_院感" data-status="PENDING_SOURCE">
+                <td class="code">quality_19</td>
+                <td class="name">气管插管计划拔管后48h内再插管数</td>
+                <td class="domain">导管_管路_院感</td>
+                <td class="fact">fact_device</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_20" data-domain="患者流转" data-status="PENDING_SOURCE">
+                <td class="code">quality_20</td>
+                <td class="name">术后非计划转入例数</td>
+                <td class="domain">患者流转</td>
+                <td class="fact">fact_patient_stay</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_21" data-domain="患者流转" data-status="IMPL">
+                <td class="code">quality_21</td>
+                <td class="name">术后转入例数</td>
+                <td class="domain">患者流转</td>
+                <td class="fact">fact_patient_stay</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_22" data-domain="患者流转" data-status="IMPL">
+                <td class="code">quality_22</td>
+                <td class="name">转出ICU后48h内重返ICU</td>
+                <td class="domain">患者流转</td>
+                <td class="fact">fact_patient_stay</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_23" data-domain="患者流转" data-status="IMPL">
+                <td class="code">quality_23</td>
+                <td class="name">转出ICU</td>
+                <td class="domain">患者流转</td>
+                <td class="fact">fact_patient_stay</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_24" data-domain="导管_管路_院感" data-status="PLACEHOLDER">
+                <td class="code">quality_24</td>
+                <td class="name">发生呼吸机相关性肺炎（VAP）数</td>
+                <td class="domain">导管_管路_院感</td>
+                <td class="fact">fact_device</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_25" data-domain="导管_管路_院感" data-status="PLACEHOLDER">
+                <td class="code">quality_25</td>
+                <td class="name">患者有创机械通气天数</td>
+                <td class="domain">导管_管路_院感</td>
+                <td class="fact">fact_device</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_26" data-domain="导管_管路_院感" data-status="PENDING_SOURCE">
+                <td class="code">quality_26</td>
+                <td class="name">发生血管内导管相关血流感染（CRBSI）数</td>
+                <td class="domain">导管_管路_院感</td>
+                <td class="fact">fact_device</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_27" data-domain="导管_管路_院感" data-status="PLACEHOLDER">
+                <td class="code">quality_27</td>
+                <td class="name">患者血管内导管留置天数</td>
+                <td class="domain">导管_管路_院感</td>
+                <td class="fact">fact_device</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_30" data-domain="患者流转" data-status="MANUAL">
+                <td class="code">quality_30</td>
+                <td class="name">ICU实际病死率(%)</td>
+                <td class="domain">患者流转</td>
+                <td class="fact">fact_patient_stay</td>
+                <td class="type">RATE</td>
+                <td class="status status-manual">人工录入</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_31" data-domain="评分_资源" data-status="MANUAL">
+                <td class="code">quality_31</td>
+                <td class="name">ICU患者预计病死率(%)</td>
+                <td class="domain">评分_资源</td>
+                <td class="fact">fact_score_resource</td>
+                <td class="type">RATE</td>
+                <td class="status status-manual">人工录入</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_32" data-domain="评分_资源" data-status="IMPL">
+                <td class="code">quality_32</td>
+                <td class="name">APACHEⅡ评分≥15分</td>
+                <td class="domain">评分_资源</td>
+                <td class="fact">fact_score_resource</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_34" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_34</td>
+                <td class="name">完成1h集束化治疗的患者数</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_301" data-domain="评分_资源" data-status="PENDING_SOURCE">
+                <td class="code">quality_301</td>
+                <td class="name">同期ICU实际开放总床日数</td>
+                <td class="domain">评分_资源</td>
+                <td class="fact">fact_bed</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_302" data-domain="评分_资源" data-status="PENDING_SOURCE">
+                <td class="code">quality_302</td>
+                <td class="name">ICU医师总数</td>
+                <td class="domain">评分_资源</td>
+                <td class="fact">fact_staff</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_303" data-domain="评分_资源" data-status="PENDING_SOURCE">
+                <td class="code">quality_303</td>
+                <td class="name">ICU护士总数</td>
+                <td class="domain">评分_资源</td>
+                <td class="fact">fact_staff</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_304" data-domain="评分_资源" data-status="PENDING_SOURCE">
+                <td class="code">quality_304</td>
+                <td class="name">ICU实际开放床位数</td>
+                <td class="domain">评分_资源</td>
+                <td class="fact">fact_bed</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_305" data-domain="评估依从" data-status="IMPL">
+                <td class="code">quality_305</td>
+                <td class="name">进行镇静评估的 ICU患者人数</td>
+                <td class="domain">评估依从</td>
+                <td class="fact">fact_assessment</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_306" data-domain="评估依从" data-status="IMPL">
+                <td class="code">quality_306</td>
+                <td class="name">进行镇痛评估的 ICU患者人数</td>
+                <td class="domain">评估依从</td>
+                <td class="fact">fact_assessment</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_307" data-domain="评估依从" data-status="IMPL">
+                <td class="code">quality_307</td>
+                <td class="name">ICU内完成意识评估的急性脑损伤患者人数</td>
+                <td class="domain">评估依从</td>
+                <td class="fact">fact_assessment</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_308" data-domain="评估依从" data-status="IMPL">
+                <td class="code">quality_308</td>
+                <td class="name">同期ICU急性脑损伤患者总人数</td>
+                <td class="domain">评估依从</td>
+                <td class="fact">fact_assessment</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_309" data-domain="评估依从" data-status="IMPL">
+                <td class="code">quality_309</td>
+                <td class="name">入住ICU超过48h的患者中48h内启动EN的患者人数</td>
+                <td class="domain">评估依从</td>
+                <td class="fact">fact_assessment</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_310" data-domain="评估依从" data-status="IMPL">
+                <td class="code">quality_310</td>
+                <td class="name">同期入住ICU超过48h的患者总人数</td>
+                <td class="domain">评估依从</td>
+                <td class="fact">fact_assessment</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_311" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_311</td>
+                <td class="name">中重度 ARDS 患者中实施俯卧位通气治疗的人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_312" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_312</td>
+                <td class="name">应实施俯卧位通气治疗的中重度ARDS 患者总人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_401" data-domain="患者流转" data-status="MANUAL">
+                <td class="code">quality_401</td>
+                <td class="name">全院收治人数</td>
+                <td class="domain">患者流转</td>
+                <td class="fact">fact_patient_stay</td>
+                <td class="type">COUNT</td>
+                <td class="status status-manual">人工录入</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_402" data-domain="患者流转" data-status="MANUAL">
+                <td class="code">quality_402</td>
+                <td class="name">全院实际占用床日数</td>
+                <td class="domain">患者流转</td>
+                <td class="fact">fact_patient_stay</td>
+                <td class="type">COUNT</td>
+                <td class="status status-manual">人工录入</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_403" data-domain="患者流转" data-status="IMPL">
+                <td class="code">quality_403</td>
+                <td class="name">同期患者总数（转出+出院）</td>
+                <td class="domain">患者流转</td>
+                <td class="fact">fact_patient_stay</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_404" data-domain="DVT预防" data-status="PENDING_SOURCE">
+                <td class="code">quality_404</td>
+                <td class="name">仅进行深静脉血栓药物预防的患者数</td>
+                <td class="domain">DVT预防</td>
+                <td class="fact">fact_dvt</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_405" data-domain="DVT预防" data-status="PENDING_SOURCE">
+                <td class="code">quality_405</td>
+                <td class="name">进行深静脉血栓药物预防的患者总数</td>
+                <td class="domain">DVT预防</td>
+                <td class="fact">fact_dvt</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_406" data-domain="DVT预防" data-status="PENDING_SOURCE">
+                <td class="code">quality_406</td>
+                <td class="name">仅进行深静脉血栓机械预防的患者数</td>
+                <td class="domain">DVT预防</td>
+                <td class="fact">fact_dvt</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_407" data-domain="DVT预防" data-status="PENDING_SOURCE">
+                <td class="code">quality_407</td>
+                <td class="name">进行深静脉血栓机械预防的患者总数</td>
+                <td class="domain">DVT预防</td>
+                <td class="fact">fact_dvt</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_408" data-domain="DVT预防" data-status="PENDING_SOURCE">
+                <td class="code">quality_408</td>
+                <td class="name">仅进行下腔静脉滤器置入的患者数</td>
+                <td class="domain">DVT预防</td>
+                <td class="fact">fact_dvt</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_409" data-domain="DVT预防" data-status="PENDING_SOURCE">
+                <td class="code">quality_409</td>
+                <td class="name">进行下腔静脉滤器置入的患者总数</td>
+                <td class="domain">DVT预防</td>
+                <td class="fact">fact_dvt</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_410" data-domain="DVT预防" data-status="IMPL">
+                <td class="code">quality_410</td>
+                <td class="name">深静脉血栓相关死亡人数</td>
+                <td class="domain">DVT预防</td>
+                <td class="fact">fact_dvt</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_411" data-domain="DVT预防" data-status="PLACEHOLDER">
+                <td class="code">quality_411</td>
+                <td class="name">进行深静脉血栓预防并诊断深静脉血栓的患者数</td>
+                <td class="domain">DVT预防</td>
+                <td class="fact">fact_dvt</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_412" data-domain="DVT预防" data-status="PENDING_SOURCE">
+                <td class="code">quality_412</td>
+                <td class="name">进行深静脉血栓预防并死亡的患者总数</td>
+                <td class="domain">DVT预防</td>
+                <td class="fact">fact_dvt</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_413" data-domain="DVT预防" data-status="PENDING_SOURCE">
+                <td class="code">quality_413</td>
+                <td class="name">进行深静脉血栓预防、诊断深静脉血栓并死亡的患者总数</td>
+                <td class="domain">DVT预防</td>
+                <td class="fact">fact_dvt</td>
+                <td class="type">COUNT</td>
+                <td class="status status-pending">待接数据源</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_414" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_414</td>
+                <td class="name">收治的入ICU前发生感染性休克的患者数</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_415" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_415</td>
+                <td class="name">1h内完成乳酸测定的患者数</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_416" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_416</td>
+                <td class="name">1h内留取血培养的患者数</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_417" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_417</td>
+                <td class="name">1h内使用抗菌药物的患者数</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_418" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_418</td>
+                <td class="name">完成1h集束化治疗的患者数</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_419" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_419</td>
+                <td class="name">完成6h集束化治疗的患者数</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_420" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_420</td>
+                <td class="name">收治的ARDS患者数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_421" data-domain="ARDS专项" data-status="PLACEHOLDER">
+                <td class="code">quality_421</td>
+                <td class="name">采用保护性肺通气的患者数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_422" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_422</td>
+                <td class="name">采用俯卧位通气的患者数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_423" data-domain="评估依从" data-status="IMPL">
+                <td class="code">quality_423</td>
+                <td class="name">完成意识评估的ABI患者数</td>
+                <td class="domain">评估依从</td>
+                <td class="fact">fact_assessment</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_424" data-domain="评估依从" data-status="IMPL">
+                <td class="code">quality_424</td>
+                <td class="name">同期ABI患者总数（转出+出院的患者中）</td>
+                <td class="domain">评估依从</td>
+                <td class="fact">fact_assessment</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_425" data-domain="导管_管路_院感" data-status="PLACEHOLDER">
+                <td class="code">quality_425</td>
+                <td class="name">导尿管相关泌尿系感染发生例数</td>
+                <td class="domain">导管_管路_院感</td>
+                <td class="fact">fact_device</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_426" data-domain="导管_管路_院感" data-status="PLACEHOLDER">
+                <td class="code">quality_426</td>
+                <td class="name">导尿管留置总天数</td>
+                <td class="domain">导管_管路_院感</td>
+                <td class="fact">fact_device</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_427" data-domain="抗菌药送检" data-status="PLACEHOLDER">
+                <td class="code">quality_427</td>
+                <td class="name">治疗性抗菌药物使用前送检病原学标本例数</td>
+                <td class="domain">抗菌药送检</td>
+                <td class="fact">fact_abx_culture</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_428" data-domain="抗菌药送检" data-status="PLACEHOLDER">
+                <td class="code">quality_428</td>
+                <td class="name">使用治疗性抗菌药物例数</td>
+                <td class="domain">抗菌药送检</td>
+                <td class="fact">fact_abx_culture</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_429" data-domain="抗菌药送检" data-status="PLACEHOLDER">
+                <td class="code">quality_429</td>
+                <td class="name">治疗性抗菌药物使用前送检PCT例数</td>
+                <td class="domain">抗菌药送检</td>
+                <td class="fact">fact_abx_culture</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_430" data-domain="抗菌药送检" data-status="PLACEHOLDER">
+                <td class="code">quality_430</td>
+                <td class="name">使用治疗性抗菌药物例数</td>
+                <td class="domain">抗菌药送检</td>
+                <td class="fact">fact_abx_culture</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_431" data-domain="抗菌药送检" data-status="PLACEHOLDER">
+                <td class="code">quality_431</td>
+                <td class="name">治疗性抗菌药物使用前送检G/GM实验例数</td>
+                <td class="domain">抗菌药送检</td>
+                <td class="fact">fact_abx_culture</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_432" data-domain="抗菌药送检" data-status="PLACEHOLDER">
+                <td class="code">quality_432</td>
+                <td class="name">治疗性抗菌药物使用前送检白介素例数</td>
+                <td class="domain">抗菌药送检</td>
+                <td class="fact">fact_abx_culture</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_433" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_433</td>
+                <td class="name">收治的≤18岁的感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_434" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_434</td>
+                <td class="name">收治的18-65岁的感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_435" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_435</td>
+                <td class="name">收治的≥65岁的感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_436" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_436</td>
+                <td class="name">收治的血流感染（CRBSI）感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_437" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_437</td>
+                <td class="name">收治的血流感染（非CRBSI）感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_438" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_438</td>
+                <td class="name">收治的血流感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_439" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_439</td>
+                <td class="name">收治的腹腔感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_440" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_440</td>
+                <td class="name">收治的泌尿系感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_441" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_441</td>
+                <td class="name">收治的中枢神经系统感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_442" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_442</td>
+                <td class="name">收治的肺部感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_443" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_443</td>
+                <td class="name">收治的胆道感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_444" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_444</td>
+                <td class="name">收治的胃肠道感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_445" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_445</td>
+                <td class="name">收治的骨髓感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_446" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_446</td>
+                <td class="name">收治的皮肤软组织感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_447" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_447</td>
+                <td class="name">收治的其他部位感染感染性休克患者数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_448" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_448</td>
+                <td class="name">收治的感染性休克患者死亡数（包括ICU内发生）</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_449" data-domain="脓毒症_感染性休克" data-status="IMPL">
+                <td class="code">quality_449</td>
+                <td class="name">收治的入ICU发生感染性休克的患者数</td>
+                <td class="domain">脓毒症_感染性休克</td>
+                <td class="fact">fact_sepsis_bundle</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_450" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_450</td>
+                <td class="name">非插管的男性ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_451" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_451</td>
+                <td class="name">插管的男性ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_452" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_452</td>
+                <td class="name">年龄≤18岁男性ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_453" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_453</td>
+                <td class="name">年龄18-65岁男性ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_454" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_454</td>
+                <td class="name">年龄＞65岁男性ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_455" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_455</td>
+                <td class="name">非插管的女性ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_456" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_456</td>
+                <td class="name">插管的女性ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_457" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_457</td>
+                <td class="name">年龄≤18岁女性ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_458" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_458</td>
+                <td class="name">年龄18-65岁女性ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_459" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_459</td>
+                <td class="name">年龄＞65岁女性ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_460" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_460</td>
+                <td class="name">轻度ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_461" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_461</td>
+                <td class="name">中度ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_462" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_462</td>
+                <td class="name">重度ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_463" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_463</td>
+                <td class="name">细菌性肺炎ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_464" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_464</td>
+                <td class="name">病毒性肺炎ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_465" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_465</td>
+                <td class="name">真菌性肺炎ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_466" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_466</td>
+                <td class="name">吸入性肺炎ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_467" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_467</td>
+                <td class="name">肺挫伤ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_468" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_468</td>
+                <td class="name">严重感染（肺外）ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_469" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_469</td>
+                <td class="name">严重创伤（肺外）ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_470" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_470</td>
+                <td class="name">急性重症胰腺炎ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_471" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_471</td>
+                <td class="name">大量输血ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_472" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_472</td>
+                <td class="name">体外循环ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_473" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_473</td>
+                <td class="name">其他原因ARDS人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_474" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_474</td>
+                <td class="name">实施有创机械通气的ARDS患者人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_475" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_475</td>
+                <td class="name">实施无创机械通气的ARDS患者人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_476" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_476</td>
+                <td class="name">实施高流量(HFNC)的ARDS患者人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_477" data-domain="ARDS专项" data-status="PLACEHOLDER">
+                <td class="code">quality_477</td>
+                <td class="name">ARDS平均机械通气支持天数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">AVG</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_478" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_478</td>
+                <td class="name">中重度ARDS患者肌松的使用人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_479" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_479</td>
+                <td class="name">中重度ARDS患者总人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_480" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_480</td>
+                <td class="name">实施ECMO支持的ARDS患者人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_481" data-domain="ARDS专项" data-status="PLACEHOLDER">
+                <td class="code">quality_481</td>
+                <td class="name">ARDS平均ECMO支持天数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">AVG</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_482" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_482</td>
+                <td class="name">ARDS实施俯卧位通气的人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_483" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_483</td>
+                <td class="name">轻度ARDS俯卧位人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_484" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_484</td>
+                <td class="name">中度ARDS俯卧位人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_485" data-domain="ARDS专项" data-status="IMPL">
+                <td class="code">quality_485</td>
+                <td class="name">重度ARDS俯卧位人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-impl">已实现</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_486" data-domain="ARDS专项" data-status="PLACEHOLDER">
+                <td class="code">quality_486</td>
+                <td class="name">ARDS平均俯卧位通气天数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">AVG</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_487" data-domain="ARDS专项" data-status="PLACEHOLDER">
+                <td class="code">quality_487</td>
+                <td class="name">ARDS患者的院内死亡人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_488" data-domain="ARDS专项" data-status="PLACEHOLDER">
+                <td class="code">quality_488</td>
+                <td class="name">轻度ARDS患者院内死亡人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_489" data-domain="ARDS专项" data-status="PLACEHOLDER">
+                <td class="code">quality_489</td>
+                <td class="name">中度ARDS患者院内死亡人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-code="quality_490" data-domain="ARDS专项" data-status="PLACEHOLDER">
+                <td class="code">quality_490</td>
+                <td class="name">重度ARDS患者院内死亡人数</td>
+                <td class="domain">ARDS专项</td>
+                <td class="fact">fact_ards</td>
+                <td class="type">COUNT</td>
+                <td class="status status-placeholder">口径待定</td>
+                <td class="version">v1</td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 事实层 -->
+          <div data-dom-id="config-panel-fact" style="display:none;">
+            <div class="qb-tab-note">
+              事实层是「原始表 → 可算列」的加工声明，多个指标共享同一事实层；修改前请先确认影响面。
+            </div>
+            <table class="qb-table">
+              <thead><tr><th style="width: 170px;">事实层</th><th style="width: 120px;">所属域</th><th style="width: 90px; text-align: center;">状态</th><th style="width: 150px;">来源</th><th style="width: 130px; text-align: center;">操作</th></tr></thead>
+              <tbody>
+              <tr data-fact="fact_patient_stay">
+                <td class="fact-name">fact_patient_stay</td>
+                <td class="domain"></td>
+                <td class="status status-impl">ACTIVE</td>
+                <td class="source"></td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-fact="fact_score_resource">
+                <td class="fact-name">fact_score_resource</td>
+                <td class="domain"></td>
+                <td class="status status-impl">ACTIVE</td>
+                <td class="source"></td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-fact="fact_staff">
+                <td class="fact-name">fact_staff</td>
+                <td class="domain"></td>
+                <td class="status status-impl">ACTIVE</td>
+                <td class="source"></td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-fact="fact_bed">
+                <td class="fact-name">fact_bed</td>
+                <td class="domain"></td>
+                <td class="status status-impl">ACTIVE</td>
+                <td class="source"></td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-fact="fact_sepsis_bundle">
+                <td class="fact-name">fact_sepsis_bundle</td>
+                <td class="domain"></td>
+                <td class="status status-impl">ACTIVE</td>
+                <td class="source"></td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-fact="fact_assessment">
+                <td class="fact-name">fact_assessment</td>
+                <td class="domain"></td>
+                <td class="status status-impl">ACTIVE</td>
+                <td class="source"></td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-fact="fact_ards">
+                <td class="fact-name">fact_ards</td>
+                <td class="domain"></td>
+                <td class="status status-impl">ACTIVE</td>
+                <td class="source"></td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-fact="fact_abx_culture">
+                <td class="fact-name">fact_abx_culture</td>
+                <td class="domain"></td>
+                <td class="status status-impl">ACTIVE</td>
+                <td class="source"></td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-fact="fact_dvt">
+                <td class="fact-name">fact_dvt</td>
+                <td class="domain"></td>
+                <td class="status status-impl">ACTIVE</td>
+                <td class="source"></td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              <tr data-fact="fact_device">
+                <td class="fact-name">fact_device</td>
+                <td class="domain"></td>
+                <td class="status status-impl">ACTIVE</td>
+                <td class="source"></td>
+                <td class="action"><button class="btn-mini btn-edit">编辑</button></td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 变更历史 -->
+          <div data-dom-id="config-panel-history" style="display:none;">
+            <div class="qb-toolbar">
+              <select class="qb-select" style="min-width: 120px;">
+                <option value="">全部类型</option>
+                <option value="METRIC">指标</option>
+                <option value="FACT">事实层</option>
+              </select>
+              <input type="text" class="qb-input" placeholder="编号 / 事实层名（留空看全部）" style="min-width: 220px;" />
+              <button class="qb-btn-secondary"><i data-lucide="search" class="w-4 h-4"></i>查询</button>
+            </div>
+            <table class="qb-table">
+              <thead><tr><th style="width: 170px;">时间</th><th style="width: 80px;">类型</th><th style="width: 180px;">对象</th><th style="width: 100px;">变更</th><th style="width: 80px; text-align: center;">版本</th><th style="width: 120px;">操作人</th><th>备注</th><th style="width: 130px; text-align: center;">操作</th></tr></thead>
+              <tbody>
+              <tr>
+                <td class="time">2026-09-14 10:23</td>
+                <td class="type">METRIC</td>
+                <td class="key">quality_12</td>
+                <td class="change">UPDATE</td>
+                <td class="version">v2</td>
+                <td class="operator">张质控</td>
+                <td class="note">修正送检时间比较逻辑，改为首次培养/药敏/鉴定时间</td>
+                <td class="action"><button class="btn-mini btn-rollback">回滚</button></td>
+              </tr>
+              <tr>
+                <td class="time">2026-09-13 16:45</td>
+                <td class="type">FACT</td>
+                <td class="key">fact_ards</td>
+                <td class="change">UPDATE</td>
+                <td class="version">v1</td>
+                <td class="operator">李信息</td>
+                <td class="note">补充俯卧位识别观察项关键词</td>
+                <td class="action"><button class="btn-mini btn-rollback">回滚</button></td>
+              </tr>
+              <tr>
+                <td class="time">2026-09-12 09:10</td>
+                <td class="type">METRIC</td>
+                <td class="key">quality_311</td>
+                <td class="change">CREATE</td>
+                <td class="version">v1</td>
+                <td class="operator">系统</td>
+                <td class="note">初始化指标配置</td>
+                <td class="action"><button class="btn-mini btn-rollback">回滚</button></td>
+              </tr>
+              <tr>
+                <td class="time">2026-09-10 11:02</td>
+                <td class="type">METRIC</td>
+                <td class="key">quality_312</td>
+                <td class="change">UPDATE</td>
+                <td class="version">v2</td>
+                <td class="operator">王主任</td>
+                <td class="note">调整中重度ARDS判定条件</td>
+                <td class="action"><button class="btn-mini btn-rollback">回滚</button></td>
+              </tr>
+              <tr>
+                <td class="time">2026-09-08 14:30</td>
+                <td class="type">FACT</td>
+                <td class="key">fact_sepsis_bundle</td>
+                <td class="change">CREATE</td>
+                <td class="version">v1</td>
+                <td class="operator">系统</td>
+                <td class="note">初始化事实层配置</td>
+                <td class="action"><button class="btn-mini btn-rollback">回滚</button></td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+    <script>
+      lucide.createIcons();
+
+      // ===== Config page interaction mock =====
+      (function() {
+        function showToast(message) {
+          let toast = document.getElementById('qb-toast');
+          if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'qb-toast';
+            toast.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:10px 16px;background:var(--qb-stone-800);color:#fff;border-radius:8px;font-size:13px;box-shadow:var(--qb-shadow-lg);z-index:9999;opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;';
+            document.body.appendChild(toast);
+          }
+          toast.textContent = message;
+          toast.style.opacity = '1'; toast.style.transform = 'translateY(0)';
+          setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(8px)'; }, 2200);
+        }
+
+        // ---- Internal tabs ----
+        const tabs = {
+          metric: { tab: document.querySelector('[data-dom-id="config-tab-metric"]'), panel: document.querySelector('[data-dom-id="config-panel-metric"]') },
+          fact:   { tab: document.querySelector('[data-dom-id="config-tab-fact"]'),   panel: document.querySelector('[data-dom-id="config-panel-fact"]') },
+          history:{ tab: document.querySelector('[data-dom-id="config-tab-history"]'),panel: document.querySelector('[data-dom-id="config-panel-history"]') }
+        };
+        function switchTab(activeKey) {
+          Object.keys(tabs).forEach(k => {
+            const active = k === activeKey;
+            tabs[k].tab.classList.toggle('active', active);
+            tabs[k].panel.style.display = active ? '' : 'none';
+          });
+        }
+        Object.keys(tabs).forEach(k => {
+          tabs[k].tab.addEventListener('click', () => switchTab(k));
+        });
+
+        // ---- Metric tab filters ----
+        const metricDomain = document.querySelector('[data-dom-id="config-filter-domain"]');
+        const metricStatus = document.querySelector('[data-dom-id="config-filter-status"]');
+        const metricKeyword = document.querySelector('[data-dom-id="config-filter-keyword"]');
+        const metricCount = document.querySelector('[data-dom-id="config-metric-count"]');
+        const metricRows = document.querySelectorAll('[data-dom-id="config-table-metric"] tbody tr');
+
+        function applyMetricFilters() {
+          const domain = metricDomain ? metricDomain.value : '';
+          const status = metricStatus ? metricStatus.value : '';
+          const keyword = metricKeyword ? metricKeyword.value.trim().toLowerCase() : '';
+          let visible = 0;
+          metricRows.forEach(row => {
+            const rowDomain = row.cells[2]?.textContent.trim();
+            const rowStatus = row.getAttribute('data-status') || '';
+            const text = Array.from(row.cells).map(c => c.textContent.toLowerCase()).join(' ');
+            const matchDomain = !domain || rowDomain === domain;
+            const matchStatus = !status || rowStatus === status;
+            const matchKeyword = !keyword || text.includes(keyword);
+            const show = matchDomain && matchStatus && matchKeyword;
+            row.style.display = show ? '' : 'none';
+            if (show) visible++;
+          });
+          if (metricCount) metricCount.textContent = `共 ${visible} 条`;
+        }
+
+        [metricDomain, metricStatus].forEach(el => { if (el) el.addEventListener('change', applyMetricFilters); });
+        if (metricKeyword) metricKeyword.addEventListener('input', applyMetricFilters);
+
+        // ---- Action buttons ----
+        document.querySelectorAll('.qb-btn-text').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const label = btn.textContent.trim();
+            const row = btn.closest('tr');
+            const code = row?.querySelector('td:first-child')?.textContent.trim() || '';
+            const name = row?.querySelector('td:nth-child(2)')?.textContent.trim() || '';
+
+            if (label === '编辑') showToast(`打开编辑：${code} ${name}`);
+            else if (label === '历史') showToast(`查看 ${code} 的变更历史`);
+            else if (label === '停用') {
+              const statusCell = row.querySelector('td:nth-child(7)');
+              const tag = statusCell.querySelector('.qb-tag');
+              tag.className = 'qb-tag off';
+              tag.textContent = '停用';
+              row.setAttribute('data-status', 'PLACEHOLDER');
+              btn.textContent = '启用';
+              btn.classList.remove('danger');
+              showToast(`${code} 已停用`);
+              applyMetricFilters();
+            }
+            else if (label === '启用') {
+              const statusCell = row.querySelector('td:nth-child(7)');
+              const tag = statusCell.querySelector('.qb-tag');
+              tag.className = 'qb-tag on';
+              tag.textContent = '启用';
+              row.setAttribute('data-status', 'IMPL');
+              btn.textContent = '停用';
+              btn.classList.add('danger');
+              showToast(`${code} 已启用`);
+              applyMetricFilters();
+            }
+            else if (label === '查看') showToast('打开事实层详情');
+            else if (label === '看快照') showToast('展示历史快照对比');
+            else if (label === '回滚到此版') showToast('已回滚到该版本');
+          });
+        });
+
+        // ---- Refresh / reload / export / import ----
+        const toolbarBtns = document.querySelectorAll('.qb-filter-right button, .qb-toolbar button');
+        toolbarBtns.forEach(btn => {
+          const label = btn.textContent.trim();
+          if (label === '刷新' || label === '重载配置' || label === '查询') {
+            btn.addEventListener('click', () => {
+              btn.disabled = true;
+              const old = btn.innerHTML;
+              btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4" style="animation:spin 1s linear infinite;"></i>处理中';
+              lucide.createIcons();
+              const done = label === '刷新' ? '配置列表已刷新' : label === '查询' ? '历史记录已查询' : '配置已重载并生效';
+              setTimeout(() => { btn.innerHTML = old; lucide.createIcons(); btn.disabled = false; showToast(done); }, 900);
+            });
+          } else if (label === '导出配置') {
+            btn.addEventListener('click', () => showToast('正在导出指标配置 JSON…'));
+          } else if (label === '导入配置') {
+            btn.addEventListener('click', () => showToast('打开导入配置对话框'));
+          }
+        });
+      })();
+    </script>
+    <style>
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</body>
+</html>

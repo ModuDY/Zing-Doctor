@@ -1,0 +1,80 @@
+# =====================================================================
+# 医生决策系统 - Docker Compose 部署配置
+#
+# 用法：
+#   1. 有外网：docker compose up -d --build
+#   2. 无外网：./install.sh（自动切换内网直连模式：后端 java -jar + 前端 nginx 容器）
+#
+# 达梦连接：修改下方 DOCTOR_URL / DOCTOR_USERNAME / DOCTOR_PASSWORD
+# 外链地址：修改下方 EXTERNAL_LINK_BASE_URL 为部署机实际 IP:端口
+# =====================================================================
+version: '3.8'
+
+services:
+  # ---------- 后端 ----------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: zing-doctor-backend:latest
+    container_name: zing-doctor-backend
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      # Spring Profile
+      SPRING_PROFILES_ACTIVE: prod
+      # ICU 数据提供方式：sql（直连达梦 ICU 业务库）
+      ICU_DATA_PROVIDER: sql
+      # 外链鉴权 token（与外部系统约定，需一致）
+      ICU_LINK_TOKEN: zing-icu-link-token-2026
+      EXTERNAL_LINK_SECRET: zing-doctor-prod-secret-change-me
+      # 外链跳转基础地址（部署机实际访问地址，外部系统跳回时用）
+      # ⚠️ 必须与浏览器实际访问地址完全一致（含端口 :2001）；留空则跟随请求 Host
+      # （跟随 Host 依赖 nginx 配置 $http_host 透传端口，install.sh 已处理）
+      EXTERNAL_LINK_BASE_URL: http://100.120.1.104:2001
+      # 质控配置写接口白名单（POST /api/quality/config/**：保存/回滚/导入/重载配置）
+      # 留空 = 写接口一律 403（刻意的 fail-closed，与 install.sh 行为一致）。
+      # 需要开放配置编辑时填质控科/信息科工作站的 IP 或网段，逗号分隔、支持前缀匹配，如：
+      #   QUALITY_CONFIG_WRITE_IP_WHITELIST: "194.1.3.,100.120.1."
+      QUALITY_CONFIG_WRITE_IP_WHITELIST: ""
+      # ===== 达梦连接（install.sh 从此处提取 DOCTOR_URL 用于数据库初始化）=====
+      DOCTOR_URL: jdbc:dm://100.120.1.102:14236
+      DOCTOR_USERNAME: SYSDBA
+      DOCTOR_PASSWORD: Sa_20250815
+      # JVM 堆内存（根据服务器配置调整）
+      JAVA_OPTS: -Xms512m -Xmx1024m
+    volumes:
+      - ./logs:/app/logs
+      # 后端外部配置：install.sh 生成 ./config/application.yml（容器内 WORKDIR=/app，
+      # Spring Boot 默认加载 /app/config/ 下的 application.yml，优先级高于 jar 内配置）
+      - ./config:/app/config:ro
+    networks:
+      - zing-doctor-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8081/api/external/token"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ---------- 前端（nginx 托管 dist + 反向代理 /api 到后端）----------
+  frontend:
+    image: nginx:stable
+    container_name: zing-doctor-frontend
+    restart: unless-stopped
+    ports:
+      - "2001:80"
+    volumes:
+      # 前端静态资源（交付包 frontend/dist/）
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      # nginx 配置（install.sh 自动生成 runtime/nginx/default.conf）
+      - ./runtime/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    networks:
+      - zing-doctor-net
+
+networks:
+  zing-doctor-net:
+    driver: bridge

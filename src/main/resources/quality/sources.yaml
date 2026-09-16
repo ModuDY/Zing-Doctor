@@ -1,0 +1,54 @@
+# =====================================================================
+# 质控指标中台 - 数据源层配置（第 1 层：数据源）
+#
+# 作用：把「逻辑表」与「物理库 / schema / 表名」解耦。
+#       换库、换 schema、换表名只改本文件，指标与事实层配置不动。
+#
+# 关键前提：icu 与 doctor 指向同一达梦实例（application.yml 中 host/port 相同），
+#          因此单条 SQL 内可跨 schema 关联，事实层才能「一次物化、被同域全部指标复用」，
+#          这是本方案性能优于「逐指标各自取数」的根因。
+#
+# 达梦方言约定：标识符（schema/表/列）一律双引号保小写；取数用 SYSDATE - n；
+#              单行取最新用 子查询 + ROWNUM <= 1（不用 LIMIT）。
+# =====================================================================
+version: 1
+
+datasources:
+  icu:
+    bean: icu
+    dialect: dm
+    schema: zing_icu_db_prod
+  doctor:
+    bean: doctor
+    dialect: dm
+    schema: zing_doctor_db_prod
+
+tables:
+  # ---------- 已实库验证：ICU 只读库 ----------
+  patient_info:            { ds: icu,    name: patient_info,                       pk: id, timeField: in_depart_time }
+  patient_info_diagnosis:  { ds: icu,    name: patient_info_diagnosis,             pk: id, timeField: diag_time }
+  patient_info_lis_item:   { ds: icu,    name: patient_info_lis_item,              pk: id, timeField: check_time }
+  patient_info_lis:        { ds: icu,    name: patient_info_lis,                   pk: id }
+  patient_advice:          { ds: icu,    name: patient_advice,                     pk: id, timeField: start_time }
+  patient_advice_execute:  { ds: icu,    name: patient_advice_execute,             pk: id, timeField: plan_start_time }
+  observe_record:          { ds: icu,    name: patient_observe_module_item_record, pk: id, timeField: item_time }
+  observe_item:            { ds: icu,    name: patient_observe_module_item,        pk: id }
+  config_observe_item:     { ds: icu,    name: config_observe_item,                pk: id }
+  
+
+  # ---------- 已实库验证：医生库 ----------
+  apache2_score_record:    { ds: doctor, name: apache2_score_record,               pk: id, timeField: score_time }
+
+  # ---------- 待接数据源 ----------
+  # 这三张表尚未在实库确认。此处先「登记」而非留空，是为了：
+  #   ① 事实层配置保持完整，接入时只改物理表名，不动事实层与指标；
+  #   ② 诊断接口（列出事实层 SQL）不会因缺登记而抛异常。
+  # 对应事实层 status=PENDING_SOURCE，引擎不会编译它们，因此不会真的去查这张表。
+  #
+  # 业务方需要确认的是（见 docs 交付说明）：
+  #   device_record → 管路/导管事件表（气管插管、导尿管、中心静脉导管的置入/拔除时间）
+  #   bed_record    → 床位配置/开放记录（用于「实际开放总床日数」「实际开放床位数」）
+  #   config_staff  → ICU 医护人员花名册（含科室、岗位）
+  device_record:           { ds: icu,    name: patient_device_record,              pk: id, timeField: start_time }
+  config_bed:              { ds: icu,    name: config_bed,                         pk: id, timeField: begin_use_time }
+  config_staff:            { ds: icu,    name: config_staff,                       pk: id }

@@ -1,0 +1,19 @@
+# =====================================================================
+# 指标层 · 评分与资源（7 条）
+#
+# 病死率类要分清两层，混在一起就是数量级错误：
+#   quality_15 = mortality_rate 求和（各患者预计死亡率的「和」，不是率本身）；
+#   真正的「预计病死率」是 ICU 侧规则：quality_15 ÷ 同期人数 × 系数。
+# 因此 quality_15 这一层**不能**先除一遍求均值 —— 否则规则再除一次，
+# 等于除了两遍，值会小到离谱（这正是此前口径存疑的由来，已与 ICU 侧确认）。
+# 用 SUM 而非 AVG 的另一个好处：月度与季度都按 sum(分子)/sum(分母) 汇总，
+# 不会出现「把 12 个月的率再平均一次」的老问题。
+# =====================================================================
+
+- {code: quality_15,  name: "ICU收治患者预计病死率之和(%)", domain: 评分_资源, fact: fact_score_resource, unit: "%", valueType: SUM, agg: SUM, numerator: "mortality_rate", denominatorWhere: "mortality_rate IS NOT NULL", dims: [depart_code], version: 2, sortNo: 9,  remark: "APACHE II 评分记录 mortality_rate 求和（各患者预计死亡率之和，非均值）；ICU 侧规则以它为分子再除以人数得出预计病死率，故此处不除"}
+- {code: quality_31,  name: "ICU患者预计病死率(%)", domain: 评分_资源, fact: fact_score_resource, unit: "%", valueType: RATE, scale: 1, numeratorMetric: quality_15, denominatorMetric: quality_403, dims: [depart_code], version: 2, sortNo: 23, remark: "自动计算：ICU收治患者预计病死率之和 ÷ 同期患者总数（转出+出院），即 quality_15 ÷ quality_403。放大系数必须是 1 —— 分子本身已是百分数之和，填 100 会放大一百倍"}
+- {code: quality_32,  name: "APACHEⅡ评分≥15分", domain: 评分_资源, fact: fact_score_resource, unit: "人", valueType: COUNT, where: "apache_ge15 = 1", dims: [depart_code], version: 1, sortNo: 24, remark: "入周期内评分记录 total_score≥15 的患者数"}
+- {code: quality_301, name: "同期ICU实际开放总床日数", domain: 评分_资源, fact: fact_bed, unit: "天", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 26, remark: "待接 bedInfoList（床位开放记录）。缺该源时病死率类指标的标准化分母无法计算"}
+- {code: quality_302, name: "ICU医师总数", domain: 评分_资源, fact: fact_staff, unit: "人", valueType: COUNT, implStatus: MANUAL, version: 2, sortNo: 27, remark: "人工填报：人员数量不常变，由科室按月在配置页录入。原自动口径（事实层 fact_staff：post_name LIKE %医师%，计数对象 user_id）留待 config_staff 花名册接入后启用"}
+- {code: quality_303, name: "ICU护士总数", domain: 评分_资源, fact: fact_staff, unit: "人", valueType: COUNT, implStatus: MANUAL, version: 2, sortNo: 28, remark: "人工填报：同 quality_302（原口径 post_name LIKE %护士%）"}
+- {code: quality_304, name: "ICU实际开放床位数", domain: 评分_资源, fact: fact_bed, unit: "张", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 29, remark: "待接 bedInfoList"}
