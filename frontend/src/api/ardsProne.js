@@ -1,4 +1,4 @@
-﻿import request from './request'
+import request from './request'
 
 /**
  * ARDS 俯卧位通气治疗记录 API。
@@ -156,5 +156,5 @@ export function fetchArdsProneMapCandidates(type, keyword, limit) {
 
 /** 试采（dry-run，不落库）：返回每项命中值与来源 */
 export function previewArdsProneCollect(recordId, tpIndex) {
-  return request.post('/ards-prone/map/preview', null, { params: { recordId, tpIndex, forceRefresh: forceRefresh ? true : undefined }, silentError: true })
+  return request.post('/ards-prone/map/preview', null, { params: { recordId, tpIndex }, silentError: true })
 }

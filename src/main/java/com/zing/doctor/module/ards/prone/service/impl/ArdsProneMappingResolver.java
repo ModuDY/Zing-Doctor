@@ -1,4 +1,4 @@
-﻿package com.zing.doctor.module.ards.prone.service.impl;
+package com.zing.doctor.module.ards.prone.service.impl;
 
 import com.zing.doctor.module.ards.prone.dict.ArdsProneDict;
 import com.zing.doctor.module.ards.prone.entity.ArdsProneConfig;

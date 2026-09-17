@@ -1,4 +1,4 @@
-﻿package com.zing.doctor.module.ards.prone.controller;
+package com.zing.doctor.module.ards.prone.controller;
 
 import com.zing.doctor.common.Result;
 import com.zing.doctor.module.ards.prone.dict.ArdsProneDict;

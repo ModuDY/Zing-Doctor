@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="ards-page ards-theme">
     <!-- ============================ 填写页 ============================ -->
     <div v-if="scr === 'form'">

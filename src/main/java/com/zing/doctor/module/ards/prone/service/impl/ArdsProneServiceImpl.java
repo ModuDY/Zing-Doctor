@@ -1,4 +1,4 @@
-﻿package com.zing.doctor.module.ards.prone.service.impl;
+package com.zing.doctor.module.ards.prone.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zing.doctor.common.BizException;

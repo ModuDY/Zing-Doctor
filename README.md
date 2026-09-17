@@ -81,7 +81,7 @@ CI_SECURITY_SCAN=1 bash tools/ci.sh   # 额外跑后端依赖漏洞扫描（需�
 
 | 校验项 | 命令 | 通过门槛 |
 |---|---|---|
-| 后端单元测试 | `mvn test` | 全绿（当前 125 个用例） |
+| 后端单元测试 | `mvn test` | 全绿（当前 208 个用例） |
 | 前端代码检查 | `cd frontend && npm run lint` | error 为 0（warning 不阻塞） |
 | 前端依赖漏洞 | `cd frontend && npm run audit:ci` | 生产依赖不允许 high 及以上 |
 | 后端依赖漏洞 | `mvn -Psecurity-check verify` | CVSS ≥ 7 中断（需联网） |
