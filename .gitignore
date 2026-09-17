@@ -36,3 +36,13 @@ _pack_tmp.ps1
 
 # CodeBuddy IDE 本地规则/技能包（本地开发辅助，非项目成果，不入库）
 .codebuddy/
+
+# 其他 IDE 的本地技能/配置（随工具生成，非项目成果，不入库）
+.trae/
+
+# 浏览器/e2e 调试残留（Chrome profile、dbg-*/prof-* 等，体积大且每次都变，不入库）
+.tmp-e2e/
+
+# PowerShell 重定向误产物（`> $null` 被当成文件名时生成的 0 字节文件）
+$null
+*.hdr
