@@ -6,17 +6,24 @@
   Full：全量包，含 tools/docker-compose 离线二进制（118 MB，无外网服务器用）
   Lite：精简包，不含离线 compose 二进制（服务器已装 docker compose 用，约 29 MB）
 
-.PARAMETER Lite    生成精简包（默认全量）
-.PARAMETER Build   打包前先构建：mvn package（后端）+ vite build（前端）
-.PARAMETER OutDir  输出目录，默认项目根
+.PARAMETER Lite     生成精简包（默认全量：含离线 docker-compose 二进制）
+.PARAMETER Build    打包前先构建：mvn package（后端）+ vite build（前端）
+.PARAMETER KeepDocs 额外打进 docs/ 全部与 README.md（内部交付用）
+                    默认只带部署方真正用得到的 02/03/04 三份文档，产品设计、设计稿、原型一律不进包
+.PARAMETER Sanitize 脱敏：把 docker-compose.yml 与 jar 内 application.yml 的出厂口令/密钥置为 CHANGE_ME
+                    ⚠️ 启用后部署方必须自行填写真实口令，否则 install.sh 数据库初始化与后端连库都会失败
+.PARAMETER OutDir   输出目录，默认项目根
 
 .EXAMPLE
   .\tools\build-delivery.ps1 -Lite
   .\tools\build-delivery.ps1 -Build -Lite
+  .\tools\build-delivery.ps1 -Build -Lite -Sanitize    # 外发给院方前建议加 -Sanitize
 #>
 param(
     [switch]$Lite,
     [switch]$Build,
+    [switch]$KeepDocs,
+    [switch]$Sanitize,
     [string]$OutDir
 )
 
@@ -119,24 +126,40 @@ Write-Host '>>> 已同步 jar -> app/zing-doctor.jar' -ForegroundColor Cyan
 # ---------- 组装 ----------
 $stamp = Get-Date -Format 'yyyyMMdd'
 if ($Lite) { $suffix = 'lite' } else { $suffix = 'full' }
+# 脱敏包单独命名：默认包（出厂口令，内部/现场直接用）与外发包（CHANGE_ME）不混用
+if ($Sanitize) { $suffix = "$suffix-sanitized" }
 $zip = Join-Path $OutDir ("zing-doctor-deploy-$stamp-$suffix.zip")
 $stage = Join-Path $env:TEMP ('zing-pkg-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 $work = Join-Path $stage 'zing-doctor'
 New-Item -ItemType Directory -Force -Path $work | Out-Null
 Write-Host (">>> 组装到 " + $work) -ForegroundColor Cyan
 
+# ⚠️ 白名单原则：只放「运行 + 部署」必需的东西。
+# 交付对象是医院信息科，包里不该出现：后端/前端源码、产品设计文档、设计稿与原型、
+# 内部脚本（一次性生成脚本、校验脚本）、sourcemap。需要内部归档时用 -KeepDocs 打开。
 Copy-Item "$root\app" (Join-Path $work 'app') -Recurse -Force
 Copy-Item "$root\sql" (Join-Path $work 'sql') -Recurse -Force
-Copy-Item "$root\docs" (Join-Path $work 'docs') -Recurse -Force
 Copy-Item "$root\lib" (Join-Path $work 'lib') -Recurse -Force
 Copy-Item "$root\docker-compose.yml" $work -Force
 Copy-Item "$root\Dockerfile" $work -Force
 Copy-Item "$root\install.sh" $work -Force
-Copy-Item "$root\README.md" $work -Force
 # 数据库变更清单：install.sh 不会执行 SQL（容器无达梦客户端），故把清单放包根目录，
 # 部署方解压第一眼就能看到，避免「代码更新了但表没改」导致页面直接 500。
 if (Test-Path "$root\DATABASE-CHANGES.md") {
     Copy-Item "$root\DATABASE-CHANGES.md" $work -Force
+}
+
+# 文档：默认只给部署/对接真正用得到的三份（install.sh 的提示也指向 04）。
+# 产品设计（05~17）、ARDS 原型 docs/ards-prone、设计稿 docs/quality-board-redesign、
+# 指标映射 CSV 与一次性脚本，属内部资料，不进外发包。
+$depDocs = Join-Path $work 'docs'
+New-Item -ItemType Directory -Force -Path $depDocs | Out-Null
+foreach ($d in @('02-外链传参规范.md', '03-部署说明.md', '04-安装部署手册.md')) {
+    if (Test-Path "$root\docs\$d") { Copy-Item "$root\docs\$d" $depDocs -Force }
+}
+if ($KeepDocs) {
+    Copy-Item "$root\docs\*" $depDocs -Recurse -Force
+    Copy-Item "$root\README.md" $work -Force
 }
 
 $fe = Join-Path $work 'frontend'
@@ -145,15 +168,70 @@ Copy-Item "$root\frontend\dist" (Join-Path $fe 'dist') -Recurse -Force
 Copy-Item "$root\frontend\nginx.conf" $fe -Force
 Copy-Item "$root\frontend\Dockerfile" $fe -Force
 
+# db-init 只带编译产物（.class）：DbInit.java 是源码，不进包。
+# 服务器上 install.sh 直接用 .class；没有 .java 时它也不会尝试 javac（见 resolve_dbinit_cp）。
 $tools = Join-Path $work 'tools'
 New-Item -ItemType Directory -Force -Path (Join-Path $tools 'db-init') | Out-Null
-Copy-Item "$root\tools\db-init\*" (Join-Path $tools 'db-init') -Force
+Get-ChildItem "$root\tools\db-init" -File | Where-Object { $_.Extension -ne '.java' } |
+    ForEach-Object { Copy-Item $_.FullName (Join-Path $tools 'db-init') -Force }
 if (Test-Path "$root\tools\db-init-classes") {
     New-Item -ItemType Directory -Force -Path (Join-Path $tools 'db-init-classes') | Out-Null
-    Copy-Item "$root\tools\db-init-classes\*" (Join-Path $tools 'db-init-classes') -Force
+    Get-ChildItem "$root\tools\db-init-classes" -File | Where-Object { $_.Extension -ne '.java' } |
+        ForEach-Object { Copy-Item $_.FullName (Join-Path $tools 'db-init-classes') -Force }
 }
 if (-not $Lite) {
     Copy-Item "$root\tools\docker-compose" (Join-Path $tools 'docker-compose') -Recurse -Force
+}
+
+# ---------- 可选：脱敏出厂口令 ----------
+# 包里两处带出厂口令：docker-compose.yml（达梦口令、外链密钥）与 jar 内
+# BOOT-INF/classes/application.yml 的默认口令（环境变量未注入时生效）。
+# 内部部署无所谓；包一旦外发，等于把库口令和 JWT 密钥一起给了出去。
+# ⚠️ 脱敏后部署方必须自己填口令，否则 install.sh 的数据库初始化与后端连库都会失败。
+if ($Sanitize) {
+    $compose = Join-Path $work 'docker-compose.yml'
+    if (Test-Path $compose) {
+        $t = [IO.File]::ReadAllText($compose)
+        foreach ($k in @('DOCTOR_PASSWORD', 'EXTERNAL_LINK_SECRET', 'ICU_LINK_TOKEN')) {
+            $t = [regex]::Replace($t, "(?m)^(\s*$k\s*:\s*).*$", '${1}CHANGE_ME')
+        }
+        [IO.File]::WriteAllText($compose, $t, (New-Object Text.UTF8Encoding($false)))
+        Write-Host '>>> 已脱敏 docker-compose.yml（DOCTOR_PASSWORD / EXTERNAL_LINK_SECRET / ICU_LINK_TOKEN）' -ForegroundColor Yellow
+    }
+
+    $pkgJar = Join-Path $work 'app\zing-doctor.jar'
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem   # ZipFile 类在这个程序集里
+    $za = [IO.Compression.ZipFile]::Open($pkgJar, [IO.Compression.ZipArchiveMode]::Update)
+    try {
+        $entry = $za.Entries | Where-Object { $_.FullName -eq 'BOOT-INF/classes/application.yml' } | Select-Object -First 1
+        if ($entry) {
+            $sr = New-Object IO.StreamReader($entry.Open())
+            $text = $sr.ReadToEnd()
+            $sr.Close()
+            $sb = New-Object System.Text.StringBuilder
+            # 只动口令/密钥类的默认值（键名含 password / secret / token），host/port 等保持
+            # 原样（改了反而让现场连不上）。只替换**非空**默认值：留空的项语义是「不启用」，
+            # 填成 CHANGE_ME 会把它变成默认开启（如 config-write-token 留空 = 写接口不校验）。
+            foreach ($line in ($text -split "`n")) {
+                $l = $line
+                if ($l -match '^\s*[\w-]*(password|secret|token)[\w-]*\s*:') {
+                    $l = [regex]::Replace($l, '(\$\{[A-Z_]+:)([^}]+)(\})', '${1}CHANGE_ME${3}')
+                }
+                [void]$sb.AppendLine($l)
+            }
+            $entry.Delete()
+            $ne = $za.CreateEntry('BOOT-INF/classes/application.yml', [IO.Compression.CompressionLevel]::Optimal)
+            $sw = New-Object IO.StreamWriter($ne.Open())
+            $sw.Write($sb.ToString())
+            $sw.Close()
+            Write-Host '>>> 已脱敏 jar 内 application.yml（口令 / 密钥默认值）' -ForegroundColor Yellow
+        } else {
+            Write-Host '>>> jar 内未找到 BOOT-INF/classes/application.yml，跳过 jar 脱敏' -ForegroundColor Yellow
+        }
+    } finally {
+        $za.Dispose()
+    }
 }
 
 # ---------- 部署说明 ----------
@@ -165,6 +243,18 @@ $lines = New-Object System.Collections.ArrayList
 [void]$lines.Add('')
 [void]$lines.Add('生成时间：' + (Get-Date -Format 'yyyy-MM-dd HH:mm'))
 [void]$lines.Add('形态：' + $formDesc)
+[void]$lines.Add('')
+[void]$lines.Add('## 口令与密钥（外发前必读）')
+if ($Sanitize) {
+    [void]$lines.Add('本包**已脱敏**：docker-compose.yml 的 `DOCTOR_PASSWORD` / `EXTERNAL_LINK_SECRET` / `ICU_LINK_TOKEN`，')
+    [void]$lines.Add('以及 jar 内 application.yml 的出厂口令，均已置为 `CHANGE_ME`。')
+    [void]$lines.Add('启动前**必须填写**（二选一）：')
+    [void]$lines.Add('1. 改 docker-compose.yml 里的达梦口令 —— install.sh 也从这个文件取口令做数据库初始化；')
+    [void]$lines.Add('2. 或注入环境变量：DM_DOCTOR_PASSWORD / DM_ICU_PASSWORD / EXTERNAL_LINK_SECRET / AUTH_JWT_SECRET / ADMIN_PASSWORD。')
+} else {
+    [void]$lines.Add('本包含**出厂默认口令**（docker-compose.yml 的 `DOCTOR_PASSWORD`、jar 内 application.yml 的默认口令）。')
+    [void]$lines.Add('发给院方前，请重新打包并加 `-Sanitize`，或手工改成院方自己的口令。')
+}
 [void]$lines.Add('')
 [void]$lines.Add('## ⚠️ 升级前先看：DATABASE-CHANGES.md')
 [void]$lines.Add('')
@@ -183,7 +273,11 @@ $lines = New-Object System.Collections.ArrayList
 [void]$lines.Add('- sql/                  达梦 DM8 建表与种子脚本（按序号执行）')
 [void]$lines.Add('- tools/db-init/        数据库初始化工具')
 [void]$lines.Add('- lib/                  达梦 JDBC 驱动')
-[void]$lines.Add('- docs/                 架构、外链规范、部署手册、产品设计')
+if ($KeepDocs) {
+    [void]$lines.Add('- docs/                 全部文档（含产品设计，内部交付包）')
+} else {
+    [void]$lines.Add('- docs/                 部署必需文档：外链传参规范、部署说明、安装部署手册')
+}
 [void]$lines.Add('')
 [void]$lines.Add('## 全新部署（在部署目录的父目录执行，例如 /data）')
 [void]$lines.Add('```')
@@ -238,6 +332,30 @@ foreach ($f in $lfFiles) {
 }
 Write-Host (">>> 行尾归一化（CRLF -> LF）：$lfCount 个文本文件") -ForegroundColor Cyan
 
+# ---------- 出库自检：源码 / 内部产物一律不许进包 ----------
+# 有了这道闸，以后谁往组装清单里加了东西，打包会直接失败，而不是等包发到医院才发现。
+$badExt = @('.java', '.map', '.ts', '.scss', '.less', '.py', '.design', '.ps1', '.jsx', '.tsx')
+$badNames = @('package.json', 'package-lock.json', 'pom.xml', 'vite.config.js', '.gitignore', '.env')
+$bad = New-Object System.Collections.ArrayList
+Get-ChildItem $work -Recurse -File | ForEach-Object {
+    $rel = $_.FullName.Substring($work.Length + 1)
+    if ($badExt -contains $_.Extension.ToLower()) {
+        [void]$bad.Add("$rel（源码 / 构建中间产物）")
+    } elseif ($_.Name -like '*.vue') {
+        [void]$bad.Add("$rel（前端源码）")
+    } elseif ($badNames -contains $_.Name) {
+        [void]$bad.Add("$rel（构建配置 / 环境文件）")
+    } elseif ($rel -match '(^|\\)(node_modules|target|\.git|\.vite|\.codebuddy|\.idea|src)(\\|$)') {
+        [void]$bad.Add("$rel（目录黑名单）")
+    }
+}
+if ($bad.Count -gt 0) {
+    Write-Host '>>> 出库自检未通过，包内出现不该外发的内容：' -ForegroundColor Red
+    $bad | Select-Object -First 20 | ForEach-Object { Write-Host "    - $_" -ForegroundColor Red }
+    throw '打包中止：请从组装清单中剔除上述内容'
+}
+Write-Host '>>> 出库自检通过：无源码 / sourcemap / 内部构建产物' -ForegroundColor Cyan
+
 # ---------- 压缩 ----------
 # ⚠️ 条目必须以 zing-doctor/ 开头（以 $stage 为基准，而不是 $work）：
 # 交付包解压出来应得到 zing-doctor/ 目录，用户在父目录 unzip 即可直接覆盖上次的部署目录，
@@ -264,3 +382,7 @@ Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 
 $size = [math]::Round((Get-Item $zip).Length / 1MB, 2)
 Write-Host (">>> 完成：" + $zip + " （" + $size + " MB）") -ForegroundColor Green
+if (-not $Sanitize) {
+    Write-Host '>>> 提示：包内仍为出厂默认口令（docker-compose.yml 的 DOCTOR_PASSWORD 与 jar 内 application.yml）。' -ForegroundColor Yellow
+    Write-Host '    外发给院方前请加 -Sanitize 重新打包，或手工改成院方自己的口令。' -ForegroundColor Yellow
+}

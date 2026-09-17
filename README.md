@@ -103,6 +103,8 @@ CI_SECURITY_SCAN=1 bash tools/ci.sh   # 额外跑后端依赖漏洞扫描（需�
 
 示例：`zing-doctor-1.0.0-runtime-slim-20260911.tar.gz`。完整规则与打包步骤见 [部署说明 §7](docs/03-部署说明.md)。
 
+打包命令：`tools/build-delivery.ps1`（`-Lite` / `-Build` / `-KeepDocs` / `-Sanitize`）。默认按**白名单**组装：后端/前端源码、`DbInit.java`、产品设计文档、`docs/ards-prone` 原型、设计稿、sourcemap 一律不进包，打完跑一次出库自检（命中 `.java` / `.map` / `*.vue` / `pom.xml` / `src/` 等即中止）。**外发给院方前加 `-Sanitize`**，把 `docker-compose.yml` 与 jar 内 `application.yml` 的出厂口令/密钥置为 `CHANGE_ME`（部署方填真实口令后才能启动）。
+
 ## 文档
 
 - [架构设计](docs/01-架构设计.md)
