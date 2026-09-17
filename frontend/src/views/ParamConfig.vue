@@ -1,6 +1,11 @@
 <template>
   <div class="param-config">
-    <div class="pc-layout">
+    <div class="pc-tabs">
+      <button :class="['pc-tab', { on: tab === 'param' }]" @click="tab = 'param'">系统参数</button>
+      <button :class="['pc-tab', { on: tab === 'map' }]" @click="tab = 'map'">ARDS 数据映射</button>
+    </div>
+
+    <div v-show="tab === 'param'" class="pc-layout">
       <!-- 左：分组导航（数据来自库表，页面可维护，新增功能模块不必改代码） -->
       <aside class="pc-side">
         <div class="side-head">
@@ -89,6 +94,11 @@
           <el-empty v-if="!filteredList.length && !loading" description="该分组下暂无参数" />
         </div>
       </section>
+    </div>
+
+    <!-- ARDS 采集映射规则：数据存 ards_prone_config 表（规则表，与上面的键值型参数分开维护） -->
+    <div v-show="tab === 'map'">
+      <ArdsProneConfig embedded />
     </div>
 
     <!-- 参数新增 / 编辑 -->
@@ -256,6 +266,10 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import request from '../api/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import ArdsProneConfig from './ArdsProneConfig.vue'
+
+/** 顶部页签：param=系统参数（键值型），map=ARDS 采集映射（规则表型） */
+const tab = ref('param')
 
 const list = ref([])
 const groups = ref([])
@@ -560,6 +574,15 @@ onMounted(loadAll)
 
 <style scoped>
 .param-config { padding: 16px 20px 24px; background: #f5f7fa; min-height: 100%; box-sizing: border-box; }
+
+/* 顶部页签 */
+.pc-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.pc-tab {
+  border: 1px solid #e4e7ed; background: #fff; color: #4b5563;
+  border-radius: 6px; padding: 7px 18px; font-size: 13px; cursor: pointer;
+}
+.pc-tab:hover { color: #0f766e; border-color: #99f6e4; }
+.pc-tab.on { background: #0f766e; border-color: #0f766e; color: #fff; font-weight: 600; }
 
 .pc-layout { display: flex; gap: 12px; align-items: flex-start; }
 

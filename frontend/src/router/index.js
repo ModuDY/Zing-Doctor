@@ -131,6 +131,24 @@ const routes = [
     meta: { title: 'SOFA 配置管理' }
   },
   {
+    path: '/page/ards-prone-list',
+    name: 'ardsProneList',
+    component: () => import('../views/ArdsProneList.vue'),
+    meta: { title: 'ARDS 俯卧位通气记录' }
+  },
+  {
+    path: '/page/ards-prone-record',
+    name: 'ardsProneRecord',
+    component: () => import('../views/ArdsProneRecord.vue'),
+    meta: { title: 'ARDS 俯卧位通气记录填写' }
+  },
+  {
+    path: '/page/ards-prone-config',
+    name: 'ardsProneConfig',
+    component: () => import('../views/ArdsProneConfig.vue'),
+    meta: { title: 'ARDS 俯卧位数据映射配置' }
+  },
+  {
     path: '/page/quality-board',
     name: 'qualityBoard',
     component: () => import('../views/QualityBoard.vue'),

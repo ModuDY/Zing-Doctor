@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ARDS 俯卧位通气治疗记录 · 参数设置（设计稿）</title>
+<link rel="stylesheet" href="./design.css" />
+</head>
+<body>
+
+<div class="protobar">
+  <b>ARDS 俯卧位通气 · 设计稿</b>
+  <span class="pt" onclick="location.href='./index.html'">目录</span>
+  <span class="pt" onclick="location.href='./list.html'">① 记录列表</span>
+  <span class="pt" onclick="location.href='./record.html'">② 记录填写</span>
+  <span class="pt" onclick="location.href='./record.html?scr=print'">③ 打印预览</span>
+  <span class="pt on">④ 参数设置</span>
+  <span class="spacer"></span>
+  <span class="note">静态原型，数据为虚构示例</span>
+</div>
+
+<div class="page">
+
+  <div class="topbar">
+    <div>
+      <h1>参数设置<span class="pin">8</span></h1>
+      <div class="sub">俯卧位通气记录模块 · 归档接口调用参数与文书字段显示开关；配置变更留痕</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn">配置变更记录</button>
+    <button class="btn primary" onclick="saveAll()">保存全部</button>
+  </div>
+
+  <!-- 一、归档接口调用参数 -->
+  <div class="card">
+    <div class="hd">
+      <h2>归档接口调用参数</h2>
+      <span class="hint">复用现有归档接口，本模块只维护调用参数，不新开发接口</span>
+      <div class="spacer"></div>
+      <span class="tag green">已启用</span>
+    </div>
+    <div class="bd">
+      <table class="tp-table">
+        <thead>
+          <tr><th style="width:150px">参数</th><th style="width:280px">配置值</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>归档接口</b></td>
+            <td><span class="ipt" style="display:inline-flex">HIS-ARCHIVE-01 ▾</span></td>
+            <td>从系统已登记的归档接口中选择；接口本身由 HIS 侧维护</td>
+          </tr>
+          <tr>
+            <td>接口地址</td>
+            <td><span style="color:var(--t3)">https://his.hosp/api/archive/document</span></td>
+            <td>随所选接口带出，只读</td>
+          </tr>
+          <tr>
+            <td>应用标识 AppKey</td>
+            <td>zing-icu　<span style="color:var(--t3)">（AppSecret 密文保存，不回显）</span></td>
+            <td>调用方鉴权标识</td>
+          </tr>
+          <tr>
+            <td>文档类型编码</td>
+            <td>ARDS_PRONE_REC</td>
+            <td>决定回传到病历中的文档类型</td>
+          </tr>
+          <tr>
+            <td>文档模板编号</td>
+            <td>TPL-ARDS-PRONE-001</td>
+            <td>HIS 侧展现模板；变更需与信息科确认</td>
+          </tr>
+          <tr>
+            <td>科室 / 病区编码</td>
+            <td>ICU</td>
+            <td>留空则取记录所属科室</td>
+          </tr>
+          <tr>
+            <td><b>共用范围</b></td>
+            <td>与 <b>APACHE II、SOFA 评分归档共用同一接口与传参结构</b></td>
+            <td>仅文档类型编码不同（ARDS_PRONE_REC / APACHE2 / SOFA）；修改此处配置会同步影响三处评分归档（已定案 Q4'）</td>
+          </tr>
+          <tr>
+            <td>调用超时</td>
+            <td>5 秒</td>
+            <td>超时计入失败，进入待重传列表</td>
+          </tr>
+          <tr>
+            <td>失败重试次数</td>
+            <td>3 次（间隔 30 秒）</td>
+            <td>仍失败则在列表页标记「失败 · 待重试」，可手动重传</td>
+          </tr>
+          <tr>
+            <td>启用归档回传</td>
+            <td><label style="cursor:pointer"><input type="checkbox" id="arcEnable" checked> 打印 / 归档后自动回传</label></td>
+            <td>关闭后仅打印不回传，列表归档状态显示「未回传」</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top:12px">
+        <button class="btn">测试连接</button>
+        <button class="btn">保存</button>
+        <span style="margin-left:10px;font-size:12px;color:var(--t3)">最近测试：2026-09-17 20:02　连接正常（耗时 128 ms）</span>
+      </div>
+
+      <div class="notice">
+        回传内容与幂等：PDF、记录编号、文档类型编码、患者与就诊标识一起提交；<b>同一记录重复回传不产生重复文档</b>（以记录编号 + 文档类型编码做幂等键）。
+        回传成功后在列表页与打印页显示归档文档号。<br>
+        与 <b>APACHE II、SOFA 评分归档为同一个接口、传参完全一致</b>，仅文档类型编码不同；本模块不新开发接口，改配置即改调用。
+      </div>
+    </div>
+  </div>
+
+  <!-- 二、APACHE II 评分显示开关 -->
+  <div class="card">
+    <div class="hd">
+      <h2>APACHE II 评分显示</h2>
+      <span class="hint">一个开关控制四处：填写页 / 文书预览 / 打印文书 / 回传文书</span>
+      <div class="spacer"></div>
+      <span class="tag blue" id="apState">当前：显示</span>
+    </div>
+    <div class="bd">
+      <div class="f" style="margin-bottom:12px">
+        <label>是否显示 APACHE II 评分</label>
+        <div class="v" style="gap:18px">
+          <label style="cursor:pointer"><input type="radio" name="ap" id="apOn" checked onchange="onApChange()"> 显示</label>
+          <label style="cursor:pointer"><input type="radio" name="ap" id="apOff" onchange="onApChange()"> 不显示</label>
+        </div>
+      </div>
+      <div style="margin:-4px 0 12px;font-size:13px;color:var(--t3)">
+        默认值：<b style="color:var(--t2)">显示</b>　配置层级：<b style="color:var(--t2)">全院统一</b>（不允许科室单独设置，已定案 Q9）
+      </div>
+
+      <div class="f">
+        <label>作用范围（可单独关闭某一处）</label>
+        <div class="v">
+          <table class="tp-table" style="max-width:640px">
+            <thead><tr><th style="width:150px">位置</th><th style="width:90px">是否输出</th><th>关闭后的表现</th></tr></thead>
+            <tbody>
+              <tr><td>填写页</td><td><input type="checkbox" id="scForm" checked></td><td>患者信息区隐藏该字段，栅格自动收缩，不留空位</td></tr>
+              <tr><td>文书预览</td><td><input type="checkbox" id="scPrev" checked></td><td>预览中不出现该格</td></tr>
+              <tr><td>打印文书</td><td><input type="checkbox" id="scPrint" checked></td><td>抬头整行重排，不留空白占位</td></tr>
+              <tr><td>回传文书</td><td><input type="checkbox" id="scArc" checked></td><td>回传的 PDF 中同样不输出该字段</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <button class="btn primary" onclick="saveAll()">保存</button>
+        <button class="btn" onclick="location.href='./record.html'">去填写页看效果</button>
+        <button class="btn" onclick="location.href='./record.html?scr=print'">去打印预览看效果</button>
+        <span id="toast" style="margin-left:10px;font-size:12px;color:var(--success)"></span>
+      </div>
+
+      <div class="notice">
+        字段级开关，<b>只影响显示，不删除数据</b>：关闭后已录入的 APACHE II 仍保存在记录中，重新打开即恢复显示；
+        开关的每次变更写入配置变更记录（谁、何时、由什么改成什么）；默认显示、全院统一。
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>参数设置设计要点</h3>
+    <ol>
+      <li><span class="badge">8</span>归档<b>不新开发接口</b>：从系统已登记的归档接口中选择，本模块只维护调用参数（接口、文档类型、模板、科室、超时、重试、启停）。</li>
+      <li>接口参数与业务代码解耦：换院区 / 换 HIS 只需改配置，不改代码；关键参数（接口、模板编号）变更需信息科确认并留痕。</li>
+      <li>APACHE II 用<b>一个开关管四处</b>：填写页、文书预览、打印文书、回传文书，避免「页面有、打印没有」的不一致；关闭后整行重排不留空位。</li>
+      <li>开关是显示层控制，数据层不删；便于科室按需（如非教学/科研场景）简化文书。</li>
+      <li>配置变更同样纳入审计：谁在什么时候改了哪一项、原值与新值，满足记录可追溯要求。</li>
+    </ol>
+  </div>
+
+</div>
+
+<script>
+const K_AP = 'ards_cfg_apache'
+
+function applyCfg() {
+  const on = localStorage.getItem(K_AP) !== '0'
+  document.getElementById('apOn').checked = on
+  document.getElementById('apOff').checked = !on
+  document.getElementById('apState').textContent = '当前：' + (on ? '显示' : '不显示')
+  document.getElementById('apState').className = on ? 'tag blue' : 'tag gray'
+}
+function onApChange() {
+  localStorage.setItem(K_AP, document.getElementById('apOn').checked ? '1' : '0')
+  applyCfg()
+  toast('已保存：APACHE II ' + (document.getElementById('apOn').checked ? '显示' : '不显示'))
+}
+function toast(msg) {
+  const t = document.getElementById('toast')
+  t.textContent = '✓ ' + msg + '（原型仅本地生效）'
+  setTimeout(() => { t.textContent = '' }, 2500)
+}
+function saveAll() { toast('配置已保存') }
+applyCfg()
+</script>
+</body>
+</html>

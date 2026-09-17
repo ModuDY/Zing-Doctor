@@ -7,7 +7,7 @@
 > 所以**先跑 `install.sh`，再照着下面的清单逐项核对**——只有三条通道都没命中、或日志里明确报了失败，
 > 才需要人工补执行。
 >
-> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（09/10/11/12/13/14/15/16/17/18/19/20）；全量初始化与
+> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（09/10/11/12/13/14/15/16/17/18/19/20/21/22）；全量初始化与
 > 一次性脚本（如 06_abx_drug_dict.sql）不在其内。漏执行 = 新代码一上来就 500。
 >
 > 典型症状（页面打开即报错）：
@@ -40,6 +40,67 @@ SELECT COUNT(*) FROM "zing_doctor_db_prod"."zing_sys_param" WHERE "param_key" = 
 ---
 
 ## 批次记录
+
+### 2026-09-18 · ARDS 采集映射配置表 + 记录主表日期扩列
+
+新增「ARDS 数据映射」配置（参数设置页页签，37 项采集规则的通道/匹配方式/匹配值/优先级/单位换算，
+替代硬编码关键字；缺失时解析器自动回退内置关键字，不影响采集）。
+
+**涉及**
+
+- 新建表：`ards_prone_config`（数据采集映射规则表，含唯一键 `uk_ards_prone_config`）
+- 加列：`ards_prone_record` 增加 `admit_date`、`discharge_date`（依赖 21 建表，故必须排在其后）
+- 执行脚本：`sql/22_ards_prone_config.sql`（CREATE 判存在、ADD COLUMN 判列存在、种子带
+  `WHERE NOT EXISTS`，可重复执行）
+
+**不执行的后果**：参数设置 →「ARDS 数据映射」页签点「一键从内置生成」500
+「无效的表或视图名[ards_prone_config]」；采集本身不受影响（回退内置关键字）。
+
+**自动应用**：`sql/22_ards_prone_config.sql` 已加入 `install.sh` 的 `INCREMENTAL_SQL` 与全量清单
+`FULL_SQL` / `FULL_SQL_JDBC`。
+
+**人工补执行（自动通道未命中时）**：执行 `sql/22_ards_prone_config.sql` 全文，然后核对：
+
+```sql
+-- 应返回 1
+SELECT COUNT(*) FROM ALL_TABLES
+ WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD' AND UPPER(TABLE_NAME) = 'ARDS_PRONE_CONFIG';
+```
+
+### 2026-09-17 · ARDS 俯卧位通气治疗记录：新增 5 张表 + 页面注册 + 参数种子
+
+新增「ARDS 俯卧位通气治疗记录」模块（列表页 + 填写页，37 项参数 × 时点矩阵，复用现有归档接口
+`doc_code = ARDS_PRONE_REC`）。
+
+**涉及**（只新建表与配置数据，不改既有表）
+
+- 新建表：`ards_prone_record`（记录主表）、`ards_prone_timepoint`（时点）、`ards_prone_cell`（单元格值）、
+  `ards_prone_cell_log`（更正留痕）、`ards_prone_tp_tpl`（科室时点模板）
+- 页面注册：`zing_page_config` 新增 `ards-prone-list`、`ards-prone-record`（外链 `/entry/{pageCode}` 依赖）
+- 参数：`zing_param_group` 新增分组 `ards_prone`；`zing_sys_param` 新增 5 个键 ——
+  `ARDS_PRONE_APACHE2_SHOW`、`ARDS_PRONE_DOC_CODE`、`ARDS_PRONE_TPL_NO`、
+  `ARDS_PRONE_ARCHIVE_ENABLED`、`ARDS_PRONE_RECORD_PREFIX`
+- 执行脚本：`sql/21_ards_prone.sql`（DDL 用 PL/SQL 判存在，页面注册先 DELETE 再 INSERT，种子带
+  `WHERE NOT EXISTS`，可重复执行）
+
+**不执行的后果**：侧栏「ARDS 俯卧位记录」可点开但接口报「表或视图不存在」/ 500；外链进
+`ards-prone-list` 报「未注册的页面」；参数设置里没有 ARDS 分组，归档 `doc_code` 取默认值。
+
+**自动应用**：`sql/21_ards_prone.sql` 已加入 `install.sh` 的 `INCREMENTAL_SQL`。
+
+**人工补执行（自动通道未命中时）**：执行 `sql/21_ards_prone.sql` 全文，然后核对：
+
+```sql
+-- 应返回 5 行
+SELECT TABLE_NAME FROM USER_TABLES WHERE UPPER(TABLE_NAME) LIKE 'ARDS_PRONE%';
+
+-- 应返回 5
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."zing_sys_param" WHERE "param_group" = 'ards_prone';
+
+-- 应返回 2
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."zing_page_config"
+ WHERE "page_code" IN ('ards-prone-list','ards-prone-record');
+```
 
 ### 2026-09-17 · 患者明细默认列：事实层补「床号 / 诊断」（配置数据更新）
 

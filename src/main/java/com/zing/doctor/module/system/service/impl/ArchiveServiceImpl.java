@@ -6,6 +6,8 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.zing.doctor.module.apache2.entity.Apache2ScoreRecord;
 import com.zing.doctor.module.apache2.mapper.Apache2ScoreRecordMapper;
+import com.zing.doctor.module.ards.prone.entity.ArdsProneRecord;
+import com.zing.doctor.module.ards.prone.mapper.ArdsProneRecordMapper;
 import com.zing.doctor.module.sofa.entity.SofaScoreRecord;
 import com.zing.doctor.module.sofa.mapper.SofaScoreRecordMapper;
 import com.zing.doctor.module.system.entity.ArchiveLog;
@@ -47,9 +49,16 @@ public class ArchiveServiceImpl implements ArchiveService {
     /** PDF Base64 可能数 MB，超时放宽到 60 秒 */
     private static final int TIMEOUT_MS = 60_000;
 
-    /** doc_code 固定值：SOFA 页传 sofa，APACHE II 页传 apache2 */
+    /** doc_code 固定值：SOFA 页传 sofa，APACHE II 页传 apache2，ARDS 俯卧位记录传参数中的编码 */
     private static final String DOC_CODE_SOFA = "sofa";
     private static final String DOC_CODE_APACHE2 = "apache2";
+    private static final String DOC_CODE_ARDS_PRONE_DEFAULT = "ARDS_PRONE_REC";
+
+    /** ARDS 俯卧位：归档文档类型编码的参数键（与 APACHE II、SOFA 同一接口同一传参，仅此编码不同） */
+    private static final String KEY_DOC_CODE_ARDS_PRONE = "ARDS_PRONE_DOC_CODE";
+
+    /** ARDS 俯卧位：是否启用文书归档 */
+    private static final String KEY_ARCHIVE_ENABLED_ARDS_PRONE = "ARDS_PRONE_ARCHIVE_ENABLED";
 
     /**
      * 草稿来源：系统自动初评（score_type = auto / daily）。
@@ -70,6 +79,9 @@ public class ArchiveServiceImpl implements ArchiveService {
     private Apache2ScoreRecordMapper apache2RecordMapper;
 
     @Autowired
+    private ArdsProneRecordMapper ardsProneRecordMapper;
+
+    @Autowired
     private SysParamService sysParamService;
 
     @Autowired
@@ -84,6 +96,24 @@ public class ArchiveServiceImpl implements ArchiveService {
 
         // 1. 取记录主体 + PDF 大字段（pdf_data 默认不随行返回，单独取）
         ArchiveTarget t = loadTarget(bizCode, id);
+
+        // 1.0 ARDS 俯卧位：模块级归档开关 + 幂等（同一记录重复回传不产生重复文档，SR-19）
+        if (BIZ_ARDS_PRONE.equals(bizCode)) {
+            if (!sysParamService.bool(KEY_ARCHIVE_ENABLED_ARDS_PRONE, true)) {
+                throw new IllegalStateException("ARDS 俯卧位文书归档已停用，请先在「参数设置」中启用");
+            }
+            if (t.archiveStatus != null && t.archiveStatus == 1) {
+                Map<String, Object> dup = new LinkedHashMap<>();
+                dup.put("success", true);
+                dup.put("idempotent", true);
+                dup.put("docCode", t.docCode);
+                dup.put("filePath", t.filePath);
+                dup.put("docNo", t.archiveDocNo);
+                dup.put("message", "该记录已归档，未重复推送（幂等）");
+                log.info("文书归档幂等跳过: biz={}, id={}, filePath={}", bizCode, id, t.filePath);
+                return dup;
+            }
+        }
 
         // 1.1 自动初评是内部评估草稿，医生未复核保存前不作为文书归档（业务口径）
         if (isDraftScoreType(t.scoreType)) {
@@ -140,6 +170,7 @@ public class ArchiveServiceImpl implements ArchiveService {
         boolean ok;
         String message = null;
         Integer code = null;
+        String docNo = null;
         if (StringUtils.hasText(respBody)) {
             try {
                 JSONObject j = JSONUtil.parseObj(respBody);
@@ -147,6 +178,7 @@ public class ArchiveServiceImpl implements ArchiveService {
                 code = j.getInt("code");
                 message = j.getStr("message");
                 ok = Boolean.TRUE.equals(success) || (code != null && code == 200);
+                docNo = extractDocNo(j);
             } catch (Exception e) {
                 log.warn("文书归档响应解析失败，按 HTTP 状态判定: httpStatus={}, body={}", httpStatus, abbrev(respBody));
                 ok = httpStatus >= 200 && httpStatus < 300;
@@ -163,6 +195,7 @@ public class ArchiveServiceImpl implements ArchiveService {
         result.put("filePath", filePath);
         result.put("docCode", t.docCode);
         result.put("scoreDate", t.scoreDate);
+        result.put("docNo", docNo);
 
         if (!ok) {
             String err = StringUtils.hasText(message) ? message : ("接口返回 " + httpStatus);
@@ -172,8 +205,8 @@ public class ArchiveServiceImpl implements ArchiveService {
             throw new ArchiveException("归档失败：" + err, result);
         }
 
-        // 6. 标记已归档并记录 file_path
-        markStatus(bizCode, id, 1, filePath);
+        // 6. 标记已归档并记录 file_path（ARDS 俯卧位同时回写 HIS 文档号）
+        markStatus(bizCode, id, 1, filePath, docNo);
         writeLog(bizCode, t, url, filePath, "push", true, httpStatus, code, message);
         log.info("文书归档成功: biz={}, id={}, filePath={}", bizCode, id, filePath);
         result.put("success", true);
@@ -187,7 +220,7 @@ public class ArchiveServiceImpl implements ArchiveService {
             throw new IllegalArgumentException("记录 ID 不能为空");
         }
         ArchiveTarget t = loadTarget(bizCode, id);
-        markStatus(bizCode, id, 0, null);
+        markStatus(bizCode, id, 0, null, null);
         // 撤销只动本地状态、不调院方接口，仍记一条流水便于追溯谁在什么时候撤销
         writeLog(bizCode, t, null, t.filePath, "unmark", true, null, null, "撤销归档标记");
         log.info("已撤销归档标记: biz={}, id={}", bizCode, id);
@@ -257,7 +290,7 @@ public class ArchiveServiceImpl implements ArchiveService {
             t.pdfName = r.getPdfName();
             t.filePath = r.getFilePath();
             t.pdfData = p == null ? null : p.getPdfData();
-        } else {
+        } else if (BIZ_APACHE2.equals(bizCode)) {
             Apache2ScoreRecord r = apache2RecordMapper.selectById(id);
             if (r == null) throw new IllegalArgumentException("评分记录不存在");
             Apache2ScoreRecord p = apache2RecordMapper.selectPdfById(id);
@@ -272,8 +305,25 @@ public class ArchiveServiceImpl implements ArchiveService {
             t.pdfName = r.getPdfName();
             t.filePath = r.getFilePath();
             t.pdfData = p == null ? null : p.getPdfData();
+        } else {
+            // ARDS 俯卧位治疗记录：与 SOFA / APACHE II 同一接口、同一传参，仅 doc_code 不同
+            ArdsProneRecord r = ardsProneRecordMapper.selectById(id);
+            if (r == null) throw new IllegalArgumentException("记录不存在");
+            ArdsProneRecord p = ardsProneRecordMapper.selectPdfById(id);
+            t.patientId = r.getPatientId();
+            t.inHospitalNo = r.getInHospitalNo();
+            t.patientName = r.getPatientName();
+            t.departCode = r.getDepartCode();
+            t.scoreTime = r.getStartTime();
+            t.createTime = r.getCreateTime();
+            t.createBy = r.getCreateBy();
+            t.pdfName = r.getPdfName();
+            t.filePath = r.getFilePath();
+            t.archiveStatus = r.getArchiveStatus();
+            t.archiveDocNo = r.getArchiveDocNo();
+            t.pdfData = p == null ? null : p.getPdfData();
         }
-        t.docCode = BIZ_SOFA.equals(bizCode) ? DOC_CODE_SOFA : DOC_CODE_APACHE2;
+        t.docCode = resolveDocCode(bizCode);
         // score_date 取 score_time 的日期部分；score_time 缺失时退到记录创建时间，再缺失才取当天
         LocalDateTime base = t.scoreTime != null ? t.scoreTime : t.createTime;
         if (base == null) {
@@ -283,10 +333,23 @@ public class ArchiveServiceImpl implements ArchiveService {
         return t;
     }
 
-    /** 只更新归档状态与路径，避免覆盖评分内容；path 为 null 时表示撤销标记（不改动已存路径） */
-    private void markStatus(String bizCode, Long id, int status, String path) {
+    /** 只更新归档状态与路径，避免覆盖文书内容；path 为 null 时表示撤销标记（不改动已存路径） */
+    private void markStatus(String bizCode, Long id, int status, String path, String docNo) {
         LocalDateTime now = LocalDateTime.now();
-        if (BIZ_SOFA.equals(bizCode)) {
+        if (BIZ_ARDS_PRONE.equals(bizCode)) {
+            ArdsProneRecord upd = new ArdsProneRecord();
+            upd.setId(id);
+            upd.setArchiveStatus(status);
+            upd.setArchiveTime(status == 1 ? now : null);
+            if (path != null) {
+                upd.setFilePath(path);
+            }
+            if (docNo != null) {
+                upd.setArchiveDocNo(docNo);
+            }
+            upd.setUpdateTime(now);
+            ardsProneRecordMapper.updateById(upd);
+        } else if (BIZ_SOFA.equals(bizCode)) {
             SofaScoreRecord upd = new SofaScoreRecord();
             upd.setId(id);
             upd.setArchiveStatus(status);
@@ -352,7 +415,44 @@ public class ArchiveServiceImpl implements ArchiveService {
         if (BIZ_APACHE2.equals(b) || "APACHEII".equals(b) || "APACHE_II".equals(b) || "APACHE-II".equals(b)) {
             return BIZ_APACHE2;
         }
+        // ARDS 俯卧位：可能传 ARDS_PRONE / ARDS_PRONE_REC / ARDS-PRONE
+        if (BIZ_ARDS_PRONE.equals(b) || "ARDS_PRONE_REC".equals(b) || "ARDS-PRONE".equals(b) || "ARDSPRONE".equals(b)) {
+            return BIZ_ARDS_PRONE;
+        }
         throw new IllegalArgumentException("不支持的业务类型: " + biz);
+    }
+
+    /** doc_code：SOFA / APACHE II 固定，ARDS 俯卧位取参数 ARDS_PRONE_DOC_CODE（默认 ARDS_PRONE_REC） */
+    private String resolveDocCode(String bizCode) {
+        if (BIZ_SOFA.equals(bizCode)) {
+            return DOC_CODE_SOFA;
+        }
+        if (BIZ_APACHE2.equals(bizCode)) {
+            return DOC_CODE_APACHE2;
+        }
+        String v = sysParamService.value(KEY_DOC_CODE_ARDS_PRONE);
+        return StringUtils.hasText(v) ? v.trim() : DOC_CODE_ARDS_PRONE_DEFAULT;
+    }
+
+    /** 从归档接口响应中取文档号（兼容 doc_no / docNo / data.doc_no / data.docNo） */
+    private String extractDocNo(JSONObject j) {
+        if (j == null) {
+            return null;
+        }
+        String v = j.getStr("doc_no");
+        if (!StringUtils.hasText(v)) {
+            v = j.getStr("docNo");
+        }
+        if (!StringUtils.hasText(v)) {
+            JSONObject data = j.getJSONObject("data");
+            if (data != null) {
+                v = data.getStr("doc_no");
+                if (!StringUtils.hasText(v)) {
+                    v = data.getStr("docNo");
+                }
+            }
+        }
+        return StringUtils.hasText(v) ? v.trim() : null;
     }
 
     private String abbrev(String s) {
@@ -377,6 +477,9 @@ public class ArchiveServiceImpl implements ArchiveService {
         String scoreDate;
         /** 记录来源：auto / daily 为系统自动初评草稿，custom 等为医生确认过 */
         String scoreType;
+        /** ARDS 俯卧位用：已归档状态（幂等判定）与 HIS 文档号 */
+        Integer archiveStatus;
+        String archiveDocNo;
     }
 
     /** 归档失败时携带接口原始返回，便于前端提示 */

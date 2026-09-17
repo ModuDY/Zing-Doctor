@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ARDS 俯卧位通气治疗记录 · 列表页（设计稿）</title>
+<link rel="stylesheet" href="./design.css" />
+</head>
+<body>
+
+<div class="protobar">
+  <b>ARDS 俯卧位通气 · 设计稿</b>
+  <span class="pt" onclick="location.href='./index.html'">目录</span>
+  <span class="pt on">① 记录列表</span>
+  <span class="pt" onclick="location.href='./record.html'">② 记录填写</span>
+  <span class="pt" onclick="location.href='./record.html?scr=print'">③ 打印预览</span>
+  <span class="pt" onclick="location.href='./settings.html'">④ 参数设置</span>
+  <span class="spacer"></span>
+  <span class="note">静态原型，数据为虚构示例</span>
+</div>
+
+<div class="page">
+
+  <div class="topbar">
+    <div>
+      <h1>俯卧位通气治疗记录</h1>
+      <div class="sub">重症医学科 · 按记录（一次俯卧位疗程）管理，可查看 / 编辑 / 打印 / 复制新建</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn">导出 Excel</button>
+    <button class="btn primary" onclick="location.href='./record.html'">+ 新建记录</button>
+  </div>
+
+  <!-- 筛选 -->
+  <div class="filter">
+    <span class="ipt">科室：重症医学科 ▾</span>
+    <span class="ipt">记录日期：2026-09-01 ~ 2026-09-30 ▾</span>
+    <span class="ipt">患者姓名 / 住院号</span>
+    <span class="ipt w90">状态：全部 ▾</span>
+    <span class="ipt w90">分级：全部 ▾</span>
+    <span class="ipt w90">并发症：全部 ▾</span>
+    <button class="btn primary">查询</button>
+    <button class="btn">重置</button>
+    <span class="spacer"></span>
+    <span style="font-size:12px;color:var(--t3)">共 <b>42</b> 条记录 · 18 例患者</span>
+  </div>
+
+  <!-- 统计 -->
+  <div class="stat-row">
+    <div class="stat"><div class="k">俯卧位例次（本月）</div><div class="v">42<small>次</small></div><div class="s">较上月 +6</div></div>
+    <div class="stat"><div class="k">涉及患者</div><div class="v">18<small>例</small></div><div class="s">人均 2.3 次</div></div>
+    <div class="stat"><div class="k">平均持续时长</div><div class="v">13.6<small>h</small></div><div class="s">目标 ≥ 12h</div></div>
+    <div class="stat"><div class="k">氧合改善率</div><div class="v">76.2<small>%</small></div><div class="s">P/F 提升 ≥ 20 mmHg</div></div>
+    <div class="stat"><div class="k">并发症发生率</div><div class="v">7.1<small>%</small></div><div class="s">3 / 42 例次</div></div>
+  </div>
+
+  <!-- 列表 -->
+  <div class="card">
+    <div class="hd"><h2>记录列表</h2><span class="hint">点击行展开时点摘要</span><div class="spacer"></div><span class="tag gray">已提交记录可更正，不限时，修改全程留痕</span></div>
+    <div class="bd" style="padding:0">
+      <table class="lst">
+        <thead>
+          <tr>
+            <th>记录日期</th><th>患者</th><th>疗程</th><th>开始 → 结束</th><th>持续</th>
+            <th>氧合指数 P/F</th><th>最低 ΔP</th><th>并发症</th><th>状态</th><th>归档回传</th><th>最后更新</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="lstBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>列表页设计要点</h3>
+    <ol>
+      <li><span class="badge">1</span>口径为「一次俯卧位疗程」，与「患者」分离：同一患者多次俯卧位各自成行，便于统计例次、时长与并发症发生率。</li>
+      <li><span class="badge">2</span>行内直接给出结果指标（P/F 变化、最低 ΔP、并发症），不用点开就能判断这次俯卧位有没有效。</li>
+      <li><span class="badge">3</span>状态区分「进行中 / 已提交 / 已终止 / 草稿」；进行中记录实时显示已填进度与当前时点。</li>
+      <li><span class="badge">4</span>「复制新建」用于连日俯卧位：带入患者信息与参数模板，时点数据清空，避免逐项重录。</li>
+      <li><span class="badge">5</span>已提交记录修改留痕：显示最后更新人与时间，修改内容进入审计日志（谁在什么时候改了哪个时点的哪一项）；<b>不限时更正</b>，不设 30 分钟窗口。</li>
+      <li>打印/归档后调用<b>「参数设置」中配置的现有归档接口</b>回传；回传状态在列表可见（已归档 / 失败待重试 / 未回传），失败可手动重传，避免纸质归档与电子记录不一致。</li>
+      <li>列表与填写页<b>不做告警</b>：异常值仅在填写页按内置参考区间标红，本页只呈现疗程结果（P/F 变化、最低 ΔP、并发症），由人工核对。</li>
+    </ol>
+  </div>
+
+</div>
+
+<script>
+/* 示例数据（虚构） */
+const R = [
+  { d: '09-17', bed: 'ICU-05', nm: '张建国', no: '2026091708', day: 2, seq: 3, st: '09-17 08:00', en: '进行中', dur: '12h10m',
+    pf0: 78, pf1: 153, dp: 13, comp: 0, stat: 'ing', fill: '31/37', upd: '陈静 20:05',
+    spark: [78, 85, 96, 109, 122, 138, 153, null, null, null, null] },
+  { d: '09-16', bed: 'ICU-05', nm: '张建国', no: '2026091708', day: 1, seq: 2, st: '09-16 09:20', en: '09-17 01:10', dur: '15h50m',
+    pf0: 92, pf1: 168, dp: 14, comp: 0, stat: 'done', upd: '王芳 09-17 01:20',
+    spark: [92, 98, 105, 118, 130, 141, 152, 160, 165, 168, 166] },
+  { d: '09-15', bed: 'ICU-05', nm: '张建国', no: '2026091708', day: 1, seq: 1, st: '09-15 14:00', en: '09-16 02:30', dur: '12h30m',
+    pf0: 105, pf1: 152, dp: 15, comp: 1, stat: 'done', upd: '王芳 09-16 02:45',
+    spark: [105, 112, 124, 131, 138, 145, 149, 151, 152, 150, 152] },
+  { d: '09-17', bed: 'ICU-08', nm: '刘秀兰', no: '2026091702', day: 3, seq: 5, st: '09-17 06:40', en: '进行中', dur: '14h20m',
+    pf0: 86, pf1: 141, dp: 12, comp: 0, stat: 'ing', fill: '28/37', upd: '陈静 20:00',
+    spark: [86, 90, 97, 106, 115, 124, 133, 141, null, null, null] },
+  { d: '09-16', bed: 'ICU-08', nm: '刘秀兰', no: '2026091702', day: 2, seq: 4, st: '09-16 07:10', en: '09-16 21:40', dur: '14h30m',
+    pf0: 81, pf1: 129, dp: 14, comp: 0, stat: 'done', upd: '李伟 09-16 21:55',
+    spark: [81, 86, 92, 101, 110, 118, 122, 126, 128, 129, 127] },
+  { d: '09-15', bed: 'ICU-08', nm: '刘秀兰', no: '2026091702', day: 1, seq: 3, st: '09-15 20:00', en: '09-16 04:20', dur: '8h20m',
+    pf0: 74, pf1: 96, dp: 17, comp: 2, stat: 'stop', upd: '李伟 09-16 04:30',
+    spark: [74, 78, 83, 88, 92, 96, null, null, null, null, null] },
+  { d: '09-17', bed: 'ICU-12', nm: '赵德海', no: '2026091715', day: 1, seq: 1, st: '09-17 10:30', en: '进行中', dur: '9h35m',
+    pf0: 118, pf1: 176, dp: 11, comp: 0, stat: 'ing', fill: '22/37', upd: '陈静 19:50',
+    spark: [118, 126, 138, 149, 158, 166, 172, 176, null, null, null] },
+  { d: '09-16', bed: 'ICU-03', nm: '孙桂英', no: '2026091611', day: 2, seq: 2, st: '09-16 15:00', en: '09-17 03:10', dur: '12h10m',
+    pf0: 98, pf1: 187, dp: 12, comp: 0, stat: 'done', upd: '王芳 09-17 03:25',
+    spark: [98, 110, 126, 141, 155, 166, 175, 182, 186, 187, 185] },
+  { d: '09-14', bed: 'ICU-03', nm: '孙桂英', no: '2026091611', day: 1, seq: 1, st: '09-14 11:20', en: '09-14 22:50', dur: '11h30m',
+    pf0: 88, pf1: 143, dp: 16, comp: 1, stat: 'done', upd: '王芳 09-14 23:05',
+    spark: [88, 95, 104, 116, 126, 134, 139, 142, 143, 141, 143] },
+  { d: '09-17', bed: 'ICU-01', nm: '周国强', no: '2026091701', day: 4, seq: 6, st: '—', en: '—', dur: '—',
+    pf0: null, pf1: null, dp: null, comp: 0, stat: 'draft', upd: '陈静 09-17 07:40',
+    spark: [] }
+]
+
+const STAT = {
+  ing:  '<span class="tag blue">进行中</span>',
+  done: '<span class="tag green">已提交</span>',
+  stop: '<span class="tag red">紧急终止</span>',
+  draft:'<span class="tag gray">草稿</span>'
+}
+
+function pfCell(r) {
+  if (r.pf0 == null) return '<span style="color:var(--t4)">—</span>'
+  const d = r.pf1 - r.pf0
+  const cls = d >= 20 ? 'up' : (d < 0 ? 'down' : '')
+  return r.pf0 + ' → ' + r.pf1 + ' <span class="' + cls + '">(' + (d >= 0 ? '+' : '') + d + ')</span>'
+}
+function sparkHtml(r) {
+  if (!r.spark || !r.spark.length) return '<span style="color:var(--t4)">未开始</span>'
+  return '<div class="spark">' + r.spark.map(v => {
+    if (v == null) return '<i style="height:3px;background:#e4e7ed"></i>'
+    const h = Math.max(4, Math.min(22, Math.round(v / 8)))
+    const c = v < 100 ? 'lo' : (v >= 150 ? 'hi' : '')
+    return '<i class="' + c + '" style="height:' + h + 'px" title="' + v + '"></i>'
+  }).join('') + '</div>'
+}
+function compCell(c) {
+  if (!c) return '<span class="tag green">无</span>'
+  return c === 1 ? '<span class="tag orange">1 项</span>' : '<span class="tag red">' + c + ' 项</span>'
+}
+
+/* 归档回传状态：调用「参数设置」中配置的现有归档接口；示例第 6 条失败待重试 */
+function arcOf(r, i) {
+  if (r.stat !== 'done' && r.stat !== 'stop') return '<span class="arc none">未回传</span>'
+  return i === 5
+    ? '<span class="arc fail">失败 · 待重试</span>'
+    : '<span class="arc ok">已归档</span>'
+}
+
+let h = ''
+R.forEach((r, i) => {
+  h += '<tr>'
+    + '<td>' + r.d + '</td>'
+    + '<td><span class="nm">' + r.bed + ' ' + r.nm + '</span><div class="sub">' + r.no + '</div></td>'
+    + '<td>第 ' + r.day + ' 天 / 第 ' + r.seq + ' 次</td>'
+    + '<td>' + r.st + ' → ' + r.en + '</td>'
+    + '<td>' + r.dur + (r.fill ? ' <span style="color:var(--primary);font-size:12px">' + r.fill + '</span>' : '') + '</td>'
+    + '<td>' + pfCell(r) + '</td>'
+    + '<td>' + (r.dp == null ? '—' : r.dp + ' cmH₂O') + '</td>'
+    + '<td>' + compCell(r.comp) + '</td>'
+    + '<td>' + STAT[r.stat] + '</td>'
+    + '<td>' + arcOf(r, i) + '</td>'
+    + '<td style="color:var(--t3);font-size:12px">' + r.upd + '</td>'
+    + '<td class="ops"><span onclick="exp(' + i + ')">展开</span><span>编辑</span><span>打印</span><span>复制新建</span></td>'
+    + '</tr>'
+  h += '<tr id="ex' + i + '" class="hide"><td colspan="12" style="background:#fafcff">'
+    + '<div class="exp"><div class="row"><span class="k">氧合指数 P/F（翻身前 → 复仰后）</span>'
+    + sparkHtml(r)
+    + '<span class="k" style="margin-left:12px">最低 ΔP</span><b>' + (r.dp == null ? '—' : r.dp + ' cmH₂O') + '</b>'
+    + '<span class="k">并发症</span><b>' + (r.comp ? (r.comp === 1 ? '皮肤压力性损伤（Ⅰ期）' : '血流动力学不稳定 + 皮肤压力性损伤') : '无') + '</b>'
+    + '<span class="k">签名</span><b>' + (r.stat === 'draft' ? '未签名' : '王芳 / 陈静 / 李伟') + '</b>'
+    + '</div></div></td></tr>'
+})
+document.getElementById('lstBody').innerHTML = h
+
+function exp(i) {
+  document.getElementById('ex' + i).classList.toggle('hide')
+}
+</script>
+</body>
+</html>

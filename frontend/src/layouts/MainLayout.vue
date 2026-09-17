@@ -42,6 +42,10 @@
           <span class="nav-icon">💊</span>
           <span class="nav-label">脓毒症集束化治疗</span>
         </router-link>
+        <router-link to="/page/ards-prone-list" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">🫁</span>
+          <span class="nav-label">ARDS 俯卧位记录</span>
+        </router-link>
 
         <div class="nav-divider">质控中台</div>
         <router-link to="/page/quality-board" class="nav-item" active-class="nav-active">

@@ -1,0 +1,193 @@
+/**
+ * ARDS 俯卧位模块主题（沿用质控模块暖橙基调 + 呼吸/氧合关键指标的青蓝识别色）
+ *
+ * 作用域：仅作用于带 .ards-theme 类的页面根节点，以及显式挂载 .ards-popper / .ards-overlay
+ * 的传送层（下拉、日期面板、弹窗、抽屉、消息确认框），不影响其他业务页面。
+ *
+ * 设计基调与质控中台一致：纯白卡片 + 暖橙主色 + 暖灰（stone）层次；边框为主的卡片、
+ * 12px 圆角、极轻阴影。差异点：氧合/通气类关键指标（P/F、ΔP、当前时点等）用青蓝作识别色，
+ * 与「治疗动作/按钮」的暖橙区分。
+ *
+ * 打印纸面（.paper / .print-screen）不套主题，保持 A4 1:1 的黑白文书观感。
+ */
+
+.ards-theme,
+.ards-popper,
+.ards-overlay {
+  /* 主色：暖橙（orange-600 为主色，派生色对齐 EP 的 light-N/dark-2 命名） */
+  --el-color-primary: #ea580c;
+  --el-color-primary-light-3: #fb923c;
+  --el-color-primary-light-5: #fdba74;
+  --el-color-primary-light-7: #fed7aa;
+  --el-color-primary-light-8: #ffedd5;
+  --el-color-primary-light-9: #fff7ed;
+  --el-color-primary-dark-2: #c2410c;
+
+  /* 成功 / 警示 / 危险 / 中性 */
+  --el-color-success: #16a34a;
+  --el-color-success-light-3: #53b77b;
+  --el-color-success-light-5: #86cfa3;
+  --el-color-success-light-7: #b8e3c6;
+  --el-color-success-light-8: #d3f0db;
+  --el-color-success-light-9: #f0f9f3;
+  --el-color-success-dark-2: #15803d;
+
+  --el-color-warning: #d97706;
+  --el-color-warning-light-3: #f3a743;
+  --el-color-warning-light-5: #f7c478;
+  --el-color-warning-light-7: #fbd9a8;
+  --el-color-warning-light-8: #fdeaca;
+  --el-color-warning-light-9: #fef5e4;
+  --el-color-warning-dark-2: #b45309;
+
+  --el-color-danger: #dc2626;
+  --el-color-danger-light-3: #e75c5c;
+  --el-color-danger-light-5: #ef8585;
+  --el-color-danger-light-7: #f5b4b4;
+  --el-color-danger-light-8: #fad3d3;
+  --el-color-danger-light-9: #fcebeb;
+  --el-color-danger-dark-2: #b91c1c;
+  --el-color-error: #dc2626;
+  --el-color-error-light-3: #e75c5c;
+  --el-color-error-light-5: #ef8585;
+  --el-color-error-light-7: #f5b4b4;
+  --el-color-error-light-8: #fad3d3;
+  --el-color-error-light-9: #fcebeb;
+  --el-color-error-dark-2: #b91c1c;
+
+  --el-color-info: #78716c;
+  --el-color-info-light-3: #a8a29e;
+  --el-color-info-light-5: #c0bdb9;
+  --el-color-info-light-7: #d6d3d1;
+  --el-color-info-light-8: #e7e5e4;
+  --el-color-info-light-9: #f5f5f4;
+  --el-color-info-dark-2: #57534e;
+
+  /* 文本（stone 暖灰阶） */
+  --el-text-color-primary: #292524;
+  --el-text-color-regular: #44403c;
+  --el-text-color-secondary: #57534e;
+  --el-text-color-placeholder: #a8a29e;
+  --el-text-color-disabled: #c8c4c0;
+
+  /* 边框 / 填充 / 背景 */
+  --el-border-color: #e7e5e4;
+  --el-border-color-light: #e7e5e4;
+  --el-border-color-lighter: #eeedec;
+  --el-border-color-extra-light: #f5f5f4;
+  --el-border-color-dark: #d6d3d1;
+  --el-border-color-darker: #d6d3d1;
+  --el-fill-color: #f5f5f4;
+  --el-fill-color-light: #fafaf9;
+  --el-fill-color-lighter: #fafaf9;
+  --el-fill-color-extra-light: #fcfcfb;
+  --el-fill-color-blank: #ffffff;
+  --el-bg-color: #ffffff;
+  --el-bg-color-page: #fafaf9;
+  --el-mask-color: rgba(28, 25, 23, 0.45);
+  --el-mask-color-extra-light: rgba(28, 25, 23, 0.25);
+
+  /* 圆角：控件 8 / 小控件 6 / 卡片 12 */
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+
+  /* 表格 */
+  --el-table-border-color: #e7e5e4;
+  --el-table-border: 1px solid #e7e5e4;
+  --el-table-text-color: #44403c;
+  --el-table-header-text-color: #57534e;
+  --el-table-row-hover-bg-color: #fff7ed;
+  --el-table-current-row-bg-color: #fff7ed;
+  --el-table-header-bg-color: #fafaf9;
+  --el-table-bg-color: #ffffff;
+  --el-table-tr-bg-color: #ffffff;
+  --el-table-fixed-box-shadow: none;
+
+  /* ARDS 识别色：青蓝（teal）——用于氧合/通气类关键指标，与暖橙的「操作」语义区分 */
+  --ards-accent: #0d9488;
+  --ards-accent-dark: #0f766e;
+  --ards-accent-soft: #5eead4;
+  --ards-accent-wash: #ccfbf1;
+  --ards-accent-bg: #f0fdfa;
+
+  /* ARDS 病情分级色：轻度（氧合指数 200~300）/ 中度（100~200）/ 重度（≤100），
+     与 ARDS 监测看板口径一致，便于跨页面对照；未分级走中性灰 */
+  --ards-grade-mild: #15803d;
+  --ards-grade-mild-bg: #dcfce7;
+  --ards-grade-mild-bd: #bbf7d0;
+  --ards-grade-moderate: #c2410c;
+  --ards-grade-moderate-bg: #ffedd5;
+  --ards-grade-moderate-bd: #fed7aa;
+  --ards-grade-severe: #b91c1c;
+  --ards-grade-severe-bg: #fee2e2;
+  --ards-grade-severe-bd: #fecaca;
+  --ards-grade-unknown: #78716c;
+  --ards-grade-unknown-bg: #f5f5f4;
+  --ards-grade-unknown-bd: #e7e5e4;
+
+  /* 本模块自用的卡片 / 控件令牌 */
+  --ards-card-radius: 12px;
+  --ards-ctl-radius: 8px;
+  --ards-card-shadow: 0 1px 2px rgba(28, 25, 23, 0.04);
+  --ards-title-color: #1c1917;
+}
+
+/* ---------------------------------------------------------------- 通用控件 */
+.ards-theme .el-button {
+  border-radius: 8px;
+  font-weight: 500;
+}
+.ards-theme .el-button--small {
+  border-radius: 6px;
+}
+
+/* 标签：胶囊 + 柔和底色 */
+.ards-theme .el-tag {
+  height: auto;
+  padding: 3px 10px;
+  line-height: 1.5;
+  border-width: 0;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.ards-theme .el-tag.el-tag--success { background: #dcfce7; color: #16a34a; }
+.ards-theme .el-tag.el-tag--warning { background: #fef3c7; color: #d97706; }
+.ards-theme .el-tag.el-tag--danger { background: #fee2e2; color: #dc2626; }
+.ards-theme .el-tag.el-tag--info { background: #f5f5f4; color: #78716c; }
+.ards-theme .el-tag.el-tag--primary { background: #ffedd5; color: #c2410c; }
+
+/* ------------------------------------------------------- 弹窗 / 抽屉 / 确认框 */
+.ards-overlay.el-dialog {
+  border-radius: 12px;
+  overflow: hidden;
+}
+.ards-overlay .el-dialog__header {
+  margin-right: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f5f5f4;
+}
+.ards-overlay .el-dialog__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1c1917;
+}
+.ards-overlay .el-dialog__body {
+  padding: 18px 20px;
+  color: #44403c;
+}
+.ards-overlay .el-dialog__footer {
+  padding: 12px 20px;
+  border-top: 1px solid #f5f5f4;
+}
+.ards-overlay .el-message-box__content {
+  color: #44403c;
+}
+
+/* 确认框主按钮跟主题主色（删除/终止等危险操作仍由页面传 type: warning 控制） */
+.ards-overlay .el-button--primary {
+  --el-button-bg-color: #ea580c;
+  --el-button-border-color: #ea580c;
+  --el-button-hover-bg-color: #fb923c;
+  --el-button-hover-border-color: #fb923c;
+}

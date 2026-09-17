@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ARDS 俯卧位通气治疗记录 · 设计稿</title>
+<link rel="stylesheet" href="./design.css" />
+</head>
+<body>
+
+<div class="protobar">
+  <b>ARDS 俯卧位通气 · 设计稿</b>
+  <span class="pt" onclick="location.href='./index.html'">目录</span>
+  <span class="pt" onclick="location.href='./list.html'">① 记录列表</span>
+  <span class="pt on" id="pbForm">② 记录填写</span>
+  <span class="pt" onclick="openTp()">时点配置（抽屉）</span>
+  <span class="pt" id="pbPrint" onclick="go('print')">③ 打印预览</span>
+  <span class="pt" onclick="location.href='./settings.html'">④ 参数设置</span>
+  <span class="spacer"></span>
+  <span class="note">静态原型，数据为虚构示例</span>
+</div>
+
+<div class="page" id="scrForm">
+
+  <!-- 顶部条 -->
+  <div class="topbar">
+    <div>
+      <h1>ARDS 俯卧位通气治疗记录<span class="pin">1</span></h1>
+      <div class="sub">重症医学科 · 适用于中重度 ARDS（PaO₂/FiO₂ &lt; 150 mmHg，PEEP ≥ 5 cmH₂O）俯卧位通气治疗监测</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="who">
+      <b>张建国</b>
+      <span>男 · 63岁 · 住院号 2026091708 · 床号 ICU-05</span>
+      <span class="tag blue">重度 ARDS</span>
+      <span class="tag orange">第 2 天 · 共 3 次</span>
+    </div>
+    <button class="btn">历史记录</button>
+    <button class="btn">打印</button>
+    <button class="btn">保存草稿</button>
+    <button class="btn primary">提交记录</button>
+  </div>
+
+  <!-- 患者基本信息 -->
+  <div class="card">
+    <div class="hd"><h2>患者基本信息</h2><span class="hint">来自 HIS 自动带入，科室/住院号只读</span><div class="spacer"></div><span class="tag gray">记录编号 PP-20260917-002</span></div>
+    <div class="bd">
+      <div class="grid">
+        <div class="f"><label>姓名</label><div class="v"><b>张建国</b></div></div>
+        <div class="f"><label>性别</label><div class="v">男</div></div>
+        <div class="f"><label>年龄</label><div class="v">63 岁</div></div>
+        <div class="f"><label>住院号</label><div class="v">2026091708</div></div>
+        <div class="f"><label>床号</label><div class="v">ICU-05</div></div>
+        <div class="f apache-field"><label>APACHE II</label><div class="v"><b>24</b> 分</div></div>
+        <div class="f span2"><label>诊断</label><div class="v">重症肺炎 · 中重度 ARDS · 感染性休克</div></div>
+        <div class="f"><label>ARDS 分级</label>
+          <div class="v"><div class="seg"><span class="opt">轻度</span><span class="opt">中度</span><span class="opt on danger">重度</span></div></div>
+        </div>
+        <div class="f"><label>经管医师</label><div class="v">李伟</div></div>
+        <div class="f"><label>入院日期</label><div class="v">2026-09-12</div></div>
+        <div class="f"><label>记录日期</label><div class="v">2026-09-17</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 本次治疗 -->
+  <div class="card">
+    <div class="hd"><h2>本次俯卧位治疗</h2><span class="hint">时长由开始/结束时间自动计算<span class="pin">2</span></span><div class="spacer"></div><span class="tag blue">进行中</span></div>
+    <div class="bd">
+      <div class="timebar">
+        <div class="seg-cell"><div class="k">俯卧位开始</div><div class="v">09-17 08:00</div></div>
+        <div class="seg-cell"><div class="k">翻身后即刻</div><div class="v">09-17 08:15</div></div>
+        <div class="seg-cell"><div class="k">俯卧位结束</div><div class="v muted" style="color:var(--t4)">待填写</div></div>
+        <div class="seg-cell"><div class="k">持续时长</div><div class="v">12h 10min <small>自动累计</small></div></div>
+        <div class="seg-cell"><div class="k">当前时点</div><div class="v" style="color:var(--primary)">12h <small>计划 20:00</small></div></div>
+        <div class="seg-cell"><div class="k">已填参数</div><div class="v">31 / 37</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 监测记录 -->
+  <div class="card">
+    <div class="hd">
+      <h2>监测记录</h2>
+      <div class="tabs">
+        <div class="t on" id="tabTable">时点横表</div>
+        <div class="t" id="tabSingle">单时点录入<span class="pin">3</span></div>
+      </div>
+      <button class="btn" onclick="openTp()">时点配置 · 11 个<span class="pin">6</span></button>
+      <div class="spacer"></div>
+      <div class="legend">
+        <span><i class="ab"></i>超出内置参考区间</span>
+        <span><i class="ca"></i>自动计算</span>
+        <span><i class="em"></i>未填</span>
+        <span style="margin-left:8px">来源：</span>
+        <span class="src auto">自动采集</span>
+        <span class="src lis">检验同步</span>
+        <span class="src man">手工录入</span>
+        <span class="src calc">系统计算</span>
+        <span class="src mix">混合来源</span>
+      </div>
+    </div>
+    <div class="bd">
+      <!-- 数据源状态条（信息展示，不做告警） -->
+      <div class="sysbar">
+        <span class="it"><i class="dot ok"></i>监护仪 / 呼吸机　最新数据 20:04</span>
+        <span class="it"><i class="dot ok"></i>LIS 检验同步　最近同步 20:00</span>
+        <span class="spacer"></span>
+        <span class="it">采集窗口：生命体征/呼吸机 ±15 min · 血气/检验 ±60 min；窗口内无数据 → 置空，手工录入</span>
+        <span class="it">自动采集值不可改，修正须填原因<span class="pin">7</span></span>
+        <span class="it">数据截止 20:05</span>
+      </div>
+
+      <!-- 模式一：时点横表 -->
+      <div id="modeTable">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span style="font-size:12px;color:var(--t3)">横向 = 11 个监测时点，纵向 = 37 项参数；左侧分类/参数/单位三列冻结<span class="pin">4</span></span>
+          <div class="spacer" style="flex:1"></div>
+          <button class="btn">导出 Excel</button>
+        </div>
+        <div class="tbl-wrap"><table class="mon" id="monTable"></table></div>
+      </div>
+
+      <!-- 模式二：单时点录入 -->
+      <div id="modeSingle" class="hide">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <span style="font-size:12px;color:var(--t3)">床旁/平板录入：一次只填一个时点，逐项纵排</span>
+          <div class="spacer" style="flex:1"></div>
+          <button class="btn primary">保存本时点</button>
+        </div>
+        <div class="tp-nav" id="tpNav" style="margin-bottom:14px"></div>
+        <div class="single" id="singleBox"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 并发症 -->
+  <div class="card">
+    <div class="hd"><h2>并发症与事件记录</h2><span class="hint">勾选后需在下方填写处理措施<span class="pin">5</span></span><div class="spacer"></div><span class="tag green">暂无并发症</span></div>
+    <div class="bd">
+      <div class="checks" style="margin-bottom:12px">
+        <span class="ck on"><i class="box">✓</i>无并发症</span>
+        <span class="ck off"><i class="box">✓</i>插管移位/脱管</span>
+        <span class="ck off"><i class="box">✓</i>皮肤压力性损伤</span>
+        <span class="ck off"><i class="box">✓</i>眼部损伤</span>
+        <span class="ck off"><i class="box">✓</i>血流动力学不稳定</span>
+      </div>
+      <div class="checks" style="margin-bottom:12px">
+        <span class="ck off"><i class="box">✓</i>导管脱出</span>
+        <span class="ck off"><i class="box">✓</i>反流误吸</span>
+        <span class="ck off"><i class="box">✓</i>恶性心律失常</span>
+        <span class="ck off"><i class="box">✓</i>痰液堵塞</span>
+        <span class="ck off"><i class="box">✓</i>其他 ______</span>
+      </div>
+      <div class="f"><label>并发症详细描述及处理措施</label><textarea class="bx">翻身时 MAP 一过性下降至 63 mmHg，予加快补液后 5 分钟内回升至 78 mmHg，未终止俯卧位。</textarea></div>
+    </div>
+  </div>
+
+  <!-- 终止指征 -->
+  <div class="card">
+    <div class="hd"><h2>停止 / 终止俯卧位指征评估</h2><div class="spacer"></div><span class="tag gray">未终止</span></div>
+    <div class="bd">
+      <div class="f" style="margin-bottom:12px">
+        <label>达标终止</label>
+        <div class="v" style="gap:16px">
+          <span class="ck off" style="display:flex;align-items:center;gap:6px"><i class="box">✓</i>PaO₂/FiO₂ 持续 &gt; 150 mmHg 且稳定 ≥ 4 小时</span>
+          <span class="ck off" style="display:flex;align-items:center;gap:6px"><i class="box">✓</i>临床综合评估改善</span>
+        </div>
+      </div>
+      <div class="f" style="margin-bottom:12px">
+        <label>紧急终止</label>
+        <div class="v" style="gap:14px;flex-wrap:wrap">
+          <span class="ck off" style="display:flex;align-items:center;gap:6px"><i class="box">✓</i>严重低血压/难治性休克</span>
+          <span class="ck off" style="display:flex;align-items:center;gap:6px"><i class="box">✓</i>气道出血/插管移位</span>
+          <span class="ck off" style="display:flex;align-items:center;gap:6px"><i class="box">✓</i>恶性心律失常</span>
+          <span class="ck off" style="display:flex;align-items:center;gap:6px"><i class="box">✓</i>颅内压升高</span>
+          <span class="ck off" style="display:flex;align-items:center;gap:6px"><i class="box">✓</i>皮肤严重受损</span>
+          <span class="ck off" style="display:flex;align-items:center;gap:6px"><i class="box">✓</i>氧合进行性下降</span>
+        </div>
+      </div>
+      <div class="f"><label>实际终止原因</label><div class="v muted" style="color:var(--t4)">本次俯卧位尚未终止</div></div>
+    </div>
+  </div>
+
+  <!-- 备注与签名 -->
+  <div class="card">
+    <div class="hd"><h2>备注与签名</h2>
+      <span class="hint">提交后如需更正：<b>不限时</b>，每次修改保留原值、记录修改人与原因</span>
+      <div class="spacer"></div><span class="tag gray">未提交</span></div>
+    <div class="bd">
+      <div class="f" style="margin-bottom:14px"><label>备注</label><textarea class="bx">俯卧位第 2 天，氧合指数由 78 升至 153 mmHg，驱动压已降至 14 cmH₂O，继续当前方案。</textarea></div>
+      <div class="grid">
+        <div class="f span2"><label>记录医师</label><div class="v">王芳（主治医师）</div></div>
+        <div class="f span2"><label>记录护士</label><div class="v">陈静（护师）</div></div>
+        <div class="f span2"><label>上级医师</label><div class="v">李伟（副主任医师）</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设计说明 -->
+  <div class="notes">
+    <h3>设计要点</h3>
+    <ol>
+      <li><span class="badge">1</span>顶部常驻患者与疗程信息（第几天/第几次），并保留「历史记录」入口，便于对照前几次俯卧位的氧合反应。</li>
+      <li><span class="badge">2</span>持续时长、驱动压 ΔP、氧合指数 P/F、P/F 变化 4 项由系统计算，不允许手改，避免口径不一致。</li>
+      <li><span class="badge">3</span>两种录入模式：横表适合一次性补录与通盘对比；单时点模式给床旁/平板，一次只填一个时点。</li>
+      <li><span class="badge">4</span>横表冻结左侧三列并横向滚动；表头显示每个时点的计划时间，当前时点高亮、已填时点打勾。</li>
+      <li><span class="badge">5</span>并发症、终止指征改为结构化勾选项，后续可直接统计发生率，不用再翻自由文本。</li>
+      <li>数值按<b>内置固定参考区间</b>标红（MAP&lt;65、SpO₂&lt;90、Pplat&gt;30、ΔP&gt;15、P/F&lt;150、Lac&gt;2.0、pH&lt;7.30 等）：仅为视觉区分，<b>不弹窗、不提示、不阻断、不提供阈值配置</b>。</li>
+      <li>安全评估类参数用「固定 / 渗血 / 受压发红」等状态标签，非数值项也能一眼看出异常。</li>
+      <li><span class="badge">7</span>自动采集与检验同步值<b>不可直接改写</b>；确需修正时走「人工修正 → 填写原因 → 留痕」，原值保留。</li>
+      <li>每个单元格可下钻查看「来源系统 + 采集时间 + 原始值」。</li>
+      <li>断网/接口故障时可离线录入，恢复后自动同步。采集窗口内无数据一律<b>置空标「未采集」并转手工录入</b>，<b>不沿用历史值、不做陈旧判定</b>；本例 8h 时点血气无新报告，故整列为空待手工补录，氧合指数显示「待补」。</li>
+    </ol>
+  </div>
+
+</div>
+
+<!-- ============================ 时点配置抽屉（从填写页打开） ============================ -->
+<div class="mask hide" id="tpMask" onclick="closeTp()"></div>
+<div class="drawer hide" id="tpDrawer">
+  <div class="dh">
+    <h3>监测时点配置</h3>
+    <span style="margin-left:10px;font-size:12px;color:var(--t3)">默认 11 个时点；可按科室 / 患者增删</span>
+    <div class="spacer"></div>
+    <button class="btn" onclick="closeTp()">关闭</button>
+  </div>
+  <div class="db">
+    <div class="win-note">
+      <b>采集窗口</b>：生命体征 / 呼吸机参数 <b>±15 min</b>；血气 / 检验 <b>±60 min</b>（非连续项目）。<br>
+      <b>窗口内取最近一条</b> → 标「已采集」；<b>窗口内无数据</b> → 置空标「未采集」，由护士手工录入；
+      <b>不沿用历史值、不自动推算</b>。
+    </div>
+    <table class="tp-table" id="tpTable">
+        <thead>
+          <tr>
+            <th style="width:46px">序号</th><th>时点名称</th><th>相对开始偏移</th><th>计划时间</th>
+            <th>采集状态</th><th>数据来源</th><th style="width:150px">操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <div style="margin-top:12px">
+        <button class="btn primary">+ 新增时点</button>
+        <button class="btn">恢复默认 11 时点</button>
+        <span class="spacer" style="display:inline-block;width:12px"></span>
+        <button class="btn">保存为科室模板</button>
+      </div>
+
+      <div class="notice">
+        删除已填写的时点：<b>不物理删除数据</b>，仅标记为「已移除」，历史查询、统计与打印仍可追溯；
+        新增时点按「相对俯卧位开始的偏移」自动生成计划时间，并进入采集提醒队列。
+      </div>
+    </div>
+
+    <div class="notes">
+      <h3>时点配置设计要点</h3>
+    <ol>
+      <li><span class="badge">6</span>时点是「模板 + 实例」：科室模板决定默认 11 个时点，单次记录可在此基础上增删，互不影响。</li>
+      <li>每个时点带「相对开始偏移」（如 +2h），保存后自动推算计划时间；俯卧位开始时间改了，计划时间整体顺延。</li>
+      <li>采集状态仅区分「已采集 / 待采集 / 已关闭」三种中性状态，不做滞后提醒与告警。</li>
+      <li>已填数据的时点不允许静默删除：需二次确认并说明原因，数据保留可追溯（满足记录不可篡改、修改留痕的要求）。</li>
+    </ol>
+    </div>
+  </div>
+  <div class="df">
+    <span style="font-size:12px;color:var(--t3)">修改只作用于本条记录；科室默认模板另行维护</span>
+    <div class="spacer"></div>
+    <button class="btn" onclick="closeTp()">取消</button>
+    <button class="btn primary" onclick="closeTp()">保存时点</button>
+  </div>
+</div>
+
+<!-- ============================ 屏幕：打印预览 ============================ -->
+<div class="page hide" id="scrPrint">
+  <div class="filter">
+    <span class="ipt">纸张：A4 横向 ▾</span>
+    <span class="ipt w90">缩放：100% ▾</span>
+    <span class="ipt">打印范围：全部 37 项 × 11 时点</span>
+    <span class="tag green">归档：已回传（文档号 HIS-DOC-20260917-0881）</span>
+    <button class="btn">重新回传</button>
+    <button class="btn">导出 PDF</button>
+    <button class="btn primary">打印并归档回传</button>
+    <span class="spacer"></span>
+    <label style="font-size:13px;color:var(--t2);cursor:pointer"><input type="checkbox" id="apToggle" checked style="vertical-align:-1px" onchange="toggleApache()"> 显示 APACHE II（参数设置控制）</label>
+    <button class="btn" onclick="go('form')">返回填写</button>
+  </div>
+  <div class="sysbar" style="margin-bottom:12px">
+    <span class="it">真实 1:1 预览：A4 横向、所见即所得，还原原表版式（抬头 + 患者信息 + 治疗时间 + 37×11 监测表 + 并发症 + 终止指征 + 签名）</span>
+    <span class="spacer"></span>
+    <span class="it">归档接口：调用<b>「参数设置」中配置的现有归档接口</b>（本例 HIS-ARCHIVE），与 APACHE II、SOFA 评分归档同一接口、传参一致，不新开发接口</span>
+  </div>
+
+  <div class="paper" id="paper"></div>
+
+  <div class="notes">
+    <h3>打印设计要点</h3>
+    <ol>
+      <li>A4 横向、8pt 字号、全边框，37 行 × 11 列完整还原纸质记录单版式；预览即真实版式（所见即所得），可直接归档。</li>
+      <li>自动计算项（ΔP、P/F、P/F 变化、持续时长）打印为灰底，与人工录入项区分；超出<b>内置固定参考区间</b>的值保留红字（仅视觉区分，不做告警）。</li>
+      <li><b>APACHE II 由「参数设置」开关控制</b>：开启时随抬头输出；关闭时该格不输出、整行重排，不留空白占位。开关同时作用于填写页、文书预览、打印文书与回传文书。</li>
+      <li>页脚固定输出：记录编号、归档文档号、打印时间、打印人、页码（第 X 页 / 共 Y 页），来源标注「自动采集 / 检验同步 / 手工录入」。</li>
+      <li>打印后调用<b>「参数设置」中配置的现有归档接口</b>回传；回传记录文档号与状态，失败可重传，同一记录重复回传不产生重复文档。</li>
+    </ol>
+  </div>
+</div>
+
+<script>
+/* 时点：11 个 */
+const TP = [
+  { k: '翻身前', t: '08:00' }, { k: '翻身后即刻', t: '08:15' }, { k: '2h', t: '10:00' },
+  { k: '4h', t: '12:00' }, { k: '6h', t: '14:00' }, { k: '8h', t: '16:00' },
+  { k: '10h', t: '18:00' }, { k: '12h', t: '20:00' }, { k: '14h', t: '22:00' },
+  { k: '16h', t: '00:00' }, { k: '复仰后', t: '00:30' }
+]
+const CUR = 7               // 当前录入时点：12h
+const N = null
+const OK = ['固定', '完好', '无', '已护理']
+
+/* 每个时点的采集状态：ok 已采集 / pend 待采集（中性状态，不做告警） */
+const STATUS = ['ok','ok','ok','ok','ok','ok','ok','pend','pend','pend','pend']
+/* 采集落库时间 */
+const AT = ['07:58','08:14','10:02','12:01','14:03','16:22','18:05',null,null,null,null]
+/* 数据来源：分组默认值 + 单项覆盖 */
+const SRC_DEFAULT = {
+  '生命体征': 'auto', '呼吸机参数': 'auto', '氧合参数': 'calc',
+  '血气分析': 'lis', '镇静镇痛': 'man', '安全评估': 'man'
+}
+const SRC_TEXT = { auto: '自动采集', lis: '检验同步', man: '手工录入', calc: '系统计算', mix: '混合来源' }
+function srcOf(g, r) {
+  /* 观察项/检验中无对应数据元、确认先走手工录入的参数（决策①） */
+  if (/气道峰压 \(Ppeak\)|平台压 \(Pplat\)|碳酸氢根|碱剩余/.test(r.p)) return 'man'
+  if (r.p.indexOf('氧合指数 (') === 0) return 'mix'      // PaO₂(检验) ÷ FiO₂(呼吸机)
+  if (r.calc) return 'calc'
+  return SRC_DEFAULT[g] || 'man'
+}
+
+/* 参数行：v=11 个时点的值；ab=异常判定；calc=自动计算；type=渲染方式 */
+const GROUPS = [
+  { name: '生命体征', rows: [
+    { p: '心率 (HR)', u: '次/min', v: [118, 124, 120, 112, 108, 105, 102, N, N, N, N], ab: x => x > 120 || x < 50 },
+    { p: '收缩压 (SBP)', u: 'mmHg', v: [105, 98, 108, 112, 115, 118, 116, N, N, N, N], ab: x => x < 90 },
+    { p: '舒张压 (DBP)', u: 'mmHg', v: [62, 58, 63, 66, 68, 70, 69, N, N, N, N] },
+    { p: '平均动脉压 (MAP)', u: 'mmHg', v: [76, 63, 78, 81, 84, 86, 85, N, N, N, N], ab: x => x < 65 },
+    { p: '呼吸频率 (RR)', u: '次/min', v: [28, 26, 24, 22, 22, 20, 20, N, N, N, N], ab: x => x > 35 },
+    { p: '体温 (T)', u: '℃', v: [37.8, 37.8, 37.6, 37.5, 37.4, 37.3, 37.2, N, N, N, N], ab: x => x >= 38.5 },
+    { p: '脉搏血氧 (SpO₂)', u: '%', v: [88, 92, 94, 95, 96, 96, 97, N, N, N, N], ab: x => x < 90 }
+  ]},
+  { name: '呼吸机参数', rows: [
+    { p: '通气模式', u: '—', type: 'sel', v: ['PCV','PCV','PCV','PCV','PCV','PCV','PCV', N, N, N, N] },
+    { p: '潮气量 (Vt)', u: 'ml/kg', v: [6.2, 6.0, 6.1, 6.0, 5.9, 6.0, 6.1, N, N, N, N], ab: x => x > 6.5 },
+    { p: '设定呼吸频率', u: '次/min', v: [22, 22, 20, 20, 18, 18, 18, N, N, N, N] },
+    { p: 'PEEP', u: 'cmH₂O', v: [12, 14, 14, 14, 12, 12, 10, N, N, N, N] },
+    { p: '吸入氧浓度 (FiO₂)', u: '%', v: [80, 80, 75, 70, 65, 60, 55, N, N, N, N] },
+    { p: '气道峰压 (Ppeak)', u: 'cmH₂O', v: [32, 34, 33, 32, 30, 29, 28, N, N, N, N], ab: x => x > 35 },
+    { p: '平台压 (Pplat)', u: 'cmH₂O', v: [28, 31, 29, 28, 26, 25, 24, N, N, N, N], ab: x => x > 30 },
+    { p: '驱动压 (ΔP)', u: 'cmH₂O', calc: 1, v: [16, 17, 15, 14, 14, 13, 14, N, N, N, N], ab: x => x > 15 }
+  ]},
+  { name: '氧合参数', rows: [
+    { p: '氧合指数 (PaO₂/FiO₂)', u: 'mmHg', calc: 1, v: [78, 85, 96, 109, 122, '待补', 153, N, N, N, N], ab: x => x < 150 },
+    { p: '氧合指数变化', u: '△mmHg', calc: 1, v: ['—', '+7', '+18', '+31', '+44', '待补', '+75', N, N, N, N] },
+    { p: '氧指数 (OI)', u: '—', calc: 1, v: [24, 22, 19, 16, 13, '待补', 9, N, N, N, N] }
+  ]},
+  { name: '血气分析', rows: [
+    /* 8h 时点（索引 5）窗口内无新报告 → 置空待手工录入，不沿用历史值 */
+    { p: 'pH', u: '—', v: [7.28, 7.30, 7.32, 7.34, 7.35, N, 7.37, N, N, N, N], ab: x => x < 7.30 || x > 7.45 },
+    { p: '动脉血氧分压 (PaO₂)', u: 'mmHg', v: [62, 68, 72, 76, 79, N, 84, N, N, N, N] },
+    { p: '动脉血CO₂分压 (PaCO₂)', u: 'mmHg', v: [58, 55, 52, 50, 48, N, 45, N, N, N, N], ab: x => x > 50 },
+    { p: '碳酸氢根 (HCO₃⁻)', u: 'mmol/L', v: [26, 26, 27, 27, 27, N, 26, N, N, N, N] },
+    { p: '碱剩余 (BE)', u: 'mmol/L', v: [1.2, 1.5, 2.0, 2.2, 2.4, N, 2.0, N, N, N, N] },
+    { p: '乳酸 (Lac)', u: 'mmol/L', v: [3.2, 3.0, 2.8, 2.5, 2.2, N, 1.8, N, N, N, N], ab: x => x > 2.0 }
+  ]},
+  { name: '镇静镇痛', rows: [
+    { p: 'RASS 评分', u: '分', v: [-4, -4, -4, -3, -3, -3, -2, N, N, N, N], ab: x => x > 2 || x < -5 },
+    { p: 'CPOT/BPS 评分', u: '分', v: [2, 2, 1, 1, 1, 0, 0, N, N, N, N], ab: x => x >= 3 },
+    { p: '镇静药物及剂量', u: '—', type: 'txt', wide: 1, v: ['丙泊酚 200mg/h','丙泊酚 200mg/h','丙泊酚 200mg/h','丙泊酚 200mg/h','丙泊酚 150mg/h','丙泊酚 150mg/h','丙泊酚 150mg/h', N, N, N, N] },
+    { p: '镇痛药物及剂量', u: '—', type: 'txt', wide: 1, v: ['瑞芬太尼 0.1μg/kg/min','瑞芬太尼 0.1μg/kg/min','瑞芬太尼 0.1μg/kg/min','瑞芬太尼 0.1μg/kg/min','瑞芬太尼 0.1μg/kg/min','瑞芬太尼 0.1μg/kg/min','瑞芬太尼 0.1μg/kg/min', N, N, N, N] },
+    { p: '肌松药使用', u: '—', type: 'txt', v: ['顺阿曲库铵 5mg/h','顺阿曲库铵 5mg/h','顺阿曲库铵 5mg/h','顺阿曲库铵 5mg/h','已停用','已停用','已停用', N, N, N, N] }
+  ]},
+  { name: '安全评估', rows: [
+    { p: '气管插管/气切', u: '固定', type: 'chip', v: ['固定','固定','固定','固定','固定','固定','固定', N, N, N, N] },
+    { p: '中心静脉导管', u: '固定', type: 'chip', v: ['固定','固定','固定','固定','固定','固定','固定', N, N, N, N] },
+    { p: '动脉导管', u: '固定', type: 'chip', v: ['固定','固定','固定','渗血','固定','固定','固定', N, N, N, N] },
+    { p: '胃管/尿管', u: '固定', type: 'chip', v: ['固定','固定','固定','固定','固定','固定','固定', N, N, N, N] },
+    { p: '皮肤完整性', u: '评估', type: 'chip', v: ['完好','完好','完好','完好','受压发红','完好','完好', N, N, N, N] },
+    { p: '眼部护理', u: '评估', type: 'chip', v: ['已护理','已护理','已护理','已护理','已护理','已护理','已护理', N, N, N, N] },
+    { p: '胃潴留', u: '有/无', type: 'chip', v: ['无','无','无','有 80ml','无','无','无', N, N, N, N] },
+    { p: '痰液性状/量', u: '—', type: 'txt', v: ['黄黏 中量','黄黏 中量','黄黏 中量','黄黏 少量','白黏 少量','白黏 少量','白黏 少量', N, N, N, N] }
+  ]}
+]
+
+function cellHtml(r, i) {
+  const v = r.v[i]
+  const cls = ['cell']
+  if (v === N || v === undefined || v === '') {
+    cls.push('empty')
+    return '<td class="' + cls.join(' ') + '"><span class="val">—</span></td>'
+  }
+  if (r.calc) cls.push('calc')
+  if (r.ab && typeof v === 'number' && r.ab(v)) cls.push('abn')
+  if (i === CUR) cls.push('now')
+  let inner
+  if (r.type === 'chip') {
+    const bad = OK.indexOf(v) < 0
+    inner = '<span class="chip' + (bad ? ' mid' : '') + '">' + v + '</span>'
+  } else if (r.type === 'txt') {
+    inner = '<span class="txt">' + v + '</span>'
+  } else {
+    inner = '<span class="val">' + v + '</span>'
+  }
+  const from = r._src === 'auto' ? '监护仪/呼吸机自动采集'
+    : r._src === 'lis' ? 'LIS 检验同步'
+    : r._src === 'calc' ? '系统计算（不可手改）'
+    : r._src === 'mix' ? 'PaO₂(检验) ÷ FiO₂(呼吸机)' : '手工录入'
+  return '<td class="' + cls.join(' ') + '" title="' + r.p + ' @ ' + TP[i].k + '（' + TP[i].t + '）｜来源：' + from +
+    (AT[i] ? '｜采集 ' + AT[i] : '') + '">' + inner + '</td>'
+}
+
+function renderTable() {
+  let h = '<thead><tr>' +
+    '<th class="c-cat">分类</th><th class="c-name">监测参数</th><th class="c-unit">单位</th>'
+  TP.forEach((t, i) => {
+    const c = (i === CUR ? ' now' : '') + (i < CUR ? ' done' : '')
+    const st = STATUS[i]
+    const stTxt = st === 'ok' ? '已采集' : '待采集'
+    h += '<th class="' + c.trim() + '"><div class="tp">' + t.k + '</div>' +
+         '<div class="tm"><span class="dot ' + st + '"></span>' + t.t +
+         '<span class="at">' + (AT[i] ? ' · ' + AT[i] : ' · 待采集') + '</span>' +
+         '<div style="font-size:10px;color:#a8a29e">' + stTxt + '</div></div></th>'
+  })
+  h += '</tr></thead><tbody>'
+  GROUPS.forEach(g => {
+    g.rows.forEach((r, ri) => {
+      h += '<tr>'
+      if (ri === 0) {
+        h += '<td class="c-cat" rowspan="' + g.rows.length + '"><div class="cat-name">' + g.name + '</div></td>'
+      }
+      const s = srcOf(g, r)
+      r._src = s
+      const sTxt = s === 'auto' ? '自动' : s === 'lis' ? '检验' : s === 'man' ? '手工' : s === 'mix' ? '混合' : '计算'
+      h += '<td class="c-name">' + r.p + '<span class="src ' + s + '">' + sTxt + '</span></td>'
+      h += '<td class="c-unit">' + r.u + '</td>'
+      for (let i = 0; i < TP.length; i++) h += cellHtml(r, i)
+      h += '</tr>'
+    })
+  })
+  document.getElementById('monTable').innerHTML = h + '</tbody>'
+}
+
+function renderSingle() {
+  // 时点导航
+  let nav = ''
+  TP.forEach((t, i) => {
+    const c = (i === CUR ? ' on' : '') + (i < CUR ? ' ok' : '')
+    nav += '<span class="p' + c + '">' + t.k + ' <small style="opacity:.7">' + t.t + '</small></span>'
+  })
+  document.getElementById('tpNav').innerHTML = nav
+
+  let h = ''
+  GROUPS.forEach(g => {
+    h += '<div class="grp"><div class="gh">' + g.name + '</div><div class="gl">'
+    g.rows.forEach(r => {
+      const v = r.v[CUR]
+      const empty = (v === N || v === undefined || v === '')
+      let vc = ''
+      if (r.calc) vc = ' calc'
+      if (r.ab && typeof v === 'number' && r.ab(v)) vc = ' abn'
+      const txt = empty ? '<span style="color:var(--t4)">待填写</span>' : v
+      h += '<div class="f' + (r.wide ? ' wide' : '') + '"><label>' + r.p +
+           (r.u && r.u !== '—' ? '（' + r.u + '）' : '') + '</label>' +
+           '<div class="v' + vc + '">' + txt + '</div></div>'
+    })
+    h += '</div></div>'
+  })
+  document.getElementById('singleBox').innerHTML = h
+}
+
+function switchMode(m) {
+  document.getElementById('modeTable').classList.toggle('hide', m !== 'table')
+  document.getElementById('modeSingle').classList.toggle('hide', m !== 'single')
+  document.getElementById('tabTable').classList.toggle('on', m === 'table')
+  document.getElementById('tabSingle').classList.toggle('on', m === 'single')
+}
+document.getElementById('tabTable').onclick = () => switchMode('table')
+document.getElementById('tabSingle').onclick = () => switchMode('single')
+
+renderTable()
+renderSingle()
+
+/* ------------------------------------------------ 时点配置表 */
+const TP_OFFSET = ['T0（翻身前）','+15 min','+2 h','+4 h','+6 h','+8 h','+10 h','+12 h','+14 h','+16 h','+16 h 30 min']
+const TP_SRC_TXT = ['自动 / 手工','自动 / 手工','自动 / 检验 / 手工','自动 / 检验 / 手工','自动 / 检验 / 手工','自动 / 检验 / 手工','自动 / 检验 / 手工','自动 / 检验 / 手工','自动 / 检验 / 手工','自动 / 检验 / 手工','自动 / 手工']
+function renderTpTable() {
+  let h = ''
+  TP.forEach((t, i) => {
+    const st = STATUS[i]
+    const stTxt = st === 'ok' ? '<span class="dot ok"></span>已采集' : '<span class="dot pend"></span>待采集'
+    h += '<tr' + (i === 8 ? ' class="del"' : '') + '>'
+      + '<td class="n">' + (i + 1) + '</td>'
+      + '<td><b>' + t.k + '</b></td>'
+      + '<td>' + TP_OFFSET[i] + '</td>'
+      + '<td>' + t.t + '</td>'
+      + '<td>' + stTxt + '</td>'
+      + '<td>' + TP_SRC_TXT[i] + '</td>'
+      + '<td><button class="mini">编辑</button> <button class="mini' + (i < CUR ? ' danger' : '') + '">删除</button></td>'
+      + '</tr>'
+  })
+  // 示例：新增的自定义时点
+  h += '<tr class="add"><td class="n">12</td><td><b>18 h（自定义）</b></td><td>+18 h</td><td>02:00</td>'
+    + '<td><span class="dot pend"></span>待采集</td><td>自动 / 检验 / 手工</td>'
+    + '<td><button class="mini">编辑</button> <button class="mini danger">删除</button></td></tr>'
+  document.querySelector('#tpTable tbody').innerHTML = h
+}
+renderTpTable()
+
+/* ------------------------------------------------ 打印预览（A4 横向还原原表） */
+function pCell(r, i) {
+  const v = r.v[i]
+  const cls = []
+  if (r.calc) cls.push('calc')
+  if (r.ab && typeof v === 'number' && r.ab(v)) cls.push('abn')
+  return '<td class="' + cls.join(' ') + '">' + (v === N || v === undefined ? '' : v) + '</td>'
+}
+function renderPrint() {
+  let h = '<div class="p-title">ARDS 俯卧位通气治疗记录表</div>'
+    + '<div class="p-sub">重症医学科　适用于中重度 ARDS（PaO₂/FiO₂ &lt; 150 mmHg，PEEP ≥ 5 cmH₂O）俯卧位通气治疗监测</div>'
+
+  const apPart = showApache ? '<td class="k">APACHE II</td><td>24 分</td>' : ''
+  h += '<table class="p-info"><tbody>'
+    + '<tr><td class="k">姓名</td><td style="width:90px">张建国</td><td class="k">性别</td><td style="width:60px">男</td>'
+    + '<td class="k">年龄</td><td style="width:60px">63 岁</td><td class="k">住院号</td><td>2026091708</td>'
+    + '<td class="k">床号</td><td' + (showApache ? ' style="width:70px"' : ' colspan="3"') + '>ICU-05</td>' + apPart + '</tr>'
+    + '<tr><td class="k">诊断</td><td colspan="7">重症肺炎 · 中重度 ARDS · 感染性休克</td>'
+    + '<td class="k">ARDS 分级</td><td colspan="3">□轻度　□中度　☑重度</td></tr>'
+    + '<tr><td class="k">入院日期</td><td colspan="3">2026-09-12</td>'
+    + '<td class="k">俯卧位天数</td><td colspan="3">第 2 天（共 3 次）</td>'
+    + '<td class="k">经管医师</td><td>李伟</td><td class="k">记录日期</td><td>2026-09-17</td></tr>'
+    + '<tr><td class="k">治疗时间</td><td colspan="4">俯卧位开始　2026-09-17 08:00</td>'
+    + '<td colspan="4">俯卧位结束　____ 年 __ 月 __ 日 __:__</td>'
+    + '<td colspan="3">持续时长　12 小时 10 分（自动）</td></tr>'
+    + '</tbody></table>'
+
+  h += '<div class="p-sec">监测记录</div>'
+  h += '<table class="p-mon"><thead><tr><th class="l">分类</th><th class="l">监测参数</th><th>单位</th>'
+  TP.forEach(t => { h += '<th>' + t.k + '<br><span style="font-weight:400">' + t.t + '</span></th>' })
+  h += '</tr></thead><tbody>'
+  GROUPS.forEach(g => {
+    g.rows.forEach((r, ri) => {
+      h += '<tr>'
+      if (ri === 0) h += '<td class="cat" rowspan="' + g.rows.length + '">' + g.name.split('').join('<br>') + '</td>'
+      h += '<td class="l">' + r.p + '</td><td>' + r.u + '</td>'
+      for (let i = 0; i < TP.length; i++) h += pCell(r, i)
+      h += '</tr>'
+    })
+  })
+  h += '</tbody></table>'
+
+  h += '<div class="p-sec">并发症与事件记录</div>'
+  h += '<div class="p-line">☑ 无并发症　□ 插管移位/脱管　□ 皮肤压力性损伤　□ 眼部损伤　□ 血流动力学不稳定　□ 导管脱出　□ 反流误吸　□ 恶性心律失常　□ 痰液堵塞　□ 其他</div>'
+  h += '<div class="p-line">详细描述及处理：翻身时 MAP 一过性下降至 63 mmHg，加快补液后 5 分钟内回升至 78 mmHg，未终止俯卧位。</div>'
+
+  h += '<div class="p-sec">停止 / 终止俯卧位指征评估</div>'
+  h += '<div class="p-line">达标终止：□ PaO₂/FiO₂ 持续 &gt; 150 mmHg 且稳定 ≥ 4 小时　□ 临床综合评估改善</div>'
+  h += '<div class="p-line">紧急终止：□ 严重低血压/难治性休克　□ 气道出血/插管移位　□ 恶性心律失常　□ 颅内压升高　□ 皮肤严重受损　□ 氧合进行性下降</div>'
+  h += '<div class="p-line">实际终止原因：本次俯卧位尚未终止</div>'
+
+  h += '<div class="p-sec">备注</div>'
+  h += '<div class="p-line" style="min-height:34px">俯卧位第 2 天，氧合指数由 78 升至 153 mmHg，驱动压降至 14 cmH₂O，继续当前方案。</div>'
+
+  h += '<div class="p-sign"><div>记录医师：王芳</div><div>记录护士：陈静</div><div>上级医师：李伟</div></div>'
+  h += '<div class="p-foot"><span>记录编号 PP-20260917-002　归档文档号 HIS-DOC-20260917-0881</span>'
+    + '<span>灰底＝系统计算，红字＝超出内置参考区间；来源：自动采集 / 检验同步 / 手工录入</span>'
+    + '<span>打印人 陈静 · 2026-09-17 20:10 · 第 1 页 / 共 1 页</span></div>'
+
+  document.getElementById('paper').innerHTML = h
+}
+/* APACHE II 显示开关：由「参数设置」维护，作用于填写页 / 文书预览 / 打印文书 / 回传文书 */
+const CFG_APACHE = 'ards_cfg_apache'
+let showApache = localStorage.getItem(CFG_APACHE) !== '0'
+function applyApache() {
+  document.querySelectorAll('.apache-field').forEach(el => { el.classList.toggle('hide', !showApache) })
+  const cb = document.getElementById('apToggle')
+  if (cb) cb.checked = showApache
+}
+function toggleApache() {
+  showApache = document.getElementById('apToggle').checked
+  localStorage.setItem(CFG_APACHE, showApache ? '1' : '0')
+  applyApache()
+  renderPrint()
+}
+applyApache()
+renderPrint()
+
+/* ------------------------------------------------ 屏幕切换 */
+function go(scr) {
+  const map = { form: 'scrForm', print: 'scrPrint' }
+  Object.keys(map).forEach(k => {
+    document.getElementById(map[k]).classList.toggle('hide', k !== scr)
+  })
+  document.getElementById('pbForm').classList.toggle('on', scr === 'form')
+  document.getElementById('pbPrint').classList.toggle('on', scr === 'print')
+  window.scrollTo(0, 0)
+}
+function openTp() {
+  document.getElementById('tpMask').classList.remove('hide')
+  document.getElementById('tpDrawer').classList.remove('hide')
+}
+function closeTp() {
+  document.getElementById('tpMask').classList.add('hide')
+  document.getElementById('tpDrawer').classList.add('hide')
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTp() })
+const q = new URLSearchParams(location.search).get('scr')
+if (q === 'print') go('print')
+if (q === 'tp') openTp()
+</script>
+</body>
+</html>

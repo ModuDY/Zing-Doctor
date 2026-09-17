@@ -25,6 +25,9 @@
 | 辅助 | APACHE II 评分总览 | `apache2-overview` | `/page/apache2-overview` |
 | 辅助 | APACHE II 评分评估（含 PDF 文书） | `apache2-score` | `/page/apache2-score` |
 | 辅助 | ARDS 监测（柏林定义分级、肺保护性通气） | `ards-monitor` | `/page/ards-monitor` |
+| 辅助 | ARDS 俯卧位通气治疗记录（37 项 × 时点矩阵，列表 + 归档） | `ards-prone-list` | `/page/ards-prone-list` |
+| 辅助 | ARDS 俯卧位记录填写（由列表页内部跳转，也可外链直达） | `ards-prone-record` | `/page/ards-prone-record` |
+| 辅助 | ARDS 数据采集映射配置（常规入口：**系统设置 → 参数设置 →「ARDS 数据映射」页签**） | `ards-prone-config` | `/page/ards-prone-config` |
 | 辅助 | 患者出科统计（支持 CSV 导出） | `discharge-stats` | `/page/discharge-stats` |
 | 辅助 | SOFA 评分（序贯器官衰竭评估，6 项 0~24 分；含文书 PDF、指标趋势） | `sofa-score` | `/page/sofa-score` |
 | 辅助 | SOFA 评分总览（总分分布 + ΔSOFA 恶化预警） | `sofa-overview` | `/page/sofa-overview` |
@@ -32,15 +35,18 @@
 | 质控 | 质控指标看板（127 条指标按域分组，含口径血缘下钻、覆盖率报告、事实层与计算批次） | `quality-board` | `/page/quality-board` |
 | 质控 | 质控月度汇总（1-12 月横排，含季度/全年合计/月均/极值月与 Excel 导出） | `quality-monthly` | `/page/quality-monthly` |
 
-> 共 19 个已注册外链页面；`abx-ddd-patients` / `abx-mdro-patients` 为总览页内部跳转的明细页，不经 `/entry` 外链进入。
+> 共 22 个已注册外链页面；`abx-ddd-patients` / `abx-mdro-patients` 为总览页内部跳转的明细页，不经 `/entry` 外链进入。
+>
+> `ards-prone-config` 已注册、可外链直达，但常规入口是**系统设置 → 参数设置 →「ARDS 数据映射」页签**：映射是「37 项 × 多通道」的规则表（通道/匹配方式/匹配值/优先级/时间窗/单位换算），塞进键值型参数只能编辑一坨 JSON，无法表格浏览、候选选择与试采核对，故单独建表 `ards_prone_config`，只把入口合进参数设置。
 >
 > 质控两个页面由 YAML 配置驱动（`src/main/resources/quality/`），指标增删改只改配置并调一次 `POST /api/quality/sync-index`，不改接口与前端。详见 [质控指标中台 · 产品设计](docs/15-质控指标中台-产品设计.md)。
 
 ## 快速开始
 
 ```bash
-# 1. 初始化达梦数据库（推荐直接跑 install.sh，自动建模式 zing_doctor_db_prod 并建表）
-#    手动方式：SYSDBA 执行 00_init_user.sql 建模式，再执行 01/02 建表与种子数据
+# 1. 初始化达梦数据库（推荐直接跑 install.sh，自动建模式 zing_doctor_db_prod 并按依赖顺序建表/补列）
+#    手动方式：SYSDBA 执行 00_init_user.sql 建模式，再执行 01/02 建表与种子数据；
+#    03~22 为分模块增量脚本（按编号顺序执行），逐条说明与漏执行后果见 DATABASE-CHANGES.md
 disql SYSDBA/Sa_20250815@100.120.1.102:14236
 SQL> start /opt/zing-doctor/sql/00_init_user.sql
 SQL> start /opt/zing-doctor/sql/01_schema.sql
@@ -114,7 +120,10 @@ CI_SECURITY_SCAN=1 bash tools/ci.sh   # 额外跑后端依赖漏洞扫描（需�
 - [APACHE II 评分 · 产品设计](docs/13-APACHEII评分-产品设计.md)
 - [抗菌药物识别词库配置 · 产品设计](docs/14-抗菌药物识别词库配置-产品设计.md)
 - [质控指标中台 · 产品设计](docs/15-质控指标中台-产品设计.md)
-- 一键部署：解压后执行 `bash install.sh`（自动初始化达梦 + 构建启动，支持内网离线）
+- [质控指标可视化配置 · 改造方案](docs/16-质控指标可视化配置-改造方案.md)
+- [ARDS 俯卧位通气治疗记录 · 产品设计](docs/17-ARDS俯卧位通气治疗记录-产品设计.md)（设计依据详见 `docs/ards-prone/设计方案.md`）
+- [数据库变更清单](DATABASE-CHANGES.md)（新增表/加列按批次记录，含漏执行的后果与人工补执行 SQL）
+- 一键部署：解压后执行 `bash install.sh`（自动初始化达梦 + 老库自动套用增量脚本 + 构建启动，支持内网离线）
 
 ## 目录结构
 
@@ -129,7 +138,7 @@ zing-doctor/
 │   │   ├── antibiotic/          维度一~四：抗感染决策、PK/PD、DDD、细菌监测、词库配置
 │   │   ├── sepsis/              脓毒症休克集束化治疗
 │   │   ├── apache2/             APACHE II 评分
-│   │   ├── ards/                ARDS 监测
+│   │   ├── ards/                ARDS 监测；prone = 俯卧位通气治疗记录（记录/时点/单元格/更正留痕/科室模板 + 采集映射配置）
 │   │   └── handover/            医生交班览表 / 出科统计
 │   └── quality/                 质控指标中台：DSL 引擎（YAML 口径 → SQL）+ 查询/计算/月度汇总/导出
 ├── src/main/resources/          application.yml、quality/（数据源/事实层/指标 YAML 配置）

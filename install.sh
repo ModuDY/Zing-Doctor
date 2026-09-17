@@ -110,6 +110,65 @@ detect_disql() {
 }
 detect_disql
 
+# ---------- 全量初始化（新库：建模式 + 建表 + 种子）----------
+# ⚠️ 新增 sql/NN_xxx.sql 必须同时维护三处清单：
+#      FULL_SQL（disql 全量）、FULL_SQL_JDBC（JDBC 全量）、INCREMENTAL_SQL（老库增量）。
+#    漏维护的表现：新装环境缺表；或老库升级不补表，页面报「无效的表或视图名」。
+#    22_ards_prone_config.sql 曾因漏加导致「ARDS 数据映射」页 500，故改为数组集中维护。
+#
+# ⚠️ 顺序 = 依赖顺序，不要随意调整：
+#   01 建模式 → 02 种子 → 06/07/08 业务表 → 09/10/11 质控表 → 12/13/14 系统表
+#   → 15~20 给上述表加列 → 21 ARDS 俯卧位 5 张表（参数种子写 zing_sys_param，由 14 建）
+#   → 22 ARDS 映射配置表 + ards_prone_record 加列（依赖 21）。
+FULL_SQL=(
+    "00_init_user.sql"
+    "01_schema.sql"
+    "02_seed.sql"
+    "06_abx_drug_dict.sql"
+    "07_sofa.sql"
+    "08_sofa_p1.sql"
+    "09_quality.sql"
+    "10_quality_config.sql"
+    "11_quality_count_rule.sql"
+    "12_archive.sql"
+    "13_auth.sql"
+    "14_param_framework.sql"
+    "15_quality_patient_fields.sql"
+    "16_quality_fatality_ref.sql"
+    "17_quality_rule_local.sql"
+    "18_quality_manual_audit.sql"
+    "19_quality_target_direction.sql"
+    "20_quality_fact_patient_default_cols.sql"
+    "21_ards_prone.sql"
+    "22_ards_prone_config.sql"
+)
+
+# JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
+FULL_SQL_JDBC=(
+    "00_init_user.sql"
+    "01_schema.sql"
+    "02_seed.sql"
+    "03_icu_indexes.sql"
+    "05_apache2_pdf.sql"
+    "06_abx_drug_dict.sql"
+    "07_sofa.sql"
+    "08_sofa_p1.sql"
+    "09_quality.sql"
+    "10_quality_config.sql"
+    "11_quality_count_rule.sql"
+    "12_archive.sql"
+    "13_auth.sql"
+    "14_param_framework.sql"
+    "15_quality_patient_fields.sql"
+    "16_quality_fatality_ref.sql"
+    "17_quality_rule_local.sql"
+    "18_quality_manual_audit.sql"
+    "19_quality_target_direction.sql"
+    "20_quality_fact_patient_default_cols.sql"
+    "21_ards_prone.sql"
+    "22_ards_prone_config.sql"
+)
+
 # ---------- 增量升级（幂等脚本，可重复执行）----------
 # 老库（表已存在）会跳过全量初始化，新增的表/列就靠这里自动补上，
 # 避免「代码更新了、表没改」导致页面 500（典型：无效的列名[param_type]）。
@@ -141,6 +200,11 @@ INCREMENTAL_SQL=(
     "12_archive.sql"
     "13_auth.sql"
     "14_param_framework.sql"
+    # 21 建 ARDS 俯卧位 5 张表 + 页面注册 + 参数种子；参数种子写 zing_sys_param（14 建），故排最后
+    "21_ards_prone.sql"
+    # 22 建 ARDS 采集映射配置表 + ards_prone_record 日期扩列（依赖 21，故排其后）；
+    #    漏执行表现：参数设置页「ARDS 数据映射」点「一键从内置生成」500「无效的表或视图名[ards_prone_config]」
+    "22_ards_prone_config.sql"
 )
 
 # ---------- JDBC 初始化工具 classpath ----------
@@ -283,6 +347,12 @@ init_db() {
   local logfile=/tmp/zing-dbinit.log
   local DISQL="$DB_DISQL"
   local p=""
+  # 全量脚本路径（清单见文件上方 FULL_SQL / FULL_SQL_JDBC，新增 SQL 记得同步）
+  local files=()
+  local jfiles=()
+  local f
+  for f in "${FULL_SQL[@]}";      do files+=("$ROOT/sql/$f");  done
+  for f in "${FULL_SQL_JDBC[@]}"; do jfiles+=("$ROOT/sql/$f"); done
   # 表已存在则跳过初始化（重复部署场景，避免报错）
   # ⚠️ 表名是双引号小写建的，比较必须统一 UPPER；否则老库识别不出来，会去重跑全量并报错
   if [ -n "$DISQL" ]; then
@@ -303,7 +373,7 @@ init_db() {
 
   if [ -n "$DISQL" ]; then
     info "通道 a：本机 disql 初始化达梦（建模式+建表+种子）..."
-    if cat "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" "$ROOT/sql/06_abx_drug_dict.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" "$ROOT/sql/10_quality_config.sql" "$ROOT/sql/11_quality_count_rule.sql" "$ROOT/sql/12_archive.sql" "$ROOT/sql/13_auth.sql" "$ROOT/sql/14_param_framework.sql" "$ROOT/sql/15_quality_patient_fields.sql" "$ROOT/sql/16_quality_fatality_ref.sql" "$ROOT/sql/17_quality_rule_local.sql" \
+    if cat "${files[@]}" \
          | "$DISQL" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" >"$logfile" 2>&1; then
       info "达梦初始化完成（本机 disql，模式 zing_doctor_db_prod）"; return 0
     fi
@@ -316,7 +386,7 @@ init_db() {
     info "通道 b：达梦容器 $CID 初始化..."
     for p in /opt/dmdbms/bin/disql /dm8/bin/disql /opt/dm8/bin/disql; do
       if docker exec "$CID" test -x "$p" 2>/dev/null; then
-        if cat "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" "$ROOT/sql/06_abx_drug_dict.sql" "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" "$ROOT/sql/10_quality_config.sql" "$ROOT/sql/11_quality_count_rule.sql" "$ROOT/sql/12_archive.sql" "$ROOT/sql/13_auth.sql" "$ROOT/sql/14_param_framework.sql" "$ROOT/sql/15_quality_patient_fields.sql" "$ROOT/sql/16_quality_fatality_ref.sql" "$ROOT/sql/17_quality_rule_local.sql" \
+        if cat "${files[@]}" \
              | docker exec -i "$CID" "$p" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" >"$logfile" 2>&1; then
           info "达梦初始化完成（容器 $CID，模式 zing_doctor_db_prod）"; return 0
         fi
@@ -335,11 +405,7 @@ init_db() {
     if [ -n "$_cp" ]; then
       info "通道 c：运行 JDBC 初始化工具连接达梦（classpath: $_cp）..."
       if java -cp "lib/DmJdbcDriver18-8.1.3.140.jar:$_cp" \
-              DbInit "jdbc:dm://$DM_HOST_PORT" "$ADMIN_USER" "$ADMIN_PASS" \
-              "$ROOT/sql/00_init_user.sql" "$ROOT/sql/01_schema.sql" "$ROOT/sql/02_seed.sql" \
-              "$ROOT/sql/03_icu_indexes.sql" "$ROOT/sql/05_apache2_pdf.sql" "$ROOT/sql/06_abx_drug_dict.sql" \
-              "$ROOT/sql/07_sofa.sql" "$ROOT/sql/08_sofa_p1.sql" "$ROOT/sql/09_quality.sql" \
-              "$ROOT/sql/10_quality_config.sql" "$ROOT/sql/11_quality_count_rule.sql" "$ROOT/sql/12_archive.sql" "$ROOT/sql/13_auth.sql" "$ROOT/sql/14_param_framework.sql" "$ROOT/sql/15_quality_patient_fields.sql" "$ROOT/sql/16_quality_fatality_ref.sql" "$ROOT/sql/17_quality_rule_local.sql"; then
+              DbInit "jdbc:dm://$DM_HOST_PORT" "$ADMIN_USER" "$ADMIN_PASS" "${jfiles[@]}"; then
         info "达梦初始化完成（JDBC 工具，模式 zing_doctor_db_prod + ICU 库性能索引 + APACHE2 PDF列）"; return 0
       fi
       warn "JDBC 工具执行失败（详见上方日志）"
@@ -368,6 +434,11 @@ init_db() {
   echo "    start $ROOT/sql/15_quality_patient_fields.sql # 质控：quality_metric_def 加 patient_fields 列（幂等；漏执行则质控配置页 500：无效的列名[patient_fields]）"
   echo "    start $ROOT/sql/16_quality_fatality_ref.sql # 质控：加引用列 + 两条病死率改自动计算 + 人员数量改人工填报（幂等；漏执行则质控配置页 500：无效的列名[numerator_metric]）"
   echo "    start $ROOT/sql/17_quality_rule_local.sql # 质控：指标规则加 origin/local_override 列，支持本院自建规则（幂等；漏执行则配置页「指标规则」页签加载失败、新增规则报无效的列名[origin]）"
+  echo "    start $ROOT/sql/18_quality_manual_audit.sql # 质控：加 value_source 列（幂等；漏执行则人工录入保存 500）"
+  echo "    start $ROOT/sql/19_quality_target_direction.sql # 质控：加 target_direction 列（幂等；漏执行则质控看板加载失败）"
+  echo "    start $ROOT/sql/20_quality_fact_patient_default_cols.sql # 质控：事实表加默认列（幂等）"
+  echo "    start $ROOT/sql/21_ards_prone.sql # ARDS 俯卧位 5 张表 + 页面注册 + 参数种子（幂等）"
+  echo "    start $ROOT/sql/22_ards_prone_config.sql # ARDS 采集映射配置表 + 日期扩列（幂等；漏执行则「ARDS 数据映射」页 500）"
   exit 1
 }
 
