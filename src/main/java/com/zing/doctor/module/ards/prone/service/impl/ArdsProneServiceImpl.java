@@ -409,13 +409,14 @@ public class ArdsProneServiceImpl implements ArdsProneService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, Object> collect(Long recordId, Integer tpIndex) {
-        return doCollect(recordId, tpIndex, false);
+    public Map<String, Object> collect(Long recordId, Integer tpIndex, boolean forceRefresh) {
+        return doCollect(recordId, tpIndex, false, forceRefresh);
     }
 
     @Override
     public Map<String, Object> previewCollect(Long recordId, Integer tpIndex) {
-        return doCollect(recordId, tpIndex, true);
+        // 试采走 dryRun（不落库），且不触发配置缓存失效
+        return doCollect(recordId, tpIndex, true, false);
     }
 
     /**
