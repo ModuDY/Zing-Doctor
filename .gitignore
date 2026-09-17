@@ -46,3 +46,6 @@ _pack_tmp.ps1
 # PowerShell 重定向误产物（`> $null` 被当成文件名时生成的 0 字节文件）
 $null
 *.hdr
+
+# vite 依赖预构建缓存（含文档原型 docs/ards-prone/.vite，运行产物非源码）
+.vite/
