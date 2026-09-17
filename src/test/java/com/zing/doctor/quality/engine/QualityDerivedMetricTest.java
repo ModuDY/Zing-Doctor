@@ -121,7 +121,7 @@ class QualityDerivedMetricTest {
 
     /** 只用到判定与组合逻辑，mapper / props / guard 传 null。 */
     private static QualityEngine engine() {
-        return new QualityEngine(load(), new SqlCompiler(), null, null, null);
+        return new QualityEngine(load(), new SqlCompiler(), null, null, null, new QualityExpressionAnalyzer());
     }
 
     private static QualityDslLoader load() {

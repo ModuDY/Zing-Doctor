@@ -9,6 +9,7 @@ import com.zing.doctor.quality.engine.MetricOutcome;
 import com.zing.doctor.quality.engine.PatientColumns;
 import com.zing.doctor.quality.engine.QualityDslLoader;
 import com.zing.doctor.quality.engine.QualityEngine;
+import com.zing.doctor.quality.engine.QualityExpressionAnalyzer;
 import com.zing.doctor.quality.entity.QualityCalcRun;
 import com.zing.doctor.quality.entity.QualityCalcTrace;
 import com.zing.doctor.quality.entity.QualityIndex;
@@ -30,6 +31,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -50,6 +52,7 @@ public class QualityQueryService {
     private final QualityCalcTraceMapper traceMapper;
     private final QualityMetricPatientMapper patientMapper;
     private final QualityCalcRunMapper runMapper;
+    private final QualityExpressionAnalyzer analyzer;
 
     private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -58,7 +61,8 @@ public class QualityQueryService {
                               QualityIndexMapper indexMapper, QualityMetricResultMapper resultMapper,
                               QualityCalcTraceMapper traceMapper,
                               QualityMetricPatientMapper patientMapper,
-                              QualityCalcRunMapper runMapper) {
+                              QualityCalcRunMapper runMapper,
+                              QualityExpressionAnalyzer analyzer) {
         this.props = props;
         this.dsl = dsl;
         this.engine = engine;
@@ -67,6 +71,7 @@ public class QualityQueryService {
         this.traceMapper = traceMapper;
         this.patientMapper = patientMapper;
         this.runMapper = runMapper;
+        this.analyzer = analyzer;
     }
 
     /**
@@ -361,6 +366,11 @@ public class QualityQueryService {
         } catch (Exception e) {
             out.put("message", "明细生成失败: " + e.getMessage());
             out.put("patients", new ArrayList<>());
+            // 异常分支也必须带 viewCounts：缺了它前端只能兜底，而兜底是拿 patients 算的，
+            // patients 此刻为空 —— 于是四个档位显示成「全部（0）分子（0）…」，
+            // 看着像统计坏了，实际是明细没生成出来。补上全 0 的计数，配合上方黄色告警，
+            // 使用者才看得出是「明细失败」而不是「本期一个人都没有」。
+            out.put("viewCounts", newViewCounts());
         }
         return out;
     }
@@ -599,8 +609,10 @@ public class QualityQueryService {
      *
      * <p>配置里的 key 有三种情形，按下面顺序判定：
      * <ol>
-     *   <li><b>没配</b> → 默认六列（姓名 / 住院号 / 患者ID / 科室 / 入分子 / 入分母）；</li>
-     *   <li><b>配了但一个默认列都没提到</b>（升级前只配过补充列的老数据）→ 默认六列 + 补充列，
+     *   <li><b>没配</b> → 默认列（姓名 / 床号 / 住院号 / 诊断 / 入科时间 / 出科时间 / 入分子 / 入分母）。
+     *       其中床号 / 诊断 / 入科 / 出科要看这条指标的事实层有没有投影出该列，
+     *       没有就不出这一列 —— 摆一列永远空白的「床号」，比不摆更让人怀疑数据漏了；</li>
+     *   <li><b>配了但一个默认列都没提到</b>（升级前只配过补充列的老数据）→ 默认列 + 补充列，
      *       保证升级前后表头不变，老配置不会因为这次改动突然少列；</li>
      *   <li><b>配了且提到默认列</b> → 完全按配置顺序出列：没提到就是不显示、顺序即显示顺序。
      *       「去掉一列」「把这列调到最前」都是这么表达的。</li>
@@ -617,10 +629,15 @@ public class QualityQueryService {
             }
         }
 
+        // 扩展默认列出不出，取决于这条指标的事实层有没有投影出该列
+        Set<String> available = availableColumns(dsl.factOf(m));
         List<Map<String, Object>> list = new ArrayList<>();
         if (!mentionsDefaults) {
-            for (Map.Entry<String, String> e : PatientColumns.reserved().entrySet()) {
-                list.add(reservedFieldDef(e.getKey(), e.getValue()));
+            for (String key : PatientColumns.defaultOrder()) {
+                if (PatientColumns.isExtendedKey(key) && !available.contains(key)) {
+                    continue;
+                }
+                list.add(reservedFieldDef(key, PatientColumns.reserved().get(key)));
             }
         }
         for (PatientFieldDefinition pf : configured) {
@@ -639,12 +656,28 @@ public class QualityQueryService {
         return list;
     }
 
-    /** 默认列的列定义：表头固定，宽度交给前端自适应。 */
+    /**
+     * 事实层实际投影出的列名（小写）。
+     *
+     * <p>与明细 SQL 那侧（QualityEngine）用的是同一个判断：只有事实层真的有这一列，
+     * 扩展默认列才可能显示得出来，否则就别占一列。
+     */
+    private Set<String> availableColumns(FactDefinition f) {
+        Set<String> out = new HashSet<>();
+        for (String c : analyzer.availableColumns(f)) {
+            if (c != null) {
+                out.add(c.trim().toLowerCase());
+            }
+        }
+        return out;
+    }
+
+    /** 默认列的列定义：表头与宽度都取 PatientColumns 的同源常量。 */
     private Map<String, Object> reservedFieldDef(String key, String label) {
         Map<String, Object> f = new LinkedHashMap<>();
         f.put("key", key);
         f.put("label", label);
-        f.put("width", null);
+        f.put("width", PatientColumns.defaultWidth(key));
         f.put("type", fieldType(key));
         return f;
     }

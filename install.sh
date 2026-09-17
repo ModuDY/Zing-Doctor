@@ -137,6 +137,7 @@ INCREMENTAL_SQL=(
     "17_quality_rule_local.sql"
     "18_quality_manual_audit.sql"
     "19_quality_target_direction.sql"
+    "20_quality_fact_patient_default_cols.sql"
     "12_archive.sql"
     "13_auth.sql"
     "14_param_framework.sql"

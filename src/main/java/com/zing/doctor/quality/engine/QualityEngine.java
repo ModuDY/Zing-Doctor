@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -49,13 +50,14 @@ public class QualityEngine {
      * <p>与 {@link PatientColumns} 共用同一份常量 —— 这两处曾经各写一份，
      * 只要有一边改了名字，补充列就会被当成默认列漏掉（或反过来）而不报错。
      */
-    private static final Set<String> BASE_PATIENT_COLUMNS = PatientColumns.reservedColumns();
+    private static final Set<String> BASE_PATIENT_COLUMNS = PatientColumns.baseColumns();
 
     private final QualityDslLoader dsl;
     private final SqlCompiler compiler;
     private final QualitySqlMapper sqlMapper;
     private final QualityProperties props;
     private final QualitySqlGuard sqlGuard;
+    private final QualityExpressionAnalyzer analyzer;
 
     /** cacheKey(factName + 周期) → 物化表全限定名 */
     private final Map<String, String> factTableCache = new ConcurrentHashMap<>();
@@ -83,12 +85,13 @@ public class QualityEngine {
 
     public QualityEngine(QualityDslLoader dsl, SqlCompiler compiler,
                          QualitySqlMapper sqlMapper, QualityProperties props,
-                         QualitySqlGuard sqlGuard) {
+                         QualitySqlGuard sqlGuard, QualityExpressionAnalyzer analyzer) {
         this.dsl = dsl;
         this.compiler = compiler;
         this.sqlMapper = sqlMapper;
         this.props = props;
         this.sqlGuard = sqlGuard;
+        this.analyzer = analyzer;
     }
 
     /** 清空事实层缓存（新一轮计算前调用，确保按当前周期重建）。 */
@@ -571,7 +574,8 @@ public class QualityEngine {
         // 判不过就退回全院明细，宁可多列几行，也不能让下钻整页报错
         String filter = deptFilterOf(m, deptValue);
         String factTable = materializeFact(m.getFact(), start, end, false, filter);
-        String sql = compiler.compilePatients(m, factTable, f, filter, includeExcluded);
+        String sql = compiler.compilePatients(m, factTable, f, filter, includeExcluded,
+                availableColumns(f));
         guard(sql);
         List<Map<String, Object>> rows = sqlMapper.query(sql);
         List<MetricOutcome.PatientHit> hits = new ArrayList<>();
@@ -598,6 +602,22 @@ public class QualityEngine {
             hits.add(h);
         }
         return hits;
+    }
+
+    /**
+     * 事实层实际投影出的列名（小写）。
+     *
+     * <p>明细的扩展默认列（床号 / 诊断 / 入科 / 出科）据此决定带不带：
+     * 事实层没有的列一律不进 SQL，否则缺列的事实层整份明细都会报「无效的列名」。
+     */
+    private Set<String> availableColumns(FactDefinition f) {
+        Set<String> out = new HashSet<>();
+        for (String c : analyzer.availableColumns(f)) {
+            if (c != null) {
+                out.add(c.trim().toLowerCase());
+            }
+        }
+        return out;
     }
 
     /** 清理非当前周期的事实表，避免逐月累积。失败不影响业务。 */

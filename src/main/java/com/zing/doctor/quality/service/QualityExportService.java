@@ -2,7 +2,6 @@ package com.zing.doctor.quality.service;
 
 import com.zing.doctor.quality.entity.QualityCalcRun;
 import com.zing.doctor.quality.entity.QualityIndex;
-import com.zing.doctor.quality.entity.QualityMonthlyReport;
 import com.zing.doctor.quality.mapper.QualityIndexMapper;
 import com.zing.doctor.quality.support.XlsxStreamWriter;
 import org.slf4j.Logger;
@@ -11,10 +10,12 @@ import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.OutputStream;
+import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,17 +66,18 @@ public class QualityExportService {
                  XlsxStreamWriter w = new XlsxStreamWriter(out, SHEET_MONTHLY, SHEET_INDEX, SHEET_RUN)) {
 
                 // Sheet 1：月度汇总（1-12 月横排）
-                w.beginSheet(0, new String[]{"指标编号", "指标名称", "所属域", "单位", "值类型",
+                // 行 = 指标，其后紧跟两行缩进的分子 / 分母原子项。用的是与页面同一份组装结果
+                // （monthlyService.rows），不另写一套 —— 否则会出现「屏幕上有、导出里没有」这类差异。
+                w.beginSheet(0, new String[]{"指标编号", "指标名称", "单位", "类型",
                         "1月", "2月", "3月", "4月", "5月", "6月",
                         "7月", "8月", "9月", "10月", "11月", "12月",
                         "Q1", "Q2", "Q3", "Q4", "全年合计", "全年平均", "最高月", "最低月"});
-                for (QualityMonthlyReport r : monthlyService.list(year, dept)) {
-                    w.writeRow(new Object[]{r.getIndexCode(), r.getIndexName(), r.getDomainCode(),
-                            r.getUnit(), r.getValueType(),
-                            r.getM01(), r.getM02(), r.getM03(), r.getM04(), r.getM05(), r.getM06(),
-                            r.getM07(), r.getM08(), r.getM09(), r.getM10(), r.getM11(), r.getM12(),
-                            r.getQ1(), r.getQ2(), r.getQ3(), r.getQ4(),
-                            r.getYearTotal(), r.getYearAvg(), r.getMaxMonth(), r.getMinMonth()});
+                for (Map<String, Object> r : monthlyService.rows(year, dept, false)) {
+                    w.writeRow(monthlyCells(r, ""));
+                    // 子行靠名称前导空格表示层级：不依赖单元格样式，任何 Excel 打开都对得齐
+                    for (Map<String, Object> c : childrenOf(r)) {
+                        w.writeRow(monthlyCells(c, "    └ "));
+                    }
                 }
                 w.endSheet();
 
@@ -123,6 +125,42 @@ public class QualityExportService {
                 }
             }
         }
+    }
+
+    /**
+     * 月度行 → 单元格数组。列数必须与 Sheet 1 的表头逐一对齐（24 列）：
+     * 少一列整行左移、多一列右移，而 Excel 不会报错，只会静默给出一张错位的表 ——
+     * 所以这里动列，表头必须同步动；反之亦然。
+     *
+     * @param prefix 子行缩进（挂在名称前的空格与符号，用来表达层级）
+     */
+    private Object[] monthlyCells(Map<String, Object> r, String prefix) {
+        BigDecimal[] months = r.get("months") instanceof BigDecimal[] ? (BigDecimal[]) r.get("months")
+                : new BigDecimal[12];
+        Object[] cells = new Object[24];
+        cells[0] = r.get("code");
+        cells[1] = prefix + (r.get("name") == null ? "" : r.get("name"));
+        cells[2] = r.get("unit");
+        // 类型列：指标行显示「指标」，子行显示「分子 / 分母」——一眼看出层级与构成
+        cells[3] = r.get("roleLabel") == null ? "指标" : r.get("roleLabel");
+        for (int i = 0; i < 12; i++) {
+            cells[4 + i] = months[i];
+        }
+        cells[16] = r.get("q1");
+        cells[17] = r.get("q2");
+        cells[18] = r.get("q3");
+        cells[19] = r.get("q4");
+        cells[20] = r.get("yearTotal");
+        cells[21] = r.get("yearAvg");
+        cells[22] = r.get("maxMonth");
+        cells[23] = r.get("minMonth");
+        return cells;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> childrenOf(Map<String, Object> r) {
+        Object c = r.get("children");
+        return c instanceof List ? (List<Map<String, Object>>) c : Collections.emptyList();
     }
 
     /**

@@ -111,7 +111,7 @@ class QualityDeptScopeTest {
 
     /** 只用到判定逻辑，mapper / props / guard 传 null —— deptFilterOf 不碰它们。 */
     private static QualityEngine engine(QualityDslLoader dsl) {
-        return new QualityEngine(dsl, new SqlCompiler(), null, null, null);
+        return new QualityEngine(dsl, new SqlCompiler(), null, null, null, new QualityExpressionAnalyzer());
     }
 
     private static boolean isDeptDimensioned(MetricDefinition m) {

@@ -28,16 +28,8 @@
             :value="dept.org_code"
           />
         </el-select>
-        <el-select
-          v-model="domainFilter"
-          placeholder="全部域"
-          style="width: 170px"
-          clearable
-          popper-class="qb-popper"
-        >
-          <el-option v-for="d in domainOptions" :key="d" :label="d" :value="d" />
-        </el-select>
         <el-checkbox v-model="onlyWithData">只看有数据的指标</el-checkbox>
+        <el-checkbox v-model="showAtoms" @change="loadMonthly">显示原子项</el-checkbox>
         <el-button type="primary" :loading="loading" @click="loadMonthly">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
@@ -60,7 +52,7 @@
           <span class="metric-label">汇总指标数</span>
           <span class="metric-ico"><el-icon><Grid /></el-icon></span>
         </div>
-        <div class="metric-value">{{ rows.length }}</div>
+        <div class="metric-value">{{ metricRows.length }}</div>
         <div class="metric-sub">{{ year }} 年 · {{ departLabel }}</div>
       </div>
       <div class="metric-card ok">
@@ -133,21 +125,46 @@
         <span class="dot"></span>
         <span>月度汇总宽表（1-12 月横排）</span>
         <span class="title-note">
-          率类按「分子分母先汇总再重算」为加权值，数类直接求和；高亮为年内最高/最低月
+          行 = 质控指标（分子 ÷ 分母 × 系数），点行展开可见分子项 / 分母项；
+          季度与全年按「分子分母先汇总再相除」的加权口径，高亮为年内最高/最低月
         </span>
       </div>
+      <!--
+        树形表格：主行是**指标**，展开后是构成它的分子项与分母项（原子项）。
+        默认折叠 —— 一屏几十条指标已经够看，要追究某条的构成再点开那一条。
+        row-key 用后端给的 rowKey（子行带规则前缀）：同一个原子项常被多条指标共用
+        （quality_403 被 13 条当分母），key 若只用原子项 code，点开一条会连带展开十几条。
+      -->
       <el-table
+        ref="tableRef"
         v-loading="loading"
         :data="displayRows"
+        row-key="rowKey"
+        :tree-props="{ children: 'children' }"
         border
         size="small"
         max-height="620"
         :row-class-name="rowClass"
+        @row-click="toggleRow"
       >
-        <el-table-column prop="code" label="指标编号" width="118" fixed="left" />
-        <el-table-column prop="name" label="指标名称" min-width="230" fixed="left" show-overflow-tooltip />
-        <el-table-column prop="domain" label="所属域" width="130" />
-        <el-table-column prop="unit" label="单位" width="66" align="center" />
+        <!--
+          不设「指标编号」列：ruleId 是 ICU 侧数字 id 或 LOCAL_xxx，又长又占宽，
+          对看报表的人不构成信息（要追溯是哪条规则，导出的 Excel 里有编号列）。
+          name 因此加宽，并且成为树形展开箭头的落点 —— 箭头固定出现在第一列。
+        -->
+        <el-table-column prop="name" label="指标名称" min-width="300" fixed="left" show-overflow-tooltip />
+        <el-table-column label="类型" width="72" align="center">
+          <template #default="{ row }">
+            <span :class="['type-tag', row.rowType === 'METRIC' ? 'is-metric' : 'is-atom']">
+              {{ row.rowType === 'METRIC' ? '指标' : row.roleLabel || '原子项' }}
+            </span>
+          </template>
+        </el-table-column>
+        <!--
+          不设「所属域」列：域是给人**筛**的（顶部下拉 + 趋势图分组标题），不是给人读的 ——
+          一行指标属于哪个域，看名字就猜得到，单占一列只是噪声。
+        -->
+        <el-table-column prop="unit" label="单位" width="70" align="center" />
         <el-table-column
           v-for="(h, i) in header"
           :key="h"
@@ -156,29 +173,31 @@
           align="right"
         >
           <template #default="{ row }">
-            <span :class="monthClass(row, i)">{{ num(row.months ? row.months[i] : null) }}</span>
+            <span :class="monthClass(row, i)">
+              {{ num(row.months ? row.months[i] : null, row.precision) }}
+            </span>
           </template>
         </el-table-column>
         <el-table-column label="Q1" width="90" align="right">
-          <template #default="{ row }">{{ num(row.q1) }}</template>
+          <template #default="{ row }">{{ num(row.q1, row.precision) }}</template>
         </el-table-column>
         <el-table-column label="Q2" width="90" align="right">
-          <template #default="{ row }">{{ num(row.q2) }}</template>
+          <template #default="{ row }">{{ num(row.q2, row.precision) }}</template>
         </el-table-column>
         <el-table-column label="Q3" width="90" align="right">
-          <template #default="{ row }">{{ num(row.q3) }}</template>
+          <template #default="{ row }">{{ num(row.q3, row.precision) }}</template>
         </el-table-column>
         <el-table-column label="Q4" width="90" align="right">
-          <template #default="{ row }">{{ num(row.q4) }}</template>
+          <template #default="{ row }">{{ num(row.q4, row.precision) }}</template>
         </el-table-column>
         <el-table-column label="全年合计" width="110" align="right" fixed="right">
           <template #default="{ row }">
-            <span class="strong">{{ num(row.yearTotal) }}</span>
+            <span class="strong">{{ num(row.yearTotal, row.precision) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="月均" width="100" align="right" fixed="right">
           <template #default="{ row }">
-            <span class="strong">{{ num(row.yearAvg) }}</span>
+            <span class="strong">{{ num(row.yearAvg, row.precision) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="最高月" width="86" align="center" fixed="right">
@@ -215,8 +234,10 @@ const year = ref(String(new Date().getFullYear()))
 // 外链带 departCode 时默认按该科室统计（与看板一致），不再默认跑全院；可手动清空回到全院
 const departCode = ref(externalParam('departCode'))
 const departments = ref([])
-const domainFilter = ref('')
 const onlyWithData = ref(false)
+// 宽表的行是指标（分子 ÷ 分母 × 系数）。打开它才追加「没有任何指标在引用」的原子项行 ——
+// 那是排查用的（某个原子项算出来了却没人用），日常看指标时不必背着这些噪声
+const showAtoms = ref(false)
 
 const loading = ref(false)
 const rebuilding = ref(false)
@@ -226,10 +247,14 @@ const headers = ref(DEFAULT_HEADER)
 const rowsData = ref([])
 const chartCode = ref('')
 const chartRef = ref(null)
+const tableRef = ref(null)
 let chart = null
 
 const header = computed(() => headers.value || DEFAULT_HEADER)
 const rows = computed(() => rowsData.value || [])
+
+/** 指标行（宽表主行）：趋势图与摘要卡都只认它，原子项不计入「指标数」 */
+const metricRows = computed(() => rows.value.filter((r) => r.rowType === 'METRIC'))
 
 const departLabel = computed(() => {
   if (!departCode.value) return '全院'
@@ -237,41 +262,53 @@ const departLabel = computed(() => {
   return d ? d.depart_name : departCode.value
 })
 
+/**
+ * 指标覆盖的域（只供摘要卡的「覆盖域」计数）。
+ *
+ * <p>页面上既没有域列、也没有域筛选：这个页面是「按指标逐条看全年走势」，
+ * 域筛不出更有价值的东西，留着下拉反而让人以为筛一下能看到更相关的行。
+ * 只取指标行 —— 指标的域是 qualityTypeCode，与原子项的 domain 不是一套。
+ */
 const domainOptions = computed(() =>
-  [...new Set(rows.value.map((r) => r.domain).filter(Boolean))]
+  [...new Set(metricRows.value.map((r) => r.domain).filter(Boolean))]
 )
 
-const withDataCount = computed(
-  () =>
-    rows.value.filter((r) =>
-      (r.months || []).some((v) => v !== null && v !== undefined && v !== '')
-    ).length
-)
+/**
+ * 某行是否出过数。
+ *
+ * <p>指标还要看它的分子/分母：率算不出来（分母为 0）**不等于**没出数 ——
+ * 「这个月没有分母人群」和「压根没跑批」是两回事，都判成没数据会把前者误筛掉。
+ */
+function hasData(row) {
+  if ((row.months || []).some((v) => v !== null && v !== undefined && v !== '')) return true
+  return (row.children || []).some((k) =>
+    (k.months || []).some((v) => v !== null && v !== undefined && v !== '')
+  )
+}
 
-const displayRows = computed(() => {
-  let list = rows.value
-  if (domainFilter.value) {
-    list = list.filter((r) => r.domain === domainFilter.value)
-  }
-  if (onlyWithData.value) {
-    list = list.filter((r) =>
-      (r.months || []).some((v) => v !== null && v !== undefined && v !== '')
-    )
-  }
-  return list
-})
+const withDataCount = computed(() => metricRows.value.filter(hasData).length)
+
+/** 点整行即展开/收起它的分子、分母：比去点那个小三角容易命中得多 */
+function toggleRow(row) {
+  if (!row || !row.children || !row.children.length) return
+  tableRef.value?.toggleRowExpansion(row)
+}
+
+const displayRows = computed(() =>
+  onlyWithData.value ? rows.value.filter(hasData) : rows.value
+)
 
 const filterHint = computed(() => {
   const parts = []
-  if (domainFilter.value) parts.push(domainFilter.value)
   if (onlyWithData.value) parts.push('仅有数据')
+  if (showAtoms.value) parts.push('含原子项')
   return parts.length ? parts.join(' · ') : '全部指标'
 })
 
-/** 趋势图下拉：按域分组的指标清单 */
+/** 趋势图下拉：按域分组的**指标**清单（原子项只在宽表里作为展开行，不混进趋势图） */
 const chartGroups = computed(() => {
   const map = new Map()
-  for (const r of rows.value) {
+  for (const r of metricRows.value) {
     const key = r.domain || '其他'
     if (!map.has(key)) map.set(key, [])
     map.get(key).push({ code: r.code, name: r.name })
@@ -283,7 +320,11 @@ const chartGroups = computed(() => {
 async function loadMonthly() {
   loading.value = true
   try {
-    const res = await fetchQualityMonthly(Number(year.value), departCode.value || '')
+    const res = await fetchQualityMonthly(
+      Number(year.value),
+      departCode.value || '',
+      showAtoms.value
+    )
     headers.value = (res && res.header) || DEFAULT_HEADER
     rowsData.value = (res && res.rows) || []
     // 选中指标被过滤掉或首次加载时，回落到第一条
@@ -419,13 +460,20 @@ function handleResize() {
 }
 
 // ---------------- 展示工具 ----------------
-/** 数值展示：整数不带小数，否则保留 2 位并去掉尾随 0 */
-function num(v) {
+/**
+ * 数值展示：整数不带小数，否则按精度保留并去掉尾随 0。
+ *
+ * @param precision 指标自己配的小数位（percentPrecision）。不传按 2 ——
+ *        写死 2 位会把 3 位小数的指标（如 ‰ 类发病率）截断，
+ *        而截断过的率比显示空更危险：从数字上看不出它被改过。
+ */
+function num(v, precision) {
   if (v === null || v === undefined || v === '') return '—'
   const n = Number(v)
   if (Number.isNaN(n)) return String(v)
-  if (Number.isInteger(n)) return String(n)
-  return n.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
+  const p = Number.isInteger(precision) ? precision : 2
+  if (p <= 0) return String(Math.round(n))
+  return n.toFixed(p).replace(/0+$/, '').replace(/\.$/, '')
 }
 
 /** 月度单元格高亮：年内最高月/最低月 */
@@ -438,9 +486,10 @@ function monthClass(row, index) {
 }
 
 function rowClass({ row }) {
-  return (row.months || []).some((v) => v !== null && v !== undefined && v !== '')
-    ? ''
-    : 'row-empty'
+  const empty = !hasData(row)
+  // 子行加淡底：整行缩进之外再给一层视觉层级，长表格里不容易看串行
+  if (row.rowType === 'ATOM') return empty ? 'row-atom row-empty' : 'row-atom'
+  return empty ? 'row-empty' : ''
 }
 
 onMounted(async () => {
@@ -628,6 +677,30 @@ onBeforeUnmount(() => {
 
 :deep(.row-empty) {
   color: #a8a29e;
+}
+
+/* 分子 / 分母子行：淡底，与主行拉开层次，长表格里不容易看串 */
+:deep(.row-atom) {
+  background: #fafaf9;
+}
+
+/* 类型标签：指标=蓝、分子/分母=中性灰，一眼分出层级 */
+.type-tag {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.type-tag.is-metric {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.type-tag.is-atom {
+  color: #57534e;
+  background: #f5f5f4;
 }
 
 @media (max-width: 1200px) {

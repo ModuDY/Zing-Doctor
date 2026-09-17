@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -277,6 +278,19 @@ public class SqlCompiler {
      */
     public String compilePatients(MetricDefinition m, String factTable, FactDefinition f,
                                   String deptValue, boolean includeExcluded) {
+        return compilePatients(m, factTable, f, deptValue, includeExcluded, Collections.emptySet());
+    }
+
+    /**
+     * 编译明细 SQL（带事实层可用列）。
+     *
+     * @param availableColumns 事实层实际投影出的列名（小写）。扩展默认列（床号 / 诊断 /
+     *        入科 / 出科）只有出现在这里才会被 select —— 各事实层投影的字段并不相同，
+     *        缺列硬写会让整份明细报「无效的列名」。
+     */
+    public String compilePatients(MetricDefinition m, String factTable, FactDefinition f,
+                                  String deptValue, boolean includeExcluded,
+                                  Set<String> availableColumns) {
         String pk = key(f == null ? null : f.getPatientKey(), "patient_id");
         String noKey = f == null ? null : f.getInHospitalNoKey();
         String nameKey = f == null ? null : f.getPatientNameKey();
@@ -298,6 +312,7 @@ public class SqlCompiler {
         // 内层子查询就会出现两个同名列，外层 SELECT * 直接报「列名不明确」——
         // 整份明细返回空，而页面只显示「无患者明细」，看不出是配置写错了。
         StringBuilder extra = new StringBuilder();
+        Set<String> selected = new LinkedHashSet<>();
         for (PatientFieldDefinition pf : safeFields(m)) {
             String key = pf.getKey() == null ? "" : pf.getKey().trim();
             if (key.isEmpty() || PatientColumns.isReservedKey(key)
@@ -308,7 +323,21 @@ public class SqlCompiler {
                 // 列名会被直接拼进 SQL，非标识符一律拒绝（防注入），不改写成「跳过」
                 throw new IllegalArgumentException("患者明细字段名非法：" + key);
             }
+            // 同一列配了两次只留一个：内层出现两个同名列，外层 SELECT * 直接报
+            // 「列名不明确」，整份明细为空而页面看不出原因
+            if (!selected.add(key.toLowerCase())) {
+                continue;
+            }
             extra.append(", MAX(").append(key).append(") AS ").append(key);
+        }
+        // 扩展默认列（床号 / 诊断 / 入科时间 / 出科时间）：事实层有该列才带出来。
+        // 它们是默认列，却不是每个事实层都投影 —— 写死进去，缺列的事实层整份明细
+        // 都会报「无效的列名」，而那本来只是「这一列没数据」，不该赔上整张表。
+        for (String col : PatientColumns.extended().keySet()) {
+            if (!availableColumns.contains(col) || !selected.add(col)) {
+                continue;
+            }
+            extra.append(", MAX(").append(col).append(") AS ").append(col);
         }
 
         String inner = "SELECT "

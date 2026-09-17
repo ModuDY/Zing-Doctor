@@ -7,7 +7,7 @@
 > 所以**先跑 `install.sh`，再照着下面的清单逐项核对**——只有三条通道都没命中、或日志里明确报了失败，
 > 才需要人工补执行。
 >
-> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（09/10/11/12/13/14/15/16/17/18/19）；全量初始化与
+> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（09/10/11/12/13/14/15/16/17/18/19/20）；全量初始化与
 > 一次性脚本（如 06_abx_drug_dict.sql）不在其内。漏执行 = 新代码一上来就 500。
 >
 > 典型症状（页面打开即报错）：
@@ -22,7 +22,7 @@
 1. 用 DM 管理工具 / disql 连到达梦（SYSDBA 或同权限账号）
 2. 翻到下面「批次记录」，从自己**还没执行**的批次开始，按 ①②③ 顺序执行
 3. 某一块报「已存在 / already exists」→ 说明已执行过，**跳过该块继续**
-4. 全新部署不用来这里，`sql/` 目录下按序号（01 → 17）依次全跑即可
+4. 全新部署不用来这里，`sql/` 目录下按序号（01 → 20）依次全跑即可
 
 ## 执行状态速查
 
@@ -40,6 +40,61 @@ SELECT COUNT(*) FROM "zing_doctor_db_prod"."zing_sys_param" WHERE "param_key" = 
 ---
 
 ## 批次记录
+
+### 2026-09-17 · 患者明细默认列：事实层补「床号 / 诊断」（配置数据更新）
+
+患者明细的默认列调整为
+**姓名 / 床号 / 住院号 / 诊断 / 入科时间 / 出科时间 / 入分子 / 入分母**（宽度 70/60/130/120/180/180/60/60）。
+
+其中「床号 / 诊断」不是指标表达式要用的列，而是**明细要显示的列**：明细 SQL 只会 select
+事实层投影过的列，事实层不带出来，页面上就是整列空白。入科 / 出科时间多数事实层原本就有投影。
+
+**涉及**（只更新配置数据，不加表、不加列）
+
+- `quality_fact_def.select_cols`：给 6 个基于 `patient_info` 的事实层追加两项 ——
+  `"pi.bed_code AS bed_code"`、`"CAST(pi.diagnosis_content AS VARCHAR(2000)) AS diagnosis_content"`。
+  涉及事实层：`fact_patient_stay`、`fact_abx_culture`、`fact_dvt`、`fact_sepsis_bundle`、
+  `fact_assessment`、`fact_ards`。
+  （`fact_device` / `fact_score_resource` / `fact_staff` / `fact_bed` 不基于患者主表，这两列在它们的
+  指标明细里不会出现，属预期。）
+
+**为什么改表而不是只改 YAML**：生产 `config-source=db`，事实层定义的真源是 `quality_fact_def`，
+`facts/*.yaml` 只在配置表为空时作为「出厂种子」导入一次。**只改 YAML 不生效**。
+（YAML 也已同步修改，保证双源一致；全新库由种子导入直接得到新定义。）
+
+**不执行的后果**：明细里「床号 / 诊断」两列始终空白 —— **不报错**，只是看不到数，
+容易被当成数据没采到。入科 / 出科时间不受影响。
+
+**影响面**：分子分母的计算结果完全不变（不动 where / derive）；下次访问明细时物化表按新定义重建
+（配置版本变化即失效缓存，重建前先 DROP 再 CREATE TABLE AS），因此首次下钻会慢一点。
+
+**自动应用**：`sql/20_quality_fact_patient_default_cols.sql` 已加入 `install.sh` 的 `INCREMENTAL_SQL`。
+
+**人工补执行（自动通道未命中时）**
+
+```sql
+UPDATE "zing_doctor_db_prod"."quality_fact_def"
+   SET "select_cols" = REPLACE(
+           "select_cols",
+           '"pi.out_depart_time AS out_depart_time"',
+           '"pi.out_depart_time AS out_depart_time","pi.bed_code AS bed_code","CAST(pi.diagnosis_content AS VARCHAR(2000)) AS diagnosis_content"')
+ WHERE "fact_name" IN ('fact_patient_stay','fact_abx_culture','fact_dvt',
+                       'fact_sepsis_bundle','fact_assessment','fact_ards')
+   AND "select_cols" LIKE '%"pi.out_depart_time AS out_depart_time"%'
+   AND "select_cols" NOT LIKE '%AS bed_code%';
+
+-- 核对：应返回 6 行
+SELECT "fact_name" FROM "zing_doctor_db_prod"."quality_fact_def"
+ WHERE "fact_name" IN ('fact_patient_stay','fact_abx_culture','fact_dvt',
+                       'fact_sepsis_bundle','fact_assessment','fact_ards')
+   AND "select_cols" LIKE '%AS bed_code%';
+```
+
+> 注：锚点用 `out_depart_time` 而不是「数组最后一项」，因为各事实层末项不同
+> （`fact_patient_stay` 末尾是 `out_hospital_time`），且库里的定义很可能比当前 YAML 旧
+> ——按末尾匹配会**静默不生效**（不报错）。REPLACE 的匹配对象是 `select_cols` 原文
+> （JSON 序列化后无空格）。若某事实层在配置页被改过 select 列表、已不含该锚点，
+> 该行不会被更新，需在配置页手工补这两列。
 
 ### 2026-09-16 · 人工录入审计与达标方向（含存量数据回填）
 

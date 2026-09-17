@@ -264,7 +264,7 @@
                     <a
                       class="atom-title"
                       :title="row.numeratorName || row.numeratorCode"
-                      @click="openAtom(row.numeratorCode)"
+                      @click="openAtom(row.numeratorCode, { tab: 'trace', from: 'numerator' })"
                     >
                       {{ row.numeratorName || row.numeratorCode }}
                     </a>
@@ -306,7 +306,7 @@
                     <a
                       class="atom-title"
                       :title="row.denominatorName || row.denominatorCode"
-                      @click="openAtom(row.denominatorCode)"
+                      @click="openAtom(row.denominatorCode, { tab: 'trace', from: 'denominator' })"
                     >
                       {{ row.denominatorName || row.denominatorCode }}
                     </a>
@@ -821,7 +821,22 @@
               工具条：左说明当前这一档是什么，右导出。导出原先挂在 el-tabs 的 #extra 插槽上，
               实际渲染不出来（按钮凭空消失），放在表格正上方既稳定、又紧挨着它要导出的名单。
             -->
-            <div class="qb-detail-toolbar">
+            <!--
+              只有分子入口才有筛选：分母入口进来时工具条上只剩导出，
+              此时靠右排（is-export-only）—— 否则 space-between 会把唯一的按钮推到左边。
+            -->
+            <div class="qb-detail-toolbar" :class="{ 'is-export-only': !detailFilterable }">
+              <!--
+                四档筛选：全部 / 分子 / 分母 / 未达标。
+                人数恒取后端 viewCounts（按未过滤的全量统计）—— 若按当前列表算，
+                每切一档其他档的数字就跟着变，而这正是用来对账的数（各档相加 = 总数）。
+              -->
+              <el-radio-group v-if="detailFilterable" v-model="patientView" size="small">
+                <el-radio-button label="all">全部（{{ viewCount('all') }}）</el-radio-button>
+                <el-radio-button label="inNumerator">分子（{{ viewCount('inNumerator') }}）</el-radio-button>
+                <el-radio-button label="inDenominator">分母（{{ viewCount('inDenominator') }}）</el-radio-button>
+                <el-radio-button label="missed">未达标（{{ viewCount('missed') }}）</el-radio-button>
+              </el-radio-group>
               <el-button size="small" :loading="patientExporting" @click="doExportPatients">
                 <el-icon><Download /></el-icon>
                 <span style="margin-left: 4px">导出名单</span>
@@ -1362,10 +1377,21 @@ async function doSyncRules() {
   }
 }
 
-/** 打开分子 / 分母原子项的口径血缘 —— 回答「这个率是怎么来的」。 */
-function openAtom(code) {
+/**
+ * 打开分子 / 分母原子项的口径血缘 —— 回答「这个率是怎么来的」。
+ *
+ * @param opts.view 入口视角：分子原子项 vs 分母原子项必须区分开，
+ *                  否则点分母原子项名称进去，明细里也会错误地出现筛选器。
+ */
+function openAtom(code, opts) {
   if (!code) return
-  openMetric({ code })
+  // opts 必须作为第二个参数透传给 openMetric：此前误写成 { code, ...(opts || {}) }，
+  // view 被并进 row 导致 openMetric 拿不到入口视角，分母入口的四档筛选隐藏逻辑永远不生效。
+  //
+  // 原子项没有真正的「分母」：它的值就是满足条件的人数，点名称进来统一按 inNumerator
+  // 看「满足条件的人」，否则按 inDenominator 会把整个事实层的人都列出来。
+  // 是否给四档筛选由调用处的 from 字段决定：分子列点进来给，分母列点进来不给。
+  openMetric({ code }, { ...(opts || {}), view: 'inNumerator', isAtom: true })
 }
 
 // ---------------- 单指标计算 ----------------
@@ -1528,18 +1554,31 @@ const detail = reactive({})
 /**
  * 患者明细的纳入视角。
  *
- * 看板上三个入口各自带出不同的视角，明细不再让用户自己挑：
- *   指标名称 → all           「这条指标覆盖了谁」
- *   分子数字 → inNumerator   「这 n 个人是谁」，行数必然等于分子数
- *   分母数字 → inDenominator 「纳入统计的是哪些人」（已达标 + 未达标）
- * 视角是入口语义的一部分，不是进来之后的二次选择。反过来讲：凡从数字进入的，
- * 列表行数必须与那个数字对得上 —— 对不上就说明入口没把话说完。
+ * 入口只决定「默认落在哪一档」，进来之后仍可在工具条上切这四档：
+ *   全部   → all            本期该事实层扫到的所有人
+ *   分子   → inNumerator    已达标 + 口径异常，行数必然等于分子数
+ *   分母   → inDenominator  已达标 + 未达标
+ *   未达标 → missed         进分母却没进分子，即「该做未做」的那批人
+ *
+ * 反过来讲：凡从数字进入的，列表行数必须与那个数字对得上 ——
+ * 对不上就说明入口没把话说完。
  *
  * 四个互斥档（achieved / missed / excluded / abnormal）两两不重叠、并集为全部，
  * 因此各档人数可以直接相加对账。
  */
 const patientView = ref('all')
 const patientExporting = ref(false)
+
+/**
+ * 本次是不是从「分子」进来的 —— 决定明细里给不给四档筛选。
+ *
+ * 分母入口的口径本身就是「纳入统计的都有哪些人」，是一个已经说清楚的集合，
+ * 再摆一排筛选反而让人怀疑当前看的究竟是哪一档，所以分母入口维持原样（只给导出）。
+ *
+ * 用入口判断，而不是用 patientView 判断：后者会让用户从「分子」档切到「分母」档时
+ * 筛选器当场消失、再也切不回来 —— 那是把一次正常操作变成死路。
+ */
+const detailFilterable = ref(false)
 
 /**
  * 与后端 inclusionState 同源的判定，作兜底用。
@@ -1556,6 +1595,41 @@ function stateOf(row) {
   // 进了分子却没进分母：分子与分母是两个独立条件，这种组合客观存在，
   // 通常意味着 YAML 里条件写反了；单列一档，不并进「已达标」蒙混过去
   return 'abnormal'
+}
+
+/**
+ * 各档人数，供工具条上的四个选项显示。
+ *
+ * 优先用后端 viewCounts —— 它统计的是「未过滤的全量」；前端这份只在后端没给时兜底
+ * （页面缓存、未升级的后端）。差别在于：若按当前列表算，一切档其他档的数字就跟着
+ * 列表变了，而这个数字正是拿来对账的，一变就废。
+ */
+const viewCounts = computed(() => {
+  const fromServer = detail.viewCounts
+  if (fromServer) return fromServer
+  const list = Array.isArray(detail.patients) ? detail.patients : []
+  const c = {
+    all: list.length,
+    inNumerator: 0,
+    inDenominator: 0,
+    achieved: 0,
+    missed: 0,
+    excluded: 0,
+    abnormal: 0
+  }
+  for (const row of list) {
+    const s = stateOf(row)
+    if (s === 'achieved' || s === 'missed') c.inDenominator++
+    if (s === 'achieved' || s === 'abnormal') c.inNumerator++
+    c[s]++
+  }
+  return c
+})
+
+/** 取某一档人数；拿不到时给 0，绝不让页面上出现 undefined。 */
+function viewCount(k) {
+  const v = viewCounts.value
+  return v && v[k] != null ? v[k] : 0
 }
 
 const visiblePatients = computed(() => {
@@ -1691,8 +1765,9 @@ const patientsEmptyHint = computed(() => {
  * @param opts.tab  初始页签：'trace' 口径血缘（点本期值 / 口径血缘）/ 'patients' 患者明细
  * @param opts.view 初始纳入视角，由入口决定：
  *                  点分子数字 → inNumerator，点分母数字 → inDenominator，
- *                  点指标名称/指标值 → inNumerator（因为用户点进来就想看「这 N 个人是谁」，
- *                  不再默认给全部；想切换时工具条上可一键切到「全部」）。
+ *                  点指标名称 → all（看板显式传 'all'，回答「这条指标覆盖了谁」），
+ *                  点本期值 / 口径血缘 → 不传，落 inNumerator（点进来就想看「这 N 个人是谁」）。
+ *                  只有落在 inNumerator 的入口才带四档筛选，见 detailFilterable。
  */
 async function openMetric(row, opts) {
   const opt = opts || {}
@@ -1702,7 +1777,15 @@ async function openMetric(row, opts) {
   // 视角跟着本次入口走，不复用上一次的选择：留档会出现「点了分子却落在未纳入」
   // 这种入口与内容对不上的情况，而那正是这次要根治的问题。
   // 默认进分子：指标卡片上的大数字通常就是分子，进来先让用户对得上这个数。
-  patientView.value = opt.view || 'inNumerator'
+  const entryView = opt.view || 'inNumerator'
+  patientView.value = entryView
+  // 是否给四档筛选：
+  // - 规则入口：分子视角（inNumerator）给，分母视角（inDenominator）不给；
+  // - 原子项入口：分子列点进来给，分母列点进来不给。
+  //   原子项统一按 inNumerator 看「满足条件的人」，因为它的值就是这个数。
+  detailFilterable.value = opt.isAtom
+      ? opt.from === 'numerator'
+      : entryView === 'inNumerator'
   // 先清空，避免快速连点时短暂显示上一条指标的数据
   Object.keys(detail).forEach((k) => delete detail[k])
   try {
@@ -2033,11 +2116,19 @@ onMounted(() => {
   margin-bottom: 10px;
 }
 
-/* 明细工具条：导出按钮靠右，与表格留一点间距 */
+/* 明细工具条：左侧四档筛选、右侧导出；窄屏换行，避免两者互相挤没 */
 .qb-detail-toolbar {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+/* 没有筛选器时（分母入口）只剩导出：靠右，与筛选上线之前的观感一致 */
+.qb-detail-toolbar.is-export-only {
+  justify-content: flex-end;
 }
 
 /* 分子 / 分母之间的斜杠：两侧数字各自可点，靠它拉开间距免得挤成一团 */

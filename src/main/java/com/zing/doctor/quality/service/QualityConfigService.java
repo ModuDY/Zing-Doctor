@@ -20,6 +20,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -131,25 +132,52 @@ public class QualityConfigService {
      * 默认列排在最前，因为使用者的操作多数是「默认列要不要留、排第几」。
      */
     public List<Map<String, Object>> patientFieldsOf(String factName) {
-        List<Map<String, Object>> out = new ArrayList<>();
-        for (Map.Entry<String, String> e : PatientColumns.reserved().entrySet()) {
-            Map<String, Object> o = new LinkedHashMap<>();
-            o.put("key", e.getKey());
-            o.put("label", e.getValue());
-            o.put("reserved", true);
-            out.add(o);
-        }
         FactDefinition f = factDetail(factName);
+        // 扩展默认列（床号 / 诊断 / 入科 / 出科）只有事实层真有这一列才给选：
+        // 选了一个事实层没有的列，明细上就是一列空白，使用者会以为是数据漏了。
+        Set<String> available = new HashSet<>();
+        for (String c : analyzer.availableColumns(f)) {
+            if (c != null) {
+                available.add(c.trim().toLowerCase());
+            }
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        // 按默认显示顺序给出：使用者的操作多数是「默认列要不要留、排第几」
+        for (String key : PatientColumns.defaultOrder()) {
+            if (PatientColumns.isExtendedKey(key) && !available.contains(key)) {
+                continue;
+            }
+            out.add(fieldOption(key, PatientColumns.reserved().get(key), true, true));
+        }
+        // 其余保留 key（患者ID / 科室）：不在默认顺序里，但仍可手工加回来。
+        // isDefault 必须为 false —— 前端拿它当「留空即默认」的那份清单，
+        // 若把这两列也算进去，使用者打开配置什么都没改就保存，明细会凭空多出两列。
+        for (Map.Entry<String, String> e : PatientColumns.base().entrySet()) {
+            if (PatientColumns.defaultOrder().contains(e.getKey())) {
+                continue;
+            }
+            out.add(fieldOption(e.getKey(), e.getValue(), true, false));
+        }
         if (f != null) {
             for (String c : analyzer.patientColumns(f)) {
-                Map<String, Object> o = new LinkedHashMap<>();
-                o.put("key", c);
-                o.put("label", c);
-                o.put("reserved", false);
-                out.add(o);
+                out.add(fieldOption(c, c, false, false));
             }
         }
         return out;
+    }
+
+    /**
+     * @param isDefault 是否在「留空即默认」的那份清单里。
+     *        reserved 表示「这是默认列（表头可留空）」，isDefault 表示「没配时它会出现」，
+     *        两者不是一回事：患者ID / 科室 是默认列，却不在默认显示顺序里。
+     */
+    private Map<String, Object> fieldOption(String key, String label, boolean reserved, boolean isDefault) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("key", key);
+        o.put("label", label);
+        o.put("reserved", reserved);
+        o.put("isDefault", isDefault);
+        return o;
     }
 
     /**

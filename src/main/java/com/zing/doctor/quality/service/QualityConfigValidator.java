@@ -248,9 +248,11 @@ public class QualityConfigValidator {
             // 内层子查询出现两个同名列，外层 SELECT * 报「列名不明确」——
             // 症状是整份明细变空且页面没有任何提示，只能翻日志才能定位。
             if (PatientColumns.isReservedColumn(key)) {
+                // 列名清单从 PatientColumns 取而不是写死在文案里：
+                // 默认列一旦增删，写死的提示就会指错路，比不提示更糟。
                 r.addError("患者明细字段 " + key + " 属于明细默认列，不能当作补充字段重复配置；"
-                        + "要调整它的位置或隐藏它，请直接配置默认列：patientName / inHospitalNo / "
-                        + "patientId / departCode / inNumerator / inDenominator");
+                        + "要调整它的位置或隐藏它，请直接配置默认列："
+                        + String.join(" / ", PatientColumns.defaultOrder()));
                 continue;
             }
             if (available.isEmpty()) {

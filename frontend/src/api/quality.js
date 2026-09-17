@@ -170,9 +170,14 @@ export function syncQualityIndex() {
   return request.post('/quality/sync-index', null, { silentError: true })
 }
 
-/** 月度汇总：1-12 月横排视图（含季度/全年合计与极值月） */
-export function fetchQualityMonthly(year, departCode) {
-  return request.get('/quality/monthly', { params: { year, departCode } })
+/**
+ * 月度汇总：1-12 月横排视图（含季度/全年合计与极值月）。
+ *
+ * 行是**指标**（分子 ÷ 分母 × 系数），每行的 children 是该指标的分子、分母两个原子项；
+ * showAtoms=true 时再追加「没有被任何指标引用」的原子项行（排查用）。
+ */
+export function fetchQualityMonthly(year, departCode, showAtoms = false) {
+  return request.get('/quality/monthly', { params: { year, departCode, showAtoms } })
 }
 
 /** 重建某年月度汇总宽表（幂等：先删后建）；silentError 同上 */

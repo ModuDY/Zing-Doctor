@@ -380,12 +380,20 @@ public class QualityController {
         }
     }
 
-    /** 月度汇总：1-12 月横排视图。 */
+    /**
+     * 月度汇总：1-12 月横排视图。
+     *
+     * <p>行是**指标**（分子 ÷ 分母 × 系数），不是原子项；每行的 children 是它的分子/分母两个原子项。
+     *
+     * @param showAtoms true = 追加没有被任何指标引用的原子项行（排查用）
+     */
     @GetMapping("/monthly")
     public Result<Map<String, Object>> monthly(@RequestParam Integer year,
-                                               @RequestParam(required = false) String departCode) {
+                                               @RequestParam(required = false) String departCode,
+                                               @RequestParam(required = false, defaultValue = "false")
+                                               Boolean showAtoms) {
         try {
-            return Result.ok(monthlyService.view(year, departCode));
+            return Result.ok(monthlyService.view(year, departCode, Boolean.TRUE.equals(showAtoms)));
         } catch (Exception e) {
             log.error("[质控] 月度汇总查询失败: year={}", year, e);
             return Result.fail("查询失败: " + e.getMessage());

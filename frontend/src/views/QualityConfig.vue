@@ -479,8 +479,10 @@
             <div class="sect-head"><h4>⑤ 患者明细字段</h4></div>
             <p class="sect-hint">
               点开患者明细时显示的列，顺序即页面上的显示顺序；默认列也可以调整位置或删掉。
-              只影响展示，不改变任何数值口径。留空 = 默认六列：
-              姓名 / 住院号 / 患者ID / 科室 / 入分子 / 入分母。
+              只影响展示，不改变任何数值口径。留空 = 默认列：
+              姓名 / 床号 / 住院号 / 诊断 / 入科时间 / 出科时间 / 入分子 / 入分母，
+              对应宽度 70/60/130/120/180/180/60/60。
+              其中床号 / 诊断 / 入科时间 / 出科时间要看该事实层有没有这一列，没有就不显示。
             </p>
             <div v-for="(f, i) in metricForm.patientFields" :key="i" class="pf-row">
               <select class="tb-input" v-model="f.key">
@@ -555,7 +557,7 @@
                   {{ sqlCopied ? '已复制' : '复制 SQL' }}
                 </button>
               </div>
-              <pre>{{ checkResult.sql }}</pre>
+              <pre class="sql">{{ checkResult.sql }}</pre>
             </details>
           </div>
         </div>
@@ -1183,8 +1185,17 @@ const dimColumns = ref([])
  */
 const patientFieldOptions = ref([])
 
-/** 明细默认列的 key（由接口的 reserved 标记给出，顺序与后端一致）。 */
+/** 明细默认列的 key（由接口的 reserved 标记给出）。 */
 const reservedFieldKeys = computed(() => patientFieldOptions.value.filter(o => o.reserved).map(o => o.key))
+
+/**
+ * 「留空即默认」的那份清单，顺序与后端默认出列一致。
+ *
+ * 它和 reservedFieldKeys 不是一回事：患者ID / 科室 也是默认列（表头可留空），
+ * 但不在默认显示顺序里。若拿 reservedFieldKeys 当默认值，使用者打开配置
+ * 什么都没改就保存，明细会凭空多出这两列。
+ */
+const defaultFieldKeys = computed(() => patientFieldOptions.value.filter(o => o.isDefault).map(o => o.key))
 
 const isReservedField = (key) => patientFieldOptions.value.some(o => o.reserved && o.key === key)
 
@@ -1192,14 +1203,15 @@ const isReservedField = (key) => patientFieldOptions.value.some(o => o.reserved 
  * 把存下来的 patientFields 归一化成「完整的有序列清单」，供编辑。
  *
  * 对应后端出列的三种情形，缺一不可：
- *   没配 → 默认六列；
- *   配了但没提到默认列（升级前的老配置，只配过补充列）→ 默认六列 + 补充列；
+ *   没配 → 默认列（姓名/床号/住院号/诊断/入科时间/出科时间/入分子/入分母）；
+ *   配了但没提到默认列（升级前的老配置，只配过补充列）→ 默认列 + 补充列；
  *   配了且提到默认列 → 原样。
  * 归一化之后，「删掉某列」「把某列调到最前」才是所见即所得的。
  */
 function normalizePatientFields(list) {
   const arr = (Array.isArray(list) ? list : []).filter(f => f && f.key)
-  const keys = reservedFieldKeys.value
+  // 优先用「默认显示顺序」那一份；老后端没给 isDefault 时退回全部默认列
+  const keys = defaultFieldKeys.value.length ? defaultFieldKeys.value : reservedFieldKeys.value
   const mentionsDefault = keys.length > 0 && arr.some(f => keys.includes(f.key))
   const out = []
   if (!mentionsDefault) {
@@ -2263,7 +2275,12 @@ code { font-family: Consolas, Monaco, monospace; }
   cursor: pointer;
 }
 .modal-close:hover { color: #57534e; }
-.modal-body { padding: 18px 20px; }
+/* overflow-x 兜底：某些长内容（如编译后 SQL）在旧浏览器里会撑破 modal 宽度 */
+.modal-body {
+  padding: 18px 20px;
+  overflow-x: hidden;
+  min-width: 0;
+}
 .modal-foot {
   display: flex;
   justify-content: flex-end;
@@ -2467,7 +2484,12 @@ code { font-family: Consolas, Monaco, monospace; }
 .mini .strong { font-weight: 700; color: #ea580c; }
 
 /* ---- 编译后 SQL 折叠块（设计稿近黑代码块） ---- */
-.sql-box { margin-top: 10px; }
+/* 折叠块自身必须截断：长 SQL 不应用时，先在这里被包住，不往外撑 modal */
+.sql-box {
+  margin-top: 10px;
+  overflow-x: hidden;
+  max-width: 100%;
+}
 .sql-box summary {
   cursor: pointer;
   font-size: 12.5px;
@@ -2496,7 +2518,9 @@ code { font-family: Consolas, Monaco, monospace; }
   background: #f0fdf4;
 }
 .sql,
-pre.sql {
+pre.sql,
+/* 折叠块兜底：这段 SQL 常是几百字符的单行，缺了类就会顶破弹框宽度 */
+.sql-box pre {
   margin: 8px 0 0;
   padding: 12px 14px;
   background: #1c1917;
@@ -2508,8 +2532,12 @@ pre.sql {
   line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-all;
+  overflow-wrap: anywhere;
   max-height: 300px;
   overflow: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: block;
 }
 
 .fact-body {

@@ -27,6 +27,10 @@
     - "pi.depart_code AS depart_code"
     - "pi.in_depart_time AS in_depart_time"
     - "pi.out_depart_time AS out_depart_time"
+    # 明细默认列（床号 / 诊断）取自患者主表，不参与指标表达式；
+    # 诊断套 CAST 的原因见 patient.yaml 文件头（CLOB 不能做 MAX）
+    - "pi.bed_code AS bed_code"
+    - "CAST(pi.diagnosis_content AS VARCHAR(2000)) AS diagnosis_content"
   where:
     - "pi.del_flag = 0"
     - "pi.in_depart_time IS NOT NULL"
@@ -87,6 +91,10 @@
     - "pi.depart_code AS depart_code"
     - "pi.in_depart_time AS in_depart_time"
     - "pi.out_depart_time AS out_depart_time"
+    # 明细默认列（床号 / 诊断）取自患者主表，不参与指标表达式；
+    # 诊断套 CAST 的原因见 patient.yaml 文件头（CLOB 不能做 MAX）
+    - "pi.bed_code AS bed_code"
+    - "CAST(pi.diagnosis_content AS VARCHAR(2000)) AS diagnosis_content"
   where:
     - "pi.del_flag = 0"
     - "pi.in_depart_time IS NOT NULL"
@@ -129,6 +137,10 @@
     - "pi.depart_code AS depart_code"
     - "pi.in_depart_time AS in_depart_time"
     - "pi.out_depart_time AS out_depart_time"
+    # 明细默认列（床号 / 诊断）取自患者主表，不参与指标表达式；
+    # 诊断套 CAST 的原因见 patient.yaml 文件头（CLOB 不能做 MAX）
+    - "pi.bed_code AS bed_code"
+    - "CAST(pi.diagnosis_content AS VARCHAR(2000)) AS diagnosis_content"
   where:
     - "pi.del_flag = 0"
     - "pi.in_depart_time IS NOT NULL"

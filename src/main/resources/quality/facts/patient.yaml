@@ -44,6 +44,13 @@
     - "pi.in_depart_time AS in_depart_time"
     - "pi.out_depart_time AS out_depart_time"
     - "pi.out_hospital_time AS out_hospital_time"
+    # 患者明细的默认列「床号 / 诊断」直接取自患者主表。
+    # 这两列不参与任何指标表达式，只为让明细里那两列有值 —— 明细 SQL 只 select
+    # 事实层投影过的列，不在这里带出来，页面上就只能是空白。
+    # 诊断必须套 CAST：事实层是 CREATE TABLE AS SELECT 物化成物理表的，
+    # 而明细会统一套 MAX(...)，达梦不允许对 CLOB 做 MAX（本文件开头已记过这条坑）。
+    - "pi.bed_code AS bed_code"
+    - "CAST(pi.diagnosis_content AS VARCHAR(2000)) AS diagnosis_content"
   where:
     - "pi.del_flag = 0"
     - "pi.in_depart_time IS NOT NULL"
