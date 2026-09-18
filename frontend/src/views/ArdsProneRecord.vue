@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="ards-page ards-theme">
     <!-- ============================ 填写页 ============================ -->
     <div v-if="scr === 'form'">
@@ -1540,8 +1540,8 @@ textarea.bx:focus { border-color: var(--el-color-primary); box-shadow: 0 0 0 3px
 .paper table.p-info td.k { background: #f2f2f2; width: 62px; font-weight: 600; }
 .paper table.p-mon td.l, .paper table.p-mon th.l { text-align: left; }
 .paper table.p-mon th { background: #f2f2f2; }
-.paper table.p-mon td.cat { background: #fafafa; font-weight: 600; width: 18px; }
-.paper table.p-mon td.cat .cat-v { writing-mode: vertical-rl; letter-spacing: 1px; margin: 0 auto; font-size: 7pt; line-height: 1.1; }
+.paper table.p-mon td.cat { background: #fafafa; font-weight: 600; width: 18px; padding: 0; }
+.paper table.p-mon td.cat .cat-v { writing-mode: vertical-rl; letter-spacing: 0; margin: 0 auto; font-size: 6.5pt; line-height: 1.05; }
 .paper table.p-mon td.calc { background: #f7f7f7; color: #555; }
 .paper table.p-mon td.abn { background: #fee; color: #c00; font-weight: 600; }
 .paper .p-sec { font-weight: 700; margin: 5px 0 2px; font-size: 9pt; border-left: 3px solid #000; padding-left: 5px; }
