@@ -94,6 +94,22 @@ public class ArdsProneRecord {
     /** 上级医师签名 */
     private String seniorSign;
 
+    /**
+     * 记录医师工号：签名人身份的机器可读主键，文书据此从 ICU 只读库
+     * config_staff_ca_info 取电子签名图。
+     *
+     * <p>为什么不能只存姓名：签名图只能按工号查，姓名重名/改名时会取错人的签名；
+     * 反过来，外院会诊、进修人员不在职工库，允许只填姓名（工号留空），
+     * 此时文书自动退化为打印姓名。
+     */
+    private String doctorWorkNo;
+
+    /** 记录护士工号（同上） */
+    private String nurseWorkNo;
+
+    /** 上级医师工号（同上） */
+    private String seniorWorkNo;
+
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime signTime;
 

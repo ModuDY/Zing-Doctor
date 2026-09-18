@@ -1,6 +1,7 @@
 package com.zing.doctor.module.ards.prone.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.zing.doctor.common.BizException;
 import com.zing.doctor.common.OperatorContext;
 import com.zing.doctor.module.ards.prone.dict.ArdsProneDict;
@@ -100,6 +101,9 @@ public class ArdsProneServiceImpl implements ArdsProneService {
 
     /** admit_date / record_date 是否已扩列到 ≥16（支持 yyyy-MM-dd HH:mm）；未扩列时降级写日期部分 */
     private volatile Boolean dateMinuteSupported = null;
+
+    /** 签名人工号列（sql/23 所建）探测结果缓存；未建列时保存丢弃工号，不让建档失败 */
+    private volatile Boolean signWorkNoColumn = null;
 
     @Autowired
     private SysParamService sysParamService;
@@ -265,6 +269,9 @@ public class ArdsProneServiceImpl implements ArdsProneService {
         r.setStopType("none");
         r.setArchiveStatus(0);
         r.setStatus(1);
+        // 复制新建等场景会带过来签名，同样按「姓名与工号成对」净化
+        normalizeSigns(r);
+        dropWorkNoIfColumnMissing(r);
 
         String operator = OperatorContext.current();
         r.setCreateBy(operator);
@@ -299,12 +306,147 @@ public class ArdsProneServiceImpl implements ArdsProneService {
         record.setInHospitalNo(old.getInHospitalNo());
         record.setPatientId(old.getPatientId());
         record.setRecordNo(old.getRecordNo());
+        normalizeSigns(record);
+        dropWorkNoIfColumnMissing(record);
         record.setUpdateBy(OperatorContext.current());
         record.setUpdateTime(LocalDateTime.now());
         recordMapper.updateById(record);
+        // updateById 只写非 null 字段：被清空的签名列要再显式置 null，
+        // 否则「姓名清了、工号也清了」在库里仍是旧值，文书继续盖上一任的章
+        clearNullSigns(record);
         // 结束时间变化时重算计算项（持续时长等不参与单元格计算，此处仅为后续扩展留位）
         recalc(record.getId());
         return recordMapper.selectById(record.getId());
+    }
+
+    /**
+     * 把本次被清空的签名列在库里真正置 NULL。
+     *
+     * <p>MyBatis-Plus 的 updateById 默认策略是 NOT_NULL —— null 字段会被跳过。
+     * 这对「清空签名」是个坑：前端把姓名和工号都发给空、实体里也置成了 null，
+     * 库里却仍留着旧值，页面刷新后又回来了，文书照旧盖着不该盖的签名。
+     */
+    private void clearNullSigns(ArdsProneRecord r) {
+        // 工号列都不存在时别去 set null，否则 update 语句本身就报「无效的列名」
+        boolean workNoCol = hasSignWorkNoColumn();
+        LambdaUpdateWrapper<ArdsProneRecord> uw = new LambdaUpdateWrapper<>();
+        uw.eq(ArdsProneRecord::getId, r.getId());
+        boolean dirty = false;
+        if (r.getDoctorSign() == null) {
+            uw.set(ArdsProneRecord::getDoctorSign, null);
+            dirty = true;
+        }
+        if (r.getDoctorWorkNo() == null && workNoCol) {
+            uw.set(ArdsProneRecord::getDoctorWorkNo, null);
+            dirty = true;
+        }
+        if (r.getNurseSign() == null) {
+            uw.set(ArdsProneRecord::getNurseSign, null);
+            dirty = true;
+        }
+        if (r.getNurseWorkNo() == null && workNoCol) {
+            uw.set(ArdsProneRecord::getNurseWorkNo, null);
+            dirty = true;
+        }
+        if (r.getSeniorSign() == null) {
+            uw.set(ArdsProneRecord::getSeniorSign, null);
+            dirty = true;
+        }
+        if (r.getSeniorWorkNo() == null && workNoCol) {
+            uw.set(ArdsProneRecord::getSeniorWorkNo, null);
+            dirty = true;
+        }
+        if (dirty) {
+            recordMapper.update(null, uw);
+        }
+    }
+
+    /**
+     * 签名：姓名与工号必须成对，且不能超出库列长度。
+     *
+     * <p>为什么必须成对：文书上的电子签名图是按工号从 ICU 只读库 config_staff_ca_info 取的。
+     * 若签名人姓名被改掉或清空、而工号还留着旧值，文书盖的就是别人的签名 ——
+     * 在医疗文书上这是「张冠李戴」，比没有签名更糟。所以姓名没了，工号必须一起没。
+     *
+     * <p>反过来，只填姓名没填工号是允许的：外院会诊、进修人员不在 ICU 职工库，
+     * 这时文书自动退化为打印姓名（前端按「有图出图、无图出字」渲染）。
+     *
+     * <p>这里<b>不</b>校验工号与姓名是否真的对应：校验要查 ICU 只读库，
+     * 库抖动时反而会把已保存的合法工号清掉；且工号来自前端职工检索（列表选中），
+     * 改姓名即清空工号，已能挡住绝大多数串号。真要强校验应放在签名图渲染侧
+     * （比对接口返回的 realname，不符则不显示图）。
+     *
+     * <p>可见性为包级：便于单元测试直接验证，不暴露成 API。
+     */
+    static void normalizeSigns(ArdsProneRecord r) {
+        if (r == null) {
+            return;
+        }
+        r.setDoctorSign(trimToNull(r.getDoctorSign()));
+        r.setNurseSign(trimToNull(r.getNurseSign()));
+        r.setSeniorSign(trimToNull(r.getSeniorSign()));
+        r.setDoctorWorkNo(pairWorkNo(r.getDoctorSign(), r.getDoctorWorkNo()));
+        r.setNurseWorkNo(pairWorkNo(r.getNurseSign(), r.getNurseWorkNo()));
+        r.setSeniorWorkNo(pairWorkNo(r.getSeniorSign(), r.getSeniorWorkNo()));
+    }
+
+    /**
+     * 库还没执行 sql/23（无签名工号列）时的降级：丢掉工号，别让建档/保存因缺列失败。
+     *
+     * <p>与 record_date 扩列的降级同一思路：jar 可以比 SQL 先到现场，
+     * 缺列的表现是保存 500「无效的列名[doctor_work_no]」，比「文书暂时只有姓名」严重得多。
+     * 列建好之后重启即自动恢复（探测结果缓存在内存）。
+     */
+    private void dropWorkNoIfColumnMissing(ArdsProneRecord r) {
+        if (hasSignWorkNoColumn()) {
+            return;
+        }
+        r.setDoctorWorkNo(null);
+        r.setNurseWorkNo(null);
+        r.setSeniorWorkNo(null);
+    }
+
+    /** 签名工号列是否存在（结果缓存；探测失败按「不存在」处理，避免保存直接失败） */
+    private boolean hasSignWorkNoColumn() {
+        if (signWorkNoColumn == null) {
+            synchronized (this) {
+                if (signWorkNoColumn == null) {
+                    boolean exists;
+                    try {
+                        exists = recordMapper.selectColumnLength("DOCTOR_WORK_NO") != null;
+                    } catch (Exception e) {
+                        exists = false;
+                        log.warn("ARDS 签名工号列探测失败，本次按未建列处理（文书暂不显示电子签名图）：{}", e.getMessage());
+                    }
+                    if (!exists) {
+                        log.warn("ARDS 签名工号列不存在，保存将丢弃工号：请执行 sql/23_ards_prone_sign_work_no.sql");
+                    }
+                    signWorkNoColumn = exists;
+                }
+            }
+        }
+        return signWorkNoColumn;
+    }
+
+    /** 姓名为空则工号一并作废（避免文书盖上别人的签名图） */
+    private static String pairWorkNo(String name, String workNo) {
+        if (!StringUtils.hasText(name)) {
+            return null;
+        }
+        String no = trimToNull(workNo);
+        if (no == null) {
+            return null;
+        }
+        // 库列 VARCHAR(32)：超长直接截断，不让整条保存失败（工号长于此基本是脏数据）
+        return no.length() > 32 ? no.substring(0, 32) : no;
+    }
+
+    private static String trimToNull(String v) {
+        if (v == null) {
+            return null;
+        }
+        String s = v.trim();
+        return s.isEmpty() ? null : s;
     }
 
     @Override

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="ards-page ards-theme">
     <!-- ============================ 填写页 ============================ -->
     <div v-if="scr === 'form'">
@@ -294,10 +294,11 @@
             <textarea v-model="form.remark" class="bx" placeholder="本次俯卧位治疗的补充说明"></textarea>
           </div>
           <div class="grid">
-            <div class="f span2"><label>记录医师</label><StaffSearchInput v-model="form.doctorSign" placeholder="签名：检索后选中" /></div>
-            <div class="f span2"><label>记录护士</label><StaffSearchInput v-model="form.nurseSign" placeholder="签名：检索后选中" /></div>
-            <div class="f span2"><label>上级医师</label><StaffSearchInput v-model="form.seniorSign" placeholder="签名：检索后选中" /></div>
+            <div class="f span2"><label>记录医师</label><StaffSearchInput v-model="form.doctorSign" v-model:work-no="form.doctorWorkNo" placeholder="签名：检索后选中" /></div>
+            <div class="f span2"><label>记录护士</label><StaffSearchInput v-model="form.nurseSign" v-model:work-no="form.nurseWorkNo" placeholder="签名：检索后选中" /></div>
+            <div class="f span2"><label>上级医师</label><StaffSearchInput v-model="form.seniorSign" v-model:work-no="form.seniorWorkNo" placeholder="签名：检索后选中" /></div>
           </div>
+          <div class="sign-tip">从职工库选中会记录工号，文书据此盖电子签名图；手敲姓名（外院会诊 / 进修）则文书打印姓名</div>
         </div>
       </div>
     </div>
@@ -386,9 +387,21 @@
         <div class="p-line">{{ form.remark || '—' }}</div>
 
         <div class="p-sign">
-          <div>记录医师：{{ form.doctorSign || '—' }}</div>
-          <div>记录护士：{{ form.nurseSign || '—' }}</div>
-          <div>上级医师：{{ form.seniorSign || '—' }}</div>
+          <div>
+            <span class="lb">记录医师：</span>
+            <img v-if="signOf(form.doctorWorkNo)" :src="signOf(form.doctorWorkNo)" class="sig" style="height: 24px; max-width: 100%; object-fit: contain" alt="记录医师电子签名" />
+            <span v-else>{{ form.doctorSign || '—' }}</span>
+          </div>
+          <div>
+            <span class="lb">记录护士：</span>
+            <img v-if="signOf(form.nurseWorkNo)" :src="signOf(form.nurseWorkNo)" class="sig" style="height: 24px; max-width: 100%; object-fit: contain" alt="记录护士电子签名" />
+            <span v-else>{{ form.nurseSign || '—' }}</span>
+          </div>
+          <div>
+            <span class="lb">上级医师：</span>
+            <img v-if="signOf(form.seniorWorkNo)" :src="signOf(form.seniorWorkNo)" class="sig" style="height: 24px; max-width: 100%; object-fit: contain" alt="上级医师电子签名" />
+            <span v-else>{{ form.seniorSign || '—' }}</span>
+          </div>
         </div>
         <div class="p-foot">
           <span>记录编号：{{ record?.recordNo || '—' }}</span>
@@ -539,6 +552,7 @@ import {
   saveArdsProneTpl, attachArdsPronePdf, pushArdsProneArchive, checkArdsPronePrint
 } from '../api/ardsProne'
 import StaffSearchInput from '../components/StaffSearchInput.vue'
+import { useStaffSignatures } from '../utils/staffSignature'
 
 const route = useRoute()
 const router = useRouter()
@@ -595,7 +609,8 @@ watch(timepoints, (list) => {
 const form = reactive({
   diagnosis: '', ardsGrade: '', attendingDoctor: '', admitDate: '', apache2Score: '',
   startTime: '', endTime: '', complicationDesc: '', remark: '',
-  stopType: 'none', stopReason: '', doctorSign: '', nurseSign: '', seniorSign: ''
+  stopType: 'none', stopReason: '', doctorSign: '', nurseSign: '', seniorSign: '',
+  doctorWorkNo: '', nurseWorkNo: '', seniorWorkNo: ''
 })
 const compList = ref([])
 const emergencyList = ref([])
@@ -652,8 +667,11 @@ function applyView(view) {
     startTime: fmtInput(r.startTime), endTime: fmtInput(r.endTime),
     complicationDesc: r.complicationDesc || '', remark: r.remark || '',
     stopType: r.stopType || 'none', stopReason: r.stopReason || '', doctorSign: r.doctorSign || '',
-    nurseSign: r.nurseSign || '', seniorSign: r.seniorSign || ''
+    nurseSign: r.nurseSign || '', seniorSign: r.seniorSign || '',
+    // 签名人工号：文书按它取电子签名图；只填了姓名的人（外院会诊 / 进修）没有工号，文书退化为打印姓名
+    doctorWorkNo: r.doctorWorkNo || '', nurseWorkNo: r.nurseWorkNo || '', seniorWorkNo: r.seniorWorkNo || ''
   })
+  loadSigns()
   try {
     compList.value = r.complicationJson ? JSON.parse(r.complicationJson) : []
   } catch (e) {
@@ -740,7 +758,10 @@ const stopText = computed(() => {
 const stopTagClass = computed(() => (form.stopType === 'none' ? 'gray' : 'orange'))
 const stopDetailText = computed(() => {
   if (form.stopType === 'emergency') return '紧急终止：' + (emergencyList.value.join('、') || '—')
-  if (form.stopType === 'reach') return '达标终止：PaO₂/FiO₂ 持续 > 150 mmHg 且稳定 ≥ 4 小时'
+  if (form.stopType === 'reach') {
+    const reason = form.stopReason === 'clinical' ? '临床综合评估改善' : 'PaO₂/FiO₂ 持续 > 150 mmHg 且稳定 ≥ 4 小时'
+    return '达标终止：' + reason
+  }
   return '本次俯卧位尚未终止'
 })
 
@@ -749,6 +770,29 @@ const printUser = computed(() => {
   return params2.get('realname') || sessionStorage.getItem('doctor_realname') || '—'
 })
 const printTime = ref('')
+
+// ---------------------------------------------------------------- 电子签名
+
+const { signMap, loadAll: loadSignImages } = useStaffSignatures()
+
+/**
+ * 文书签名区取值：该工号的电子签名图。
+ * 返回空串 = 没有可用签名（未落工号 / ICU 库里没配图 / 工号与姓名对不上），
+ * 此时模板退化为打印姓名 —— 宁可没有图，也不能盖错人的章。
+ */
+function signOf(workNo) {
+  const no = String(workNo == null ? '' : workNo).trim()
+  return no ? (signMap[no] || '') : ''
+}
+
+/** 按当前签名人的工号预加载签名图：生成 PDF / 打印前必须调用，否则 html2canvas 会截出空白 */
+async function loadSigns() {
+  await loadSignImages([
+    { workNo: form.doctorWorkNo, name: form.doctorSign },
+    { workNo: form.nurseWorkNo, name: form.nurseSign },
+    { workNo: form.seniorWorkNo, name: form.seniorSign }
+  ])
+}
 
 // ---------------------------------------------------------------- 单元格
 
@@ -882,8 +926,10 @@ async function onSave(status) {
       startTime: toFullTime(form.startTime), endTime: toFullTime(form.endTime),
       complicationJson: JSON.stringify(compList.value), complicationDesc: form.complicationDesc,
       stopType: form.stopType,
-      stopDetail: form.stopType === 'emergency' ? emergencyList.value.join('、') : (form.stopType === 'reach' ? '达标终止' : ''),
+      stopDetail: form.stopType === 'emergency' ? emergencyList.value.join('、') : (form.stopType === 'reach' ? (form.stopReason === 'clinical' ? '临床综合评估改善' : 'PaO₂/FiO₂ 持续 > 150 mmHg 且稳定 ≥ 4 小时') : ''),
       remark: form.remark, doctorSign: form.doctorSign, nurseSign: form.nurseSign, seniorSign: form.seniorSign,
+      // 工号随姓名一起存：文书按它取电子签名图，后端会保证「姓名空 → 工号空」
+      doctorWorkNo: form.doctorWorkNo, nurseWorkNo: form.nurseWorkNo, seniorWorkNo: form.seniorWorkNo,
       recordStatus: status || record.value.recordStatus
     })
     const saved = await saveArdsProneRecord(body)
@@ -1092,6 +1138,8 @@ function toFullTime(v) {
 }
 
 async function buildPdf() {
+  // 签名图必须先解码完，html2canvas 才能把它画进画布（data URI 也要等解码）
+  await loadSigns()
   await nextTick()
   const el = paperRef.value
   if (!el) throw new Error('文书未渲染')
@@ -1137,11 +1185,16 @@ async function downloadPdf() {
   }
 }
 
-function doPrint() {
-  const el = paperRef.value
-  if (!el) return
+async function doPrint() {
+  // 先开窗口再等签名：window.open 必须在点击的同步栈里调用，
+  // 放到 await 之后会被浏览器当成非用户手势而拦截（签名加载是网络请求）
   const w = window.open('', '_blank')
   if (!w) { ElMessage.warning('浏览器拦截了打印窗口，请允许弹窗'); return }
+  // 打印窗口是把纸面 DOM 原样搬过去的：签名图没解码完会印成空白框
+  await loadSigns()
+  await nextTick()
+  const el = paperRef.value
+  if (!el) { w.close(); return }
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${fileName()}</title>
   <style>
     body{margin:0;background:#fff;font-family:'SimSun','宋体',sans-serif;color:#000}
@@ -1170,7 +1223,7 @@ async function onPrintAndArchive() {
     await onSave(record.value?.recordStatus || 'draft')
     const b64 = await buildPdfBase64()
     await attachArdsPronePdf(recordId.value, b64, fileName())
-    doPrint()
+    await doPrint()
     const res = await pushArdsProneArchive(recordId.value)
     if (res && res.idempotent) {
       ElMessage.info('该记录已归档，未重复推送')
@@ -1284,6 +1337,8 @@ function goList() {
 .grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px 16px; }
 .f { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .f.span2 { grid-column: span 2; }
+/* 签名字段下方的口径说明：说清工号与文书签名图的关系 */
+.sign-tip { margin-top: 4px; font-size: 12px; color: var(--el-text-color-secondary); }
 .f > label { font-size: 12px; color: var(--el-text-color-secondary); }
 .f > .v {
   border: 1px solid var(--el-border-color); border-radius: var(--ards-ctl-radius);
@@ -1497,7 +1552,10 @@ textarea.bx:focus { border-color: var(--el-color-primary); box-shadow: 0 0 0 3px
 .paper .p-sec { font-weight: 700; margin: 5px 0 2px; font-size: 9pt; border-left: 3px solid #000; padding-left: 5px; }
 .paper .p-line { border: 1px solid #000; padding: 3px 5px; min-height: 26px; margin-bottom: 3px; }
 .paper .p-sign { display: flex; gap: 10px; margin-top: 6px; }
-.paper .p-sign div { flex: 1; border: 1px solid #000; padding: 3px 6px; min-height: 30px; }
+.paper .p-sign div { flex: 1; border: 1px solid #000; padding: 3px 6px; min-height: 30px; display: flex; align-items: center; gap: 4px; }
+.paper .p-sign .lb { color: #333; white-space: nowrap; }
+/* 电子签名图：高度按纸面字号压到 24px，避免把签名行撑高导致整页溢出 */
+.paper .p-sign .sig { height: 24px; max-width: 100%; object-fit: contain; }
 .paper .p-foot { display: flex; justify-content: space-between; margin-top: 6px; font-size: 8pt; color: #444; }
 
 /* 抽屉 / 弹窗 */

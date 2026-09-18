@@ -5,7 +5,7 @@
       autocomplete="off"
       :value="modelValue"
       :placeholder="placeholder"
-      :title="picked ? picked.name + '（工号 ' + picked.workNo + (picked.depart ? ' · ' + picked.depart : '') + '）' : ''"
+      :title="tipText"
       @input="onInput"
       @focus="onFocus"
       @blur="close"
@@ -14,7 +14,7 @@
       @keydown.enter.prevent="pick(activeIndex)"
       @keydown.esc.stop="close"
     />
-    <span v-if="picked" class="ss-badge">职工库 ✓</span>
+    <span v-if="picked || workNo" class="ss-badge">职工库 ✓</span>
     <div v-if="open" class="ss-pop">
       <template v-if="options.length">
         <div
@@ -34,20 +34,29 @@
 </template>
 
 <script setup>
-import { ref, onBeforeUnmount } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 import { searchStaff } from '../api/staff'
 
 /**
- * 职工检索输入：输入即搜（姓名 / 拼音首字母 / 工号），点选即填入姓名。
+ * 职工检索输入：输入即搜（姓名 / 拼音首字母 / 工号），点选即填入姓名 + 工号。
  *
  * 刻意保留自由输入：外院会诊、进修人员不一定在 ICU 职工库里，签名字段不能被检索卡死。
  * 从列表选中后右上方显示「职工库 ✓」，一眼区分「库里选的」与「手敲的」。
+ *
+ * 工号（v-model:work-no）是文书电子签名图的主键：签名图只认工号，姓名重名 / 改过名
+ * 就可能取错人的章。因此手工改动姓名时工号必须立即作废（否则文书盖的是上一任的签名），
+ * 而只填姓名、没有工号是允许的 —— 此时文书自动退化为打印姓名。
+ *
+ * 回填历史记录时用 v-model:work-no 把库里的工号传回来：不改动姓名就不会丢，
+ * 徽标也照常亮着，看得出这条签名来自职工库。
  */
 const props = defineProps({
   modelValue: { type: String, default: '' },
+  /** 已落库的工号（可能来自历史记录回填，而非本次点选） */
+  workNo: { type: String, default: '' },
   placeholder: { type: String, default: '输入姓名 / 拼音首字母 / 工号检索' }
 })
-const emit = defineEmits(['update:modelValue', 'select'])
+const emit = defineEmits(['update:modelValue', 'update:workNo', 'select'])
 
 const open = ref(false)
 const loading = ref(false)
@@ -59,8 +68,19 @@ const picked = ref(null)
 let lastQuery = null
 let timer = null
 
+/** 悬停提示：本次点选的（含科室）优先，其次用回填的工号 —— 让人能核对该签名对应哪个工号 */
+const tipText = computed(() => {
+  if (picked.value) {
+    return picked.value.name + '（工号 ' + picked.value.workNo
+      + (picked.value.depart ? ' · ' + picked.value.depart : '') + '）'
+  }
+  return props.workNo ? props.modelValue + '（工号 ' + props.workNo + '）' : ''
+})
+
 function onInput(e) {
   emit('update:modelValue', e.target.value)
+  // 姓名被手改，旧工号立刻作废：留着会让文书盖上「同名不同人」的签名图
+  emit('update:workNo', '')
   picked.value = null
   emit('select', null)
   open.value = true
@@ -109,6 +129,7 @@ function pick(i) {
   const s = options.value[i]
   if (!s) return
   emit('update:modelValue', s.name)
+  emit('update:workNo', s.workNo || '')
   emit('select', s)
   picked.value = s
   close()

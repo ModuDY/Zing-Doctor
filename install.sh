@@ -141,6 +141,7 @@ FULL_SQL=(
     "20_quality_fact_patient_default_cols.sql"
     "21_ards_prone.sql"
     "22_ards_prone_config.sql"
+    "23_ards_prone_sign_work_no.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -167,6 +168,7 @@ FULL_SQL_JDBC=(
     "20_quality_fact_patient_default_cols.sql"
     "21_ards_prone.sql"
     "22_ards_prone_config.sql"
+    "23_ards_prone_sign_work_no.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -205,6 +207,9 @@ INCREMENTAL_SQL=(
     # 22 建 ARDS 采集映射配置表 + ards_prone_record 日期扩列（依赖 21，故排其后）；
     #    漏执行表现：参数设置页「ARDS 数据映射」点「一键从内置生成」500「无效的表或视图名[ards_prone_config]」
     "22_ards_prone_config.sql"
+    # 23 给 ards_prone_record 补三个签名人工号列（依赖 21）；
+    #    漏执行表现：文书签名区只打印姓名、不显示电子签名图，且保存记录报「无效的列名[doctor_work_no]」
+    "23_ards_prone_sign_work_no.sql"
 )
 
 # ---------- JDBC 初始化工具 classpath ----------
