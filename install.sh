@@ -444,6 +444,7 @@ init_db() {
   echo "    start $ROOT/sql/20_quality_fact_patient_default_cols.sql # 质控：事实表加默认列（幂等）"
   echo "    start $ROOT/sql/21_ards_prone.sql # ARDS 俯卧位 5 张表 + 页面注册 + 参数种子（幂等）"
   echo "    start $ROOT/sql/22_ards_prone_config.sql # ARDS 采集映射配置表 + 日期扩列（幂等；漏执行则「ARDS 数据映射」页 500）"
+  echo "    start $ROOT/sql/23_ards_prone_sign_work_no.sql # ARDS 签名人工号列（幂等；漏执行则文书不显示电子签名图、保存报无效的列名[doctor_work_no]）"
   exit 1
 }
 

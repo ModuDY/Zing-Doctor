@@ -18,7 +18,14 @@
 --   · 工号只用于反查签名图，不参与任何业务判断；查不到签名图时文书自动退回打印姓名。
 --   · 存量数据工号为空（历史记录没有来源），不影响既有文书与归档。
 --
--- 幂等：先判列存在性再 ADD，可重复执行。
+-- 幂等（⚠️ 踩过的坑，勿回退）：
+--   列存在性判断必须用**裸列名**与 UPPER(COLUMN_NAME) 比较。曾把带双引号的标识符
+--   （'"doctor_work_no"'）传进比较式，匹配结果恒为 0，于是每次执行都去 ALTER，
+--   第二次起直接报「列[doctor_work_no]已存在」并中断整个初始化流程。
+--   列名在 EXECUTE IMMEDIATE 里才加双引号。
+--
+--   另外：表不存在（比 SQL 更老的环境）时直接跳过，不报「无效的表或视图名」；
+--   COMMENT 也放进 PL/SQL 块里，保证整个脚本只有一条语句，迁移动作要么全做要么不做。
 --
 -- 执行方式（SYSDBA）：
 --   disql SYSDBA/Sa_20250815@100.120.1.102:14236
@@ -26,25 +33,47 @@
 -- =====================================================================
 
 DECLARE
+    v_tab INT;
     v_cnt INT;
-    PROCEDURE add_col(p_col VARCHAR, p_sql VARCHAR) IS
-    BEGIN
+BEGIN
+    SELECT COUNT(*) INTO v_tab FROM ALL_TABLES
+     WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD'
+       AND UPPER(TABLE_NAME) = 'ARDS_PRONE_RECORD';
+
+    IF v_tab > 0 THEN
+        -- 记录医师工号
         SELECT COUNT(*) INTO v_cnt FROM ALL_TAB_COLUMNS
          WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD'
            AND UPPER(TABLE_NAME) = 'ARDS_PRONE_RECORD'
-           AND UPPER(COLUMN_NAME) = UPPER(p_col);
+           AND UPPER(COLUMN_NAME) = 'DOCTOR_WORK_NO';
         IF v_cnt = 0 THEN
-            EXECUTE IMMEDIATE 'ALTER TABLE "zing_doctor_db_prod"."ards_prone_record" ADD '
-                || p_col || ' ' || p_sql;
+            EXECUTE IMMEDIATE 'ALTER TABLE "zing_doctor_db_prod"."ards_prone_record" ADD "doctor_work_no" VARCHAR(32)';
         END IF;
-    END;
-BEGIN
-    add_col('"doctor_work_no"', 'VARCHAR(32)');
-    add_col('"nurse_work_no"',  'VARCHAR(32)');
-    add_col('"senior_work_no"', 'VARCHAR(32)');
+
+        -- 记录护士工号
+        SELECT COUNT(*) INTO v_cnt FROM ALL_TAB_COLUMNS
+         WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD'
+           AND UPPER(TABLE_NAME) = 'ARDS_PRONE_RECORD'
+           AND UPPER(COLUMN_NAME) = 'NURSE_WORK_NO';
+        IF v_cnt = 0 THEN
+            EXECUTE IMMEDIATE 'ALTER TABLE "zing_doctor_db_prod"."ards_prone_record" ADD "nurse_work_no" VARCHAR(32)';
+        END IF;
+
+        -- 上级医师工号
+        SELECT COUNT(*) INTO v_cnt FROM ALL_TAB_COLUMNS
+         WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD'
+           AND UPPER(TABLE_NAME) = 'ARDS_PRONE_RECORD'
+           AND UPPER(COLUMN_NAME) = 'SENIOR_WORK_NO';
+        IF v_cnt = 0 THEN
+            EXECUTE IMMEDIATE 'ALTER TABLE "zing_doctor_db_prod"."ards_prone_record" ADD "senior_work_no" VARCHAR(32)';
+        END IF;
+
+        EXECUTE IMMEDIATE 'COMMENT ON COLUMN "zing_doctor_db_prod"."ards_prone_record"."doctor_work_no" IS '
+            || '''记录医师工号：按此从 config_staff_ca_info 取电子签名图；空则文书打印姓名''';
+        EXECUTE IMMEDIATE 'COMMENT ON COLUMN "zing_doctor_db_prod"."ards_prone_record"."nurse_work_no" IS '
+            || '''记录护士工号（同上）''';
+        EXECUTE IMMEDIATE 'COMMENT ON COLUMN "zing_doctor_db_prod"."ards_prone_record"."senior_work_no" IS '
+            || '''上级医师工号（同上）''';
+    END IF;
 END;
 /
-
-COMMENT ON COLUMN "zing_doctor_db_prod"."ards_prone_record"."doctor_work_no" IS '记录医师工号：按此从 config_staff_ca_info 取电子签名图；空则文书打印姓名';
-COMMENT ON COLUMN "zing_doctor_db_prod"."ards_prone_record"."nurse_work_no"  IS '记录护士工号（同上）';
-COMMENT ON COLUMN "zing_doctor_db_prod"."ards_prone_record"."senior_work_no" IS '上级医师工号（同上）';
