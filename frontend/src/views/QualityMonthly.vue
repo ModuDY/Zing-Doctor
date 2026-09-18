@@ -110,7 +110,7 @@
             <el-option
               v-for="m in g.metrics"
               :key="m.code"
-              :label="`${m.code} ${m.name}`"
+              :label="m.name"
               :value="m.code"
             />
           </el-option-group>

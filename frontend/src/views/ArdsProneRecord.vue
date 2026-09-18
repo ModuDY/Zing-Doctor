@@ -48,8 +48,8 @@
                 </div>
               </div>
             </div>
-            <div class="f"><label>经管医师</label><input v-model="form.attendingDoctor" class="v edit" placeholder="—" /></div>
-            <div class="f">
+            <div class="f"><label>经管医师</label><StaffSearchInput v-model="form.attendingDoctor" placeholder="检索或输入经管医师" /></div>
+            <div class="f" style="max-width:200px">
               <label>入院时间</label>
               <el-date-picker
                 v-model="form.admitDate"
@@ -60,7 +60,7 @@
                 class="w-full"
               />
             </div>
-            <div class="f"><label>记录日期</label><div class="v">{{ record?.recordDate || '—' }}</div></div>
+            <div class="f" style="max-width:200px"><label>记录日期</label><div class="v">{{ record?.recordDate || '—' }}</div></div>
           </div>
         </div>
       </div>
@@ -75,7 +75,7 @@
         </div>
         <div class="bd">
           <div class="timebar">
-            <div class="seg-cell">
+            <div class="seg-cell" style="max-width:220px">
               <div class="k">俯卧位开始</div>
               <el-date-picker
                 v-model="form.startTime"
@@ -87,7 +87,7 @@
                 :clearable="false"
               />
             </div>
-            <div class="seg-cell">
+            <div class="seg-cell" style="max-width:220px">
               <div class="k">俯卧位结束</div>
               <el-date-picker
                 v-model="form.endTime"
@@ -294,9 +294,9 @@
             <textarea v-model="form.remark" class="bx" placeholder="本次俯卧位治疗的补充说明"></textarea>
           </div>
           <div class="grid">
-            <div class="f span2"><label>记录医师</label><input v-model="form.doctorSign" class="v edit" placeholder="签名" /></div>
-            <div class="f span2"><label>记录护士</label><input v-model="form.nurseSign" class="v edit" placeholder="签名" /></div>
-            <div class="f span2"><label>上级医师</label><input v-model="form.seniorSign" class="v edit" placeholder="签名" /></div>
+            <div class="f span2"><label>记录医师</label><StaffSearchInput v-model="form.doctorSign" placeholder="签名：检索后选中" /></div>
+            <div class="f span2"><label>记录护士</label><StaffSearchInput v-model="form.nurseSign" placeholder="签名：检索后选中" /></div>
+            <div class="f span2"><label>上级医师</label><StaffSearchInput v-model="form.seniorSign" placeholder="签名：检索后选中" /></div>
           </div>
         </div>
       </div>
@@ -538,6 +538,7 @@ import {
   addArdsProneTp, updateArdsProneTp, deleteArdsProneTp, resetArdsProneTp,
   saveArdsProneTpl, attachArdsPronePdf, pushArdsProneArchive, checkArdsPronePrint
 } from '../api/ardsProne'
+import StaffSearchInput from '../components/StaffSearchInput.vue'
 
 const route = useRoute()
 const router = useRouter()
