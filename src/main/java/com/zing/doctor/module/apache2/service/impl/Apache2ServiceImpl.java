@@ -1218,14 +1218,14 @@ public class Apache2ServiceImpl implements Apache2Service {
 
                 LocalDateTime inTime = toLocalDateTime(p.get("in_depart_time"));
                 String start = fmt.format(inTime != null ? inTime : now.minusHours(overHours));
-                String end = fmt.format(now);
+                String end = fmt.format(inTime != null ? inTime.plusHours(overHours) : now);
 
                 Map<String, Object> fetched = autoFetchPhysiologyData(pid, start, end);
                 Map<String, Object> params = new HashMap<>(fetched);
                 params.put("age", p.get("age"));
                 params.put("chronicHealth", "none");
                 params.put("diagnosisType", "none");
-                // 若取数范围（入科以来）内有评全（非插管）的系统 GCS，取最新一条计入 C 项；
+                // 若取数范围（入科后24h）内有评全（非插管）的系统 GCS，取最新一条计入 C 项；
                 // 与手工「自动获取」同源同范围（start~end），确保同步的 GCS 不超出取数窗口。
                 Map<String, Object> gcs = latestSystemGcs(pid, start, end);
                 Integer gcsTotal = null;
@@ -1268,8 +1268,8 @@ public class Apache2ServiceImpl implements Apache2Service {
                 }
                 r.setApsData(om.writeValueAsString(aps));
                 r.setDataStartTime(inTime != null ? inTime : now.minusHours(overHours));
-                r.setDataEndTime(now);
-                r.setRemark("自动评分：基于入科以来客观监护/检验数据取最差值计算；GCS、慢性健康、诊断分类需主管医生复核确认。");
+                r.setDataEndTime(inTime != null ? inTime.plusHours(overHours) : now);
+                r.setRemark("自动评分：基于入科后" + overHours + "h客观监护/检验数据取最差值计算；GCS、慢性健康、诊断分类需主管医生复核确认。");
                 r.setCreateBy("系统自动");
                 r.setCreateTime(now);
                 r.setStatus(1);

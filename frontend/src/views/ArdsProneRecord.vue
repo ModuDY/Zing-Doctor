@@ -178,7 +178,7 @@
                           <span class="val">{{ cellText(tp.tpIndex, p.key) }}</span>
                         </template>
                         <template v-else>
-                          <input class="val" v-model="draft[tp.tpIndex][p.key]" :placeholder="'—'" @blur="onCellBlur(tp.tpIndex, p.key)" />
+                          <input class="val" v-model="ensureDraft(tp.tpIndex)[p.key]" :placeholder="'—'" @blur="onCellBlur(tp.tpIndex, p.key)" />
                           <span v-if="cellSource(tp.tpIndex, p.key)" class="src" :class="cellSource(tp.tpIndex, p.key)">{{ srcText(cellSource(tp.tpIndex, p.key)) }}</span>
                         </template>
                       </td>
@@ -209,7 +209,7 @@
                 <div class="gl">
                   <div v-for="p in g.items" :key="p.key" :class="['f', g.items.length % 2 === 1 && g.items.indexOf(p) === g.items.length - 1 ? 'wide' : '']">
                     <label>{{ p.name }}{{ p.unit ? '（' + p.unit + '）' : '' }}</label>
-                    <input v-if="!p.calc" class="v edit" v-model="draft[currentTpIndex][p.key]" placeholder="—" @blur="onCellBlur(currentTpIndex, p.key)" />
+                    <input v-if="!p.calc" class="v edit" v-model="ensureDraft(currentTpIndex)[p.key]" placeholder="—" @blur="onCellBlur(currentTpIndex, p.key)" />
                     <div v-else class="v calc">{{ cellText(currentTpIndex, p.key) }}</div>
                   </div>
                 </div>
@@ -526,7 +526,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import '../styles/ards-theme.css'
@@ -576,6 +576,20 @@ const detailOpen = ref(false)
 const draft = ref({})
 /** 单元格原始值快照：用于识别改动与来源 */
 const origin = reactive({})
+
+// 新增/删除时点后 timepoints 会整体替换，而 draft 只在 applyView 里按 cells 重建，
+// 于是新时点没有对应的 draft[tpIndex]，模板里 draft[tp.tpIndex][p.key] 就会读 undefined 报错。
+// 这里兜底补齐（已有的键不动，避免把用户正在编辑的值清掉）。
+watch(timepoints, (list) => {
+  ;(list || []).forEach(tp => {
+    if (tp.tpIndex == null) return
+    if (!draft.value[tp.tpIndex]) draft.value[tp.tpIndex] = {}
+  })
+  // 当前时点被删掉时回退到第一个时点，避免停在已不存在的 tpIndex 上
+  if ((list || []).length && !(list || []).some(t => t.tpIndex === currentTpIndex.value)) {
+    currentTpIndex.value = list[0].tpIndex
+  }
+}, { immediate: true })
 
 const form = reactive({
   diagnosis: '', ardsGrade: '', attendingDoctor: '', admitDate: '', apache2Score: '',
@@ -734,6 +748,13 @@ const printUser = computed(() => {
 const printTime = ref('')
 
 // ---------------------------------------------------------------- 单元格
+
+/** 取（必要时创建）某个时点的草稿对象：模板 v-model 的下标访问需要它兜底 */
+function ensureDraft(tpIndex) {
+  if (tpIndex == null) return {}
+  if (!draft.value[tpIndex]) draft.value[tpIndex] = {}
+  return draft.value[tpIndex]
+}
 
 function cellText(tpIndex, paramKey) {
   const d = draft.value[tpIndex]
