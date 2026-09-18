@@ -6,6 +6,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -27,6 +28,18 @@ public class GlobalExceptionHandler {
                 ? "参数校验失败"
                 : e.getBindingResult().getFieldErrors().get(0).getDefaultMessage();
         return Result.fail(400, msg);
+    }
+
+    /**
+     * 缺少必填请求参数（如定时探针/外部系统调用时漏传 pageCode）。
+     *
+     * <p>这是调用方的问题，不是系统故障：落到兜底 Exception 会被记成 ERROR 并打满堆栈，
+     * 定时探针每隔几十秒来一次就把日志灌满、掩盖真实故障。这里降级为 WARN 并返回 400。
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public Result<Void> handleMissingParam(MissingServletRequestParameterException e) {
+        log.warn("缺少必填参数 {}: {}", e.getParameterName(), e.getMessage());
+        return Result.fail(400, "缺少必填参数：" + e.getParameterName());
     }
 
     /**

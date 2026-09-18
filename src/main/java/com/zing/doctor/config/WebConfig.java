@@ -20,10 +20,10 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // 放行：外链签发接口（它本身无法携带凭证）+ 登录接口（用账号密码换令牌）
+        // 放行：外链签发接口（它本身无法携带凭证）+ 登录接口（用账号密码换令牌）+ 存活探针
         registry.addInterceptor(externalLinkInterceptor)
                 .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/external/token", "/api/auth/login");
+                .excludePathPatterns("/api/external/token", "/api/auth/login", "/api/health");
         // 顺序敏感：必须排在外链鉴权之后，先确认「能看」，再判定「能改」
         registry.addInterceptor(qualityConfigWriteInterceptor)
                 .addPathPatterns("/api/quality/config/**");

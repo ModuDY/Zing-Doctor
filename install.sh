@@ -655,7 +655,7 @@ EOF
   # ---- 等待后端就绪（最多 60 秒）----
   info "等待后端就绪（最多 60 秒）..."
   for i in $(seq 1 30); do
-    if curl -m 2 -s -o /dev/null "http://127.0.0.1:8081/api/external/token"; then
+    if curl -m 2 -s -o /dev/null "http://127.0.0.1:8081/api/health"; then
       info "后端已就绪（$i 次探测）"; break
     fi
     sleep 2

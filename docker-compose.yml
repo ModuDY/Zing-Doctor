@@ -52,7 +52,8 @@ services:
     networks:
       - zing-doctor-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:8081/api/external/token"]
+      # 打专用的存活探针：不要打 /api/external/token（必填 pageCode，会因缺参返回 4xx/5xx 让容器误判 unhealthy）
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8081/api/health"]
       interval: 30s
       timeout: 10s
       retries: 5
