@@ -325,7 +325,6 @@
       </div>
       <div ref="paperRef" class="paper">
         <div class="p-title">ARDS 俯卧位通气治疗记录单</div>
-        <div class="p-sub">{{ record?.departCode || '重症医学科' }} · 记录编号 {{ record?.recordNo || '—' }}</div>
 
         <table class="p-info">
           <tr>
@@ -404,10 +403,6 @@
           </div>
         </div>
         <div class="p-foot">
-          <span>记录编号：{{ record?.recordNo || '—' }}</span>
-          <span>归档文档号：{{ record?.archiveDocNo || '—' }}</span>
-          <span>打印人：{{ printUser }}</span>
-          <span>打印时间：{{ printTime }}</span>
           <span>第 1 页 / 共 1 页</span>
         </div>
       </div>
@@ -1556,7 +1551,7 @@ textarea.bx:focus { border-color: var(--el-color-primary); box-shadow: 0 0 0 3px
 .paper .p-sign .lb { color: #333; white-space: nowrap; }
 /* 电子签名图：高度按纸面字号压到 24px，避免把签名行撑高导致整页溢出 */
 .paper .p-sign .sig { height: 24px; max-width: 100%; object-fit: contain; }
-.paper .p-foot { display: flex; justify-content: space-between; margin-top: 6px; font-size: 8pt; color: #444; }
+.paper .p-foot { display: flex; justify-content: center; margin-top: 6px; font-size: 8pt; color: #444; }
 
 /* 抽屉 / 弹窗 */
 .mask { position: fixed; inset: 0; background: var(--el-mask-color); z-index: 60; }

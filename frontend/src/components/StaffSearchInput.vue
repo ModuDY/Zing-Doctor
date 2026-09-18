@@ -1,5 +1,5 @@
 <template>
-  <div class="ss-wrap">
+  <div class="ss-wrap" ref="wrapRef">
     <input
       class="ss-ipt"
       autocomplete="off"
@@ -15,7 +15,7 @@
       @keydown.esc.stop="close"
     />
     <span v-if="picked || workNo" class="ss-badge">职工库 ✓</span>
-    <div v-if="open" class="ss-pop">
+    <div v-if="open" class="ss-pop" :style="popStyle">
       <template v-if="options.length">
         <div
           v-for="(s, i) in options"
@@ -34,7 +34,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, onBeforeUnmount, nextTick } from 'vue'
 import { searchStaff } from '../api/staff'
 
 /**
@@ -49,6 +49,8 @@ import { searchStaff } from '../api/staff'
  *
  * 回填历史记录时用 v-model:work-no 把库里的工号传回来：不改动姓名就不会丢，
  * 徽标也照常亮着，看得出这条签名来自职工库。
+ *
+ * 下拉面板用 position: fixed + 动态定位，避免被外层容器的 overflow 裁剪。
  */
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -58,6 +60,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue', 'update:workNo', 'select'])
 
+const wrapRef = ref(null)
 const open = ref(false)
 const loading = ref(false)
 const options = ref([])
@@ -67,6 +70,19 @@ const picked = ref(null)
 /** null = 从未检索过，聚焦时先拉一批；'' = 已检索过全量 */
 let lastQuery = null
 let timer = null
+
+/** 下拉面板的 fixed 定位样式（top / left / width），打开时动态计算 */
+const popStyle = ref({})
+
+function updatePopPosition() {
+  if (!wrapRef.value) return
+  const rect = wrapRef.value.getBoundingClientRect()
+  popStyle.value = {
+    top: rect.bottom + 4 + 'px',
+    left: rect.left + 'px',
+    width: rect.width + 'px'
+  }
+}
 
 /** 悬停提示：本次点选的（含科室）优先，其次用回填的工号 —— 让人能核对该签名对应哪个工号 */
 const tipText = computed(() => {
@@ -85,11 +101,13 @@ function onInput(e) {
   emit('select', null)
   open.value = true
   activeIndex.value = 0
+  nextTick(updatePopPosition)
   schedule(e.target.value)
 }
 
 function onFocus() {
   open.value = true
+  nextTick(updatePopPosition)
   if (lastQuery === null) schedule(props.modelValue || '')
 }
 
@@ -116,6 +134,7 @@ async function run(kw) {
     options.value = []
   } finally {
     loading.value = false
+    nextTick(updatePopPosition)
   }
 }
 
@@ -139,7 +158,22 @@ function close() {
   open.value = false
 }
 
-onBeforeUnmount(() => clearTimeout(timer))
+/** 窗口滚动 / 尺寸变化时重新定位下拉面板 */
+function onScrollOrResize() {
+  if (open.value) updatePopPosition()
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('scroll', onScrollOrResize, true)
+  window.addEventListener('resize', onScrollOrResize)
+}
+
+onBeforeUnmount(() => {
+  clearTimeout(timer)
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('scroll', onScrollOrResize, true)
+    window.removeEventListener('resize', onScrollOrResize)
+  }
+})
 </script>
 
 <style scoped>
@@ -156,7 +190,7 @@ onBeforeUnmount(() => clearTimeout(timer))
   font-size: 11px; color: var(--el-color-success); pointer-events: none; white-space: nowrap;
 }
 .ss-pop {
-  position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px);
+  position: fixed; z-index: 3000;
   max-height: 240px; overflow: auto; background: #fff; padding: 4px;
   border: 1px solid var(--el-border-color-light); border-radius: 6px;
   box-shadow: 0 6px 16px rgba(0, 0, 0, .12);
