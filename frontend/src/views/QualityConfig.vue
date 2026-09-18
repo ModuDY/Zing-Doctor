@@ -874,6 +874,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import '../styles/quality-theme.css'
+import { operatorLabel as personLabel } from '../utils/operator'
 import {
   fetchQualityConfigStatus,
   fetchConfigMetrics,
@@ -924,11 +925,7 @@ const canEdit = computed(() => writable.value && writeAllowed.value)
 
 // unknown / unkonw 这类值说明服务端没解析到身份（外链没带真实姓名、也没配默认操作人）。
 // 它是占位符不是人名，直接亮出来会让人以为身份已接通，这里统一归为「未知」并给出排查提示。
-const operatorLabel = computed(() => {
-  const v = (operator.value || '').trim()
-  const placeholder = /^(unknown|unkonw|unkown|unknow|null|undefined|none|匿名|未知|无)$/i.test(v)
-  return placeholder ? '' : v
-})
+const operatorLabel = computed(() => personLabel(operator.value))
 
 const bannerClass = computed(() => {
   if (canEdit.value) return 'ok'

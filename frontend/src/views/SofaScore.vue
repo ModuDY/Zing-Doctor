@@ -22,7 +22,7 @@
               <span :class="['record-score', scoreBadgeClass(r.totalScore)]">{{ r.totalScore }}</span>
             </div>
             <div class="record-meta">
-              <span>{{ r.createBy || '—' }}</span>
+              <span>{{ operatorLabel(r.createBy) || '—' }}</span>
               <span :class="['record-tag', recTagClass(r)]">{{ scoreTypeLabel(r) }}</span>
               <span v-if="r.hasPdf === 1" class="record-tag pdf-tag" @click.stop="viewPdf(r)">PDF文书</span>
               <!-- 归档口径：自动初评（auto/daily）只是系统内部评估草稿，未经医生确认，不作为文书归档；
@@ -637,6 +637,7 @@ import {
 } from '../api/sofa'
 import { isExternalMode } from '../utils/external'
 import { useStaffSignature } from '../utils/staffSignature'
+import { operatorLabel } from '../utils/operator'
 
 const HOSPITAL_LOGO = '/logo.png'  /* 院徽静态资源：frontend/public/logo.png，构建后随 dist 输出 */
 

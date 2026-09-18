@@ -92,7 +92,7 @@
                     <div><span>评分来源：</span>{{ scoreTypeText(row.scoreType) }}</div>
                     <div><span>评分时间：</span>{{ row.scoreTime }}</div>
                     <div><span>疾病分类：</span>{{ diagnosisTypeText(row.diagnosisType) }}</div>
-                    <div><span>创建人：</span>{{ row.createBy || '—' }}</div>
+                    <div><span>创建人：</span>{{ operatorLabel(row.createBy) || '—' }}</div>
                   </div>
                 </div>
                 <div class="detail-actions">
@@ -134,6 +134,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import request from '../api/request'
 import { appendExternalContext } from '../utils/external'
+import { operatorLabel } from '../utils/operator'
 import * as echarts from '../utils/echarts'
 
 const route = useRoute()

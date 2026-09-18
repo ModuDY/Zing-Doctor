@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="ards-page ards-theme">
     <!-- ============================ 填写页 ============================ -->
     <div v-if="scr === 'form'">
@@ -256,10 +256,10 @@
           <div class="f" style="margin-bottom: 12px">
             <label>达标终止</label>
             <div class="checks">
-              <span class="ck" :class="{ on: form.stopType === 'reach' }" @click="form.stopType = form.stopType === 'reach' ? 'none' : 'reach'">
+              <span class="ck" :class="{ on: form.stopReason === 'pao2' }" @click="toggleStopReason('pao2')">
                 <i class="box">✓</i>PaO₂/FiO₂ 持续 &gt; 150 mmHg 且稳定 ≥ 4 小时
               </span>
-              <span class="ck" :class="{ on: form.stopType === 'reach' }" @click="form.stopType = form.stopType === 'reach' ? 'none' : 'reach'">
+              <span class="ck" :class="{ on: form.stopReason === 'clinical' }" @click="toggleStopReason('clinical')">
                 <i class="box">✓</i>临床综合评估改善
               </span>
             </div>
@@ -595,7 +595,7 @@ watch(timepoints, (list) => {
 const form = reactive({
   diagnosis: '', ardsGrade: '', attendingDoctor: '', admitDate: '', apache2Score: '',
   startTime: '', endTime: '', complicationDesc: '', remark: '',
-  stopType: 'none', doctorSign: '', nurseSign: '', seniorSign: ''
+  stopType: 'none', stopReason: '', doctorSign: '', nurseSign: '', seniorSign: ''
 })
 const compList = ref([])
 const emergencyList = ref([])
@@ -651,7 +651,7 @@ function applyView(view) {
     admitDate: r.admitDate ? (r.admitDate.length === 10 ? r.admitDate + ' 00:00' : r.admitDate) : '', apache2Score: r.apache2Score || '',
     startTime: fmtInput(r.startTime), endTime: fmtInput(r.endTime),
     complicationDesc: r.complicationDesc || '', remark: r.remark || '',
-    stopType: r.stopType || 'none', doctorSign: r.doctorSign || '',
+    stopType: r.stopType || 'none', stopReason: r.stopReason || '', doctorSign: r.doctorSign || '',
     nurseSign: r.nurseSign || '', seniorSign: r.seniorSign || ''
   })
   try {
@@ -659,8 +659,10 @@ function applyView(view) {
   } catch (e) {
     compList.value = []
   }
-  if (r.stopDetail) {
+  if (r.stopType === 'emergency' && r.stopDetail) {
     emergencyList.value = String(r.stopDetail).split('、').filter(Boolean)
+  } else if (r.stopType === 'reach' && r.stopDetail) {
+    form.stopReason = String(r.stopDetail).includes('临床综合评估') ? 'clinical' : 'pao2'
   }
 
   // 单元格矩阵
@@ -806,6 +808,16 @@ function toggleEmergency(e) {
   else emergencyList.value.push(e)
   if (emergencyList.value.length) form.stopType = 'emergency'
   else if (form.stopType === 'emergency') form.stopType = 'none'
+}
+
+function toggleStopReason(reason) {
+  if (form.stopReason === reason) {
+    form.stopReason = ''
+    form.stopType = 'none'
+  } else {
+    form.stopReason = reason
+    form.stopType = 'reach'
+  }
 }
 
 function collectChanges() {

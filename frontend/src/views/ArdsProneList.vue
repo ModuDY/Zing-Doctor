@@ -104,7 +104,9 @@
                 <td v-html="compCell(r)"></td>
                 <td v-html="statCell(r)"></td>
                 <td v-html="arcCell(r)"></td>
-                <td class="upd">{{ r.updateBy || '—' }} {{ fmtTime(r.updateTime) }}</td>
+                <td class="upd">
+                  <span :title="updByTitle(r)">{{ updBy(r) }}</span> {{ fmtTime(r.updateTime) }}
+                </td>
                 <td class="ops" @click.stop>
                   <span @click="toggleExpand(r.id)">{{ expanded === r.id ? '收起' : '展开' }}</span>
                   <span @click="onEdit(r)">编辑</span>
@@ -209,6 +211,7 @@ import {
   fetchArdsProneList, fetchArdsProneSummary, createArdsProneRecord,
   deleteArdsProneRecord, pushArdsProneArchive, lookupArdsPronePatient
 } from '../api/ardsProne'
+import { operatorLabel, OPERATOR_MISSING_HINT } from '../utils/operator'
 
 const route = useRoute()
 const router = useRouter()
@@ -324,6 +327,17 @@ function fmtDate(v) {
 function fmtTime(v) {
   if (!v) return '—'
   return String(v).slice(5, 16)
+}
+/**
+ * 「最后更新」的操作人。
+ * unknown 是服务端解析不到身份时写的占位值，不是人名：这里显示成「未知」并挂排查提示，
+ * 免得看着像记录被某个叫 unknown 的人改过，而真正的问题（外链没带身份）被一直忽略。
+ */
+function updBy(r) {
+  return operatorLabel(r.updateBy) || '未知'
+}
+function updByTitle(r) {
+  return operatorLabel(r.updateBy) ? '' : OPERATOR_MISSING_HINT
 }
 function durationText(r) {
   if (!r.durationMin && r.durationMin !== 0) return '—'

@@ -24,7 +24,7 @@
             <span :class="['record-score', getScoreClass(rec.totalScore)]">{{ rec.totalScore }}</span>
           </div>
           <div class="record-meta">
-            <span>{{ rec.createBy || '—' }}</span>
+            <span>{{ operatorLabel(rec.createBy) || '—' }}</span>
             <span :class="['record-tag', recTagClass(rec)]">{{ scoreTypeLabel(rec) }}</span>
             <span v-if="rec.hasPdf === 1" class="record-tag pdf-tag" @click.stop="viewSavedPdf(rec)">PDF文书</span>
             <!-- 归档口径：自动初评（auto/daily）只是系统内部评估草稿，未经医生确认，不作为文书归档；
@@ -709,6 +709,7 @@ import request from '../api/request'
 import { getExternalHeaders, isExternalMode } from '../utils/external'
 import { getAuthHeaders } from '../utils/auth'
 import { useStaffSignature } from '../utils/staffSignature'
+import { operatorLabel } from '../utils/operator'
 
 const route = useRoute()
 const inHospitalNo = ref(route.query.inHospitalNo || '')
@@ -1068,7 +1069,8 @@ function selectRecord(rec) {
   form.acuteRenalFailure = form.acuteRenalFailure === true
   form.remark = rec.remark || ''
   form.scoreTime = rec.scoreTime ? toLocalInput(rec.scoreTime) : form.scoreTime
-  form.doctor = rec.createBy || form.doctor || ''
+  // createBy 可能是服务端占位值 unknown（未解析到身份），不能当名字回填到「评分医师」
+  form.doctor = operatorLabel(rec.createBy) || form.doctor || ''
   fetchStartTime.value = rec.dataStartTime ? toLocalInput(rec.dataStartTime) : fetchStartTime.value
   fetchEndTime.value = rec.dataEndTime ? toLocalInput(rec.dataEndTime) : fetchEndTime.value
   calculateScore()
