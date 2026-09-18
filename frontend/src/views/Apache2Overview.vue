@@ -129,7 +129,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import request from '../api/request'
@@ -137,6 +137,7 @@ import { appendExternalContext } from '../utils/external'
 import * as echarts from '../utils/echarts'
 
 const route = useRoute()
+const router = useRouter()
 // ICU 外链模板未被替换的占位符（如 ${departCode}）会原样带进 query，必须按“无效参数”处理，
 // 否则会以一个不存在的科室去查询，表面“成功”但永远返回空数据。
 const RAW_PLACEHOLDER = /\$\{[^}]*\}/
@@ -336,8 +337,8 @@ function goToScorePage(row) {
     `&patientName=${encodeURIComponent(row.patientName || '')}` +
     `&departCode=${encodeURIComponent(departCode.value)}` +
     `&recordId=${encodeURIComponent(row.id)}`
-  // 新标签页不保证继承 sessionStorage 中的外链上下文，显式带上以免 401
-  window.open(appendExternalContext(url), '_blank')
+  // 当前页面跳转，sessionStorage 上下文自然继承
+  router.push(appendExternalContext(url))
 }
 </script>
 
