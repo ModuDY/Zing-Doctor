@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="ards-page ards-theme">
     <!-- ============================ 填写页 ============================ -->
     <div v-if="scr === 'form'">
@@ -75,7 +75,7 @@
         </div>
         <div class="bd">
           <div class="timebar">
-            <div class="seg-cell" style="max-width:220px">
+            <div class="seg-cell">
               <div class="k">俯卧位开始</div>
               <el-date-picker
                 v-model="form.startTime"
@@ -83,11 +83,11 @@
                 value-format="YYYY-MM-DD HH:mm:ss"
                 format="YYYY-MM-DD HH:mm"
                 placeholder="选择开始时间"
-                class="w-full"
+                style="width:180px"
                 :clearable="false"
               />
             </div>
-            <div class="seg-cell" style="max-width:220px">
+            <div class="seg-cell">
               <div class="k">俯卧位结束</div>
               <el-date-picker
                 v-model="form.endTime"
@@ -95,7 +95,7 @@
                 value-format="YYYY-MM-DD HH:mm:ss"
                 format="YYYY-MM-DD HH:mm"
                 placeholder="未结束"
-                class="w-full"
+                style="width:180px"
               />
             </div>
             <div class="seg-cell"><div class="k">持续时长</div><div class="v">{{ durationText }} <small>自动计算</small></div></div>
@@ -1541,7 +1541,7 @@ textarea.bx:focus { border-color: var(--el-color-primary); box-shadow: 0 0 0 3px
 .paper table.p-mon td.l, .paper table.p-mon th.l { text-align: left; }
 .paper table.p-mon th { background: #f2f2f2; }
 .paper table.p-mon td.cat { background: #fafafa; font-weight: 600; width: 18px; }
-.paper table.p-mon td.cat .cat-v { writing-mode: vertical-rl; letter-spacing: 2px; margin: 0 auto; }
+.paper table.p-mon td.cat .cat-v { writing-mode: vertical-rl; letter-spacing: 1px; margin: 0 auto; font-size: 7pt; line-height: 1.1; }
 .paper table.p-mon td.calc { background: #f7f7f7; color: #555; }
 .paper table.p-mon td.abn { background: #fee; color: #c00; font-weight: 600; }
 .paper .p-sec { font-weight: 700; margin: 5px 0 2px; font-size: 9pt; border-left: 3px solid #000; padding-left: 5px; }
