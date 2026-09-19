@@ -78,13 +78,13 @@
 
       <div class="filter-right">
         <el-button :loading="rulesSyncing" @click="doSyncRules">
-          <el-icon><Upload /></el-icon> 同步指标规则
+          <el-icon><Download /></el-icon> 同步指标规则
         </el-button>
         <el-button :loading="recalcing" @click="doRecalc">
           <el-icon><Cpu /></el-icon> 触发计算
         </el-button>
         <el-button :loading="syncing" @click="doSync">
-          <el-icon><Upload /></el-icon> 同步字典
+          <el-icon><Download /></el-icon> 同步字典
         </el-button>
       </div>
     </div>
@@ -998,7 +998,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, Cpu, Upload, Download, Grid, CircleCheck, WarningFilled, Hide } from '@element-plus/icons-vue'
+import { Refresh, Cpu, Download, Grid, CircleCheck, WarningFilled, Hide } from '@element-plus/icons-vue'
 import { externalParam } from '../utils/external'
 import '../styles/quality-theme.css'
 import {
