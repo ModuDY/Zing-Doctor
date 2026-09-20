@@ -129,6 +129,7 @@ public class ArdsProneServiceImpl implements ArdsProneService {
         view.setTimepoints(timepointMapper.selectByRecord(id));
         view.setCells(buildCellVos(id));
         view.setApache2Show(apache2Show());
+        view.setArchiveEnabled(archiveEnabled());
         return view;
     }
 
@@ -203,6 +204,12 @@ public class ArdsProneServiceImpl implements ArdsProneService {
     public boolean apache2Show() {
         // 默认显示、全院统一：参数未配置或已停用时按默认「显示」处理
         return sysParamService.bool(KEY_APACHE2_SHOW, true);
+    }
+
+    @Override
+    public boolean archiveEnabled() {
+        // 默认关闭、全院统一：未配置时不暴露归档入口，避免院方未对接归档接口时出现死按钮
+        return sysParamService.bool(KEY_ARCHIVE_ENABLED, false);
     }
 
     private List<ArdsProneCellVo> buildCellVos(Long recordId) {

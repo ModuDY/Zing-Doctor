@@ -19,6 +19,9 @@ public interface ArdsProneService {
     /** 参数键：APACHE II 是否显示（默认显示、全院统一） */
     String KEY_APACHE2_SHOW = "ARDS_PRONE_APACHE2_SHOW";
 
+    /** 参数键：归档回传功能是否启用（默认关闭，全院统一；关闭后列表/填写页不显示归档按钮与状态列） */
+    String KEY_ARCHIVE_ENABLED = "ARDS_PRONE_ARCHIVE_ENABLED";
+
     /** 参数键：记录编号前缀 */
     String KEY_RECORD_PREFIX = "ARDS_PRONE_RECORD_PREFIX";
 
@@ -109,6 +112,9 @@ public interface ArdsProneService {
 
     /** APACHE II 是否显示（参数控制，默认显示） */
     boolean apache2Show();
+
+    /** 归档回传是否启用（参数控制，默认关闭；关闭后前端隐藏归档按钮与状态列） */
+    boolean archiveEnabled();
 
     // ---------------------------------------------------------- 采集映射配置
 

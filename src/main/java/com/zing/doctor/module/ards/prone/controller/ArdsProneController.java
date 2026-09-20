@@ -61,6 +61,12 @@ public class ArdsProneController {
         return Result.ok(ardsProneService.apache2Show());
     }
 
+    /** 归档回传是否启用（参数控制，默认关闭；关闭后前端隐藏归档按钮与状态列） */
+    @GetMapping("/archive-enabled")
+    public Result<Boolean> archiveEnabled() {
+        return Result.ok(ardsProneService.archiveEnabled());
+    }
+
     // ---------------------------------------------------------- 采集映射配置
 
     /** 映射配置列表（含停用项，供配置页管理）：configType / configKey 可空 */

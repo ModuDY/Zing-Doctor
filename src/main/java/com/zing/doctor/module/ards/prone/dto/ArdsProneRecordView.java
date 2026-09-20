@@ -23,4 +23,10 @@ public class ArdsProneRecordView {
      * 同时作用于填写页、文书预览、打印文书与回传文书。
      */
     private Boolean apache2Show;
+
+    /**
+     * 归档回传是否启用：由参数 ARDS_PRONE_ARCHIVE_ENABLED 控制（默认关闭、全院统一）。
+     * 关闭时填写页隐藏归档按钮与归档状态，列表页隐藏归档列。
+     */
+    private Boolean archiveEnabled;
 }
