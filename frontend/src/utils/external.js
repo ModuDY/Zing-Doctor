@@ -8,6 +8,9 @@
  * 通过后端 ExternalLinkInterceptor 校验。
  */
 
+// 占位值判定：与后端 OperatorContext.PLACEHOLDER_NAMES、展示层 operatorLabel 同一把尺子
+import { isPlaceholderOperator } from './operator'
+
 const KEY_PAGE = 'extPageCode'
 const KEY_EXPIRE = 'extExpire'
 const KEY_SIGN = 'extSign'
@@ -29,7 +32,16 @@ export function captureExternalContext() {
   // 不该因为后者不完整而把前者一起丢掉。
   const operator = q.get('realname') || q.get('userName') || q.get('username') || q.get('userId') || ''
   if (operator) {
-    sessionStorage.setItem(KEY_OPERATOR, operator)
+    // 「带了但不能用」的身份必须清掉，否则整个会话都被这个脏值污染：
+    // 典型是 ICU 外链模板没做变量替换，原样传来 ${realname}；还有 unknown 及其拼错写法。
+    // 它们都是非空串，能被后面「非空就发」的判断通过 → 每个接口都带上伪身份 →
+    // 后端判为占位值 → create_by / update_by 一律记 unknown（页面显示「未知」）。
+    // 实测就是这个：Referer 里出现过 &realname=${realname}，之后新建的记录全是 unknown。
+    if (isPlaceholderOperator(operator)) {
+      sessionStorage.removeItem(KEY_OPERATOR)
+    } else {
+      sessionStorage.setItem(KEY_OPERATOR, operator)
+    }
   }
   // URL 完全没带身份参数时<b>不清空</b>已存的值：站内路由跳转（router.push）与
   // window.open 打开的新标签页都不会把 realname 拼在地址上，此前那条
@@ -78,7 +90,9 @@ export function getExternalHeaders() {
   headers['X-External-PageCode'] = pageCode
   // 操作人身份：后端据此写 create_by / update_by，不由各页面自行传递（不可信）
   const operator = sessionStorage.getItem(KEY_OPERATOR)
-  if (operator) {
+  // 二次校验：只发「看起来像人名」的值。占位值宁可不发——后端本来也会判占位值，
+  // 但脏值一旦进了 sessionStorage 就会被反复发出，不如在这里就近掐掉。
+  if (operator && !isPlaceholderOperator(operator)) {
     headers['X-External-Operator'] = operator
   }
   if (expire && sign) {
@@ -135,7 +149,8 @@ export function appendExternalContext(url) {
   // 带上医生身份：否则站内跳过去的页面丢失 realname，既显示不出名字也记不到操作人。
   // 用 realname 为键名，与目标页面既有的「评分医师」展示逻辑一致。
   const operator = sessionStorage.getItem(KEY_OPERATOR)
-  if (operator) {
+  // 别把占位身份往下传：新标签页会把它当真名再捕获一次，污染扩散到下一个页面
+  if (operator && !isPlaceholderOperator(operator)) {
     parts.push(`realname=${encodeURIComponent(operator)}`)
   }
   if (token) {
