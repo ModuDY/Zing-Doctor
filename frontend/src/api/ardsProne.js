@@ -27,6 +27,11 @@ export function fetchArdsProneApache2Show() {
   return request.get('/ards-prone/apache2-show')
 }
 
+/** 归档回传是否启用（参数控制，默认关闭；关闭后列表/填写页隐藏归档按钮与状态列） */
+export function fetchArdsProneArchiveEnabled() {
+  return request.get('/ards-prone/archive-enabled')
+}
+
 /**
  * 新建一次俯卧位疗程记录。
  * ICU 外链模式可带 inHospitalSerialNo / inDepartTime，用于同一住院号多次入科时精确定位患者。

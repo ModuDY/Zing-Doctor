@@ -311,9 +311,9 @@
         <span class="tag" :class="record?.archiveStatus === 1 ? 'green' : 'gray'">
           归档：{{ record?.archiveStatus === 1 ? '已回传' + (record?.archiveDocNo ? '（文档号 ' + record.archiveDocNo + '）' : '') : '未回传' }}
         </span>
-        <button class="btn" @click="onArchive">{{ record?.archiveStatus === 1 ? '重新回传' : '归档回传' }}</button>
+        <button v-if="archiveEnabled" class="btn" @click="onArchive">{{ record?.archiveStatus === 1 ? '重新回传' : '归档回传' }}</button>
         <button class="btn" @click="downloadPdf">导出 PDF</button>
-        <button class="btn primary" @click="onPrintAndArchive">打印并归档回传</button>
+        <button v-if="archiveEnabled" class="btn primary" @click="onPrintAndArchive">打印并归档回传</button>
         <span class="spacer"></span>
         <span class="hint">APACHE II 由参数设置控制（当前：{{ apache2Show ? '显示' : '不显示' }}，全院统一）</span>
         <button class="btn" @click="scr = 'form'">返回填写</button>
@@ -321,7 +321,7 @@
       <div class="sysbar" style="margin-bottom: 12px">
         <span class="it">真实 1:1 预览：A4 横向、所见即所得，纸面版式与打印一致</span>
         <span class="spacer"></span>
-        <span class="it">归档接口：调用<b>「参数设置」中配置的现有归档接口</b>，与 APACHE II、SOFA 评分归档同一接口、传参一致</span>
+        <span v-if="archiveEnabled" class="it">归档接口：调用<b>「参数设置」中配置的现有归档接口</b>，与 APACHE II、SOFA 评分归档同一接口、传参一致</span>
       </div>
       <div ref="paperRef" class="paper">
         <div class="p-title">ARDS 俯卧位通气治疗记录单</div>
@@ -573,6 +573,7 @@ const record = ref(null)
 const params = ref([])
 const timepoints = ref([])
 const apache2Show = ref(true)
+const archiveEnabled = ref(false)
 const mode = ref('table')
 const currentTpIndex = ref(0)
 const tpDrawer = ref(false)
@@ -654,6 +655,7 @@ function applyView(view) {
   record.value = view.record
   timepoints.value = (view.timepoints || []).slice().sort((a, b) => (a.tpIndex || 0) - (b.tpIndex || 0))
   apache2Show.value = view.apache2Show !== undefined ? view.apache2Show : apache2Show.value
+  archiveEnabled.value = view.archiveEnabled !== undefined ? view.archiveEnabled : archiveEnabled.value
 
   const r = view.record
   Object.assign(form, {

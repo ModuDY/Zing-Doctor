@@ -77,14 +77,14 @@
               <th>最低 ΔP</th>
               <th>并发症</th>
               <th>状态</th>
-              <th>归档回传</th>
+              <th v-if="archiveEnabled">归档回传</th>
               <th>最后更新</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!rowsView.length">
-              <td colspan="12" class="empty">暂无记录，可点击右上角「新建记录」开始</td>
+              <td :colspan="archiveEnabled ? 12 : 11" class="empty">暂无记录，可点击右上角「新建记录」开始</td>
             </tr>
             <template v-for="r in rowsView" :key="r.id">
               <tr class="row" @click="toggleExpand(r.id)">
@@ -103,7 +103,7 @@
                 <td>{{ summaryOf(r).dpMin != null ? summaryOf(r).dpMin + ' cmH₂O' : '—' }}</td>
                 <td v-html="compCell(r)"></td>
                 <td v-html="statCell(r)"></td>
-                <td v-html="arcCell(r)"></td>
+                <td v-if="archiveEnabled" v-html="arcCell(r)"></td>
                 <td class="upd">
                   <span :title="updByTitle(r)">{{ updBy(r) }}</span> {{ fmtTime(r.updateTime) }}
                 </td>
@@ -116,7 +116,7 @@
                 </td>
               </tr>
               <tr v-if="expanded === r.id" class="exp-row">
-                <td colspan="12">
+                <td :colspan="archiveEnabled ? 12 : 11">
                   <div class="exp">
                     <div class="row">
                       <span class="k">氧合指数 P/F（翻身前 → 复仰后）</span>
@@ -135,7 +135,7 @@
                       <span class="k">记录编号</span>
                       <b>{{ r.recordNo || '—' }}</b>
                       <span class="spacer"></span>
-                      <button class="btn" @click.stop="onArchive(r)">
+                      <button v-if="archiveEnabled" class="btn" @click.stop="onArchive(r)">
                         {{ r.archiveStatus === 1 ? '重新回传（幂等）' : '归档回传' }}
                       </button>
                     </div>
@@ -209,7 +209,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import '../styles/ards-theme.css'
 import {
   fetchArdsProneList, fetchArdsProneSummary, createArdsProneRecord,
-  deleteArdsProneRecord, pushArdsProneArchive, lookupArdsPronePatient
+  deleteArdsProneRecord, pushArdsProneArchive, lookupArdsPronePatient,
+  fetchArdsProneArchiveEnabled
 } from '../api/ardsProne'
 import { operatorLabel, OPERATOR_MISSING_HINT } from '../utils/operator'
 
@@ -226,6 +227,7 @@ const loading = ref(false)
 const rows = ref([])
 const summaryMap = ref({})
 const expanded = ref(null)
+const archiveEnabled = ref(false)
 
 const q = reactive({
   inHospitalNo: route.query.inHospitalNo || '',
@@ -240,8 +242,9 @@ const newForm = reactive({
   patientName: '', bedCode: '', departCode: '', admitDate: '', inDepartTime: '', diagnosis: ''
 })
 
-onMounted(() => {
+onMounted(async () => {
   if (route.query.inHospitalNo) q.inHospitalNo = route.query.inHospitalNo
+  try { archiveEnabled.value = await fetchArdsProneArchiveEnabled() } catch (e) { archiveEnabled.value = false }
   load()
 })
 

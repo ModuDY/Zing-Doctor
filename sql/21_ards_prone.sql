@@ -335,6 +335,13 @@ SELECT 'ARDS_PRONE_APACHE2_SHOW', 'APACHE II 评分显示', '1', 'ards_prone', '
 
 INSERT INTO "zing_doctor_db_prod"."zing_sys_param"
     ("param_key", "param_name", "param_value", "param_group", "param_type", "default_value", "sort_no", "status", "remark")
+SELECT 'ARDS_PRONE_ARCHIVE_ENABLED', '归档回传功能启用', '0', 'ards_prone', 'switch', '0', 3, 1,
+       '是否显示归档回传按钮与状态列：关闭后列表页隐藏归档列、填写页隐藏归档按钮与打印并归档按钮；默认关闭，院方未对接归档接口时不要开启'
+  FROM DUAL
+ WHERE NOT EXISTS (SELECT 1 FROM "zing_doctor_db_prod"."zing_sys_param" WHERE "param_key" = 'ARDS_PRONE_ARCHIVE_ENABLED');
+
+INSERT INTO "zing_doctor_db_prod"."zing_sys_param"
+    ("param_key", "param_name", "param_value", "param_group", "param_type", "default_value", "sort_no", "status", "remark")
 SELECT 'ARDS_PRONE_DOC_CODE', '归档文档类型编码', 'ARDS_PRONE_REC', 'ards_prone', 'text', 'ARDS_PRONE_REC', 2, 1,
        '文书归档 doc_code：与 APACHE II(apache2)、SOFA(sofa) 走同一归档接口与传参，仅此编码不同'
   FROM DUAL
