@@ -33,6 +33,11 @@ services:
       # ⚠️ 必须与浏览器实际访问地址完全一致（含端口 :2001）；留空则跟随请求 Host
       # （跟随 Host 依赖 nginx 配置 $http_host 透传端口，install.sh 已处理）
       EXTERNAL_LINK_BASE_URL: http://100.120.1.104:2001
+      # 外链没带 realname 时的操作人兜底标签（留空 = 记 unknown，页面显示「未知」）。
+      # 现场表现：ICU 侧外链模板漏配 realname 时，评分/ARDS 记录的操作人全是 unknown。
+      # 正确做法是 ICU 外链模板带上 realname=${realname}&username=${username}；
+      # 这个标签只兜「第三方始终不肯传身份」的场景，便于审计时一眼分辨来源。
+      # EXTERNAL_LINK_DEFAULT_OPERATOR: "ICU-外链未传身份"
       # 质控配置写接口白名单（POST /api/quality/config/**：保存/回滚/导入/重载配置）
       # 留空 = 写接口一律 403（刻意的 fail-closed，与 install.sh 行为一致）。
       # 需要开放配置编辑时填质控科/信息科工作站的 IP 或网段，逗号分隔、支持前缀匹配，如：

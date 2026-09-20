@@ -144,7 +144,7 @@ public class ExternalLinkInterceptor implements HandlerInterceptor {
      * 一律按没传处理：否则审计字段会记下一个不是人名的词，看着有操作人，实际追溯不到。
      */
     private String operatorFromExternal(HttpServletRequest request, ExternalLinkContext ctx) {
-        String fromHeader = request.getHeader("X-External-Operator");
+        String fromHeader = fixHeaderEncoding(request.getHeader("X-External-Operator"));
         if (!OperatorContext.isPlaceholder(fromHeader)) {
             return fromHeader.trim();
         }
@@ -156,6 +156,26 @@ public class ExternalLinkInterceptor implements HandlerInterceptor {
             }
         }
         return null;
+    }
+
+    /**
+     * 还原中文请求头的编码。
+     *
+     * <p>Servlet 规范要求请求头按 ISO-8859-1 解码，但浏览器/axios 对非 ASCII 头值是按
+     * UTF-8 发的——中文名（如「管理员」）到服务端就变成了 {@code ç®¡ç†å} 这类乱码，
+     * 而且不是占位值，会原样写进 create_by/update_by（实测 2026-09-20）。
+     * 含高位字节时按「Latin-1 还原字节 → UTF-8 重解码」修回来；纯 ASCII 不受影响。
+     */
+    private String fixHeaderEncoding(String value) {
+        if (StrUtil.isBlank(value) || value.chars().noneMatch(c -> c >= 0x80)) {
+            return value;
+        }
+        try {
+            return new String(value.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1),
+                    java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return value;
+        }
     }
 
     private ExternalLinkContext verifySigned(HttpServletRequest request, String pageCode,
