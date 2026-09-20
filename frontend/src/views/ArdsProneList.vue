@@ -8,7 +8,7 @@
         </div>
       </div>
       <div class="spacer"></div>
-      <button class="btn" @click="onNew">+ 新建记录</button>
+      <button class="btn btn-new" @click="onNew">+ 新建记录</button>
     </div>
 
     <!-- 筛选 -->
