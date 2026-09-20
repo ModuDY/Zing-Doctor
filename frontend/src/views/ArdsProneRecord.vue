@@ -308,7 +308,7 @@
       <div class="filter">
         <span class="ipt">纸张：A4 横向</span>
         <span class="ipt">打印范围：{{ params.length }} 项 × {{ timepoints.length }} 时点</span>
-        <span class="tag" :class="record?.archiveStatus === 1 ? 'green' : 'gray'">
+        <span v-if="archiveEnabled" class="tag" :class="record?.archiveStatus === 1 ? 'green' : 'gray'">
           归档：{{ record?.archiveStatus === 1 ? '已回传' + (record?.archiveDocNo ? '（文档号 ' + record.archiveDocNo + '）' : '') : '未回传' }}
         </span>
         <button v-if="archiveEnabled" class="btn" @click="onArchive">{{ record?.archiveStatus === 1 ? '重新回传' : '归档回传' }}</button>
