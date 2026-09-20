@@ -68,6 +68,8 @@ public class HandoverServiceImpl implements HandoverService {
     private static final String DEFAULT_DEPART = "20070131";
     /** 发热阈值 ℃ */
     private static final double FEVER_THRESHOLD = 38.5d;
+    /** 出科诊断多条拼接分隔符（最多取离出科时间最近的前 3 条） */
+    private static final String OUT_DIAGNOSIS_SEPARATOR = "、";
 
     /** 内部解析结果：同时持有 LocalDateTime（查询用）与对外 DTO */
     private static class ResolvedShift {
@@ -603,7 +605,35 @@ public class HandoverServiceImpl implements HandoverService {
     @Override
     public List<Map<String, Object>> listDischargedPatients(String startTime, String endTime, String departCode) {
         String dc = (departCode == null || departCode.trim().isEmpty()) ? "" : departCode.trim();
-        return safe(icuPatientMapper.selectDischargedPatients(startTime, endTime, dc));
+        List<Map<String, Object>> list = safe(icuPatientMapper.selectDischargedPatients(startTime, endTime, dc));
+        fillOutDiagnoses(list, startTime, endTime, dc);
+        return list;
+    }
+
+    /**
+     * 回填出科诊断：每个患者取「离出科时间最近的前 3 条」，按优先级拼接后写回 out_diagnosis。
+     * 一次批量查完再按 patient_id 分组，禁止逐患者 N+1；同名诊断去重（保序），实际不足 3 条时有多少展示多少。
+     */
+    private void fillOutDiagnoses(List<Map<String, Object>> rows, String startTime, String endTime, String dc) {
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+        Map<String, List<String>> diagMap = new LinkedHashMap<>();
+        for (Map<String, Object> d : safe(icuPatientMapper.selectDischargedDiagnoses(startTime, endTime, dc))) {
+            String pid = str(d.get("patient_id"));
+            String name = str(d.get("diag_name"));
+            if (pid.isEmpty() || name.isEmpty()) {
+                continue;
+            }
+            List<String> names = diagMap.computeIfAbsent(pid, k -> new ArrayList<>());
+            if (!names.contains(name)) {
+                names.add(name);
+            }
+        }
+        for (Map<String, Object> row : rows) {
+            List<String> names = diagMap.get(str(row.get("patient_id")));
+            row.put("out_diagnosis", names == null || names.isEmpty() ? null : String.join(OUT_DIAGNOSIS_SEPARATOR, names));
+        }
     }
 
     @Override

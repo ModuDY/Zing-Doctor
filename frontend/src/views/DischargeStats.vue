@@ -53,7 +53,7 @@
           <el-table-column prop="out_depart_time" label="出科时间" width="145" align="center">
             <template #default="{ row }">{{ fmtTime(row.out_depart_time) }}</template>
           </el-table-column>
-          <el-table-column prop="out_diagnosis" label="出科诊断" min-width="180" show-overflow-tooltip>
+          <el-table-column prop="out_diagnosis" label="出科诊断" min-width="240" show-overflow-tooltip>
             <template #default="{ row }">{{ row.out_diagnosis || '—' }}</template>
           </el-table-column>
           <el-table-column prop="out_vest_type" label="出科转归" width="95" align="center">
