@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="ards-page ards-theme">
     <div class="topbar">
       <div>
@@ -34,9 +34,9 @@
         <div class="s">当前筛选范围内</div>
       </div>
       <div class="stat">
-        <div class="k">涉及患者</div>
-        <div class="v">{{ stats.patients }}<small>例</small></div>
-        <div class="s">人均 {{ stats.avgPerPatient }} 次</div>
+        <div class="k">{{ stats.patients === 1 ? '累计俯卧位时长' : '涉及患者' }}</div>
+        <div class="v">{{ stats.patients === 1 ? stats.totalMin : stats.patients }}<small>{{ stats.patients === 1 ? 'h' : '例' }}</small></div>
+        <div class="s">{{ stats.patients === 1 ? '已完成 ' + stats.doneCount + ' 次 · 进行中实时计入' : '人均 ' + stats.avgPerPatient + ' 次' }}</div>
       </div>
       <div class="stat">
         <div class="k">平均持续时长</div>
@@ -288,6 +288,19 @@ function summaryOf(r) {
 
 const patientCount = computed(() => new Set(rowsView.value.map(r => r.inHospitalNo).filter(Boolean)).size)
 
+/** 单条记录当前已趴分钟数：已结束用 durationMin，进行中实时算 now - startTime */
+function recordElapsedMin(r) {
+  if (r.durationMin != null && r.durationMin > 0) return r.durationMin
+  if (r.startTime && !r.endTime) {
+    const t = new Date(String(r.startTime).replace(' ', 'T')).getTime()
+    if (!isNaN(t)) {
+      const diff = Math.floor((Date.now() - t) / 60000)
+      if (diff > 0) return diff
+    }
+  }
+  return 0
+}
+
 const stats = computed(() => {
   const list = rowsView.value
   const times = list.length
@@ -297,6 +310,8 @@ const stats = computed(() => {
   let improved = 0
   let pfCount = 0
   let compCount = 0
+  let totalMin = 0
+  let doneCount = 0
   list.forEach(r => {
     const s = summaryOf(r)
     if (s.pf0 != null && s.pf1 != null) {
@@ -304,6 +319,8 @@ const stats = computed(() => {
       if (Number(s.pf1) - Number(s.pf0) >= 20) improved += 1
     }
     if (compList(r).length) compCount += 1
+    totalMin += recordElapsedMin(r)
+    if (r.endTime) doneCount += 1
   })
   return {
     times,
@@ -312,7 +329,9 @@ const stats = computed(() => {
     avgDuration: (avgMin / 60).toFixed(1),
     improveRate: pfCount ? ((improved * 100) / pfCount).toFixed(1) : '0.0',
     compRate: times ? ((compCount * 100) / times).toFixed(1) : '0.0',
-    compCount
+    compCount,
+    totalMin: (totalMin / 60).toFixed(1),
+    doneCount
   }
 })
 
