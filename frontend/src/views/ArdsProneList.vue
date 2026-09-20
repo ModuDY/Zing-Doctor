@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="ards-page ards-theme">
     <div class="topbar">
       <div>
