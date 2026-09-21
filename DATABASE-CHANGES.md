@@ -7,8 +7,9 @@
 > 所以**先跑 `install.sh`，再照着下面的清单逐项核对**——只有三条通道都没命中、或日志里明确报了失败，
 > 才需要人工补执行。
 >
-> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（09/10/11/12/13/14/15/16/17/18/19/20/21/22）；全量初始化与
+> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（09/10/11/12/13/14/15/16/17/18/19/20/21/22/23）；全量初始化与
 > 一次性脚本（如 06_abx_drug_dict.sql）不在其内。漏执行 = 新代码一上来就 500。
+> MySQL/MariaDB 环境由 `install-mariadb-debian.sh` 每次全量重跑 `MAIN_SQL`，不存在「漏增量」问题，但脚本必须两边都有（见下方四步规则）。
 >
 > 典型症状（页面打开即报错）：
 > ```
@@ -16,13 +17,70 @@
 > ```
 >
 > **执行完不需要重启容器**，MyBatis 每次重新解析 SQL，列加上后刷新页面即生效。
+>
+> **双数据库**：同一套库表结构有达梦 DM8（`sql/` + `install.sh`）与 MySQL/MariaDB（`sql/mysql/` + `install-mariadb-debian.sh`）两套脚本，
+> 新增脚本必须**两边同时落地**，规则见本文「双数据库：脚本归属与新增脚本四步规则」一节。
 
 ## 怎么用
 
 1. 用 DM 管理工具 / disql 连到达梦（SYSDBA 或同权限账号）
 2. 翻到下面「批次记录」，从自己**还没执行**的批次开始，按 ①②③ 顺序执行
 3. 某一块报「已存在 / already exists」→ 说明已执行过，**跳过该块继续**
-4. 全新部署不用来这里，`sql/` 目录下按序号（01 → 20）依次全跑即可
+4. 全新部署不用来这里，`sql/` 目录下按序号（01 → 23）依次全跑即可
+
+---
+
+## 双数据库：脚本归属与新增脚本四步规则
+
+同一套库表结构存在两份 SQL 实现。**达梦版是真源，MySQL/MariaDB 版是转换产物**，不要直接手改后者。
+
+| | 达梦 DM8 | MySQL / MariaDB |
+|---|---|---|
+| 脚本目录 | `sql/`（手写，真源） | `sql/mysql/`（由 `tools/dm_to_mysql.py` 生成） |
+| 安装 / 升级脚本 | `install.sh` | `install-mariadb-debian.sh` |
+| 连接配置来源 | `docker-compose.yml` 的 `DOCTOR_URL` / `DOCTOR_USERNAME` / `DOCTOR_PASSWORD` | `conf/db.conf`（`DB_HOST` / `DB_PORT` / `DB_ADMIN_*` / `APP_DB_*` …） |
+| Spring profile | `dm`（默认） | `mariadb` / `mysql`（安装脚本自动写入） |
+| 数据库对象 | schema `zing_doctor_db_prod`（统一 SYSDBA 连接、显式模式前缀） | database `zing_doctor_db_prod` |
+| 幂等手段 | 脚本内 PL/SQL 判存在 + JDBC 工具（`tools/db-init`）查元数据跳过 | `IF NOT EXISTS` + `sql/mysql/00b_*` 的幂等存储过程 |
+| 每次升级是否全量重跑 | **否**：探测 `zing_page_config` 已存在则只跑增量清单 | **是**：`MAIN_SQL` 里的脚本每次全跑 |
+| 需维护的清单 | `FULL_SQL` / `FULL_SQL_JDBC` / `INCREMENTAL_SQL`（三处） | `MAIN_SQL`（一处） |
+| 跳过 SQL 的参数 | `--skip-db` | `--config-only` |
+| 备份方式 | `dexp` 或 DBA 侧模式备份 | `mysqldump` / `mariadb-dump` |
+
+### 新增一个 SQL 脚本，必须做完这四步
+
+1. **写达梦版**：新建 `sql/NN_xxx.sql`，内部自带存在性判断 —— DDL 用 PL/SQL 查 `ALL_TABLES` / `ALL_TAB_COLUMNS`；
+   种子写 `INSERT … SELECT … FROM DUAL WHERE NOT EXISTS`；页面注册先 `DELETE` 再 `INSERT`。
+   达梦不允许无 `FROM` 的 `SELECT`，`FROM DUAL` 不能省。
+2. **生成 MySQL 版**：`python tools/dm_to_mysql.py`，产出 `sql/mysql/NN_xxx.sql`。
+   转换只做机械方言映射，**生成后必须人工复核并在真实 MySQL/MariaDB 实例导入验证** ——
+   表达式索引（要改成 `STORED` 生成列）与 `SEQ_xxx.NEXTVAL` 默认值（改 `AUTO_INCREMENT`）这两类差异通常还需手工改写。
+3. **登记达梦侧三处清单**（`install.sh` 第 123 / 148 / 192 行附近）：`FULL_SQL`、`FULL_SQL_JDBC`、`INCREMENTAL_SQL`。
+   顺序 = 依赖顺序：建表在前、加列在后（`12` → `14`；`09/10/11` → `15`~`20`；`21` → `22` → `23`）。
+   **漏登记 `INCREMENTAL_SQL` → 老库升级不补表**，页面报「无效的表或视图名」（`22_ards_prone_config.sql` 就这么踩过）。
+4. **登记 MariaDB 侧一处清单**：`install-mariadb-debian.sh` 的 `MAIN_SQL` 数组，插到依赖脚本之后。
+   该清单每次全跑，所以只需一处；漏登记的表现是新装环境直接缺表 —— 比达梦侧更早暴露、更好查。
+
+### 一次性脚本与人工动作（两边都一样）
+
+- `06_abx_drug_dict.sql` 是**一次性脚本**（裸 `CREATE TABLE`），不在达梦增量清单内；老库从未执行过需手动跑一次，
+  否则抗菌药识别持续告警 `无效的表或视图名[zing_abx_drug_dict]`。
+- `11_quality_count_rule.sql` 建表后，需在看板点一次「同步指标规则」从 ICU 侧灌数（脚本刻意不含同步语句）。
+- `03_word_inc_*` / `04_abx_word_training.sql` 为词库增量，按需执行；MySQL 侧默认在 `install-mariadb-debian.sh` 里注释掉，需要时手动放出来。
+
+### 漂移自检（建议每次交付打包前跑）
+
+两边脚本集合与库结构必须对齐：
+
+```bash
+ls sql/*.sql | wc -l && ls sql/mysql/*.sql | wc -l   # 除 00b/00c/24_fix/install-all 外应一一对应
+
+# 主库表数量对比（两边各查一次，结果应一致）
+# 达梦 ：SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = 'ZING_DOCTOR_DB_PROD';
+# MySQL：SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'zing_doctor_db_prod';
+```
+
+> 常见漂移原因：① 只改了达梦版忘了跑 `dm_to_mysql.py`；② 直接手改了 `sql/mysql/` 里的文件 —— 下次转换会被覆盖回去，改动凭空消失。
 
 ## 执行状态速查
 

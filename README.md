@@ -2,7 +2,8 @@
 
 面向 ICU 临床信息系统的独立医生决策系统，由 ICU 系统通过**外链免登录**方式嵌入打开，围绕抗菌药物管理（ASP）与危重症临床决策提供多维度支持。
 
-- Spring Boot 2.7 + Java 8 后端，MyBatis-Plus 双数据源（主库 `zing_doctor_db_prod` / 只读 `zing_icu_db_prod`），数据库为**达梦 DM8**
+- Spring Boot 2.7 + Java 8 后端，MyBatis-Plus 双数据源（主库 `zing_doctor_db_prod` / 只读 `zing_icu_db_prod`）
+- 数据库支持**达梦 DM8**（默认，信创）与 **MySQL 8+ / MariaDB 10.5+**：两套 SQL 脚本（`sql/` / `sql/mysql/`）配两套安装脚本（`install.sh` / `install-mariadb-debian.sh`），新增脚本需两边同步，规则见 [DATABASE-CHANGES.md](DATABASE-CHANGES.md)
 - 外链免登录机制：外部系统（ICU）通过 `GET /entry/{pageCode}?expire=&sign=&业务参数`（签名模式）或 `GET /entry/{pageCode}?extToken=&业务参数`（ICU 明文模式）打开任意已注册页面
 - Vue3 前端（history 路由，每页面可外链直达）、Docker / 内网直连部署
 
@@ -46,7 +47,7 @@
 ```bash
 # 1. 初始化达梦数据库（推荐直接跑 install.sh，自动建模式 zing_doctor_db_prod 并按依赖顺序建表/补列）
 #    手动方式：SYSDBA 执行 00_init_user.sql 建模式，再执行 01/02 建表与种子数据；
-#    03~22 为分模块增量脚本（按编号顺序执行），逐条说明与漏执行后果见 DATABASE-CHANGES.md
+#    03~23 为分模块增量脚本（按编号顺序执行），逐条说明与漏执行后果见 DATABASE-CHANGES.md
 disql SYSDBA/Sa_20250815@100.120.1.102:14236
 SQL> start /opt/zing-doctor/sql/00_init_user.sql
 SQL> start /opt/zing-doctor/sql/01_schema.sql
@@ -61,6 +62,18 @@ cd frontend && npm install && npm run dev
 # 4. 生成一条外链验证免登录进入
 curl "http://localhost:8081/api/external/token?pageCode=abx-decision&baseUrl=http://localhost:5173&patientId=P1001"
 ```
+
+MySQL / MariaDB 环境不用手写 SQL —— 配好连接参数后一键初始化并部署：
+
+```bash
+# 连接写在 conf/db.conf（DB_HOST/DB_PORT/DB_ADMIN_*/APP_DB_*），也可环境变量覆盖
+sudo ./install-mariadb-debian.sh                  # 完整安装 / 升级（每次重跑全部幂等脚本，不丢数据）
+sudo ./install-mariadb-debian.sh --config-only    # 只同步连接配置并重启后端（不动数据库、不导 SQL）
+```
+
+> 两套脚本的**升级流程不同**（达梦：`install.sh` 先探测老库、只跑增量清单；MySQL/MariaDB：每次全量重跑，
+> `--config-only` 只改配置）。对照表见 [安装部署手册 §4.1 / §4.2](docs/04-安装部署手册.md)，
+> 新增 SQL 的两边同步规则见 [DATABASE-CHANGES.md](DATABASE-CHANGES.md)「双数据库…四步规则」。
 
 ICU 明文模式联调无需签发，直接用配置的静态 `extToken` 访问：
 
@@ -124,8 +137,9 @@ CI_SECURITY_SCAN=1 bash tools/ci.sh   # 额外跑后端依赖漏洞扫描（需�
 - [质控指标中台 · 产品设计](docs/15-质控指标中台-产品设计.md)
 - [质控指标可视化配置 · 改造方案](docs/16-质控指标可视化配置-改造方案.md)
 - [ARDS 俯卧位通气治疗记录 · 产品设计](docs/17-ARDS俯卧位通气治疗记录-产品设计.md)（设计依据详见 `docs/ards-prone/设计方案.md`）
-- [数据库变更清单](DATABASE-CHANGES.md)（新增表/加列按批次记录，含漏执行的后果与人工补执行 SQL）
-- 一键部署：解压后执行 `bash install.sh`（自动初始化达梦 + 老库自动套用增量脚本 + 构建启动，支持内网离线）
+- [数据库变更清单](DATABASE-CHANGES.md)（新增表/加列按批次记录，含漏执行的后果与人工补执行 SQL；**达梦 / MySQL 双库的脚本归属与新增脚本四步规则**也在其中）
+- 一键部署（达梦）：解压后执行 `bash install.sh`（自动初始化达梦 + 老库自动套用增量脚本 + 构建启动，支持内网离线）
+- 一键部署（MySQL / MariaDB）：配好 `conf/db.conf` 后执行 `sudo ./install-mariadb-debian.sh`（升级流程与达梦不同，对照见 [安装部署手册 §4.1 / §4.2](docs/04-安装部署手册.md)，本套脚本说明见 [sql/mysql/README.md](sql/mysql/README.md)）
 
 ## 目录结构
 
@@ -144,12 +158,15 @@ zing-doctor/
 │   │   └── handover/            医生交班览表 / 出科统计
 │   └── quality/                 质控指标中台：DSL 引擎（YAML 口径 → SQL）+ 查询/计算/月度汇总/导出
 ├── src/main/resources/          application.yml、quality/（数据源/事实层/指标 YAML 配置）
-├── sql/                         建库与初始化脚本（00 建模式 / 01 建表 / 02 种子 / 03+ 增量）
+├── conf/                        db.conf：MySQL/MariaDB 场景的连接配置（install-mariadb-debian.sh 读取）
+├── sql/                         达梦 DM8 建库与初始化脚本（00 建模式 / 01 建表 / 02 种子 / 03+ 增量）—— 真源
+│   └── mysql/                   MySQL / MariaDB 等价脚本（tools/dm_to_mysql.py 生成，勿手改）
 ├── frontend/                    Vue3 前端（src/views 页面、src/router 路由、src/api 接口）
 ├── docs/                        设计文档
 ├── lib/                         达梦 JDBC 驱动（随包交付）
 ├── app/                         后端可执行包 zing-doctor.jar
-├── tools/                       内网部署辅助工具（db-init / docker-compose 二进制）
+├── tools/                       内网部署辅助工具（db-init / dm_to_mysql.py / docker-compose 二进制）
 ├── Dockerfile / docker-compose.yml  容器部署
-└── install.sh                   一键安装部署脚本
+├── install.sh                   达梦场景：一键安装部署 / 升级（老库自动套用增量脚本）
+└── install-mariadb-debian.sh    MySQL / MariaDB 场景：一键安装部署 / 升级（--config-only 只同步配置）
 ```

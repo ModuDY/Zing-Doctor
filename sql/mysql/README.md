@@ -26,6 +26,40 @@
 > `DB_CLI`（借容器内客户端）、以及 `APP_HOME`。
 > **应用目录默认就是包所在目录**（解压在哪就在哪跑，升级直接解压覆盖；要固定到 `/opt/zing-doctor` 就填 `APP_HOME`）。
 
+## 升级流程（MySQL / MariaDB 环境）
+
+与达梦侧（`install.sh`）**不是同一套脚本**，判断逻辑也不同：
+
+| 场景 | 动作 | 命令 |
+|---|---|---|
+| **含表 / 字段变更**（推荐默认做法） | 重跑安装脚本：`MAIN_SQL` 里的脚本**每次全量重跑**，全部幂等 | `sudo ./install-mariadb-debian.sh` |
+| **只换程序**（jar / 前端，无结构变更） | 覆盖产物后重启服务 | `cp -r <新包>/app/. <运行目录>/app/` → `sudo systemctl restart zing-doctor` |
+| **只改连接参数**（库地址 / 端口 / 账号） | 重写运行环境并重启：**不动数据库、不导 SQL、不更新前端** | 改 `conf/db.conf` → `sudo ./install-mariadb-debian.sh --config-only` |
+| **要补 ICU 库索引**（需 DBA 知情） | 对医院生产库有变更，默认关闭 | `SETUP_ICU_INDEX=yes sudo -E ./install-mariadb-debian.sh` |
+
+> 脚本每次都会建一遍库名（`CREATE DATABASE IF NOT EXISTS`，同名库不重建）并重跑全部表 / 种子脚本，
+> **不会因重复执行而丢数据** —— 幂等由 `00b_idempotent_helpers_doctor.sql` 的存储过程、`IF NOT EXISTS`
+> 与种子里的 `WHERE NOT EXISTS` 保证。唯一不支持的是 MySQL 5.7（`CREATE USER IF NOT EXISTS` 需 8.0.11+，5.7 已 EOL）。
+
+**与达梦侧的关键差别**：达梦会先探测 `zing_page_config` 是否已存在，老库**只跑增量清单**（`09`~`23`），
+所以漏登记 `INCREMENTAL_SQL` 会「静默不补表」；本侧只有一个清单且每次全跑，漏登记表现为新装环境直接缺表 ——
+出错更早、也更好查。两边都漏登记才会有运维事故，因此新增脚本务必按下面的规则同步。
+
+## 新增脚本时的反向同步规则（重要）
+
+**本目录是自动生成产物，不要在这里手工写 SQL。** 达梦版 `sql/NN_xxx.sql` 才是真源：
+
+```bash
+# 1) 改达梦版 sql/NN_xxx.sql  →  2) 重新转换  →  3) 人工复核 + 真机导入验证
+python tools/dm_to_mysql.py
+```
+
+转换产务必提交，之后还要：
+
+- 登记到 `install-mariadb-debian.sh` 的 `MAIN_SQL` 数组（顺序按依赖）；
+- 登记到 `install.sh` 的 `FULL_SQL` / `FULL_SQL_JDBC` / `INCREMENTAL_SQL` 三个达梦清单；
+- 完整步骤见根目录 [DATABASE-CHANGES.md](../../DATABASE-CHANGES.md)「双数据库：脚本归属与新增脚本四步规则」。
+
 ## 兼容性说明
 
 脚本只使用 MySQL 8 与 MariaDB 10.5 共有的通用语法，已逐项核实：
