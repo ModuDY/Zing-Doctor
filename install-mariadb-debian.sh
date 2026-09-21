@@ -214,6 +214,16 @@ fi
 # DB_CLI 若已由环境变量指定（例如 docker exec 形式）则保持不覆盖
 pick_cli(){ [ -n "$DB_CLI" ] || DB_CLI="$(command -v mariadb 2>/dev/null || command -v mysql 2>/dev/null || true)"; }
 
+# 本机没有客户端时，如果本地有 mysql/mariadb 镜像，直接给出可粘贴的 DB_CLI 写法
+suggest_db_cli() {
+  have docker || return 0
+  local img
+  img="$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -Ei 'mysql|maria' | head -1 || true)"
+  [ -n "$img" ] || { warn "  本机也没有 mysql/mariadb 镜像，可在库里那台机器上执行 sql/mysql/install-all.sql"; return 0; }
+  warn "  本机已有镜像 $img，把它填进 conf/db.conf 的 DB_CLI 即可让脚本自动建库导表："
+  warn "    DB_CLI=docker run --rm -i $img mysql -h$DB_HOST -P$DB_PORT -u${DB_ADMIN_USER:-root} -p${DB_ADMIN_PASSWORD:-<管理员密码>}"
+}
+
 # 管理员访问是否走「本机直接执行客户端」语义（本机自建，或连接信息已写进 DB_CLI）
 admin_is_local(){ [ "$INSTALL_SERVER" = "yes" ] || cli_is_compound; }
 
@@ -327,6 +337,7 @@ if [ -n "$MISSING" ]; then
     err "  3) 组件已装在非标准路径时，直接指定：JAVA_BIN=/path/to/java NGINX_BIN=/path/to/nginx ..."
   fi
   err "已完成的步骤是幂等的，补齐后重跑本脚本即可。"
+  suggest_db_cli
   # 离线现场最常见的输错点：本机 Docker 里明明有数据库容器，却没人告诉脚本用哪个
   if have docker; then
     CAND="$(docker ps --format '{{.Names}}|{{.Ports}}' 2>/dev/null | grep -Ei '3306|mysql|maria' | head -3 || true)"
@@ -374,6 +385,7 @@ if [ -n "$DB_TYPE" ]; then
   info "按配置指定数据库类型：$DB_KIND -> Spring profile=$DB_PROFILE，驱动 $DRIVER"
   if [ -z "$DB_CLI" ]; then
     warn "本机没有数据库客户端：跳过建库/建号/授权与 SQL 导入，$DB_HOST:$DB_PORT 的库需由库侧 DBA 用 sql/mysql/ 初始化"
+    suggest_db_cli
   else
     # 有客户端就顺手验一下连通性，并核对 conf 里写的类型与实测是否一致
     DB_VER_PROBE="$(admin_query "SELECT VERSION();" 2>/dev/null || true)"
@@ -444,6 +456,8 @@ elif [ -z "$DB_CLI" ]; then
   warn "本机没有数据库客户端：跳过建库/建账号/授权与 SQL 导入"
   warn "  请在库服务器（$DB_HOST）上按 sql/mysql/README.md 的顺序执行 sql/mysql/ 下脚本初始化，"
   warn "  并确认账号 $APP_DB_USER 对主库 $DOCTOR_DB 有 ALL、对 ICU 库 $ICU_DB 有 SELECT"
+  warn "  也可以把一次性的 sql/mysql/install-all.sql 拷到库服务器执行；"
+  suggest_db_cli
 else
   info "创建数据库与应用账号 ..."
   # ICU 若单独给了只读账号，一并建号授权（不存在才建，幂等）
