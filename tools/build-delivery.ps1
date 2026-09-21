@@ -146,6 +146,11 @@ Copy-Item "$root\install.sh" $work -Force
 # Debian/MySQL 直连部署脚本（不依赖 Docker 跑应用时使用），与 Docker 版 install.sh 并存
 if (Test-Path "$root\install-mariadb-debian.sh") {
     Copy-Item "$root\install-mariadb-debian.sh" $work -Force
+# 数据库连接配置文件：部署方改这里的 IP/端口/账号即可，不必再敲一长串环境变量
+if (Test-Path "$root\conf") {
+    New-Item -ItemType Directory -Force -Path (Join-Path $work 'conf') | Out-Null
+    Copy-Item "$root\conf\*" (Join-Path $work 'conf') -Force
+}
 }
 # 数据库变更清单：install.sh 不会执行 SQL（容器无达梦客户端），故把清单放包根目录，
 # 部署方解压第一眼就能看到，避免「代码更新了但表没改」导致页面直接 500。
@@ -201,6 +206,17 @@ if ($Sanitize) {
         }
         [IO.File]::WriteAllText($compose, $t, (New-Object Text.UTF8Encoding($false)))
         Write-Host '>>> 已脱敏 docker-compose.yml（DOCTOR_PASSWORD / EXTERNAL_LINK_SECRET / ICU_LINK_TOKEN）' -ForegroundColor Yellow
+    }
+
+    # conf/db.conf 同样带出厂数据库口令与外链密钥
+    $pkgConf = Join-Path $work 'conf\db.conf'
+    if (Test-Path $pkgConf) {
+        $ct = [IO.File]::ReadAllText($pkgConf)
+        foreach ($k in @('DB_ADMIN_PASSWORD', 'APP_DB_PASSWORD', 'ICU_DB_PASSWORD', 'ICU_LINK_TOKEN', 'EXTERNAL_LINK_SECRET')) {
+            $ct = [regex]::Replace($ct, "(?m)^(\s*$k\s*=\s*).*$", '${1}CHANGE_ME')
+        }
+        [IO.File]::WriteAllText($pkgConf, $ct, (New-Object Text.UTF8Encoding($false)))
+        Write-Host '>>> 已脱敏 conf/db.conf（数据库口令 / 外链密钥置为 CHANGE_ME）' -ForegroundColor Yellow
     }
 
     $pkgJar = Join-Path $work 'app\zing-doctor.jar'
@@ -271,6 +287,7 @@ if ($Sanitize) {
 [void]$lines.Add('')
 [void]$lines.Add('## 目录')
 [void]$lines.Add('- **DATABASE-CHANGES.md** 数据库变更清单（升级先看，含本次需手工执行的 SQL）')
+[void]$lines.Add('- conf/db.conf         数据库连接配置（库地址/端口/账号，改这里即可；install-mariadb-debian.sh 读取）')
 [void]$lines.Add('- app/zing-doctor.jar   后端可执行 jar（JDK 8+，8081，已含达梦驱动）')
 [void]$lines.Add('- frontend/dist/        前端静态产物')
 [void]$lines.Add('- frontend/nginx.conf   /api、/entry 反代 + history 回退')

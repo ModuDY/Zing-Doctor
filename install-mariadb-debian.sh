@@ -43,11 +43,82 @@
 #                                              auto 会自动改用容器跑前端（--network host）
 #     JAVA_BIN=/path/to/java  NGINX_BIN=/path/to/nginx
 #
+# ---------------------------------------------------------------------
+# 推荐用法：连接参数写进包内 conf/db.conf，脚本会自动读取，然后只需：
+#   ./install-mariadb-debian.sh                 完整安装 / 升级（读 conf/db.conf）
+#   ./install-mariadb-debian.sh --config-only   只按 conf/db.conf 重写运行环境并重启后端
+#                                               （不动数据库、不导 SQL、不更新前端）
+#   优先级：命令行/环境变量 > conf/db.conf > 脚本默认值
+#
 # 幂等：可重复执行，建库/建表/加列/建索引均做存在性判断，不重复、不报错。
 # =====================================================================
 set -euo pipefail
 
-# ---------------- 可配置变量（环境变量覆盖） ----------------
+# ---------------- 输出辅助 ----------------
+GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
+info(){ echo -e "${GREEN}[INFO]${NC} $*"; }
+warn(){ echo -e "${YELLOW}[WARN]${NC} $*"; }
+err(){ echo -e "${RED}[ERROR]${NC} $*" >&2; }
+trap 'err "脚本在第 $LINENO 行失败，已中止（已完成的步骤是幂等的，修正后可重跑）"' ERR
+[ "$(id -u)" -eq 0 ] || { err "请用 root 运行：sudo $0"; exit 1; }
+
+# ---------------- 命令行参数 ----------------
+#   --config-only  只按配置文件重写 /etc/zing-doctor/zing-doctor.env 并重启后端，
+#                  不动数据库、不导 SQL、不更新前端（改库地址后最快生效的方式）
+CONFIG_ONLY="no"
+for _arg in "$@"; do
+  case "$_arg" in
+    --config-only|-c) CONFIG_ONLY="yes" ;;
+    -h|--help) sed -n '2,64p' "$0"; exit 0 ;;
+    *) : ;;
+  esac
+done
+
+# ---------------- 目录 ----------------
+SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SQL_DIR="$SRC_DIR/sql/mysql"
+
+# ---------------- 数据库连接配置文件 ----------------
+# 默认读 conf/db.conf（包内）或根目录 db.conf；可用 DB_CONF=<路径> 指定其它文件。
+# 优先级：命令行/环境变量 > 配置文件 > 脚本内置默认值
+CONF_FILE="${DB_CONF:-}"
+if [ -z "$CONF_FILE" ] && [ -f "$SRC_DIR/conf/db.conf" ]; then CONF_FILE="$SRC_DIR/conf/db.conf"; fi
+if [ -z "$CONF_FILE" ] && [ -f "$SRC_DIR/db.conf" ]; then CONF_FILE="$SRC_DIR/db.conf"; fi
+
+load_conf() {
+  local file="$1" line key val loaded=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="$(printf '%s' "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    case "$line" in ''|\#*) continue ;; esac
+    # 行内注释：仅当 # 前有空白时裁剪（避免误伤密码里的 #）
+    line="$(printf '%s' "$line" | sed -e 's/[[:space:]]#.*$//' -e 's/[[:space:]]*$//')"
+    case "$line" in *=*) ;; *) continue ;; esac
+    key="$(printf '%s' "${line%%=*}" | tr -d '[:space:]')"
+    val="$(printf '%s' "${line#*=}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+           -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/")"
+    [ -n "$key" ] || continue
+    # 环境变量/命令行已显式提供时不覆盖
+    if declare -p "$key" >/dev/null 2>&1; then continue; fi
+    printf -v "$key" '%s' "$val"
+    export "$key"
+    loaded="${loaded}${loaded:+, }$key"
+  done < "$file"
+  [ -n "$loaded" ] && info "已从配置文件载入：$loaded"
+  return 0
+}
+
+if [ -n "$CONF_FILE" ]; then
+  info "读取数据库配置文件：$CONF_FILE"
+  load_conf "$CONF_FILE"
+else
+  warn "未找到 conf/db.conf，全部使用命令行参数与内置默认值"
+fi
+
+if [ "$CONFIG_ONLY" = "yes" ]; then
+  info "模式：--config-only（只按配置重写运行环境并重启后端：不动数据库、不导 SQL、不更新前端）"
+fi
+
+# ---------------- 可配置变量（环境变量 > 配置文件 > 默认值） ----------------
 APP_HOME="${APP_HOME:-/opt/zing-doctor}"
 WEB_PORT="${WEB_PORT:-2001}"
 BACKEND_PORT="${BACKEND_PORT:-8081}"
@@ -73,6 +144,9 @@ SETUP_ICU_INDEX="${SETUP_ICU_INDEX:-no}"
 # ICU 库位置（默认与主库同实例；不同机时单独指定）
 ICU_DB_HOST="${ICU_DB_HOST:-$DB_HOST}"
 ICU_DB_PORT="${ICU_DB_PORT:-$DB_PORT}"
+# ICU 库连接账号：留空 = 复用应用账号；ICU 由厂方给只读账号时单独填这两个
+ICU_DB_USER="${ICU_DB_USER:-}"
+ICU_DB_PASSWORD="${ICU_DB_PASSWORD:-}"
 
 # ICU 患者数据提供方式：sql=直连真实 ICU 库；mock=内置示例（无真实库时演示用）
 ICU_DATA_PROVIDER="${ICU_DATA_PROVIDER:-sql}"
@@ -105,18 +179,6 @@ NGINX_BIN="${NGINX_BIN:-}"
 WEB_MODE="${WEB_MODE:-auto}"
 NGINX_IMAGE="${NGINX_IMAGE:-}"
 NGINX_CONTAINER="${NGINX_CONTAINER:-zing-doctor-frontend}"
-
-SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SQL_DIR="$SRC_DIR/sql/mysql"
-
-# ---------------- 输出辅助 ----------------
-GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
-info(){ echo -e "${GREEN}[INFO]${NC} $*"; }
-warn(){ echo -e "${YELLOW}[WARN]${NC} $*"; }
-err(){ echo -e "${RED}[ERROR]${NC} $*" >&2; }
-trap 'err "脚本在第 $LINENO 行失败，已中止（已完成的步骤是幂等的，修正后可重跑）"' ERR
-
-[ "$(id -u)" -eq 0 ] || { err "请用 root 运行：sudo $0"; exit 1; }
 
 # ---------------- 数据库来源判定 ----------------
 # 本机地址？（注意：仅 DB_HOST 判定「库是否在本机」，应用连库地址始终由 DB_HOST/DB_PORT 决定）
@@ -280,6 +342,15 @@ if [ -z "$NGINX_BIN" ]; then
 fi
 info "组件就绪：客户端 ${DB_CLI} / java ${JAVA_BIN} / nginx ${NGINX_BIN:-未安装}"
 
+# ICU 库在另一台服务器时，脚本只能在主库实例上建库/建号/授权，去不了 ICU 那台
+if ! host_is_local "$ICU_DB_HOST"; then
+  SELF_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  SELF_IP="${SELF_IP:-<本应用机IP>}"
+  warn "ICU 库指向远程 $ICU_DB_HOST:$ICU_DB_PORT：本机不会在那边建账号/授权，需 ICU 侧 DBA 确认（或填 conf 里的 ICU_DB_USER/ICU_DB_PASSWORD 用对方给的只读账号）"
+  warn "  CREATE USER IF NOT EXISTS '${ICU_DB_USER:-$APP_DB_USER}'@'$SELF_IP' IDENTIFIED BY '<密码>';"
+  warn "  GRANT SELECT ON \`$ICU_DB\`.* TO '${ICU_DB_USER:-$APP_DB_USER}'@'$SELF_IP';"
+fi
+
 # ---------------- 2. 连接数据库 + 探测类型/版本 ----------------
 if [ "$INSTALL_SERVER" = "no" ]; then
   info "测试到外部数据库 $DB_HOST:$DB_PORT 的连接 ..."
@@ -321,8 +392,25 @@ if [ "$INSTALL_SERVER" = "yes" ]; then
 fi
 
 # ---------------- 3. 建库、建账号、授权 ----------------
-info "创建数据库与应用账号 ..."
-mariadb_admin <<SQL
+run_sql_file() {
+  local file="$1"; local db="${2:-}"
+  info "  执行 $(basename "$file")"
+  mariadb_admin "$db" < "$file"
+}
+
+if [ "$CONFIG_ONLY" = "yes" ]; then
+  info "跳过：建库/建账号/授权、SQL 导入（--config-only 只更新运行环境）"
+else
+  info "创建数据库与应用账号 ..."
+  # ICU 若单独给了只读账号，一并建号授权（不存在才建，幂等）
+  ICU_ACL_SQL=""
+  if [ -n "$ICU_DB_USER" ] && [ "$ICU_DB_USER" != "$APP_DB_USER" ]; then
+    ICU_ACL_SQL="CREATE USER IF NOT EXISTS '$ICU_DB_USER'@'%' IDENTIFIED BY '$ICU_DB_PASSWORD';
+GRANT SELECT ON \`$ICU_DB\`.* TO '$ICU_DB_USER'@'%';"
+  fi
+  # 授权/建号失败不再中止：远程库常由 DBA 管理，账号可能已存在或无授权权限，
+  # 那种情况提示人工确认即可，不该把后面的部署也一起挡掉。
+  if mariadb_admin <<SQL
 CREATE DATABASE IF NOT EXISTS \`$DOCTOR_DB\`
   DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 CREATE DATABASE IF NOT EXISTS \`$ICU_DB\`
@@ -335,65 +423,72 @@ GRANT ALL PRIVILEGES ON \`$DOCTOR_DB\`.* TO '$APP_DB_USER'@'%';
 GRANT ALL PRIVILEGES ON \`$DOCTOR_DB\`.* TO '$APP_DB_USER'@'localhost';
 GRANT SELECT ON \`$ICU_DB\`.* TO '$APP_DB_USER'@'%';
 GRANT SELECT ON \`$ICU_DB\`.* TO '$APP_DB_USER'@'localhost';
+$ICU_ACL_SQL
 FLUSH PRIVILEGES;
 SQL
-info "数据库与账号就绪（主库 $DOCTOR_DB 全权，ICU 库 $ICU_DB 只读）"
+  then
+    info "数据库与账号就绪（主库 $DOCTOR_DB 全权，ICU 库 $ICU_DB 只读）"
+  else
+    warn "建库/建账号/授权未全部成功（账号可能已存在，或当前管理员无授权权限）"
+    warn "  若库由 DBA 管理，请让其确认：账号 $APP_DB_USER 对主库 $DOCTOR_DB 有 ALL、对 ICU 库 $ICU_DB 有 SELECT"
+  fi
 
-# ---------------- 4. 导入建表 + 种子脚本 ----------------
-[ -d "$SQL_DIR" ] || { err "缺少 SQL 目录：$SQL_DIR（请确认在交付包根目录运行）"; exit 1; }
+  # ---------------- 4. 导入建表 + 种子脚本 ----------------
+  [ -d "$SQL_DIR" ] || { err "缺少 SQL 目录：$SQL_DIR（请确认在交付包根目录运行）"; exit 1; }
 
-run_sql_file() {
-  local file="$1"; local db="${2:-}"
-  info "  执行 $(basename "$file")"
-  mariadb_admin "$db" < "$file"
-}
+  info "初始化主库幂等存储过程 ..."
+  run_sql_file "$SQL_DIR/00b_idempotent_helpers_doctor.sql" "$DOCTOR_DB"
 
-info "初始化主库幂等存储过程 ..."
-run_sql_file "$SQL_DIR/00b_idempotent_helpers_doctor.sql" "$DOCTOR_DB"
+  # 历史库修复：早期转换版本把达梦 id 列的 SEQ 默认值删掉了，导致不写 id 的种子 INSERT
+  # 报 Field 'id' doesn't have a default value。必须在种子脚本之前修，否则又会中断。
+  if [ -f "$SQL_DIR/24_fix_id_auto_increment.sql" ]; then
+    info "修复历史库中 id 列缺 AUTO_INCREMENT 的表（幂等，新建库为空操作）..."
+    run_sql_file "$SQL_DIR/24_fix_id_auto_increment.sql" "$DOCTOR_DB"
+  fi
 
-# 历史库修复：早期转换版本把达梦 id 列的 SEQ 默认值删掉了，导致不写 id 的种子 INSERT
-# 报 Field 'id' doesn't have a default value。必须在种子脚本之前修，否则又会中断。
-if [ -f "$SQL_DIR/24_fix_id_auto_increment.sql" ]; then
-  info "修复历史库中 id 列缺 AUTO_INCREMENT 的表（幂等，新建库为空操作）..."
-  run_sql_file "$SQL_DIR/24_fix_id_auto_increment.sql" "$DOCTOR_DB"
-fi
+  info "导入主库结构与种子数据（顺序执行，幂等）..."
+  MAIN_SQL=(
+    01_schema.sql 02_seed.sql 05_apache2_pdf.sql 06_abx_drug_dict.sql
+    07_sofa.sql 08_sofa_p1.sql 09_quality.sql 10_quality_config.sql
+    11_quality_count_rule.sql 12_archive.sql 13_auth.sql 14_param_framework.sql
+    15_quality_patient_fields.sql 16_quality_fatality_ref.sql
+    17_quality_rule_local.sql 18_quality_manual_audit.sql
+    19_quality_target_direction.sql 20_quality_fact_patient_default_cols.sql
+    21_ards_prone.sql 22_ards_prone_config.sql 23_ards_prone_sign_work_no.sql
+  )
+  for f in "${MAIN_SQL[@]}"; do
+    [ -f "$SQL_DIR/$f" ] || { warn "缺少 $f，跳过"; continue; }
+    run_sql_file "$SQL_DIR/$f" "$DOCTOR_DB"
+  done
+  info "主库表数量：$(admin_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$DOCTOR_DB';")"
 
-info "导入主库结构与种子数据（顺序执行，幂等）..."
-MAIN_SQL=(
-  01_schema.sql 02_seed.sql 05_apache2_pdf.sql 06_abx_drug_dict.sql
-  07_sofa.sql 08_sofa_p1.sql 09_quality.sql 10_quality_config.sql
-  11_quality_count_rule.sql 12_archive.sql 13_auth.sql 14_param_framework.sql
-  15_quality_patient_fields.sql 16_quality_fatality_ref.sql
-  17_quality_rule_local.sql 18_quality_manual_audit.sql
-  19_quality_target_direction.sql 20_quality_fact_patient_default_cols.sql
-  21_ards_prone.sql 22_ards_prone_config.sql 23_ards_prone_sign_work_no.sql
-)
-for f in "${MAIN_SQL[@]}"; do
-  [ -f "$SQL_DIR/$f" ] || { warn "缺少 $f，跳过"; continue; }
-  run_sql_file "$SQL_DIR/$f" "$DOCTOR_DB"
-done
-info "主库表数量：$(admin_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$DOCTOR_DB';")"
+  # 可选识别词库（默认不导，需要时取消注释）
+  # for f in 03_word_inc_v23111.sql 03_word_inc_v2319.sql 04_abx_word_training.sql; do
+  #   run_sql_file "$SQL_DIR/$f" "$DOCTOR_DB"
+  # done
 
-# 可选识别词库（默认不导，需要时取消注释）
-# for f in 03_word_inc_v23111.sql 03_word_inc_v2319.sql 04_abx_word_training.sql; do
-#   run_sql_file "$SQL_DIR/$f" "$DOCTOR_DB"
-# done
-
-# ICU 只读库性能索引（默认关闭：这是对医院生产库的变更，需 DBA 知情）
-if [ "$SETUP_ICU_INDEX" = "yes" ]; then
-  info "在 ICU 库 $ICU_DB_HOST:$ICU_DB_PORT 准备幂等存储过程并执行索引脚本 ..."
-  mariadb_icu_admin < "$SQL_DIR/00c_idempotent_helpers_icu.sql"
-  mariadb_icu_admin < "$SQL_DIR/03_icu_indexes.sql"
-  info "ICU 库性能索引已处理（幂等，已存在则跳过）"
-else
-  warn "已跳过 ICU 库性能索引（SETUP_ICU_INDEX=no）。若应用查询 ICU 库较慢，"
-  warn "经 DBA 评估后可执行：SETUP_ICU_INDEX=yes sudo -E $0"
+  # ICU 只读库性能索引（默认关闭：这是对医院生产库的变更，需 DBA 知情）
+  if [ "$SETUP_ICU_INDEX" = "yes" ]; then
+    info "在 ICU 库 $ICU_DB_HOST:$ICU_DB_PORT 准备幂等存储过程并执行索引脚本 ..."
+    mariadb_icu_admin < "$SQL_DIR/00c_idempotent_helpers_icu.sql"
+    mariadb_icu_admin < "$SQL_DIR/03_icu_indexes.sql"
+    info "ICU 库性能索引已处理（幂等，已存在则跳过）"
+  else
+    warn "已跳过 ICU 库性能索引（SETUP_ICU_INDEX=no）。若应用查询 ICU 库较慢，"
+    warn "经 DBA 评估后可执行：SETUP_ICU_INDEX=yes sudo -E $0"
+  fi
 fi
 
 # ---------------- 5. 部署应用文件 ----------------
-info "部署应用文件到 $APP_HOME ..."
+if [ "$CONFIG_ONLY" = "yes" ] && [ ! -f "$APP_HOME/app/zing-doctor.jar" ]; then
+  err "--config-only 需要先完成一次完整安装（未找到 $APP_HOME/app/zing-doctor.jar）"
+  err "先执行：$0   （不带参数），之后再改配置文件用 --config-only 同步"
+  exit 1
+fi
 mkdir -p "$APP_HOME"/{app,config,frontend,logs,sql}
 
+if [ "$CONFIG_ONLY" = "no" ]; then
+info "部署应用文件到 $APP_HOME ..."
 JAR_SRC="$SRC_DIR/app/zing-doctor.jar"
 [ -f "$JAR_SRC" ] || JAR_SRC="$(ls "$SRC_DIR"/target/zing-doctor-*.jar 2>/dev/null | grep -v sources | head -1 || true)"
 [ -n "$JAR_SRC" ] && [ -f "$JAR_SRC" ] || { err "未找到后端 jar（期望 app/zing-doctor.jar 或 target/zing-doctor-*.jar）"; exit 1; }
@@ -407,13 +502,21 @@ if [ ! -f "$SRC_DIR/frontend/dist/index.html" ]; then
 fi
 cp -a "$SRC_DIR/frontend/dist/." "$APP_HOME/frontend/dist/"
 info "前端 dist 已同步到 $APP_HOME/frontend/dist/"
+else
+  info "跳过：应用文件复制（--config-only）"
+fi
 
 # 敏感环境变量文件（chmod 600）。变量前缀按探测到的库类型选择（MYSQL_* / MARIADB_*）
+# ICU 账号未单独指定时复用应用账号
+[ -n "$ICU_DB_USER" ]     || ICU_DB_USER="$APP_DB_USER"
+[ -n "$ICU_DB_PASSWORD" ] || ICU_DB_PASSWORD="$APP_DB_PASSWORD"
+info "运行环境：主库 $DB_HOST:$DB_PORT/$DOCTOR_DB，ICU 库 $ICU_DB_HOST:$ICU_DB_PORT/$ICU_DB（账号 $ICU_DB_USER）"
 ENV_FILE="/etc/zing-doctor/zing-doctor.env"
 mkdir -p /etc/zing-doctor
 cat > "$ENV_FILE" <<EOF
 # zing-doctor 运行环境（由安装脚本生成，chmod 600）
 # 数据库类型自动探测结果：$DB_KIND（版本 $DB_VER）
+# 生成来源：$([ -n "$CONF_FILE" ] && echo "$CONF_FILE" || echo "命令行/默认值")
 SPRING_PROFILES_ACTIVE=$DB_PROFILE
 ICU_DATA_PROVIDER=$ICU_DATA_PROVIDER
 ICU_LINK_TOKEN=$ICU_LINK_TOKEN
@@ -428,8 +531,8 @@ ${PFIX}_DOCTOR_PASSWORD=$APP_DB_PASSWORD
 # ICU 只读数据源
 ${PFIX}_ICU_HOST=$ICU_DB_HOST
 ${PFIX}_ICU_PORT=$ICU_DB_PORT
-${PFIX}_ICU_USER=$APP_DB_USER
-${PFIX}_ICU_PASSWORD=$APP_DB_PASSWORD
+${PFIX}_ICU_USER=$ICU_DB_USER
+${PFIX}_ICU_PASSWORD=$ICU_DB_PASSWORD
 EOF
 chmod 600 "$ENV_FILE"
 info "已写入环境文件 $ENV_FILE（profile=$DB_PROFILE，权限 600）"
@@ -477,6 +580,11 @@ info "后端服务已启动（systemctl status zing-doctor 查看状态）"
 # 站点配置只有一份来源，两种方式共用；dist 挂载路径与 root 指令保持一致。
 WEB_OK="no"
 WEB_HOW=""
+
+if [ "$CONFIG_ONLY" = "yes" ]; then
+  WEB_OK="yes"; WEB_HOW="沿用既有前端（--config-only 未改动）"
+  info "跳过：前端托管配置（--config-only）"
+else
 
 write_site_conf() {
   cat > "$1" <<EOF
@@ -553,6 +661,7 @@ fi
 if [ "$WEB_OK" != "yes" ]; then
   warn "前端未托管：产物已就位 $APP_HOME/frontend/dist"
   warn "  可用任意静态服务器托管，并把 /api、/entry 反代到 127.0.0.1:$BACKEND_PORT"
+fi
 fi
 
 # ---------------- 8. 健康检查 ----------------
