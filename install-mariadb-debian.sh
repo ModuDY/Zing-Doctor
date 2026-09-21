@@ -32,6 +32,15 @@
 # 对【医院现有 ICU 生产库】加只读索引（默认关闭，需显式开启）：
 #   sudo ... SETUP_ICU_INDEX=yes ./install-mariadb-debian.sh
 #
+# ---------------------------------------------------------------------
+# 离线服务器（无外网 / apt 源不可达，现象：Could not resolve 'security.debian.org'、
+# E: Unable to locate package ...）：
+#   脚本会先用系统已装好的组件，只对缺失的包调 apt，apt 失败也不中断，
+#   最后统一体检并给出「缺什么、怎么补」。常用开关：
+#     SKIP_APT=yes                            完全不调用 apt
+#     DB_CLI='docker exec -i <容器名> mysql'   用容器内客户端（宿主机不装客户端）
+#     JAVA_BIN=/path/to/java  NGINX_BIN=/path/to/nginx
+#
 # 幂等：可重复执行，建库/建表/加列/建索引均做存在性判断，不重复、不报错。
 # =====================================================================
 set -euo pipefail
@@ -72,6 +81,17 @@ EXTERNAL_LINK_SECRET="${EXTERNAL_LINK_SECRET:-zing-doctor-prod-secret-change-me}
 EXTERNAL_LINK_BASE_URL="${EXTERNAL_LINK_BASE_URL:-}"
 QUALITY_CONFIG_WRITE_IP_WHITELIST="${QUALITY_CONFIG_WRITE_IP_WHITELIST:-}"
 
+# 离线 / 受限环境开关（医院内网服务器常见：无外网、无可用 apt 源）
+#   SKIP_APT=yes        完全不调用 apt，直接用系统里已装好的组件
+#   DB_CLI=<命令>       手工指定数据库客户端。默认自动找 mariadb/mysql；
+#                       数据库跑在本机 Docker 里且宿主机没装客户端时可写：
+#                       DB_CLI='docker exec -i <容器名> mysql'
+#   JAVA_BIN / NGINX_BIN  手工指定 java / nginx 路径（自动探测不到时用）
+SKIP_APT="${SKIP_APT:-no}"
+DB_CLI="${DB_CLI:-}"
+JAVA_BIN="${JAVA_BIN:-}"
+NGINX_BIN="${NGINX_BIN:-}"
+
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SQL_DIR="$SRC_DIR/sql/mysql"
 
@@ -98,9 +118,11 @@ if [ "$INSTALL_SERVER" = "no" ] && ! host_is_local "$DB_HOST" && [ -z "$DB_ADMIN
   err "远程数据库必须提供 DB_ADMIN_PASSWORD"; exit 1
 fi
 
+have(){ command -v "$1" >/dev/null 2>&1; }
+
 # 命令行客户端（mariadb-client 同时提供 mariadb / mysql；取存在者）
-DB_CLI=""
-pick_cli(){ DB_CLI="$(command -v mariadb 2>/dev/null || command -v mysql 2>/dev/null || true)"; }
+# DB_CLI 若已由环境变量指定（例如 docker exec 形式）则保持不覆盖
+pick_cli(){ [ -n "$DB_CLI" ] || DB_CLI="$(command -v mariadb 2>/dev/null || command -v mysql 2>/dev/null || true)"; }
 
 # 管理员连接：mariadb_admin [库名]  （stdin 喂 SQL，或 < 文件）
 mariadb_admin() {
@@ -144,22 +166,72 @@ echo "=================================================="
 echo ""
 
 # ---------------- 1. 安装系统依赖 ----------------
+# 医院内网服务器多为离线：无 DNS、apt 源不可达（现象：Could not resolve 'security.debian.org'，
+# 随后 E: Unable to locate package ...）。因此这里的策略是：
+#   1) 先检查命令是否已存在，存在就直接用，不依赖 apt；
+#   2) 只对确实缺失的包调 apt，apt 失败也不立刻中断；
+#   3) 最后统一体检：必需组件缺失才退出，并给出「缺什么 / 怎么补」的具体做法。
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -y
+
+APT_PKGS="default-jre-headless ca-certificates"
 if [ "$INSTALL_SERVER" = "yes" ]; then
-  info "安装 mariadb-server / mariadb-client / JRE / nginx / curl ..."
-  apt-get install -y --no-install-recommends \
-      mariadb-server mariadb-client default-jre-headless nginx curl ca-certificates
-  info "启动并设置 MariaDB 开机自启 ..."
-  systemctl enable --now mariadb
-else
-  info "外部库模式：仅安装 mariadb-client / JRE / nginx / curl（不安装/启动数据库服务）..."
-  apt-get install -y --no-install-recommends \
-      mariadb-client default-jre-headless nginx curl ca-certificates
+  APT_PKGS="$APT_PKGS mariadb-server"
 fi
+have mariadb || have mysql || APT_PKGS="$APT_PKGS mariadb-client"
+have nginx  || APT_PKGS="$APT_PKGS nginx"
+have curl   || APT_PKGS="$APT_PKGS curl"
+
+APT_FAILED="no"
+if [ "$SKIP_APT" = "yes" ]; then
+  info "SKIP_APT=yes：跳过 apt，直接使用系统已装组件"
+else
+  info "apt-get update（离线环境失败属正常，失败后继续用本机已有组件）..."
+  apt-get update -y || warn "apt-get update 失败（常见原因：无外网 / DNS 不可用），继续检查本机组件"
+  info "尝试安装缺失的系统依赖：$APT_PKGS"
+  # shellcheck disable=SC2086
+  apt-get install -y --no-install-recommends $APT_PKGS || APT_FAILED="yes"
+  [ "$APT_FAILED" = "no" ] || warn "apt 安装未全部成功（离线服务器属预期），继续检查本机已有组件"
+fi
+
+# 本机自建模式下，MariaDB 服务是否可用
+if [ "$INSTALL_SERVER" = "yes" ]; then
+  if have mariadbd || have mysqld || have mariadb-install-db; then
+    info "启动并设置 MariaDB 开机自启 ..."
+    systemctl enable --now mariadb || warn "mariadb 服务启动失败，请检查：systemctl status mariadb"
+  fi
+fi
+
 pick_cli
-[ -n "$DB_CLI" ] || { err "未找到 mariadb/mysql 命令行客户端"; exit 1; }
-command -v java >/dev/null || { err "JRE 安装失败，未找到 java"; exit 1; }
+[ -n "$JAVA_BIN" ] || JAVA_BIN="$(command -v java || true)"
+[ -n "$NGINX_BIN" ] || NGINX_BIN="$(command -v nginx || true)"
+
+# ---------- 依赖体检：必需缺失才退出，可选缺失只警告 ----------
+MISSING=""
+[ -n "$DB_CLI" ]   || MISSING="$MISSING  数据库命令行客户端(mariadb/mysql)"
+[ -n "$JAVA_BIN" ] || MISSING="$MISSING  运行环境(java / JRE 8+)"
+if [ "$INSTALL_SERVER" = "yes" ] && ! { have mariadbd || have mysqld || have mariadb; }; then
+  MISSING="$MISSING  数据库服务(mariadb-server)"
+fi
+
+if [ -n "$MISSING" ]; then
+  err "缺少必需组件：$MISSING"
+  if [ "$APT_FAILED" = "yes" ]; then
+    err "apt 不可用（本次是离线环境）。三种补法任选："
+    err "  1) 有外网的机器上下载 deb 包，拷到本机安装："
+    err "     apt-get download <包名>        # 有网机器执行，产物拷到本机后 dpkg -i *.deb"
+    err "  2) 数据库已跑在本机 Docker 里时，直接用容器内客户端，宿主机无需装客户端："
+    err "     DB_CLI='docker exec -i <容器名> mysql' sudo -E $0"
+    err "  3) 组件已装在非标准路径时，直接指定：JAVA_BIN=/path/to/java NGINX_BIN=/path/to/nginx ..."
+  fi
+  err "已完成的步骤是幂等的，补齐后重跑本脚本即可。"
+  exit 1
+fi
+
+if [ -z "$NGINX_BIN" ]; then
+  warn "未找到 nginx：将跳过前端托管（后端仍会正常启动）。"
+  warn "补法：装好 nginx 后重跑本脚本，或自行托管 $APP_HOME/frontend/dist 并反代到 127.0.0.1:$BACKEND_PORT。"
+fi
+info "组件就绪：客户端 ${DB_CLI} / java ${JAVA_BIN} / nginx ${NGINX_BIN:-未安装}"
 
 # ---------------- 2. 连接数据库 + 探测类型/版本 ----------------
 if [ "$INSTALL_SERVER" = "no" ]; then
@@ -321,7 +393,7 @@ After=network.target
 Type=simple
 WorkingDirectory=$APP_HOME
 EnvironmentFile=$ENV_FILE
-ExecStart=/usr/bin/java -Xms512m -Xmx1024m -jar $APP_HOME/app/zing-doctor.jar
+ExecStart=$JAVA_BIN -Xms512m -Xmx1024m -jar $APP_HOME/app/zing-doctor.jar
 Restart=on-failure
 RestartSec=5
 SuccessExitStatus=143
@@ -338,8 +410,10 @@ systemctl restart zing-doctor
 info "后端服务已启动（systemctl status zing-doctor 查看状态）"
 
 # ---------------- 7. nginx 前端 + 反代 ----------------
-info "配置 nginx（端口 $WEB_PORT，/api 反代到 127.0.0.1:$BACKEND_PORT）..."
-cat > /etc/nginx/conf.d/zing-doctor.conf <<EOF
+NGINX_OK="no"
+if [ -n "$NGINX_BIN" ]; then
+  info "配置 nginx（端口 $WEB_PORT，/api 反代到 127.0.0.1:$BACKEND_PORT）..."
+  cat > /etc/nginx/conf.d/zing-doctor.conf <<EOF
 server {
     listen $WEB_PORT;
     server_name _;
@@ -366,15 +440,28 @@ server {
     }
 }
 EOF
-nginx -t
-systemctl enable nginx
-systemctl restart nginx
+  if nginx -t; then
+    systemctl enable nginx || warn "nginx 开机自启设置失败"
+    systemctl restart nginx || warn "nginx 重启失败，请检查：systemctl status nginx"
+    NGINX_OK="yes"
+  else
+    warn "nginx 配置校验未通过，已跳过启用；配置文件保留在 /etc/nginx/conf.d/zing-doctor.conf"
+  fi
+else
+  warn "跳过 nginx 配置：本机未安装 nginx，且离线环境装不上。"
+  warn "  前端产物已就位：$APP_HOME/frontend/dist（用任意静态服务器托管并反代 /api、/entry 到 127.0.0.1:$BACKEND_PORT 即可）"
+fi
 
 # ---------------- 8. 健康检查 ----------------
 info "等待后端启动（最多 60 秒）..."
 ok=no
 for i in $(seq 1 30); do
-  if curl -fs "http://127.0.0.1:$BACKEND_PORT/api/health" >/dev/null 2>&1; then ok=yes; break; fi
+  if have curl; then
+    curl -fs "http://127.0.0.1:$BACKEND_PORT/api/health" >/dev/null 2>&1 && { ok=yes; break; }
+  elif (exec 3<>"/dev/tcp/127.0.0.1/$BACKEND_PORT") >/dev/null 2>&1; then
+    # 无 curl 时退化为端口探测：只能证明进程已监听，不能证明健康检查内容
+    ok=yes; break
+  fi
   sleep 2
 done
 
@@ -388,7 +475,11 @@ else
   echo "    journalctl -u zing-doctor -n 80 --no-pager"
   echo "    tail -n 80 $APP_HOME/logs/backend.log"
 fi
-echo "  前端入口 : http://$HOST_IP:$WEB_PORT/"
+if [ "$NGINX_OK" = "yes" ]; then
+  echo "  前端入口 : http://$HOST_IP:$WEB_PORT/"
+else
+  echo "  前端入口 : （nginx 未启用，请自行托管 $APP_HOME/frontend/dist）"
+fi
 echo "  后端接口 : http://$HOST_IP:$BACKEND_PORT/api/health"
 echo "  数据库   : $DB_KIND $DB_VER @ $DB_HOST:$DB_PORT / $DOCTOR_DB（应用账号 $APP_DB_USER）"
 echo ""
