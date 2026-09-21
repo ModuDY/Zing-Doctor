@@ -56,6 +56,7 @@
 | `00c_idempotent_helpers_icu.sql` | 在 ICU 库建幂等存储过程（主库/ICU 异机时用） |
 | `01_schema.sql` ~ `23_*.sql` | 表结构、索引、种子数据（按序号执行） |
 | `24_fix_id_auto_increment.sql` | 修复「已建库」中 id 列缺 `AUTO_INCREMENT` 的表（幂等，全新库为空操作） |
+| `install-all.sql` | **打包时自动合成**的一次性初始化脚本（上述文件按序拼接）。应用与库分两台机器、库侧由 DBA 维护时，把这一份拷过去执行一次即可：`mysql -uroot -p < install-all.sql` |
 | `03_icu_indexes.sql` | ICU 只读库性能索引（加在医院现有库上，需 DBA 评估） |
 
 ## 手工执行顺序（不用一键脚本时）

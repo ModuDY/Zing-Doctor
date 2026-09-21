@@ -146,11 +146,52 @@ Copy-Item "$root\install.sh" $work -Force
 # Debian/MySQL 直连部署脚本（不依赖 Docker 跑应用时使用），与 Docker 版 install.sh 并存
 if (Test-Path "$root\install-mariadb-debian.sh") {
     Copy-Item "$root\install-mariadb-debian.sh" $work -Force
+}
 # 数据库连接配置文件：部署方改这里的 IP/端口/账号即可，不必再敲一长串环境变量
 if (Test-Path "$root\conf") {
     New-Item -ItemType Directory -Force -Path (Join-Path $work 'conf') | Out-Null
     Copy-Item "$root\conf\*" (Join-Path $work 'conf') -Force
 }
+
+# ---------- 合成 MySQL/MariaDB 一次性初始化脚本 ----------
+# 应用与库分两台机器时，应用机常常没有客户端；把 25 个脚本合成一个文件，
+# 部署方只需把这一份拷到数据库服务器执行一次（顺序与 install 脚本一致）。
+$myDir = Join-Path $work 'sql\mysql'
+if (Test-Path $myDir) {
+    $myOrder = @(
+        '00_init_user.sql', '00b_idempotent_helpers_doctor.sql', '24_fix_id_auto_increment.sql',
+        '01_schema.sql', '02_seed.sql', '05_apache2_pdf.sql', '06_abx_drug_dict.sql',
+        '07_sofa.sql', '08_sofa_p1.sql', '09_quality.sql', '10_quality_config.sql',
+        '11_quality_count_rule.sql', '12_archive.sql', '13_auth.sql', '14_param_framework.sql',
+        '15_quality_patient_fields.sql', '16_quality_fatality_ref.sql', '17_quality_rule_local.sql',
+        '18_quality_manual_audit.sql', '19_quality_target_direction.sql',
+        '20_quality_fact_patient_default_cols.sql', '21_ards_prone.sql',
+        '22_ards_prone_config.sql', '23_ards_prone_sign_work_no.sql')
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.AppendLine('-- ============================================================')
+    [void]$sb.AppendLine('-- zing-doctor MySQL/MariaDB 一次性初始化脚本（打包时自动合成，勿手工编辑）')
+    [void]$sb.AppendLine('--')
+    [void]$sb.AppendLine('-- 用法（在数据库服务器上执行一次即可）：')
+    [void]$sb.AppendLine('--   mysql -uroot -p < install-all.sql')
+    [void]$sb.AppendLine('--   容器里：docker exec -i <mysql容器> mysql -uroot -p<密码> < install-all.sql')
+    [void]$sb.AppendLine('--   图形工具：整个文件粘贴执行（含 DELIMITER，需支持存储过程语法）')
+    [void]$sb.AppendLine('--')
+    [void]$sb.AppendLine('-- 内容顺序：建库 -> 幂等存储过程 -> 字段修复 -> 建表 + 种子数据')
+    [void]$sb.AppendLine('-- 全部幂等，可重复执行；执行完再在应用机跑 ./install-mariadb-debian.sh --config-only')
+    [void]$sb.AppendLine('-- 注意：本文件不含建账号授权，账号授权按 docs 或安装脚本提示另行执行')
+    [void]$sb.AppendLine('-- ============================================================')
+    [void]$sb.AppendLine('')
+    foreach ($mf in $myOrder) {
+        $mp = Join-Path $myDir $mf
+        if (Test-Path $mp) {
+            [void]$sb.AppendLine("-- >>>>>>>>>> $mf >>>>>>>>>> --")
+            [void]$sb.AppendLine([IO.File]::ReadAllText($mp))
+        } else {
+            Write-Host ">>> 警告：缺少 $mf，未合成进 install-all.sql" -ForegroundColor Yellow
+        }
+    }
+    [IO.File]::WriteAllText((Join-Path $myDir 'install-all.sql'), $sb.ToString(), (New-Object Text.UTF8Encoding($false)))
+    Write-Host '>>> 已生成 sql/mysql/install-all.sql（一次性初始化脚本，交给库侧执行）' -ForegroundColor Cyan
 }
 # 数据库变更清单：install.sh 不会执行 SQL（容器无达梦客户端），故把清单放包根目录，
 # 部署方解压第一眼就能看到，避免「代码更新了但表没改」导致页面直接 500。
@@ -294,6 +335,7 @@ if ($Sanitize) {
 [void]$lines.Add('- sql/                  达梦 DM8 建表与种子脚本（按序号执行）')
 [void]$lines.Add('- tools/db-init/        数据库初始化工具')
 [void]$lines.Add('- sql/mysql/            MySQL / MariaDB 建表脚本（Debian 直连部署用，达梦环境忽略）')
+[void]$lines.Add('  - sql/mysql/install-all.sql  一次性初始化（库在另一台机器时，拷这一份过去执行）')
 [void]$lines.Add('- install.sh            Docker 部署脚本（默认，达梦 DM8）')
 [void]$lines.Add('- install-mariadb-debian.sh  Debian 直连部署脚本（MySQL / MariaDB，不使用 Docker 跑应用时用）')
 if ($KeepDocs) {
