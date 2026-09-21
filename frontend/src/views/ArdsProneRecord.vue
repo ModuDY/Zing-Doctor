@@ -1572,8 +1572,8 @@ textarea.bx:focus { border-color: var(--el-color-primary); box-shadow: 0 0 0 3px
 }
 .paper .p-title { text-align: center; font-size: 15pt; font-weight: 700; letter-spacing: 2px; }
 .paper .p-sub { text-align: center; font-size: 8pt; color: #444; margin: 2px 0 6px; }
-.paper table { border-collapse: collapse; width: 100%; }
-.paper table th, .paper table td { border: 1px solid #555; padding: 2px 3px; text-align: center; height: 15px; font-size: 8pt; }
+.paper table { border-collapse: collapse; width: 100%; border-right: 1px solid #555; border-bottom: 1px solid #555; }
+.paper table th, .paper table td { border-top: 1px solid #555; border-left: 1px solid #555; padding: 2px 3px; text-align: center; height: 15px; font-size: 8pt; }
 .paper table.p-info td { text-align: left; height: 17px; }
 .paper table.p-info td.k { background: #f2f2f2; width: 62px; font-weight: 600; }
 .paper table.p-mon td.l, .paper table.p-mon th.l { text-align: left; }
