@@ -306,7 +306,7 @@
     <!-- ============================ 打印预览 ============================ -->
     <div v-else class="print-screen">
       <div class="filter">
-        <span class="ipt">纸张：A4 横向</span>
+        <span class="ipt">纸张：A4 竖向</span>
         <span class="ipt">打印范围：{{ params.length }} 项 × {{ timepoints.length }} 时点</span>
         <span v-if="archiveEnabled" class="tag" :class="record?.archiveStatus === 1 ? 'green' : 'gray'">
           归档：{{ record?.archiveStatus === 1 ? '已回传' + (record?.archiveDocNo ? '（文档号 ' + record.archiveDocNo + '）' : '') : '未回传' }}
@@ -319,7 +319,7 @@
         <button class="btn" @click="scr = 'form'">返回填写</button>
       </div>
       <div class="sysbar" style="margin-bottom: 12px">
-        <span class="it">真实 1:1 预览：A4 横向、所见即所得，纸面版式与打印一致</span>
+        <span class="it">真实 1:1 预览：A4 竖向、所见即所得，纸面版式与打印一致</span>
         <span class="spacer"></span>
         <span v-if="archiveEnabled" class="it">归档接口：调用<b>「参数设置」中配置的现有归档接口</b>，与 APACHE II、SOFA 评分归档同一接口、传参一致</span>
       </div>
@@ -332,20 +332,20 @@
             <td class="k">性别</td><td>{{ record?.sex || '—' }}</td>
             <td class="k">年龄</td><td>{{ record?.age || '—' }}</td>
             <td class="k">床号</td><td>{{ record?.bedCode || '—' }}</td>
-            <td class="k">住院号</td><td>{{ record?.inHospitalNo || '—' }}</td>
+            <td class="k">住院号</td><td :colspan="apache2Show ? 1 : 3">{{ record?.inHospitalNo || '—' }}</td>
             <template v-if="apache2Show">
               <td class="k">APACHE II</td><td>{{ form.apache2Score || '—' }}</td>
             </template>
           </tr>
           <tr>
-            <td class="k">诊断</td><td colspan="3">{{ form.diagnosis || '—' }}</td>
+            <td class="k">诊断</td><td colspan="4">{{ form.diagnosis || '—' }}</td>
             <td class="k">ARDS 分级</td><td>{{ form.ardsGrade || '—' }}</td>
-            <td class="k">疗程</td><td colspan="3">{{ record?.proneDay || '—' }} / 第 {{ record?.proneTimes || 1 }} 次</td>
+            <td class="k">疗程</td><td colspan="4">{{ record?.proneDay || '—' }} / 第 {{ record?.proneTimes || 1 }} 次</td>
           </tr>
           <tr>
             <td class="k">开始</td><td colspan="3">{{ fmtMinute(form.startTime) }}</td>
             <td class="k">结束</td><td colspan="3">{{ form.endTime ? fmtMinute(form.endTime) : '进行中' }}</td>
-            <td class="k">持续</td><td colspan="2">{{ durationText }}</td>
+            <td class="k">持续</td><td colspan="3">{{ durationText }}</td>
           </tr>
         </table>
 
@@ -353,9 +353,9 @@
         <table class="p-mon">
           <thead>
             <tr>
-              <th style="width: 24px">类别</th>
-              <th style="width: 130px">参数</th>
-              <th style="width: 52px">单位</th>
+              <th style="width: 22px">类别</th>
+              <th style="width: 118px">参数</th>
+              <th style="width: 44px">单位</th>
               <th v-for="tp in timepoints" :key="tp.tpIndex">{{ tp.tpLabel }}</th>
             </tr>
           </thead>
@@ -1168,9 +1168,10 @@ async function buildPdf() {
   const el = paperRef.value
   if (!el) throw new Error('文书未渲染')
   const canvas = await html2canvas(el, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff', logging: false })
-  const pdf = new jsPDF('l', 'mm', 'a4')
-  const pageW = 297
-  const pageH = 210
+  // A4 竖向：与预览纸面一致（210×297mm）。缩放按 canvas 实际宽高比等比适配，内容再高也不会被截断
+  const pdf = new jsPDF('p', 'mm', 'a4')
+  const pageW = 210
+  const pageH = 297
   const margin = 4
   const maxW = pageW - margin * 2
   const maxH = pageH - margin * 2
@@ -1222,8 +1223,8 @@ async function doPrint() {
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${fileName()}</title>
   <style>
     body{margin:0;background:#fff;font-family:'SimSun','宋体',sans-serif;color:#000}
-    .paper{width:277mm;margin:0 auto;padding:4mm 0}
-    @page{size:A4 landscape;margin:8mm}
+    .paper{width:190mm;margin:0 auto;padding:4mm 0}
+    @page{size:A4 portrait;margin:8mm}
     table{border-collapse:collapse;width:100%}
   </style></head><body>${el.outerHTML}</body></html>`)
   w.document.close()
@@ -1557,8 +1558,10 @@ textarea.bx:focus { border-color: var(--el-color-primary); box-shadow: 0 0 0 3px
 .print-screen .filter .ipt {
   border: 1px solid #e4e7ed; border-radius: 6px; padding: 6px 10px; font-size: 13px; color: #303133;
 }
+/* A4 竖向（210×297mm）：与病案归档的常规纸张方向一致，导出 PDF / 打印均为竖版。
+   竖版比横版窄 87mm，左侧固定列（类别/参数/单位）已相应收窄，把宽度让给时点列。 */
 .paper {
-  width: 297mm; min-height: 210mm; margin: 0 auto; background: #fff; padding: 8mm 8mm 6mm;
+  width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; padding: 8mm 8mm 6mm;
   box-shadow: 0 2px 12px rgba(0, 0, 0, .12); color: #000; font-size: 9pt; line-height: 1.25;
 }
 .paper .p-title { text-align: center; font-size: 15pt; font-weight: 700; letter-spacing: 2px; }
@@ -1569,7 +1572,7 @@ textarea.bx:focus { border-color: var(--el-color-primary); box-shadow: 0 0 0 3px
 .paper table.p-info td.k { background: #f2f2f2; width: 62px; font-weight: 600; }
 .paper table.p-mon td.l, .paper table.p-mon th.l { text-align: left; }
 .paper table.p-mon th { background: #f2f2f2; }
-.paper table.p-mon td.cat { background: #fafafa; font-weight: 600; width: 18px; padding: 0; }
+.paper table.p-mon td.cat { background: #fafafa; font-weight: 600; width: 22px; padding: 0; }
 .paper table.p-mon td.cat .cat-v { writing-mode: vertical-rl; letter-spacing: 0; margin: 0 auto; font-size: 6.5pt; line-height: 1.05; }
 .paper table.p-mon td.calc { background: #f7f7f7; color: #555; }
 .paper table.p-mon td.abn { background: #fee; color: #c00; font-weight: 600; }
