@@ -1167,21 +1167,27 @@ async function buildPdf() {
   await nextTick()
   const el = paperRef.value
   if (!el) throw new Error('文书未渲染')
-  const canvas = await html2canvas(el, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff', logging: false })
-  // A4 竖向：与预览纸面一致（210×297mm）。缩放按 canvas 实际宽高比等比适配，内容再高也不会被截断
+  const canvas = await html2canvas(el, { scale: 2.5, useCORS: true, backgroundColor: '#ffffff', logging: false })
+  // A4 竖向多页：按真实宽度渲染、按页高切片，内容不压缩，文字/线条与屏幕预览一致
   const pdf = new jsPDF('p', 'mm', 'a4')
-  const pageW = 210
-  const pageH = 297
-  const margin = 4
+  const pageW = 210, pageH = 297, margin = 4
   const maxW = pageW - margin * 2
   const maxH = pageH - margin * 2
-  let imgW = maxW
-  let imgH = canvas.height * imgW / canvas.width
-  if (imgH > maxH) {
-    imgH = maxH
-    imgW = canvas.width * imgH / canvas.height
+  const pxPerMm = canvas.width / maxW
+  const pagePxH = Math.floor(maxH * pxPerMm)
+  const imgW = maxW
+  let rendered = 0, page = 0
+  while (rendered < canvas.height) {
+    const sliceH = Math.min(pagePxH, canvas.height - rendered)
+    const pc = document.createElement('canvas')
+    pc.width = canvas.width
+    pc.height = sliceH
+    pc.getContext('2d').drawImage(canvas, 0, rendered, canvas.width, sliceH, 0, 0, canvas.width, sliceH)
+    if (page > 0) pdf.addPage()
+    pdf.addImage(pc.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, imgW, sliceH / pxPerMm)
+    rendered += sliceH
+    page++
   }
-  pdf.addImage(canvas.toDataURL('image/jpeg', 0.85), 'JPEG', (pageW - imgW) / 2, margin, imgW, imgH)
   return pdf
 }
 
@@ -1572,8 +1578,8 @@ textarea.bx:focus { border-color: var(--el-color-primary); box-shadow: 0 0 0 3px
 .paper table.p-info td.k { background: #f2f2f2; width: 62px; font-weight: 600; }
 .paper table.p-mon td.l, .paper table.p-mon th.l { text-align: left; }
 .paper table.p-mon th { background: #f2f2f2; }
-.paper table.p-mon td.cat { background: #fafafa; font-weight: 600; width: 22px; padding: 0; }
-.paper table.p-mon td.cat .cat-v { writing-mode: vertical-rl; letter-spacing: 0; margin: 0 auto; font-size: 6.5pt; line-height: 1.05; }
+.paper table.p-mon td.cat { background: #fafafa; font-weight: 600; width: 30px; padding: 1px 0; }
+.paper table.p-mon td.cat .cat-v { margin: 0 auto; font-size: 6.5pt; line-height: 1.2; word-break: break-all; }
 .paper table.p-mon td.calc { background: #f7f7f7; color: #555; }
 .paper table.p-mon td.abn { background: #fee; color: #c00; font-weight: 600; }
 .paper .p-sec { font-weight: 700; margin: 5px 0 2px; font-size: 9pt; border-left: 3px solid #000; padding-left: 5px; }
