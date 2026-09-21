@@ -1,6 +1,7 @@
 -- ============================================================
 -- MySQL 8.x 版本（由达梦 DM8 脚本自动转换 + 人工校验）
--- 主键由应用雪花算法生成，不使用 AUTO_INCREMENT
+-- 主键由应用雪花算法生成（MyBatis-Plus ASSIGN_ID），显式插入时以插入值为准；
+-- 仅当 INSERT 省略 id 时由 AUTO_INCREMENT 兜底（对应达梦原有的 SEQ.NEXTVAL 默认值）
 -- 执行：mysql -uroot -p < 本文件（需先执行 00b_idempotent_helpers.sql）
 -- ============================================================
 SET NAMES utf8mb4;
@@ -8,7 +9,7 @@ USE `zing_doctor_db_prod`;
 
 -- ---- 以下为原达梦 PL/SQL 幂等块转换得到的 DDL ----
 CREATE TABLE IF NOT EXISTS `ards_prone_record` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `record_no` VARCHAR(64) COMMENT '记录编号（PP-yyyyMMdd-序号）',
   `patient_id` VARCHAR(64) COMMENT '患者ID（patient_info.id）',
   `in_hospital_no` VARCHAR(64)  NOT NULL COMMENT '住院号',
@@ -55,7 +56,7 @@ CALL zing_add_index('ards_prone_record', 'idx_ards_prone_patient', 0, '`in_hospi
 CALL zing_add_index('ards_prone_record', 'idx_ards_prone_depart', 0, '`depart_code`');
 CALL zing_add_index('ards_prone_record', 'idx_ards_prone_time', 0, '`start_time`');
 CREATE TABLE IF NOT EXISTS `ards_prone_timepoint` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `record_id` BIGINT        NOT NULL,
   `tp_index` INT           NOT NULL COMMENT '时点序号（0 起，0 = T0 翻身前）',
   `tp_label` VARCHAR(64),
@@ -71,7 +72,7 @@ PRIMARY KEY (`id`)
 ) COMMENT='ARDS 俯卧位记录时点表';
 CALL zing_add_index('ards_prone_timepoint', 'idx_ards_prone_tp_rec', 0, '`record_id`');
 CREATE TABLE IF NOT EXISTS `ards_prone_cell` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `record_id` BIGINT        NOT NULL,
   `tp_index` INT           NOT NULL,
   `param_key` VARCHAR(64)   NOT NULL,
@@ -89,7 +90,7 @@ PRIMARY KEY (`id`)
 ) COMMENT='ARDS 俯卧位记录单元格值表（参数 × 时点）';
 CALL zing_add_index('ards_prone_cell', 'idx_ards_prone_cell_rec', 0, '`record_id`, `tp_index`');
 CREATE TABLE IF NOT EXISTS `ards_prone_cell_log` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `record_id` BIGINT        NOT NULL,
   `tp_index` INT,
   `param_key` VARCHAR(64),
@@ -104,7 +105,7 @@ PRIMARY KEY (`id`)
 ) COMMENT='ARDS 俯卧位记录单元格更正留痕表（提交后不限时更正，全程留痕）';
 CALL zing_add_index('ards_prone_cell_log', 'idx_ards_prone_log_rec', 0, '`record_id`');
 CREATE TABLE IF NOT EXISTS `ards_prone_tp_tpl` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `depart_code` VARCHAR(64)   DEFAULT '',
   `tp_index` INT           NOT NULL,
   `tp_label` VARCHAR(64)   NOT NULL,

@@ -1,6 +1,7 @@
 -- ============================================================
 -- MySQL 8.x 版本（由达梦 DM8 脚本自动转换 + 人工校验）
--- 主键由应用雪花算法生成，不使用 AUTO_INCREMENT
+-- 主键由应用雪花算法生成（MyBatis-Plus ASSIGN_ID），显式插入时以插入值为准；
+-- 仅当 INSERT 省略 id 时由 AUTO_INCREMENT 兜底（对应达梦原有的 SEQ.NEXTVAL 默认值）
 -- 执行：mysql -uroot -p < 本文件（需先执行 00b_idempotent_helpers.sql）
 -- ============================================================
 SET NAMES utf8mb4;
@@ -36,7 +37,7 @@ USE `zing_doctor_db_prod`;
 --    数据来源：classpath:quality/metrics/*.yaml（引擎启动同步，避免 SQL 与配置双维护）
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `quality_index` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `index_code` VARCHAR(32)   NOT NULL COMMENT '指标编号 quality_xxx',
   `index_name` VARCHAR(200),
   `domain_code` VARCHAR(32) COMMENT '所属域：患者流转/脓毒症_感染性休克/抗菌药送检/DVT预防/评分_资源/评估依从/导管_管路_院感/ARDS专项',
@@ -73,7 +74,7 @@ CALL zing_add_index('quality_index', 'uk_quality_index_code', 1, '`index_code`')
 -- 2) 计算批次表（血缘第 1 层）
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `quality_calc_run` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `run_id` VARCHAR(40)  NOT NULL COMMENT '批次号（一次计算一个）',
   `period_type` VARCHAR(16) COMMENT '周期类型：MONTH/QUARTER/YEAR/CUSTOM',
   `period_start` TIMESTAMP,
@@ -102,7 +103,7 @@ CALL zing_add_index('quality_calc_run', 'idx_quality_run_period', 0, '`period_st
 -- 3) 指标结果表（血缘第 2 层；含老系统对比值，供双跑核对）
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `quality_metric_result` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `run_id` VARCHAR(40),
   `metric_code` VARCHAR(32)   NOT NULL,
   `metric_name` VARCHAR(200),
@@ -139,7 +140,7 @@ CALL zing_add_index('quality_metric_result', 'idx_quality_result_period', 0, '`p
 --    因为所有计算都经统一引擎，血缘是引擎自动捕获，不靠人工标注
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `quality_calc_trace` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `run_id` VARCHAR(40),
   `metric_code` VARCHAR(32),
   `dim_key` VARCHAR(64),
@@ -162,7 +163,7 @@ CALL zing_add_index('quality_calc_trace', 'idx_quality_trace_run', 0, '`run_id`,
 -- 5) 患者级命中明细（血缘第 4 层：数字 → 到人）
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `quality_metric_patient` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `run_id` VARCHAR(40),
   `metric_code` VARCHAR(32),
   `period_start` TIMESTAMP,
@@ -184,7 +185,7 @@ CALL zing_add_index('quality_metric_patient', 'idx_quality_patient_no', 0, '`in_
 -- 6) 月度汇总宽表（1-12 月横排，页面直读 + xlsx 导出）
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `quality_monthly_report` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `year` INT           NOT NULL,
   `index_code` VARCHAR(32)   NOT NULL,
   `index_name` VARCHAR(200),

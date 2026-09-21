@@ -1,6 +1,7 @@
 -- ============================================================
 -- MySQL 8.x 版本（由达梦 DM8 脚本自动转换 + 人工校验）
--- 主键由应用雪花算法生成，不使用 AUTO_INCREMENT
+-- 主键由应用雪花算法生成（MyBatis-Plus ASSIGN_ID），显式插入时以插入值为准；
+-- 仅当 INSERT 省略 id 时由 AUTO_INCREMENT 兜底（对应达梦原有的 SEQ.NEXTVAL 默认值）
 -- 执行：mysql -uroot -p < 本文件（需先执行 00b_idempotent_helpers.sql）
 -- ============================================================
 SET NAMES utf8mb4;
@@ -43,7 +44,7 @@ USE `zing_doctor_db_prod`;
 -- 页面注册表：每个可外链打开的功能页面在此登记（外链 pageCode 唯一）
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `zing_page_config` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `page_code` VARCHAR(64)  NOT NULL COMMENT '页面编码（外链 pageCode，唯一）',
   `page_name` VARCHAR(128) NOT NULL COMMENT '页面名称',
   `frontend_path` VARCHAR(255) NOT NULL COMMENT '前端路由路径，如 /page/abx-patient-list',
@@ -59,7 +60,7 @@ CALL zing_add_index('zing_page_config', 'uk_zing_page_config_page_code', 1, '`pa
 -- 外链访问日志：记录外部系统（ICU）外链进入医生决策系统的访问
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `zing_external_access_log` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `page_code` VARCHAR(64) NOT NULL COMMENT '被访问页面编码',
   `source_system` VARCHAR(64) DEFAULT 'icu' NOT NULL COMMENT '来源系统标识',
   `ip` VARCHAR(64) COMMENT '来源 IP',
@@ -74,7 +75,7 @@ CALL zing_add_index('zing_external_access_log', 'idx_zing_external_access_log_ti
 -- 抗感染决策记录：第一维度（经验性抗感染治疗决策）医生决策留痕
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `zing_decision_record` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `patient_id` VARCHAR(64)  NOT NULL COMMENT 'ICU 患者 ID',
   `patient_no` VARCHAR(64) COMMENT '住院号/就诊号',
   `page_code` VARCHAR(64)  DEFAULT 'abx-decision' COMMENT '来源页面',
@@ -100,7 +101,7 @@ CALL zing_add_index('zing_decision_record', 'idx_zing_decision_record_status', 0
 -- 抗感染方案推荐日志：一次决策记录对应的系统推荐方案明细（可多条）
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `zing_advice_log` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `decision_record_id` BIGINT       NOT NULL COMMENT '关联决策记录 ID',
   `drug_name` VARCHAR(128) NOT NULL COMMENT '推荐药品/方案名',
   `dose_plan` VARCHAR(255) COMMENT '剂量方案',
@@ -118,7 +119,7 @@ CALL zing_add_index('zing_advice_log', 'idx_zing_advice_log_record', 0, '`decisi
 -- 初始数据按 WHO ATC/DDD 最新版本录入，支持后台页面修改
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `zing_ddd_config` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `drug_name` VARCHAR(128) NOT NULL COMMENT '药品通用名',
   `atc_code` VARCHAR(32) COMMENT 'WHO ATC编码',
   `ddd_value` DECIMAL(10,4) NOT NULL COMMENT 'DDD值（限定日剂量）',
@@ -144,7 +145,7 @@ CALL zing_add_index('zing_ddd_config', 'idx_zing_ddd_config_level', 0, '`manage_
 -- 本表用于细菌分类统计和高风险细菌标记。
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `zing_mdro_config` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `config_type` VARCHAR(20)  NOT NULL COMMENT '配置类型：bacteria_class细菌分类, high_risk高风险细菌, specimen标本类型',
   `bacteria_name` VARCHAR(128) COMMENT '细菌名称',
   `bacteria_class` VARCHAR(20) COMMENT '细菌分类：gram_positive革兰阳性, gram_negative革兰阴性, fungi真菌, other其他',
@@ -165,7 +166,7 @@ CALL zing_add_index('zing_mdro_config', 'idx_zing_mdro_config_risk', 0, '`is_hig
 -- 用于记录脓毒症/感染性休克患者1H/3H/6H集束化治疗完成情况
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `sepsis_bundle_record` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `patient_id` VARCHAR(64) COMMENT '患者ID',
   `in_hospital_no` VARCHAR(64)  NOT NULL COMMENT '住院号',
   `patient_name` VARCHAR(64) COMMENT '患者姓名',
@@ -198,7 +199,7 @@ CALL zing_add_index('sepsis_bundle_record', 'idx_sepsis_bundle_time', 0, '`diagn
 -- 后台页面 abx-word-config 可增删改，启动/评估时加载，表空时回退内置默认
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `zing_abx_word_config` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `word_type` VARCHAR(32)  NOT NULL COMMENT '词类型：broad_spectrum 广谱抗菌药白名单 / non_antibiotic 非抗菌药黑名单',
   `keyword` VARCHAR(128) NOT NULL COMMENT '匹配关键词',
   `category` VARCHAR(64) COMMENT '分组（如：电解质/抗组胺/广谱抗菌药）',
@@ -217,7 +218,7 @@ CALL zing_add_index('zing_abx_word_config', 'idx_zing_abx_word_type_status', 0, 
 -- 一个患者一个`已封板全天班次`一条，按 (in_hospital_no, shift_begin_time) 唯一
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `zing_doctor_handover` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `patient_id` VARCHAR(64) COMMENT '患者ID（patient_info.id）',
   `in_hospital_no` VARCHAR(64)  NOT NULL COMMENT '住院号',
   `patient_name` VARCHAR(64) COMMENT '患者姓名',
@@ -243,7 +244,7 @@ CALL zing_add_index('zing_doctor_handover', 'idx_zdh_shift', 0, '`shift_begin_ti
 -- 支持多次评分（入科时/24h/48h/自定义），每次评分一条记录
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `apache2_score_record` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `patient_id` VARCHAR(64) COMMENT '患者ID（patient_info.id）',
   `in_hospital_no` VARCHAR(64)  NOT NULL COMMENT '住院号',
   `patient_name` VARCHAR(64) COMMENT '患者姓名',
@@ -283,7 +284,7 @@ CALL zing_add_index('apache2_score_record', 'idx_apache2_time', 0, '`score_time`
 -- 监护item_code配置、检验lis_item_code配置、慢性健康关键词配置
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `apache2_config` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `config_type` VARCHAR(32)  NOT NULL COMMENT '配置类型：observe_item监护item_code/lis_item检验item_code/chronic_keyword慢性健康关键词',
   `config_key` VARCHAR(128) NOT NULL COMMENT '配置键（如：temperature/heart_rate/sodium/potassium/creatinine/hct/wbc）',
   `config_value` VARCHAR(500) COMMENT '配置值（item_code或lis_item_code，多个用逗号分隔）',

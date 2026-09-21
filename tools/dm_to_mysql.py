@@ -3,7 +3,8 @@
 达梦 DM8 SQL → MySQL 8.x 建表脚本转换器（v2）。
 
 处理内容：
-  - CREATE SEQUENCE / NEXTVAL：删除（主键程序雪花算法生成）
+  - CREATE SEQUENCE：删除；列上的 NEXTVAL 默认值：转为 AUTO_INCREMENT
+    （不能简单删除：种子/配置 INSERT 不写 id，MySQL 严格模式下会直接报错）
   - schema 前缀、双引号标识符：去前缀、双引号→反引号
   - COMMENT ON TABLE/COLUMN：合并进 CREATE TABLE 列定义
   - 类型映射：VARCHAR2→VARCHAR, CLOB→LONGTEXT, BLOB→LONGBLOB, NUMBER→DECIMAL
@@ -94,9 +95,12 @@ def ddl_to_idempotent(sql, table_comments=None, col_comments=None, block_col_com
     s = strip_schema(sql)
     s = quotes_to_backticks(s)
     s = convert_type(s)
-    # 去 NEXTVAL 默认值
-    s = re.sub(r'DEFAULT\s+`?\w+`?\.`?SEQ_\w+`?\.NEXTVAL\s*', '', s, flags=re.IGNORECASE)
-    s = re.sub(r'DEFAULT\s+`?SEQ_\w+`?\.NEXTVAL\s*', '', s, flags=re.IGNORECASE)
+    # 达梦的「省略该列时取序列下一个值」→ MySQL 的 AUTO_INCREMENT
+    # ⚠️ 不能直接删掉：种子/配置类 INSERT 不写 id，MySQL 严格模式下会报
+    #    Field 'id' doesn't have a default value（达梦侧靠 SEQ 默认值兜底）。
+    s = re.sub(r'DEFAULT\s+`?\w+`?\.`?SEQ_\w+`?\.NEXTVAL\s*', 'AUTO_INCREMENT ', s,
+               flags=re.IGNORECASE)
+    s = re.sub(r'DEFAULT\s+`?SEQ_\w+`?\.NEXTVAL\s*', 'AUTO_INCREMENT ', s, flags=re.IGNORECASE)
 
     # CREATE SEQUENCE → 丢弃
     if re.match(r'(?is)^\s*CREATE\s+SEQUENCE', s.strip()):
@@ -190,8 +194,11 @@ def build_create_table(table_name, body, table_comments, col_comments,
         if col_match:
             col_name, col_rest = col_match.group(1), col_match.group(2)
             col_rest = convert_type(col_rest)
-            col_rest = re.sub(r'DEFAULT\s+`?SEQ_\w+`?\.NEXTVAL\s*', '', col_rest,
-                              flags=re.IGNORECASE)
+            # 序列默认值 → AUTO_INCREMENT（保留「省略 id 也能插」的语义，见 ddl_to_idempotent 注释）
+            col_rest = re.sub(r'DEFAULT\s+`?\w+`?\.`?SEQ_\w+`?\.NEXTVAL\s*', 'AUTO_INCREMENT ',
+                              col_rest, flags=re.IGNORECASE)
+            col_rest = re.sub(r'DEFAULT\s+`?SEQ_\w+`?\.NEXTVAL\s*', 'AUTO_INCREMENT ',
+                              col_rest, flags=re.IGNORECASE)
             cmt = col_comments.get((table_name, col_name)) \
                 or global_col_comments.get((table_name, col_name))
             if cmt:
@@ -412,7 +419,8 @@ def convert(input_path, output_path, global_table_comments=None, global_col_comm
         header = (
             '-- ============================================================\n'
             '-- MySQL 8.x 版本（由达梦 DM8 脚本自动转换 + 人工校验）\n'
-            '-- 主键由应用雪花算法生成，不使用 AUTO_INCREMENT\n'
+            '-- 主键由应用雪花算法生成（MyBatis-Plus ASSIGN_ID），显式插入时以插入值为准；\n'
+            '-- 仅当 INSERT 省略 id 时由 AUTO_INCREMENT 兜底（对应达梦原有的 SEQ.NEXTVAL 默认值）\n'
             '-- 执行：mysql -uroot -p < 本文件（需先执行 00b_idempotent_helpers.sql）\n'
             '-- ============================================================\n'
             'SET NAMES utf8mb4;\n'

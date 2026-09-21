@@ -1,6 +1,7 @@
 -- ============================================================
 -- MySQL 8.x 版本（由达梦 DM8 脚本自动转换 + 人工校验）
--- 主键由应用雪花算法生成，不使用 AUTO_INCREMENT
+-- 主键由应用雪花算法生成（MyBatis-Plus ASSIGN_ID），显式插入时以插入值为准；
+-- 仅当 INSERT 省略 id 时由 AUTO_INCREMENT 兜底（对应达梦原有的 SEQ.NEXTVAL 默认值）
 -- 执行：mysql -uroot -p < 本文件（需先执行 00b_idempotent_helpers.sql）
 -- ============================================================
 SET NAMES utf8mb4;
@@ -31,7 +32,7 @@ USE `zing_doctor_db_prod`;
 -- 1) 系统参数表
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `zing_sys_param` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `param_key` VARCHAR(64)   NOT NULL COMMENT '参数键（唯一，如 ARCHIVE_API_URL / ARCHIVE_DIR）',
   `param_name` VARCHAR(128)  NOT NULL COMMENT '参数名称（页面展示）',
   `param_value` VARCHAR(1000) COMMENT '参数值',
@@ -52,7 +53,7 @@ CALL zing_add_index('zing_sys_param', 'uk_zing_sys_param_key', 1, '`param_key`')
 -- 2) 归档推送流水表：记录每次归档/撤销的时间、file_path 与对方响应，便于追溯
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `zing_archive_log` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `biz` VARCHAR(32) COMMENT '业务：SOFA / APACHE2',
   `record_id` BIGINT COMMENT '评分记录 ID',
   `in_hospital_no` VARCHAR(64),

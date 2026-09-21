@@ -1,6 +1,7 @@
 -- ============================================================
 -- MySQL 8.x 版本（由达梦 DM8 脚本自动转换 + 人工校验）
--- 主键由应用雪花算法生成，不使用 AUTO_INCREMENT
+-- 主键由应用雪花算法生成（MyBatis-Plus ASSIGN_ID），显式插入时以插入值为准；
+-- 仅当 INSERT 省略 id 时由 AUTO_INCREMENT 兜底（对应达梦原有的 SEQ.NEXTVAL 默认值）
 -- 执行：mysql -uroot -p < 本文件（需先执行 00b_idempotent_helpers.sql）
 -- ============================================================
 SET NAMES utf8mb4;
@@ -30,7 +31,7 @@ USE `zing_doctor_db_prod`;
 -- 1) SOFA 评分记录表
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `sofa_score_record` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `patient_id` VARCHAR(64) COMMENT '患者ID（patient_info.id）',
   `in_hospital_no` VARCHAR(64)   NOT NULL COMMENT '住院号',
   `patient_name` VARCHAR(64) COMMENT '患者姓名',
@@ -78,7 +79,7 @@ CALL zing_add_index('sofa_score_record', 'idx_sofa_time', 0, '`score_time`');
 -- 2) SOFA 配置表（表空时才写入默认种子，不覆盖院内调整）
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `sofa_config` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `config_type` VARCHAR(32)  NOT NULL COMMENT '配置类型：lis_item 检验项 / observe_item 监护项 / io_item 出入量项 / vasopressor 血管活性药 / conversion 换算系数 / default_weight 默认体重',
   `config_key` VARCHAR(128) NOT NULL COMMENT '配置键',
   `config_value` VARCHAR(500) COMMENT '配置值',

@@ -1,6 +1,7 @@
 -- ============================================================
 -- MySQL 8.x 版本（由达梦 DM8 脚本自动转换 + 人工校验）
--- 主键由应用雪花算法生成，不使用 AUTO_INCREMENT
+-- 主键由应用雪花算法生成（MyBatis-Plus ASSIGN_ID），显式插入时以插入值为准；
+-- 仅当 INSERT 省略 id 时由 AUTO_INCREMENT 兜底（对应达梦原有的 SEQ.NEXTVAL 默认值）
 -- 执行：mysql -uroot -p < 本文件（需先执行 00b_idempotent_helpers.sql）
 -- ============================================================
 SET NAMES utf8mb4;
@@ -35,7 +36,7 @@ USE `zing_doctor_db_prod`;
 -- =====================================================================
 
 CREATE TABLE IF NOT EXISTS `zing_abx_drug_dict` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `drug_code` VARCHAR(64)  NOT NULL COMMENT 'HIS 药品编码（唯一键，用于增量比对）',
   `drug_name` VARCHAR(255) COMMENT '药品名称（含商品名，如 盐酸克林霉素胶囊(特丽仙)）',
   `drug_short_name` VARCHAR(255) COMMENT '药品简称',

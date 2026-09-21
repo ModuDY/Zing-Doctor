@@ -1,6 +1,7 @@
 -- ============================================================
 -- MySQL 8.x 版本（由达梦 DM8 脚本自动转换 + 人工校验）
--- 主键由应用雪花算法生成，不使用 AUTO_INCREMENT
+-- 主键由应用雪花算法生成（MyBatis-Plus ASSIGN_ID），显式插入时以插入值为准；
+-- 仅当 INSERT 省略 id 时由 AUTO_INCREMENT 兜底（对应达梦原有的 SEQ.NEXTVAL 默认值）
 -- 执行：mysql -uroot -p < 本文件（需先执行 00b_idempotent_helpers.sql）
 -- ============================================================
 SET NAMES utf8mb4;
@@ -8,7 +9,7 @@ USE `zing_doctor_db_prod`;
 
 -- ---- 以下为原达梦 PL/SQL 幂等块转换得到的 DDL ----
 CREATE TABLE IF NOT EXISTS `ards_prone_config` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `config_type` VARCHAR(32)  NOT NULL COMMENT '数据源通道：observe_item 监护/呼吸机 / lis_item 检验/血气',
   `config_key` VARCHAR(128) NOT NULL COMMENT 'ARDS 参数编码（ArdsProneDict 的 key，如 hr / map / peep / pao2）',
   `config_value` VARCHAR(500) COMMENT '匹配值：item_code 列表 或 名称关键字列表（逗号分隔多值，任一命中即可）',

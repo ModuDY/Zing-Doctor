@@ -1,6 +1,7 @@
 -- ============================================================
 -- MySQL 8.x 版本（由达梦 DM8 脚本自动转换 + 人工校验）
--- 主键由应用雪花算法生成，不使用 AUTO_INCREMENT
+-- 主键由应用雪花算法生成（MyBatis-Plus ASSIGN_ID），显式插入时以插入值为准；
+-- 仅当 INSERT 省略 id 时由 AUTO_INCREMENT 兜底（对应达梦原有的 SEQ.NEXTVAL 默认值）
 -- 执行：mysql -uroot -p < 本文件（需先执行 00b_idempotent_helpers.sql）
 -- ============================================================
 SET NAMES utf8mb4;
@@ -37,7 +38,7 @@ USE `zing_doctor_db_prod`;
 --    expr_version 由服务端在口径变化时自动 +1，页面不手填。
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `quality_metric_def` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `index_code` VARCHAR(32)   NOT NULL COMMENT '指标编号 quality_xxx',
   `index_name` VARCHAR(200),
   `domain_code` VARCHAR(32),
@@ -89,7 +90,7 @@ CALL zing_add_index('quality_metric_def', 'idx_qmd_domain', 0, '`domain_code`, `
 --    与 YAML 的 FactDefinition 一一对应；List<String> 统一以 JSON 数组存 TEXT。
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `quality_fact_def` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `fact_name` VARCHAR(64) NOT NULL COMMENT '事实层名，同时作为物化表名后缀（qc_ + fact_name）',
   `domain_code` VARCHAR(32),
   `status` VARCHAR(16) DEFAULT 'ACTIVE' COMMENT 'ACTIVE 可计算 / PENDING_SOURCE 待接数据源 / PLACEHOLDER 空壳',
@@ -117,7 +118,7 @@ CALL zing_add_index('quality_fact_def', 'idx_qfd_domain', 0, '`domain_code`');
 --    snapshot 存变更后的完整 JSON —— 任何一版口径都能原样还原。
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `quality_def_history` (
-  `id` BIGINT NOT NULL,
+  `id` BIGINT AUTO_INCREMENT NOT NULL,
   `def_type` VARCHAR(16) NOT NULL COMMENT 'METRIC 指标 / FACT 事实层',
   `def_key` VARCHAR(64) NOT NULL COMMENT '指标编号或事实层名',
   `expr_version` INT,

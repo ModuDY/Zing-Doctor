@@ -48,6 +48,7 @@
 | `00b_idempotent_helpers_doctor.sql` | 在主库建幂等存储过程（先执行） |
 | `00c_idempotent_helpers_icu.sql` | 在 ICU 库建幂等存储过程（主库/ICU 异机时用） |
 | `01_schema.sql` ~ `23_*.sql` | 表结构、索引、种子数据（按序号执行） |
+| `24_fix_id_auto_increment.sql` | 修复「已建库」中 id 列缺 `AUTO_INCREMENT` 的表（幂等，全新库为空操作） |
 | `03_icu_indexes.sql` | ICU 只读库性能索引（加在医院现有库上，需 DBA 评估） |
 
 ## 手工执行顺序（不用一键脚本时）
@@ -60,6 +61,9 @@ CLI="mariadb -h 127.0.0.1 -uroot -p"
 $CLI < 00_init_user.sql
 # 2) 主库幂等存储过程
 $CLI zing_doctor_db_prod < 00b_idempotent_helpers_doctor.sql
+# 2.5) 历史库修复：给缺 AUTO_INCREMENT 的 id 列补上（新建库为空操作；
+#      已建过的库**必须**在种子脚本前执行，否则 02_seed 会报 Field 'id' doesn't have a default value）
+$CLI zing_doctor_db_prod < 24_fix_id_auto_increment.sql
 # 3) 主库结构 + 种子（顺序不可乱）
 for f in 01_schema.sql 02_seed.sql 05_apache2_pdf.sql 06_abx_drug_dict.sql \
          07_sofa.sql 08_sofa_p1.sql 09_quality.sql 10_quality_config.sql \
@@ -89,7 +93,7 @@ $CLI zing_icu_db_prod < 03_icu_indexes.sql
 
 | 项 | 达梦 DM8 | MySQL/MariaDB |
 |---|---|---|
-| 主键 | SEQ_xxx 序列 NEXTVAL（仅种子用） | 无序列，应用雪花算法生成 |
+| 主键 | `id` 默认 `SEQ_xxx.NEXTVAL`（省略时取序列值） | `id` 用 `AUTO_INCREMENT` 兜底；应用写入时是雪花算法显式赋值 |
 | 标识符 | 双引号保小写 | 反引号；连接串 ANSI_QUOTES 兼容双引号 |
 | 幂等 DDL | PL/SQL 匿名块 + ALL_TABLES | IF NOT EXISTS + 辅助存储过程 |
 | 类型 | VARCHAR2/CLOB/BLOB/NUMBER | VARCHAR/LONGTEXT/LONGBLOB/DECIMAL |

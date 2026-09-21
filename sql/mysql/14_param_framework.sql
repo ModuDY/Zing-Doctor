@@ -1,6 +1,7 @@
 -- ============================================================
 -- MySQL 8.x 版本（由达梦 DM8 脚本自动转换 + 人工校验）
--- 主键由应用雪花算法生成，不使用 AUTO_INCREMENT
+-- 主键由应用雪花算法生成（MyBatis-Plus ASSIGN_ID），显式插入时以插入值为准；
+-- 仅当 INSERT 省略 id 时由 AUTO_INCREMENT 兜底（对应达梦原有的 SEQ.NEXTVAL 默认值）
 -- 执行：mysql -uroot -p < 本文件（需先执行 00b_idempotent_helpers.sql）
 -- ============================================================
 SET NAMES utf8mb4;
@@ -13,7 +14,7 @@ CALL zing_add_column('zing_sys_param', 'default_value', 'VARCHAR(1000) COMMENT '
 CALL zing_add_column('zing_sys_param', 'required', 'TINYINT DEFAULT 0 COMMENT ''是否必填：1 必填 / 0 选填''');
 CALL zing_add_column('zing_sys_param', 'regex', 'VARCHAR(200) COMMENT ''校验正则（可选，保存时校验参数值）''');
 CREATE TABLE IF NOT EXISTS `zing_param_group` (
-  `id` BIGINT       NOT NULL,
+  `id` BIGINT       AUTO_INCREMENT NOT NULL,
   `group_code` VARCHAR(64)  NOT NULL COMMENT '分组编码（唯一，与 zing_sys_param.param_group 对应）',
   `group_name` VARCHAR(128) NOT NULL COMMENT '分组名称（页面展示）',
   `sort_no` INT          DEFAULT 0 COMMENT '排序号（升序）',

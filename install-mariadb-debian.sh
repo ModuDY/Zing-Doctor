@@ -333,6 +333,13 @@ run_sql_file() {
 info "初始化主库幂等存储过程 ..."
 run_sql_file "$SQL_DIR/00b_idempotent_helpers_doctor.sql" "$DOCTOR_DB"
 
+# 历史库修复：早期转换版本把达梦 id 列的 SEQ 默认值删掉了，导致不写 id 的种子 INSERT
+# 报 Field 'id' doesn't have a default value。必须在种子脚本之前修，否则又会中断。
+if [ -f "$SQL_DIR/24_fix_id_auto_increment.sql" ]; then
+  info "修复历史库中 id 列缺 AUTO_INCREMENT 的表（幂等，新建库为空操作）..."
+  run_sql_file "$SQL_DIR/24_fix_id_auto_increment.sql" "$DOCTOR_DB"
+fi
+
 info "导入主库结构与种子数据（顺序执行，幂等）..."
 MAIN_SQL=(
   01_schema.sql 02_seed.sql 05_apache2_pdf.sql 06_abx_drug_dict.sql
