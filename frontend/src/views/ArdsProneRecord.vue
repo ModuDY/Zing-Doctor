@@ -1573,7 +1573,7 @@ textarea.bx:focus { border-color: var(--el-color-primary); box-shadow: 0 0 0 3px
 .paper .p-title { text-align: center; font-size: 15pt; font-weight: 700; letter-spacing: 2px; }
 .paper .p-sub { text-align: center; font-size: 8pt; color: #444; margin: 2px 0 6px; }
 .paper table { border-collapse: collapse; width: 100%; }
-.paper table th, .paper table td { border: 1px solid #000; padding: 2px 3px; text-align: center; height: 15px; font-size: 8pt; }
+.paper table th, .paper table td { border: 1px solid #555; padding: 2px 3px; text-align: center; height: 15px; font-size: 8pt; }
 .paper table.p-info td { text-align: left; height: 17px; }
 .paper table.p-info td.k { background: #f2f2f2; width: 62px; font-weight: 600; }
 .paper table.p-mon td.l, .paper table.p-mon th.l { text-align: left; }
@@ -1583,10 +1583,10 @@ textarea.bx:focus { border-color: var(--el-color-primary); box-shadow: 0 0 0 3px
 .paper table.p-mon td.cat .cat-v .cat-ch { display: block; }
 .paper table.p-mon td.calc { background: #f7f7f7; color: #555; }
 .paper table.p-mon td.abn { background: #fee; color: #c00; font-weight: 600; }
-.paper .p-sec { font-weight: 700; margin: 5px 0 2px; font-size: 9pt; border-left: 3px solid #000; padding-left: 5px; }
-.paper .p-line { border: 1px solid #000; padding: 3px 5px; min-height: 26px; margin-bottom: 3px; }
+.paper .p-sec { font-weight: 700; margin: 5px 0 2px; font-size: 9pt; border-left: 3px solid #333; padding-left: 5px; }
+.paper .p-line { border: 1px solid #555; padding: 3px 5px; min-height: 26px; margin-bottom: 3px; }
 .paper .p-sign { display: flex; gap: 10px; margin-top: 6px; }
-.paper .p-sign div { flex: 1; border: 1px solid #000; padding: 3px 6px; min-height: 30px; display: flex; align-items: center; gap: 4px; }
+.paper .p-sign div { flex: 1; border: 1px solid #555; padding: 3px 6px; min-height: 30px; display: flex; align-items: center; gap: 4px; }
 .paper .p-sign .lb { color: #333; white-space: nowrap; }
 /* 电子签名图：高度按纸面字号压到 24px，避免把签名行撑高导致整页溢出 */
 .paper .p-sign .sig { height: 24px; max-width: 100%; object-fit: contain; }
