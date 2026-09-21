@@ -115,6 +115,23 @@ export function hasExternalContext() {
 }
 
 /**
+ * 外链通道当前是否拿到了可用的操作人身份。
+ *
+ * <p>拿不到 = 这次会话里所有审计字段（评分记录 / 俯卧位记录的 create_by、update_by，
+ * 质控计算批次的 operator）都会被服务端记成 unknown —— 页面上一律显示「未知」。
+ *
+ * <p>这是配置问题而非系统故障：ICU 外链模板没把 realname / username 替换成真值
+ * （实测传过来的是字面量 ${realname}）。把它暴露出来，是为了让页面能明确告知
+ * 「链接没带身份」，而不是让用户对着一串「未知」以为是系统坏了。
+ *
+ * <p>直连登录不走这里：那条通道的姓名由服务端令牌反解得到，不受外链参数影响。
+ */
+export function hasExternalOperator() {
+  const operator = sessionStorage.getItem(KEY_OPERATOR)
+  return Boolean(operator) && !isPlaceholderOperator(operator)
+}
+
+/**
  * 读取外链传入的业务参数（departCode / patientId / inHospitalNo …）。
  *
  * 两种情况一律按「没传」处理，避免拿着脏值去查——那样表面请求成功，实际永远返回空：
