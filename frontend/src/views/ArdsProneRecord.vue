@@ -363,7 +363,7 @@
             <template v-for="g in groups" :key="g.name">
               <tr v-for="(p, pi) in g.items" :key="p.key">
                 <td v-if="pi === 0" class="cat" :rowspan="g.items.length">
-                  <div class="cat-v">{{ g.name }}</div>
+                  <div class="cat-v"><span v-for="(ch, ci) in g.name" :key="ci" class="cat-ch">{{ ch }}</span></div>
                 </td>
                 <td class="l">{{ p.name }}</td>
                 <td>{{ p.unit || '—' }}</td>
@@ -1578,8 +1578,9 @@ textarea.bx:focus { border-color: var(--el-color-primary); box-shadow: 0 0 0 3px
 .paper table.p-info td.k { background: #f2f2f2; width: 62px; font-weight: 600; }
 .paper table.p-mon td.l, .paper table.p-mon th.l { text-align: left; }
 .paper table.p-mon th { background: #f2f2f2; }
-.paper table.p-mon td.cat { background: #fafafa; font-weight: 600; width: 30px; padding: 1px 0; }
-.paper table.p-mon td.cat .cat-v { margin: 0 auto; font-size: 6.5pt; line-height: 1.2; word-break: break-all; }
+.paper table.p-mon td.cat { background: #fafafa; font-weight: 600; width: 26px; padding: 1px 0; text-align: center; }
+.paper table.p-mon td.cat .cat-v { margin: 0 auto; font-size: 6.5pt; line-height: 1.15; }
+.paper table.p-mon td.cat .cat-v .cat-ch { display: block; }
 .paper table.p-mon td.calc { background: #f7f7f7; color: #555; }
 .paper table.p-mon td.abn { background: #fee; color: #c00; font-weight: 600; }
 .paper .p-sec { font-weight: 700; margin: 5px 0 2px; font-size: 9pt; border-left: 3px solid #000; padding-left: 5px; }
