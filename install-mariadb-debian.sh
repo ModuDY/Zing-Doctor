@@ -44,6 +44,9 @@
 #     JAVA_BIN=/path/to/java  NGINX_BIN=/path/to/nginx
 #
 # ---------------------------------------------------------------------
+# 应用目录：默认就是包所在目录（解压即部署，不再落到 /opt/zing-doctor），
+# 需要固定路径时在 conf/db.conf 里写 APP_HOME=/opt/zing-doctor。
+#
 # 推荐用法：连接参数写进包内 conf/db.conf，脚本会自动读取，然后只需：
 #   ./install-mariadb-debian.sh                 完整安装 / 升级（读 conf/db.conf）
 #   ./install-mariadb-debian.sh --config-only   只按 conf/db.conf 重写运行环境并重启后端
@@ -119,7 +122,10 @@ if [ "$CONFIG_ONLY" = "yes" ]; then
 fi
 
 # ---------------- 可配置变量（环境变量 > 配置文件 > 默认值） ----------------
-APP_HOME="${APP_HOME:-/opt/zing-doctor}"
+# 应用目录：默认就是包所在目录（解压在哪就在哪跑，不再落到 /opt）。
+# ⚠️ 该目录即运行目录，不要删除或移动；升级时直接解压覆盖它即可。
+# 想放到别处（如 /opt/zing-doctor）在 conf/db.conf 里写 APP_HOME=/opt/zing-doctor
+APP_HOME="${APP_HOME:-$SRC_DIR}"
 WEB_PORT="${WEB_PORT:-2001}"
 BACKEND_PORT="${BACKEND_PORT:-8081}"
 
@@ -550,16 +556,26 @@ info "部署应用文件到 $APP_HOME ..."
 JAR_SRC="$SRC_DIR/app/zing-doctor.jar"
 [ -f "$JAR_SRC" ] || JAR_SRC="$(ls "$SRC_DIR"/target/zing-doctor-*.jar 2>/dev/null | grep -v sources | head -1 || true)"
 [ -n "$JAR_SRC" ] && [ -f "$JAR_SRC" ] || { err "未找到后端 jar（期望 app/zing-doctor.jar 或 target/zing-doctor-*.jar）"; exit 1; }
-install -m 644 "$JAR_SRC" "$APP_HOME/app/zing-doctor.jar"
-info "后端 jar 已安装：$JAR_SRC -> $APP_HOME/app/zing-doctor.jar"
+# 默认应用目录就是包目录本身（脚本所在目录），此时源与目标相同，install/cp 会因
+# "same file" 报错，故先判断
+if [ "$JAR_SRC" = "$APP_HOME/app/zing-doctor.jar" ]; then
+  info "后端 jar 已在部署目录（应用目录=包目录）：$JAR_SRC"
+else
+  install -m 644 "$JAR_SRC" "$APP_HOME/app/zing-doctor.jar"
+  info "后端 jar 已安装：$JAR_SRC -> $APP_HOME/app/zing-doctor.jar"
+fi
 
 if [ ! -f "$SRC_DIR/frontend/dist/index.html" ]; then
   err "缺少前端产物 frontend/dist/index.html（交付包应内置构建好的 dist）"
   err "请把构建好的 dist 放到 $SRC_DIR/frontend/dist/ 后重跑"
   exit 1
 fi
-cp -a "$SRC_DIR/frontend/dist/." "$APP_HOME/frontend/dist/"
-info "前端 dist 已同步到 $APP_HOME/frontend/dist/"
+if [ "$SRC_DIR/frontend/dist" = "$APP_HOME/frontend/dist" ]; then
+  info "前端 dist 已在部署目录（应用目录=包目录），无需复制"
+else
+  cp -a "$SRC_DIR/frontend/dist/." "$APP_HOME/frontend/dist/"
+  info "前端 dist 已同步到 $APP_HOME/frontend/dist/"
+fi
 else
   info "跳过：应用文件复制（--config-only）"
 fi

@@ -20,6 +20,11 @@
 >
 > 应用与数据库同机时 `DB_HOST` 默认 127.0.0.1（走映射端口）；异机时加 `DB_HOST=<库宿主IP>`。
 > 干净 Debian、让脚本全自动 apt 安装本机 MariaDB 时，直接 `sudo ./install-mariadb-debian.sh`。
+>
+> **连接参数与安装目录都写在包内 `conf/db.conf`**（脚本自动读取，命令行环境变量可覆盖）：
+> 库地址/端口/账号、`DB_TYPE`（应用机没有客户端时显式指定 mariadb / mysql）、
+> `DB_CLI`（借容器内客户端）、以及 `APP_HOME`。
+> **应用目录默认就是包所在目录**（解压在哪就在哪跑，升级直接解压覆盖；要固定到 `/opt/zing-doctor` 就填 `APP_HOME`）。
 
 ## 兼容性说明
 

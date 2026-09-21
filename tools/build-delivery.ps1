@@ -328,7 +328,7 @@ if ($Sanitize) {
 [void]$lines.Add('')
 [void]$lines.Add('## 目录')
 [void]$lines.Add('- **DATABASE-CHANGES.md** 数据库变更清单（升级先看，含本次需手工执行的 SQL）')
-[void]$lines.Add('- conf/db.conf         数据库连接配置（库地址/端口/账号，改这里即可；install-mariadb-debian.sh 读取）')
+[void]$lines.Add('- conf/db.conf         数据库连接配置（库地址/端口/账号/应用目录 APP_HOME；install-mariadb-debian.sh 读取）')
 [void]$lines.Add('- app/zing-doctor.jar   后端可执行 jar（JDK 8+，8081，已含达梦驱动）')
 [void]$lines.Add('- frontend/dist/        前端静态产物')
 [void]$lines.Add('- frontend/nginx.conf   /api、/entry 反代 + history 回退')
