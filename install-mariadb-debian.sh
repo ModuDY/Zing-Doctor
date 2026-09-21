@@ -268,7 +268,15 @@ if [ "$INSTALL_SERVER" = "no" ]; then
 fi
 DB_VER="$(admin_query "SELECT VERSION();" 2>/dev/null || true)"
 if [ -z "$DB_VER" ]; then
-  if [ "$INSTALL_SERVER" = "yes" ]; then
+  if cli_is_compound; then
+    err "借容器客户端连接数据库失败：$DB_CLI"
+    err "最常见原因：容器内 root 需要密码（现象 ERROR 1045 Access denied ... using password: NO）。"
+    err "先取出密码（容器启动时注入的环境变量）："
+    err "  docker inspect <容器名> --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -iE 'root_password|password'"
+    err "再带密码重跑（密码含特殊字符时整体用单引号包住赋值给变量）："
+    err "  ROOTPW='<密码>'"
+    err "  SKIP_APT=yes DB_CLI=\"docker exec -i <容器名> mysql -uroot -p\$ROOTPW\" ... $0"
+  elif [ "$INSTALL_SERVER" = "yes" ]; then
     err "本机 MariaDB 连接失败，请检查服务状态：systemctl status mariadb"
   else
     err "无法连接外部数据库或认证失败：$DB_HOST:$DB_PORT（账号 $DB_ADMIN_USER）"
