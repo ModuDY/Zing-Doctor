@@ -133,6 +133,10 @@ DB_PORT="${DB_PORT:-3306}"
 DOCTOR_DB="${DOCTOR_DB:-zing_doctor_db_prod}"
 ICU_DB="${ICU_DB:-zing_icu_db_prod}"
 
+# 数据库类型：留空 = 自动探测（需要能连库的客户端）；
+# mariadb / mysql = 显式指定，应用机没有客户端也能完成部署（库由对方 DBA 初始化）
+DB_TYPE="${DB_TYPE:-}"
+
 # 建库/授权用的管理员账号。
 #   - 外部库（容器/远程）：必填 DB_ADMIN_PASSWORD，走 TCP + 密码。
 #   - 本机自建：留空，root 走 unix_socket 免密。
@@ -169,6 +173,8 @@ QUALITY_CONFIG_WRITE_IP_WHITELIST="${QUALITY_CONFIG_WRITE_IP_WHITELIST:-}"
 #   宿主机没有 mysql 客户端时，可借本机已有镜像在容器里跑客户端：
 #     DB_CLI='docker run --rm -i <本机镜像> mysql -h<库IP> -P<端口> -uroot -p<密码>'
 #   注意：该方式下 ICU 必须与主库同一实例（要分实例请让库侧 DBA 手工执行 03_icu_indexes.sql）。
+#   应用机完全没有客户端、库与账号全由对方 DBA 维护时：在 conf/db.conf 里设
+#   DB_TYPE=mariadb（或 mysql）跳过探测，脚本照常部署应用，只跳过建库/授权/SQL 导入。
 #   WEB_MODE            前端托管方式：auto(默认)/nginx/docker/none
 #                       宿主没装 nginx 但本机有 nginx 镜像时，用容器跑前端（--network host）
 #   NGINX_IMAGE         容器方式使用的镜像（默认优先复用本机已有的 nginx 镜像）
@@ -301,7 +307,10 @@ pick_cli
 
 # ---------- 依赖体检：必需缺失才退出，可选缺失只警告 ----------
 MISSING=""
-[ -n "$DB_CLI" ]   || MISSING="$MISSING  数据库命令行客户端(mariadb/mysql)"
+# DB_TYPE 显式指定时不需要客户端（应用机连远程库、由 DBA 初始化库的场景）
+if [ -z "$DB_TYPE" ]; then
+  [ -n "$DB_CLI" ] || MISSING="$MISSING  数据库命令行客户端(mariadb/mysql，或在 conf 里设 DB_TYPE=mariadb|mysql)"
+fi
 [ -n "$JAVA_BIN" ] || MISSING="$MISSING  运行环境(java / JRE 8+)"
 if [ "$INSTALL_SERVER" = "yes" ] && ! cli_is_compound && ! { have mariadbd || have mysqld || have mariadb; }; then
   MISSING="$MISSING  数据库服务(mariadb-server)"
@@ -352,6 +361,21 @@ if ! host_is_local "$ICU_DB_HOST"; then
 fi
 
 # ---------------- 2. 连接数据库 + 探测类型/版本 ----------------
+# DB_TYPE 显式指定（conf 里 DB_TYPE=mariadb|mysql）时跳过探测：
+# 适用于「应用机没有数据库客户端、库由对方 DBA 维护」的部署形态。
+if [ -n "$DB_TYPE" ]; then
+  case "$DB_TYPE" in
+    mariadb) DB_KIND="mariadb"; DB_PROFILE="mariadb"; PFIX="MARIADB"; DRIVER="org.mariadb.jdbc.Driver" ;;
+    mysql)   DB_KIND="mysql";   DB_PROFILE="mysql";   PFIX="MYSQL";  DRIVER="com.mysql.cj.jdbc.Driver" ;;
+    *) err "conf 里的 DB_TYPE 只能是 mariadb 或 mysql（当前：$DB_TYPE）"; exit 1 ;;
+  esac
+  DB_VER="（未探测，按配置指定）"
+  info "按配置指定数据库类型：$DB_KIND -> Spring profile=$DB_PROFILE，驱动 $DRIVER"
+  if [ -z "$DB_CLI" ]; then
+    warn "本机没有数据库客户端：跳过建库/建号/授权与 SQL 导入，$DB_HOST:$DB_PORT 的库需由库侧 DBA 用 sql/mysql/ 初始化"
+  fi
+else
+
 if [ "$INSTALL_SERVER" = "no" ]; then
   info "测试到外部数据库 $DB_HOST:$DB_PORT 的连接 ..."
 fi
@@ -391,6 +415,8 @@ if [ "$INSTALL_SERVER" = "yes" ]; then
   warn "apt 安装的是源内 10.5 最新安全补丁版（高于 10.5.6、向后兼容），不建议锁定到有漏洞的精确 10.5.6"
 fi
 
+fi   # 结束 DB_TYPE 未指定（自动探测）分支
+
 # ---------------- 3. 建库、建账号、授权 ----------------
 run_sql_file() {
   local file="$1"; local db="${2:-}"
@@ -400,6 +426,10 @@ run_sql_file() {
 
 if [ "$CONFIG_ONLY" = "yes" ]; then
   info "跳过：建库/建账号/授权、SQL 导入（--config-only 只更新运行环境）"
+elif [ -z "$DB_CLI" ]; then
+  warn "本机没有数据库客户端：跳过建库/建账号/授权与 SQL 导入"
+  warn "  请在库服务器（$DB_HOST）上按 sql/mysql/README.md 的顺序执行 sql/mysql/ 下脚本初始化，"
+  warn "  并确认账号 $APP_DB_USER 对主库 $DOCTOR_DB 有 ALL、对 ICU 库 $ICU_DB 有 SELECT"
 else
   info "创建数据库与应用账号 ..."
   # ICU 若单独给了只读账号，一并建号授权（不存在才建，幂等）
