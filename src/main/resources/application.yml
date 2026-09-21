@@ -6,41 +6,16 @@ server:
 spring:
   application:
     name: zing-doctor
+  profiles:
+    # 数据库类型切换：dm=达梦DM8（默认，信创环境）；mysql=MySQL 8.x
+    # 环境变量 SPRING_PROFILES_ACTIVE=mysql 即切到 MySQL
+    active: ${SPRING_PROFILES_ACTIVE:dm}
   datasource:
     dynamic:
       primary: doctor
       strict: true
       # 数据源懒加载：应用启动时不强制初始化连接池，便于无库环境下启动与容错
       lazy: true
-      # 数据库：达梦 DM8。schema（模式）在 SQL 中显式引用（如 "zing_icu_db_prod"."patient_info"），
-      # 因此 URL 不带 schema 参数，仅需连接账号具备目标 schema 的访问权限。
-      # P0 直接使用 SYSDBA（默认模式即 SYSDBA，表建于此）；生产可改用独立账号（见 docs/04-安装部署手册.md）。
-      # 连接信息可用环境变量覆盖（Docker 部署在 docker-compose.yml 中注入）。
-      datasource:
-        doctor:
-          driver-class-name: dm.jdbc.driver.DmDriver
-          url: jdbc:dm://${DM_DOCTOR_HOST:100.120.1.102}:${DM_DOCTOR_PORT:14236}
-          username: ${DM_DOCTOR_USER:SYSDBA}
-          password: ${DM_DOCTOR_PASSWORD:Sa_20250815}
-          # 显式连接池：拿连接最多等10s即快速失败（默认30s干等会放大“保存一直转圈”），避免慢操作占满池后无限排队
-          hikari:
-            connection-timeout: 10000
-            maximum-pool-size: 10
-            minimum-idle: 2
-            max-lifetime: 1800000
-            connection-test-query: SELECT 1
-        icu:
-          driver-class-name: dm.jdbc.driver.DmDriver
-          url: jdbc:dm://${DM_ICU_HOST:100.120.1.102}:${DM_ICU_PORT:14236}
-          username: ${DM_ICU_USER:SYSDBA}
-          password: ${DM_ICU_PASSWORD:Sa_20250815}
-          read-only: true
-          hikari:
-            connection-timeout: 10000
-            maximum-pool-size: 10
-            minimum-idle: 2
-            max-lifetime: 1800000
-            connection-test-query: SELECT 1
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml

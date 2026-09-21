@@ -1,0 +1,35 @@
+# ============================================================
+# 达梦 DM8 数据源配置（信创/国产化环境，默认 profile）
+# 激活方式：SPRING_PROFILES_ACTIVE=dm（默认）
+# ============================================================
+spring:
+  datasource:
+    dynamic:
+      datasource:
+        doctor:
+          driver-class-name: dm.jdbc.driver.DmDriver
+          url: jdbc:dm://${DM_DOCTOR_HOST:100.120.1.102}:${DM_DOCTOR_PORT:14236}
+          username: ${DM_DOCTOR_USER:SYSDBA}
+          password: ${DM_DOCTOR_PASSWORD:Sa_20250815}
+          hikari:
+            connection-timeout: 10000
+            maximum-pool-size: 10
+            minimum-idle: 2
+            max-lifetime: 1800000
+            connection-test-query: SELECT 1
+        icu:
+          driver-class-name: dm.jdbc.driver.DmDriver
+          url: jdbc:dm://${DM_ICU_HOST:100.120.1.102}:${DM_ICU_PORT:14236}
+          username: ${DM_ICU_USER:SYSDBA}
+          password: ${DM_ICU_PASSWORD:Sa_20250815}
+          read-only: true
+          hikari:
+            connection-timeout: 10000
+            maximum-pool-size: 10
+            minimum-idle: 2
+            max-lifetime: 1800000
+            connection-test-query: SELECT 1
+
+# 数据库方言标识：供 DbDialect / Mapper SQL 方言切换使用
+zing:
+  db-type: dm
