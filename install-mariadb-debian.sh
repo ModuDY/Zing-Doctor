@@ -39,6 +39,8 @@
 #   最后统一体检并给出「缺什么、怎么补」。常用开关：
 #     SKIP_APT=yes                            完全不调用 apt
 #     DB_CLI='docker exec -i <容器名> mysql'   用容器内客户端（宿主机不装客户端）
+#     WEB_MODE=docker|nginx|auto|none          前端托管方式；无宿主 nginx 但有 nginx 镜像时
+#                                              auto 会自动改用容器跑前端（--network host）
 #     JAVA_BIN=/path/to/java  NGINX_BIN=/path/to/nginx
 #
 # 幂等：可重复执行，建库/建表/加列/建索引均做存在性判断，不重复、不报错。
@@ -87,10 +89,16 @@ QUALITY_CONFIG_WRITE_IP_WHITELIST="${QUALITY_CONFIG_WRITE_IP_WHITELIST:-}"
 #                       数据库跑在本机 Docker 里且宿主机没装客户端时可写：
 #                       DB_CLI='docker exec -i <容器名> mysql'
 #   JAVA_BIN / NGINX_BIN  手工指定 java / nginx 路径（自动探测不到时用）
+#   WEB_MODE            前端托管方式：auto(默认)/nginx/docker/none
+#                       宿主没装 nginx 但本机有 nginx 镜像时，用容器跑前端（--network host）
+#   NGINX_IMAGE         容器方式使用的镜像（默认优先复用本机已有的 nginx 镜像）
 SKIP_APT="${SKIP_APT:-no}"
 DB_CLI="${DB_CLI:-}"
 JAVA_BIN="${JAVA_BIN:-}"
 NGINX_BIN="${NGINX_BIN:-}"
+WEB_MODE="${WEB_MODE:-auto}"
+NGINX_IMAGE="${NGINX_IMAGE:-}"
+NGINX_CONTAINER="${NGINX_CONTAINER:-zing-doctor-frontend}"
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SQL_DIR="$SRC_DIR/sql/mysql"
@@ -124,10 +132,16 @@ have(){ command -v "$1" >/dev/null 2>&1; }
 # DB_CLI 若已由环境变量指定（例如 docker exec 形式）则保持不覆盖
 pick_cli(){ [ -n "$DB_CLI" ] || DB_CLI="$(command -v mariadb 2>/dev/null || command -v mysql 2>/dev/null || true)"; }
 
+# DB_CLI 是复合命令（含空格，如 'docker exec -i zing-mysql mysql'）时，
+# 不再追加 -h/-P/-u/-p：连接与认证由该命令自身完成（容器内 root 走 socket 免密）。
+cli_is_compound(){ case "$DB_CLI" in *" "*) return 0;; *) return 1;; esac; }
+# 管理员访问是否走「本机直连」语义（本机自建，或借容器内客户端）
+admin_is_local(){ [ "$INSTALL_SERVER" = "yes" ] || cli_is_compound; }
+
 # 管理员连接：mariadb_admin [库名]  （stdin 喂 SQL，或 < 文件）
 mariadb_admin() {
   local db="${1:-}"
-  if [ "$INSTALL_SERVER" = "yes" ]; then
+  if admin_is_local; then
     $DB_CLI ${db:+"$db"}
   else
     $DB_CLI -h"$DB_HOST" -P"$DB_PORT" -u"$DB_ADMIN_USER" -p"$DB_ADMIN_PASSWORD" ${db:+"$db"}
@@ -135,7 +149,7 @@ mariadb_admin() {
 }
 # ICU 库管理员连接（可能与主库不同机）
 mariadb_icu_admin() {
-  if [ "$INSTALL_SERVER" = "yes" ] && host_is_local "$ICU_DB_HOST"; then
+  if admin_is_local && host_is_local "$ICU_DB_HOST"; then
     $DB_CLI "$ICU_DB"
   else
     $DB_CLI -h"$ICU_DB_HOST" -P"$ICU_DB_PORT" -u"$DB_ADMIN_USER" -p"$DB_ADMIN_PASSWORD" "$ICU_DB"
@@ -144,7 +158,7 @@ mariadb_icu_admin() {
 # 执行单条查询并输出结果：admin_query "SQL" [库名]（用于 VERSION()/COUNT 等 -e 场景）
 admin_query() {
   local sql="$1"; local db="${2:-}"
-  if [ "$INSTALL_SERVER" = "yes" ]; then
+  if admin_is_local; then
     $DB_CLI -N -uroot ${db:+"$db"} -e "$sql"
   else
     $DB_CLI -h"$DB_HOST" -P"$DB_PORT" -u"$DB_ADMIN_USER" -p"$DB_ADMIN_PASSWORD" -N ${db:+"$db"} -e "$sql"
@@ -193,8 +207,8 @@ else
   [ "$APT_FAILED" = "no" ] || warn "apt 安装未全部成功（离线服务器属预期），继续检查本机已有组件"
 fi
 
-# 本机自建模式下，MariaDB 服务是否可用
-if [ "$INSTALL_SERVER" = "yes" ]; then
+# 本机自建模式下，MariaDB 服务是否可用（借容器客户端时不适用，跳过）
+if [ "$INSTALL_SERVER" = "yes" ] && ! cli_is_compound; then
   if have mariadbd || have mysqld || have mariadb-install-db; then
     info "启动并设置 MariaDB 开机自启 ..."
     systemctl enable --now mariadb || warn "mariadb 服务启动失败，请检查：systemctl status mariadb"
@@ -209,7 +223,7 @@ pick_cli
 MISSING=""
 [ -n "$DB_CLI" ]   || MISSING="$MISSING  数据库命令行客户端(mariadb/mysql)"
 [ -n "$JAVA_BIN" ] || MISSING="$MISSING  运行环境(java / JRE 8+)"
-if [ "$INSTALL_SERVER" = "yes" ] && ! { have mariadbd || have mysqld || have mariadb; }; then
+if [ "$INSTALL_SERVER" = "yes" ] && ! cli_is_compound && ! { have mariadbd || have mysqld || have mariadb; }; then
   MISSING="$MISSING  数据库服务(mariadb-server)"
 fi
 
@@ -228,8 +242,12 @@ if [ -n "$MISSING" ]; then
 fi
 
 if [ -z "$NGINX_BIN" ]; then
-  warn "未找到 nginx：将跳过前端托管（后端仍会正常启动）。"
-  warn "补法：装好 nginx 后重跑本脚本，或自行托管 $APP_HOME/frontend/dist 并反代到 127.0.0.1:$BACKEND_PORT。"
+  if have docker; then
+    warn "宿主未安装 nginx：稍后尝试用本机已有的 nginx 镜像以容器方式托管前端（无需联网）。"
+  else
+    warn "未找到 nginx 且无 Docker：前端将无法托管（后端仍会正常启动）。"
+    warn "补法：装好 nginx 后重跑本脚本，或自行托管 $APP_HOME/frontend/dist 并反代到 127.0.0.1:$BACKEND_PORT。"
+  fi
 fi
 info "组件就绪：客户端 ${DB_CLI} / java ${JAVA_BIN} / nginx ${NGINX_BIN:-未安装}"
 
@@ -410,10 +428,14 @@ systemctl restart zing-doctor
 info "后端服务已启动（systemctl status zing-doctor 查看状态）"
 
 # ---------------- 7. nginx 前端 + 反代 ----------------
-NGINX_OK="no"
-if [ -n "$NGINX_BIN" ]; then
-  info "配置 nginx（端口 $WEB_PORT，/api 反代到 127.0.0.1:$BACKEND_PORT）..."
-  cat > /etc/nginx/conf.d/zing-doctor.conf <<EOF
+# 宿主装了 nginx 就用宿主 nginx；没装但有 Docker + 本机已有 nginx 镜像，
+# 就用容器跑前端（--network host，容器内直接监听 $WEB_PORT）。
+# 站点配置只有一份来源，两种方式共用；dist 挂载路径与 root 指令保持一致。
+WEB_OK="no"
+WEB_HOW=""
+
+write_site_conf() {
+  cat > "$1" <<EOF
 server {
     listen $WEB_PORT;
     server_name _;
@@ -440,16 +462,53 @@ server {
     }
 }
 EOF
+}
+
+pick_nginx_image() {
+  [ -n "$NGINX_IMAGE" ] && return 0
+  local cand
+  for cand in nginx:stable nginx:latest nginx:alpine; do
+    if docker image inspect "$cand" >/dev/null 2>&1; then NGINX_IMAGE="$cand"; return 0; fi
+  done
+  cand="$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -E '^nginx:' | head -1 || true)"
+  if [ -n "$cand" ]; then NGINX_IMAGE="$cand"; return 0; fi
+  return 1
+}
+
+if [ "$WEB_MODE" != "docker" ] && [ -n "$NGINX_BIN" ]; then
+  info "配置宿主 nginx（端口 $WEB_PORT，/api 反代到 127.0.0.1:$BACKEND_PORT）..."
+  write_site_conf /etc/nginx/conf.d/zing-doctor.conf
   if nginx -t; then
     systemctl enable nginx || warn "nginx 开机自启设置失败"
     systemctl restart nginx || warn "nginx 重启失败，请检查：systemctl status nginx"
-    NGINX_OK="yes"
+    WEB_OK="yes"; WEB_HOW="宿主 nginx"
   else
     warn "nginx 配置校验未通过，已跳过启用；配置文件保留在 /etc/nginx/conf.d/zing-doctor.conf"
   fi
-else
-  warn "跳过 nginx 配置：本机未安装 nginx，且离线环境装不上。"
-  warn "  前端产物已就位：$APP_HOME/frontend/dist（用任意静态服务器托管并反代 /api、/entry 到 127.0.0.1:$BACKEND_PORT 即可）"
+elif [ "$WEB_MODE" != "nginx" ] && have docker; then
+  info "宿主未安装 nginx：尝试用本机已有的 nginx 镜像跑前端容器 ..."
+  if pick_nginx_image; then
+    info "使用镜像 $NGINX_IMAGE（容器名 $NGINX_CONTAINER，--network host 监听 $WEB_PORT）"
+    mkdir -p "$APP_HOME/config"
+    write_site_conf "$APP_HOME/config/nginx-zing-doctor.conf"
+    docker rm -f "$NGINX_CONTAINER" >/dev/null 2>&1 || true
+    if docker run -d --name "$NGINX_CONTAINER" --restart=always --network host \
+         -v "$APP_HOME/frontend/dist:$APP_HOME/frontend/dist:ro" \
+         -v "$APP_HOME/config/nginx-zing-doctor.conf:/etc/nginx/conf.d/default.conf:ro" \
+         "$NGINX_IMAGE" >/dev/null; then
+      WEB_OK="yes"; WEB_HOW="nginx 容器($NGINX_CONTAINER)"
+      info "前端容器已启动（dist 为挂载，改文件无需重启容器）"
+    else
+      warn "前端容器启动失败，请查看：docker logs $NGINX_CONTAINER"
+    fi
+  else
+    warn "本机没有可用的 nginx 镜像（离线无法拉取）。可指定：NGINX_IMAGE=<本机镜像>"
+  fi
+fi
+
+if [ "$WEB_OK" != "yes" ]; then
+  warn "前端未托管：产物已就位 $APP_HOME/frontend/dist"
+  warn "  可用任意静态服务器托管，并把 /api、/entry 反代到 127.0.0.1:$BACKEND_PORT"
 fi
 
 # ---------------- 8. 健康检查 ----------------
@@ -475,10 +534,10 @@ else
   echo "    journalctl -u zing-doctor -n 80 --no-pager"
   echo "    tail -n 80 $APP_HOME/logs/backend.log"
 fi
-if [ "$NGINX_OK" = "yes" ]; then
-  echo "  前端入口 : http://$HOST_IP:$WEB_PORT/"
+if [ "$WEB_OK" = "yes" ]; then
+  echo "  前端入口 : http://$HOST_IP:$WEB_PORT/   （$WEB_HOW）"
 else
-  echo "  前端入口 : （nginx 未启用，请自行托管 $APP_HOME/frontend/dist）"
+  echo "  前端入口 : （未托管，请自行托管 $APP_HOME/frontend/dist）"
 fi
 echo "  后端接口 : http://$HOST_IP:$BACKEND_PORT/api/health"
 echo "  数据库   : $DB_KIND $DB_VER @ $DB_HOST:$DB_PORT / $DOCTOR_DB（应用账号 $APP_DB_USER）"
