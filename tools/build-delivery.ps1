@@ -143,6 +143,10 @@ Copy-Item "$root\lib" (Join-Path $work 'lib') -Recurse -Force
 Copy-Item "$root\docker-compose.yml" $work -Force
 Copy-Item "$root\Dockerfile" $work -Force
 Copy-Item "$root\install.sh" $work -Force
+# Debian/MySQL 直连部署脚本（不依赖 Docker 跑应用时使用），与 Docker 版 install.sh 并存
+if (Test-Path "$root\install-mariadb-debian.sh") {
+    Copy-Item "$root\install-mariadb-debian.sh" $work -Force
+}
 # 数据库变更清单：install.sh 不会执行 SQL（容器无达梦客户端），故把清单放包根目录，
 # 部署方解压第一眼就能看到，避免「代码更新了但表没改」导致页面直接 500。
 if (Test-Path "$root\DATABASE-CHANGES.md") {
@@ -272,7 +276,9 @@ if ($Sanitize) {
 [void]$lines.Add('- frontend/nginx.conf   /api、/entry 反代 + history 回退')
 [void]$lines.Add('- sql/                  达梦 DM8 建表与种子脚本（按序号执行）')
 [void]$lines.Add('- tools/db-init/        数据库初始化工具')
-[void]$lines.Add('- lib/                  达梦 JDBC 驱动')
+[void]$lines.Add('- sql/mysql/            MySQL / MariaDB 建表脚本（Debian 直连部署用，达梦环境忽略）')
+[void]$lines.Add('- install.sh            Docker 部署脚本（默认，达梦 DM8）')
+[void]$lines.Add('- install-mariadb-debian.sh  Debian 直连部署脚本（MySQL / MariaDB，不使用 Docker 跑应用时用）')
 if ($KeepDocs) {
     [void]$lines.Add('- docs/                 全部文档（含产品设计，内部交付包）')
 } else {
