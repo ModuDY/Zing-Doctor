@@ -457,7 +457,7 @@
         <span class="hint">修改只作用于本条记录；科室默认模板另行维护</span>
         <div class="spacer"></div>
         <button class="btn" @click="tpDrawer = false">取消</button>
-        <button class="btn primary" @click="tpDrawer = false">完成</button>
+        <button class="btn primary" @click="onTpDone">完成</button>
       </div>
     </div>
 
@@ -578,6 +578,8 @@ const mode = ref('table')
 const currentTpIndex = ref(0)
 const tpDrawer = ref(false)
 const tpDraft = ref([])
+/** 打开时点配置抽屉时的原始快照，用于「完成」时只提交被改动的行 */
+const tpSnapshot = ref([])
 const paperRef = ref(null)
 /** 最近一次采集明细（哪个项目映射到哪个值），供「采集明细」抽屉核对 */
 const collectDetail = ref(null)
@@ -1031,6 +1033,7 @@ function openTp() {
     id: t.id, tpIndex: t.tpIndex, tpLabel: t.tpLabel,
     offsetMinutes: t.offsetMinutes, collectStatus: t.collectStatus
   }))
+  tpSnapshot.value = tpDraft.value.map(t => ({ id: t.id, tpLabel: t.tpLabel, offsetMinutes: t.offsetMinutes }))
   tpDrawer.value = true
 }
 function planOf(offset) {
@@ -1048,6 +1051,30 @@ async function onTpSave(i) {
     const list = await updateArdsProneTp(t.id, t.tpLabel, t.offsetMinutes)
     timepoints.value = list
     ElMessage.success('时点已保存')
+    // 单行保存后同步快照，避免点「完成」时把它再当改动重复提交
+    const snapNow = tpSnapshot.value.find(x => x.id === t.id)
+    if (snapNow) { snapNow.tpLabel = t.tpLabel; snapNow.offsetMinutes = t.offsetMinutes }
+  } catch (e) {
+    ElMessage.error('保存失败：' + (e.message || '请稍后重试'))
+  }
+}
+async function onTpDone() {
+  // 与打开时的快照对比，把抽屉里所有改过名称/偏移的行统一提交，避免用户必须逐行点「保存」
+  const changed = tpDraft.value.filter(t => {
+    const s = tpSnapshot.value.find(x => x.id === t.id)
+    if (!s) return false
+    return String(t.tpLabel ?? '') !== String(s.tpLabel ?? '') ||
+           Number(t.offsetMinutes || 0) !== Number(s.offsetMinutes || 0)
+  })
+  if (changed.length === 0) { tpDrawer.value = false; return }
+  try {
+    let list = null
+    for (const t of changed) {
+      list = await updateArdsProneTp(t.id, t.tpLabel, t.offsetMinutes)
+    }
+    if (list) timepoints.value = list
+    ElMessage.success(`已保存 ${changed.length} 个时点修改`)
+    tpDrawer.value = false
   } catch (e) {
     ElMessage.error('保存失败：' + (e.message || '请稍后重试'))
   }
