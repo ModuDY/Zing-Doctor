@@ -89,6 +89,12 @@ QUALITY_CONFIG_WRITE_IP_WHITELIST="${QUALITY_CONFIG_WRITE_IP_WHITELIST:-}"
 #                       数据库跑在本机 Docker 里且宿主机没装客户端时可写：
 #                       DB_CLI='docker exec -i <容器名> mysql'
 #   JAVA_BIN / NGINX_BIN  手工指定 java / nginx 路径（自动探测不到时用）
+#
+# 应用与数据库分两台服务器（典型：库在 ICU 那台）：
+#   DB_HOST=<库服务器IP> DB_PORT=<库端口> 指定远程库；库侧需先放行端口并建好账号授权。
+#   宿主机没有 mysql 客户端时，可借本机已有镜像在容器里跑客户端：
+#     DB_CLI='docker run --rm -i <本机镜像> mysql -h<库IP> -P<端口> -uroot -p<密码>'
+#   注意：该方式下 ICU 必须与主库同一实例（要分实例请让库侧 DBA 手工执行 03_icu_indexes.sql）。
 #   WEB_MODE            前端托管方式：auto(默认)/nginx/docker/none
 #                       宿主没装 nginx 但本机有 nginx 镜像时，用容器跑前端（--network host）
 #   NGINX_IMAGE         容器方式使用的镜像（默认优先复用本机已有的 nginx 镜像）
@@ -113,29 +119,34 @@ trap 'err "脚本在第 $LINENO 行失败，已中止（已完成的步骤是幂
 [ "$(id -u)" -eq 0 ] || { err "请用 root 运行：sudo $0"; exit 1; }
 
 # ---------------- 数据库来源判定 ----------------
-# 本机地址？
+# 本机地址？（注意：仅 DB_HOST 判定「库是否在本机」，应用连库地址始终由 DB_HOST/DB_PORT 决定）
 host_is_local() { case "$1" in 127.0.0.1|localhost|::1) return 0;; *) return 1;; esac; }
+
+have(){ command -v "$1" >/dev/null 2>&1; }
+
+# DB_CLI 是复合命令（含空格，如 'docker exec -i zing-mysql mysql'、
+# 'docker run --rm -i mariadb:10.5 mysql -h10.0.0.9 -uroot -pxxx'）时，
+# 不再追加 -h/-P/-u/-p：连接与认证由该命令自身完成。
+cli_is_compound(){ case "$DB_CLI" in *" "*) return 0;; *) return 1;; esac; }
 
 if host_is_local "$DB_HOST" && [ -z "$DB_ADMIN_PASSWORD" ]; then
   INSTALL_SERVER="yes"      # 场景 A：本机自建
 else
-  INSTALL_SERVER="no"       # 场景 B：外部库（容器/远程）
+  INSTALL_SERVER="no"       # 场景 B：外部库（同机容器 / 另一台服务器）
 fi
 
-if [ "$INSTALL_SERVER" = "no" ] && ! host_is_local "$DB_HOST" && [ -z "$DB_ADMIN_PASSWORD" ]; then
-  err "远程数据库必须提供 DB_ADMIN_PASSWORD"; exit 1
+# 远程库必须能拿到管理员凭据：要么 DB_ADMIN_PASSWORD，要么写进 DB_CLI 的复合命令里
+if [ "$INSTALL_SERVER" = "no" ] && ! host_is_local "$DB_HOST" \
+   && [ -z "$DB_ADMIN_PASSWORD" ] && ! cli_is_compound; then
+  err "远程数据库必须提供 DB_ADMIN_PASSWORD，或把连接信息写进 DB_CLI（如 'docker run --rm -i <镜像> mysql -h<库IP> -P<端口> -uroot -p<密码>'）"
+  exit 1
 fi
-
-have(){ command -v "$1" >/dev/null 2>&1; }
 
 # 命令行客户端（mariadb-client 同时提供 mariadb / mysql；取存在者）
 # DB_CLI 若已由环境变量指定（例如 docker exec 形式）则保持不覆盖
 pick_cli(){ [ -n "$DB_CLI" ] || DB_CLI="$(command -v mariadb 2>/dev/null || command -v mysql 2>/dev/null || true)"; }
 
-# DB_CLI 是复合命令（含空格，如 'docker exec -i zing-mysql mysql'）时，
-# 不再追加 -h/-P/-u/-p：连接与认证由该命令自身完成（容器内 root 走 socket 免密）。
-cli_is_compound(){ case "$DB_CLI" in *" "*) return 0;; *) return 1;; esac; }
-# 管理员访问是否走「本机直连」语义（本机自建，或借容器内客户端）
+# 管理员访问是否走「本机直接执行客户端」语义（本机自建，或连接信息已写进 DB_CLI）
 admin_is_local(){ [ "$INSTALL_SERVER" = "yes" ] || cli_is_compound; }
 
 # 管理员连接：mariadb_admin [库名]  （stdin 喂 SQL，或 < 文件）
@@ -149,7 +160,14 @@ mariadb_admin() {
 }
 # ICU 库管理员连接（可能与主库不同机）
 mariadb_icu_admin() {
-  if admin_is_local && host_is_local "$ICU_DB_HOST"; then
+  if cli_is_compound; then
+    # 连接信息已固定在 DB_CLI 里，只能操作该实例；ICU 在别的实例时给出明确提示
+    if [ "$ICU_DB_HOST" != "$DB_HOST" ] || [ "$ICU_DB_PORT" != "$DB_PORT" ]; then
+      warn "DB_CLI 是复合命令，无法为 ICU 单独指定实例（ICU=$ICU_DB_HOST:$ICU_DB_PORT，主库=$DB_HOST:$DB_PORT）"
+      warn "  ICU 索引将按主库实例处理；若 ICU 库确在别处，请在宿主安装客户端后重跑，或让该库 DBA 手工执行 $SQL_DIR/03_icu_indexes.sql"
+    fi
+    $DB_CLI "$ICU_DB"
+  elif admin_is_local && host_is_local "$ICU_DB_HOST"; then
     $DB_CLI "$ICU_DB"
   else
     $DB_CLI -h"$ICU_DB_HOST" -P"$ICU_DB_PORT" -u"$DB_ADMIN_USER" -p"$DB_ADMIN_PASSWORD" "$ICU_DB"
