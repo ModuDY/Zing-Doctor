@@ -35,6 +35,13 @@
 | `utf8mb4 / LONGTEXT / LONGBLOB / DECIMAL` | ✅ | 类型映射 |
 | `CREATE USER IF NOT EXISTS / ALTER USER` | ✅ | 安装脚本建账号 |
 
+已知差异（已在脚本里等价处理）：
+
+| 达梦写法 | MySQL/MariaDB 等价做法 |
+|---|---|
+| 索引列用表达式（部分唯一索引）：`UNIQUE INDEX (... , CASE WHEN status = 1 THEN 1 ELSE NULL END)` | 不支持表达式索引 → 先加 `STORED` 生成列（`TINYINT AS (CASE WHEN status = 1 THEN 1 ELSE NULL END) STORED`），再对「普通列 + 生成列」建唯一索引；生成列为 NULL 的行同样不参与唯一性判断（见 `21_ards_prone.sql` 的 `uk_ards_prone_cell`） |
+| 列默认值 `SEQ_xxx.NEXTVAL` | `AUTO_INCREMENT`（应用主键仍是雪花算法显式赋值） |
+
 后端通过 `SPRING_PROFILES_ACTIVE=mariadb` 切换：驱动 `org.mariadb.jdbc.Driver`、
 连接串 `jdbc:mariadb://`、分页方言 `DbType.MARIADB`，并复用 `MySqlDialectInterceptor`
 把残留达梦方言（ROWNUM/SYSDATE/`||`/CAST AS VARCHAR 等）在执行前翻译成 MySQL 方言；

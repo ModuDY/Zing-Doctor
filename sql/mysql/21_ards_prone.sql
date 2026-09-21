@@ -118,7 +118,8 @@ CREATE TABLE IF NOT EXISTS `ards_prone_tp_tpl` (
 PRIMARY KEY (`id`)
 ) COMMENT='ARDS 俯卧位时点模板（科室为空=全院默认）';
 CALL zing_add_index('ards_prone_tp_tpl', 'idx_ards_prone_tpl_dep', 0, '`depart_code`');
-CALL zing_add_index('ards_prone_cell', 'uk_ards_prone_cell', 1, '`record_id`, `tp_index`, `param_key`, CASE WHEN `status` = 1 THEN 1 ELSE NULL END');
+CALL zing_add_column('ards_prone_cell', 'uk_ards_prone_cell_guard', 'TINYINT AS (CASE WHEN `status` = 1 THEN 1 ELSE NULL END) STORED');
+CALL zing_add_index('ards_prone_cell', 'uk_ards_prone_cell', 1, '`record_id`, `tp_index`, `param_key`, `uk_ards_prone_cell_guard`');
 
 -- =====================================================================
 -- 21) ARDS 俯卧位通气治疗记录模块增量（达梦 DM8）

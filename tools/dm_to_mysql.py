@@ -11,6 +11,8 @@
   - PL/SQL 幂等块（DECLARE/BEGIN...END;/）：解析提取 EXECUTE IMMEDIATE 内的 DDL
   - CREATE TABLE → CREATE TABLE IF NOT EXISTS
   - CREATE INDEX → CALL zing_add_index(...) 幂等存储过程
+  - 索引列含表达式（达梦部分唯一索引，如 CASE WHEN status=1 THEN 1 ELSE NULL END）：
+    先补 STORED 生成列，再对生成列建唯一索引
   - ALTER TABLE ADD COLUMN → CALL zing_add_column(...) 幂等存储过程
   - ALTER TABLE MODIFY → 原样（MODIFY 天然幂等）
 """
@@ -39,6 +41,46 @@ def convert_type(line):
     line = re.sub(r'\bNUMBER\s*\(', 'DECIMAL(', line, flags=re.IGNORECASE)
     line = re.sub(r'\bNUMBER\b(?!\s*\()', 'DECIMAL(20,4)', line, flags=re.IGNORECASE)
     return line
+
+
+# ---------------------------------------------------------------------------
+# 索引里的表达式（达梦「部分唯一索引」）兼容处理
+# 达梦允许索引列写表达式，例如：
+#   CREATE UNIQUE INDEX uk_ards_prone_cell ON ards_prone_cell
+#     (record_id, tp_index, param_key, CASE WHEN status = 1 THEN 1 ELSE NULL END)
+# 语义：只有 status=1 的行参与唯一性（NULL 在唯一索引里不算冲突），软删除行被排除。
+# MySQL / MariaDB 不支持表达式索引，等价做法是：
+#   1) 加一个 STORED 生成列 = 该表达式；
+#   2) 再对「普通列 + 生成列」建唯一索引（生成列为 NULL 时同样不参与唯一性判断）。
+# ---------------------------------------------------------------------------
+_CASE_GUARD_RE = re.compile(
+    r'(?is)^CASE\s+WHEN\s+`?(\w+)`?\s*=\s*(\d+)\s+THEN\s+\d+\s+ELSE\s+NULL\s+END$')
+_PLAIN_COL_RE = re.compile(r'^`\w+`$')
+
+
+def convert_index_statements(tbl, idx, uniq, cols):
+    """把一条索引转换成 MySQL 语句列表（含表达式列时先补生成列）。"""
+    parts = [p.strip() for p in cols.split(',') if p.strip()]
+    guards, new_parts = [], []
+    for p in parts:
+        if _PLAIN_COL_RE.match(p):
+            new_parts.append(p)
+            continue
+        gm = _CASE_GUARD_RE.match(p)
+        if gm:
+            gcol = (idx + '_guard')[:64]
+            guards.append(
+                f"CALL zing_add_column('{tbl}', '{gcol}', "
+                f"'TINYINT AS ({p}) STORED');")
+            new_parts.append(f'`{gcol}`')
+            continue
+        # 其它表达式（函数索引等）无法自动等价，跳过并在脚本里留提示
+        return [
+            f'-- ⚠️ 索引 {idx}（表 {tbl}）在达梦上含表达式列：{p}',
+            '--    MySQL/MariaDB 不支持表达式索引，已跳过创建，请人工改造后补建',
+        ]
+    return guards + [
+        f"CALL zing_add_index('{tbl}', '{idx}', {uniq}, '{', '.join(new_parts)}');"]
 
 
 def extract_plsql_blocks(raw):
@@ -127,7 +169,7 @@ def ddl_to_idempotent(sql, table_comments=None, col_comments=None, block_col_com
     if m:
         uniq = 1 if m.group(1) else 0
         idx, tbl, cols = m.group(2), m.group(3), m.group(4).strip()
-        return f"CALL zing_add_index('{tbl}', '{idx}', {uniq}, '{cols}');"
+        return '\n'.join(convert_index_statements(tbl, idx, uniq, cols))
 
     # ALTER TABLE ... ADD [COLUMN]
     m = re.match(
@@ -358,7 +400,7 @@ def convert(input_path, output_path, global_table_comments=None, global_col_comm
     def convert_index(m):
         uniq = 1 if m.group(1) else 0
         idx, tbl, cols = m.group(2), m.group(3), m.group(4).strip()
-        return f"CALL zing_add_index('{tbl}', '{idx}', {uniq}, '{cols}');"
+        return '\n'.join(convert_index_statements(tbl, idx, uniq, cols))
 
     raw = re.sub(
         r'CREATE\s+(UNIQUE\s+)?INDEX\s+`?(\w+)`?\s+ON\s+`?(\w+)`?\s*\(([^)]+)\)\s*;?',
