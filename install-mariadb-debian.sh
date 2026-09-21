@@ -238,6 +238,17 @@ if [ -n "$MISSING" ]; then
     err "  3) 组件已装在非标准路径时，直接指定：JAVA_BIN=/path/to/java NGINX_BIN=/path/to/nginx ..."
   fi
   err "已完成的步骤是幂等的，补齐后重跑本脚本即可。"
+  # 离线现场最常见的输错点：本机 Docker 里明明有数据库容器，却没人告诉脚本用哪个
+  if have docker; then
+    CAND="$(docker ps --format '{{.Names}}|{{.Ports}}' 2>/dev/null | grep -Ei '3306|mysql|maria' | head -3 || true)"
+    if [ -n "$CAND" ]; then
+      err "检测到本机 Docker 中的数据库容器，可直接借容器内客户端（宿主机无需装客户端）："
+      echo "$CAND" | while IFS='|' read -r cname cports; do
+        err "  DB_CLI='docker exec -i $cname mysql'    # $cname  $cports"
+      done
+      err "  用法示例：SKIP_APT=yes DB_CLI='docker exec -i <容器名> mysql' DB_HOST=127.0.0.1 DB_PORT=<映射端口> $0"
+    fi
+  fi
   exit 1
 fi
 
