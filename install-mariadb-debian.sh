@@ -351,8 +351,9 @@ if [ -z "$NGINX_BIN" ]; then
 fi
 info "组件就绪：客户端 ${DB_CLI} / java ${JAVA_BIN} / nginx ${NGINX_BIN:-未安装}"
 
-# ICU 库在另一台服务器时，脚本只能在主库实例上建库/建号/授权，去不了 ICU 那台
-if ! host_is_local "$ICU_DB_HOST"; then
+# ICU 库与主库不在同一实例时，脚本只能在主库那台上建号授权，去不了 ICU 那台。
+# （同一实例时下面的授权语句已覆盖 ICU 库，不需要额外操作）
+if [ "$ICU_DB_HOST" != "$DB_HOST" ] || [ "$ICU_DB_PORT" != "$DB_PORT" ]; then
   SELF_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
   SELF_IP="${SELF_IP:-<本应用机IP>}"
   warn "ICU 库指向远程 $ICU_DB_HOST:$ICU_DB_PORT：本机不会在那边建账号/授权，需 ICU 侧 DBA 确认（或填 conf 里的 ICU_DB_USER/ICU_DB_PASSWORD 用对方给的只读账号）"
@@ -373,6 +374,19 @@ if [ -n "$DB_TYPE" ]; then
   info "按配置指定数据库类型：$DB_KIND -> Spring profile=$DB_PROFILE，驱动 $DRIVER"
   if [ -z "$DB_CLI" ]; then
     warn "本机没有数据库客户端：跳过建库/建号/授权与 SQL 导入，$DB_HOST:$DB_PORT 的库需由库侧 DBA 用 sql/mysql/ 初始化"
+  else
+    # 有客户端就顺手验一下连通性，并核对 conf 里写的类型与实测是否一致
+    DB_VER_PROBE="$(admin_query "SELECT VERSION();" 2>/dev/null || true)"
+    if [ -n "$DB_VER_PROBE" ]; then
+      DB_VER="$DB_VER_PROBE"
+      info "已连上数据库：$DB_VER_PROBE"
+      case "$DB_VER_PROBE" in
+        *MariaDB*) [ "$DB_KIND" = "mariadb" ] || warn "实测是 MariaDB，但 conf 里 DB_TYPE=$DB_TYPE，建议改成 DB_TYPE=mariadb" ;;
+        *)         [ "$DB_KIND" = "mysql" ]   || warn "实测不是 MariaDB（$DB_VER_PROBE），但 conf 里 DB_TYPE=$DB_TYPE，建议改成 DB_TYPE=mysql" ;;
+      esac
+    else
+      warn "已配置 DB_CLI 但连不上数据库：请检查 $DB_HOST:$DB_PORT、账号密码与防火墙（本次不再探测）"
+    fi
   fi
 else
 
