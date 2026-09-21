@@ -588,6 +588,21 @@ async function onArchive(r) {
   background: var(--el-color-primary-dark-2); border-color: var(--el-color-primary-dark-2); color: #fff;
 }
 
+/* 新建记录：ARDS 主题 teal 实色，和统计数字同色系但实色填充，一眼可辨 */
+.btn.btn-new {
+  background: var(--ards-accent-dark);
+  border-color: var(--ards-accent-dark);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(15, 118, 110, 0.25);
+}
+.btn.btn-new:hover {
+  background: var(--ards-accent);
+  border-color: var(--ards-accent);
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(13, 148, 136, 0.35);
+}
+
 /* 筛选 */
 .filter {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: #fff;
