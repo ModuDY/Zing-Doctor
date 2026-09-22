@@ -41,7 +41,7 @@ DECLARE
 BEGIN
     SELECT COUNT(*) INTO v_cnt FROM ALL_SEQUENCES
      WHERE UPPER(SEQUENCE_OWNER) = 'ZING_DOCTOR_DB_PROD'
-       AND UPPER(SEQUENCE_NAME)  = 'SEQ_ARDS_PRONE_CONFIG';
+       AND UPPER(SEQUENCE_NAME)  = 'SEQ_CONFIG_PRONE_ITEM';
     IF v_cnt = 0 THEN
         EXECUTE IMMEDIATE 'CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_config_prone_item" START WITH 1 INCREMENT BY 1';
     END IF;
@@ -74,7 +74,7 @@ CREATE TABLE "zing_doctor_db_prod"."config_prone_item" (
 
     SELECT COUNT(*) INTO v_cnt FROM ALL_INDEXES
      WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD'
-       AND UPPER(INDEX_NAME) = 'IDX_ARDS_PRONE_CONFIG_KEY';
+       AND UPPER(INDEX_NAME) = 'IDX_CONFIG_PRONE_ITEM_KEY';
     IF v_cnt = 0 THEN
         EXECUTE IMMEDIATE 'CREATE INDEX "zing_doctor_db_prod"."idx_config_prone_item_key" '
             || 'ON "zing_doctor_db_prod"."config_prone_item" ("config_key", "config_type", "status")';
