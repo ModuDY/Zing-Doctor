@@ -20,7 +20,7 @@
         <el-button type="warning" :loading="autoGenerating" @click="manualAutoGenerate">
           自动补全在科患者评分
         </el-button>
-        <span class="depart-tag" v-if="departName">科室：{{ departName }}</span>
+        <span v-if="departName" class="depart-tag">科室：{{ departName }}</span>
       </div>
     </div>
 
@@ -55,7 +55,7 @@
       <div class="chart-row">
         <div class="chart-box">
           <div class="chart-title">APACHE II 评分分布</div>
-          <div ref="distributionChartRef" class="chart-container" v-show="summary.totalCount > 0"></div>
+          <div v-show="summary.totalCount > 0" ref="distributionChartRef" class="chart-container"></div>
           <div v-if="!summary.totalCount" class="chart-empty">当前时间范围内暂无评分数据</div>
         </div>
       </div>

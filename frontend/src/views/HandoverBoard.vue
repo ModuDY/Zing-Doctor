@@ -1,5 +1,5 @@
 <template>
-  <div class="handover-board abx-theme" v-loading="loading">
+  <div v-loading="loading" class="handover-board abx-theme">
     <!-- 顶部筛选栏 -->
     <div class="filter-bar">
       <div class="filter-left">
@@ -60,7 +60,7 @@
             <el-tag v-if="p.noteId" type="success" size="small" effect="plain">已交班</el-tag>
           </span>
         </div>
-        <div class="pc-line dim">住院号：{{ p.inHospitalNo || '—' }}　主管：{{ p.chargeDoctorName || p.residentDoctorName || '—' }}</div>
+        <div class="pc-line dim">住院号：{{ p.inHospitalNo || '—' }}&emsp;主管：{{ p.chargeDoctorName || p.residentDoctorName || '—' }}</div>
         <div class="pc-line diagnosis" :title="p.diagnosisContent">{{ p.diagnosisContent || '暂无诊断' }}</div>
 
         <div class="vital-row">
@@ -111,7 +111,7 @@
         <div class="d-patient">
           <div><span class="d-bed">{{ patientMap.bed_no }}</span>
             <b class="d-name">{{ patientMap.name }}</b>
-            <span class="d-meta">{{ patientMap.gender }}　{{ patientMap.age }}岁　住院号 {{ patientMap.patient_no }}</span>
+            <span class="d-meta">{{ patientMap.gender }}&emsp;{{ patientMap.age }}岁&emsp;住院号 {{ patientMap.patient_no }}</span>
           </div>
           <div class="d-jump">
             <el-button size="small" @click="jumpOther('/page/abx-decision')">抗感染决策</el-button>
@@ -132,10 +132,10 @@
           <div class="block-title"><span class="dot"></span><span>本班病情变化（医生手工交班）</span></div>
           <el-input v-model="noteText" type="textarea" :rows="4" placeholder="记录本班病情变化：症状/体征变化、重要检查结果、调整治疗、需下一班关注事项……" />
           <div class="note-actions">
-            <span class="note-meta" v-if="detail.note">上次保存：{{ detail.note.createBy }} {{ detail.note.createTime }}</span>
-            <span class="note-meta" v-else>本班尚未填写</span>
+            <span v-if="detail.note" class="note-meta">上次保存：{{ detail.note.createBy }} {{ detail.note.createTime }}</span>
+            <span v-else class="note-meta">本班尚未填写</span>
             <div>
-              <el-button size="small" :loading="importing" @click="importPrevNote" style="margin-right: 6px">
+              <el-button size="small" :loading="importing" style="margin-right: 6px" @click="importPrevNote">
                 <el-icon><Download /></el-icon>&nbsp;导入上一班
               </el-button>
               <el-button v-if="detail.note" type="danger" plain size="small" @click="deleteNote">

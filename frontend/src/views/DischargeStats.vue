@@ -28,7 +28,7 @@
           <el-button type="primary" @click="loadData">
             <el-icon><Search /></el-icon> 查询
           </el-button>
-          <el-button type="success" @click="exportXlsx" :disabled="!patients.length">
+          <el-button type="success" :disabled="!patients.length" @click="exportXlsx">
             <el-icon><Download /></el-icon> 导出Excel
           </el-button>
         </div>

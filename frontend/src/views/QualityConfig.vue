@@ -30,18 +30,18 @@
     <!-- ==================== 指标配置 ==================== -->
     <div v-show="tab === 'metric'" class="panel">
       <div class="toolbar">
-        <select class="tb-input" v-model="filterDomain">
+        <select v-model="filterDomain" class="tb-input">
           <option value="">全部域</option>
           <option v-for="d in domains" :key="d" :value="d">{{ d }}</option>
         </select>
-        <select class="tb-input" v-model="filterStatus">
+        <select v-model="filterStatus" class="tb-input">
           <option value="">全部状态</option>
           <option value="IMPL">已实现</option>
           <option value="PLACEHOLDER">空壳（待补口径）</option>
           <option value="PENDING_SOURCE">待接数据源</option>
           <option value="MANUAL">人工录入</option>
         </select>
-        <input class="tb-input search" v-model.trim="keyword"
+        <input v-model.trim="keyword" class="tb-input search"
                placeholder="搜索编号 / 名称 / 事实层" />
         <button class="btn btn-primary" :disabled="!canEdit" @click="openNewMetric">+ 新增指标</button>
         <button class="btn" @click="doExport">导出配置</button>
@@ -130,12 +130,12 @@
     <!-- ==================== 变更历史 ==================== -->
     <div v-show="tab === 'history'" class="panel">
       <div class="toolbar">
-        <select class="tb-input" v-model="historyType">
+        <select v-model="historyType" class="tb-input">
           <option value="">全部类型</option>
           <option value="METRIC">指标</option>
           <option value="FACT">事实层</option>
         </select>
-        <input class="tb-input search" v-model.trim="historyKey" placeholder="编号 / 事实层名（留空看全部）" />
+        <input v-model.trim="historyKey" class="tb-input search" placeholder="编号 / 事实层名（留空看全部）" />
         <button class="btn" @click="loadHistory">查询</button>
       </div>
       <table class="tbl">
@@ -178,7 +178,7 @@
         <b>ICU 来源</b>的规则一旦在本页改过口径，会自动标记「已改」，此后同步不再覆盖它。
       </div>
       <div class="toolbar">
-        <input class="tb-input search" v-model.trim="ruleKeyword" placeholder="搜索名称 / 编号 / 原子项" />
+        <input v-model.trim="ruleKeyword" class="tb-input search" placeholder="搜索名称 / 编号 / 原子项" />
         <button class="btn btn-primary" :disabled="!canEdit" @click="openNewRule">+ 新增规则</button>
         <span class="count">共 {{ filteredRules.length }} 条</span>
       </div>
@@ -209,7 +209,7 @@
                 <span class="dim">{{ r.denominatorName || '' }}</span>
               </div>
             </td>
-            <td>× {{ r.percentRate }}<span class="dim" v-if="r.displayUnit"> · {{ r.displayUnit }}</span></td>
+            <td>× {{ r.percentRate }}<span v-if="r.displayUnit" class="dim"> · {{ r.displayUnit }}</span></td>
             <td>
               <span class="tag" :class="r.origin === 'LOCAL' ? 'pend' : 'on'">
                 {{ r.origin === 'LOCAL' ? '本院自建' : (r.localOverride ? 'ICU·已改' : 'ICU') }}
@@ -238,7 +238,7 @@
     </div>
 
     <!-- ==================== 指标编辑弹窗 ==================== -->
-    <div class="modal-mask" v-if="metricDialog" @click.self="metricDialog = false">
+    <div v-if="metricDialog" class="modal-mask" @click.self="metricDialog = false">
       <div class="modal wide">
         <div class="modal-head">
           <h3>{{ metricForm.isNew ? '新增指标' : '编辑指标 · ' + metricForm.code }}</h3>
@@ -250,31 +250,31 @@
           <div class="grid">
             <div class="field">
               <label>指标编号 <span class="req">*</span></label>
-              <input class="tb-input full" v-model.trim="metricForm.code" :disabled="!metricForm.isNew"
+              <input v-model.trim="metricForm.code" class="tb-input full" :disabled="!metricForm.isNew"
                      placeholder="quality_xxx" />
             </div>
             <div class="field">
               <label>指标名称 <span class="req">*</span></label>
-              <input class="tb-input full" v-model.trim="metricForm.name" />
+              <input v-model.trim="metricForm.name" class="tb-input full" />
             </div>
             <div class="field">
               <label>所属域</label>
-              <input class="tb-input full" v-model.trim="metricForm.domain" placeholder="如 抗菌药物 / ICU 质量" />
+              <input v-model.trim="metricForm.domain" class="tb-input full" placeholder="如 抗菌药物 / ICU 质量" />
             </div>
             <div class="field">
               <label>单位</label>
-              <input class="tb-input full" v-model.trim="metricForm.unit" placeholder="% / 例 / 天 / 人" />
+              <input v-model.trim="metricForm.unit" class="tb-input full" placeholder="% / 例 / 天 / 人" />
             </div>
             <div class="field">
               <label>绑定事实层 <span class="req">*</span></label>
-              <select class="tb-input full" v-model="metricForm.fact" @change="onFactChange">
+              <select v-model="metricForm.fact" class="tb-input full" @change="onFactChange">
                 <option value="">（空壳指标，暂不绑定）</option>
                 <option v-for="f in facts" :key="f.fact" :value="f.fact">{{ f.fact }}</option>
               </select>
             </div>
             <div class="field">
               <label>实现状态</label>
-              <select class="tb-input full" v-model="metricForm.implStatus">
+              <select v-model="metricForm.implStatus" class="tb-input full">
                 <option value="IMPL">已实现</option>
                 <option value="PLACEHOLDER">空壳（口径未定，看板占位）</option>
                 <option value="PENDING_SOURCE">待接数据源</option>
@@ -302,7 +302,7 @@
           <div class="grid">
             <div class="field">
               <label>计数方式 <span class="req">*</span></label>
-              <select class="tb-input full" v-model="metricForm.agg">
+              <select v-model="metricForm.agg" class="tb-input full">
                 <option value="PT_COUNT">去重患者数（人数 / 例数）</option>
                 <option value="SUM">求和（床日 / 天数合计）</option>
                 <option value="AVG">均值（平均天数）</option>
@@ -310,7 +310,7 @@
             </div>
             <div class="field">
               <label>值类型</label>
-              <select class="tb-input full" v-model="metricForm.valueType">
+              <select v-model="metricForm.valueType" class="tb-input full">
                 <option value="COUNT">COUNT 数</option>
                 <option value="RATE">RATE 率</option>
                 <option value="SUM">SUM 求和</option>
@@ -319,11 +319,11 @@
             </div>
             <div class="field">
               <label>放大系数</label>
-              <input class="tb-input full" type="number" v-model.number="metricForm.scale" placeholder="率类默认 100" />
+              <input v-model.number="metricForm.scale" class="tb-input full" type="number" placeholder="率类默认 100" />
             </div>
             <div class="field">
               <label>排序号</label>
-              <input class="tb-input full" type="number" v-model.number="metricForm.sortNo" />
+              <input v-model.number="metricForm.sortNo" class="tb-input full" type="number" />
             </div>
           </div>
 
@@ -341,18 +341,18 @@
                 <b>同一组</b>内的多行是「并且」，<b>不同组</b>之间是「或者」。
                 例：「A 并且 B」或者「C」= 第 1 组填 A、B，第 2 组填 C。不设置则全部记录都算作分子。
               </p>
-              <div class="cond" v-for="(r, i) in simple.whereRows" :key="'w' + i">
-                <select class="tb-input grp" v-model.number="r.group" title="同组内是「并且」，不同组之间是「或者」">
+              <div v-for="(r, i) in simple.whereRows" :key="'w' + i" class="cond">
+                <select v-model.number="r.group" class="tb-input grp" title="同组内是「并且」，不同组之间是「或者」">
                   <option v-for="g in groupOptions(simple.whereRows, r.group)" :key="g" :value="g">组{{ g }}</option>
                 </select>
-                <select class="tb-input field-sel" v-model="r.field">
+                <select v-model="r.field" class="tb-input field-sel">
                   <option value="">选择字段…</option>
                   <option v-for="c in fieldOptions" :key="c" :value="c">{{ c }}</option>
                 </select>
-                <select class="tb-input op" v-model="r.op">
+                <select v-model="r.op" class="tb-input op">
                   <option v-for="o in OPS" :key="o" :value="o">{{ o }}</option>
                 </select>
-                <input class="tb-input grow" v-model.trim="r.value" placeholder="值，如 1 / 28 / 'ICU'" />
+                <input v-model.trim="r.value" class="tb-input grow" placeholder="值，如 1 / 28 / 'ICU'" />
                 <button class="btn btn-text danger" @click="simple.whereRows.splice(i, 1)">删</button>
               </div>
               <p v-if="!simple.whereRows.length" class="sect-empty">未设置：全部记录都算作分子。</p>
@@ -365,14 +365,14 @@
             <div class="sect">
               <div class="sect-head">
                 <h4>{{ isSumOrAvg ? '② 要统计的数值列' : '② 额外条件（一般留空）' }}</h4>
-                <div class="sect-acts" v-if="!isSumOrAvg">
+                <div v-if="!isSumOrAvg" class="sect-acts">
                   <button class="btn btn-text" @click="addCond(simple.numRows)">+ 加一行</button>
                   <button class="btn btn-text" @click="addGroup(simple.numRows)">+ 加一组（或）</button>
                 </div>
               </div>
               <template v-if="isSumOrAvg">
                 <p class="sect-hint">对满足①的每条记录，取这一列的数值累加 / 求平均。</p>
-                <select class="tb-input full" v-model="simple.numField">
+                <select v-model="simple.numField" class="tb-input full">
                   <option value="">选择数值列…</option>
                   <option v-for="c in fieldOptions" :key="c" :value="c">{{ c }}</option>
                   <option v-for="c in dimColumns" :key="'d' + c" :value="c">{{ c }}</option>
@@ -383,18 +383,18 @@
                   去重患者数已按①筛选，这里通常不需要再填。仅在「同一患者还需满足另一列条件」时使用；
                   分组规则同①（同组「并且」、异组「或者」）。
                 </p>
-                <div class="cond" v-for="(r, i) in simple.numRows" :key="'n' + i">
-                  <select class="tb-input grp" v-model.number="r.group" title="同组内是「并且」，不同组之间是「或者」">
+                <div v-for="(r, i) in simple.numRows" :key="'n' + i" class="cond">
+                  <select v-model.number="r.group" class="tb-input grp" title="同组内是「并且」，不同组之间是「或者」">
                     <option v-for="g in groupOptions(simple.numRows, r.group)" :key="g" :value="g">组{{ g }}</option>
                   </select>
-                  <select class="tb-input field-sel" v-model="r.field">
+                  <select v-model="r.field" class="tb-input field-sel">
                     <option value="">选择字段…</option>
                     <option v-for="c in fieldOptions" :key="c" :value="c">{{ c }}</option>
                   </select>
-                  <select class="tb-input op" v-model="r.op">
+                  <select v-model="r.op" class="tb-input op">
                     <option v-for="o in OPS" :key="o" :value="o">{{ o }}</option>
                   </select>
-                  <input class="tb-input grow" v-model.trim="r.value" placeholder="值" />
+                  <input v-model.trim="r.value" class="tb-input grow" placeholder="值" />
                   <button class="btn btn-text danger" @click="simple.numRows.splice(i, 1)">删</button>
                 </div>
                 <p v-if="!simple.numRows.length" class="sect-empty">未设置。</p>
@@ -414,18 +414,18 @@
                 </div>
               </div>
               <p class="sect-hint">留空 = 同期全部患者。率类指标（如使用率）必须设置。分组规则同①。</p>
-              <div class="cond" v-for="(r, i) in simple.denRows" :key="'d' + i">
-                <select class="tb-input grp" v-model.number="r.group" title="同组内是「并且」，不同组之间是「或者」">
+              <div v-for="(r, i) in simple.denRows" :key="'d' + i" class="cond">
+                <select v-model.number="r.group" class="tb-input grp" title="同组内是「并且」，不同组之间是「或者」">
                   <option v-for="g in groupOptions(simple.denRows, r.group)" :key="g" :value="g">组{{ g }}</option>
                 </select>
-                <select class="tb-input field-sel" v-model="r.field">
+                <select v-model="r.field" class="tb-input field-sel">
                   <option value="">选择字段…</option>
                   <option v-for="c in fieldOptions" :key="c" :value="c">{{ c }}</option>
                 </select>
-                <select class="tb-input op" v-model="r.op">
+                <select v-model="r.op" class="tb-input op">
                   <option v-for="o in OPS" :key="o" :value="o">{{ o }}</option>
                 </select>
-                <input class="tb-input grow" v-model.trim="r.value" placeholder="值" />
+                <input v-model.trim="r.value" class="tb-input grow" placeholder="值" />
                 <button class="btn btn-text danger" @click="simple.denRows.splice(i, 1)">删</button>
               </div>
               <p v-if="!simple.denRows.length" class="sect-empty">未设置：分母为同期全部患者。</p>
@@ -440,7 +440,7 @@
               <p class="sect-hint">留空 = 只出「全院」一行。按科室统计请选 depart_code。</p>
               <div class="chips">
                 <label v-for="c in dimColumns" :key="c" class="chip" :class="{ on: simple.dims.includes(c) }">
-                  <input type="checkbox" :value="c" v-model="simple.dims" />
+                  <input v-model="simple.dims" type="checkbox" :value="c" />
                   {{ c }}
                 </label>
                 <span v-if="!dimColumns.length" class="sect-empty">未取到字段清单，请先选择事实层。</span>
@@ -452,22 +452,22 @@
           <template v-else>
             <div class="field">
               <label>分子筛选条件（where）</label>
-              <textarea class="tb-input full code" rows="3" v-model="metricForm.where"
+              <textarea v-model="metricForm.where" class="tb-input full code" rows="3"
                         placeholder="如 t.age &gt;= 18 AND t.icu_days &gt; 2" />
             </div>
             <div class="field">
               <label>{{ isSumOrAvg ? '数值表达式（numerator）' : '分子附加条件（numerator）' }}</label>
-              <textarea class="tb-input full code" rows="2" v-model="metricForm.numerator"
+              <textarea v-model="metricForm.numerator" class="tb-input full code" rows="2"
                         :placeholder="isSumOrAvg ? '如 t.icu_days' : '默认 1，可不填'" />
             </div>
             <div class="field">
               <label>分母筛选条件（denominatorWhere）</label>
-              <textarea class="tb-input full code" rows="2" v-model="metricForm.denominatorWhere"
+              <textarea v-model="metricForm.denominatorWhere" class="tb-input full code" rows="2"
                         placeholder="留空 = 同期全部患者" />
             </div>
             <div class="field">
               <label>分组维度（多个用英文逗号分隔）</label>
-              <input class="tb-input full" v-model="dimsText" placeholder="depart_code" />
+              <input v-model="dimsText" class="tb-input full" placeholder="depart_code" />
             </div>
           </template>
 
@@ -485,7 +485,7 @@
               其中床号 / 诊断 / 入科时间 / 出科时间要看该事实层有没有这一列，没有就不显示。
             </p>
             <div v-for="(f, i) in metricForm.patientFields" :key="i" class="pf-row">
-              <select class="tb-input" v-model="f.key">
+              <select v-model="f.key" class="tb-input">
                 <option value="">（选择字段）</option>
                 <optgroup label="默认列">
                   <option v-for="o in patientFieldOptions.filter(x => x.reserved)" :key="o.key" :value="o.key">
@@ -498,9 +498,9 @@
                   </option>
                 </optgroup>
               </select>
-              <input class="tb-input" v-model.trim="f.label"
+              <input v-model.trim="f.label" class="tb-input"
                      :placeholder="isReservedField(f.key) ? '表头（默认列可留空）' : '表头名称，如 性别'" />
-              <input class="tb-input pf-width" v-model.number="f.width" placeholder="宽度" />
+              <input v-model.number="f.width" class="tb-input pf-width" placeholder="宽度" />
               <button class="btn btn-text" type="button" title="上移" :disabled="i === 0"
                       @click="movePatientField(i, -1)">↑</button>
               <button class="btn btn-text" type="button" title="下移"
@@ -517,24 +517,24 @@
 
           <div class="field">
             <label>备注</label>
-            <input class="tb-input full" v-model.trim="metricForm.remark" placeholder="口径说明 / 注意事项，会显示在看板上" />
+            <input v-model.trim="metricForm.remark" class="tb-input full" placeholder="口径说明 / 注意事项，会显示在看板上" />
           </div>
 
           <!-- 校验结果 -->
-          <div class="result" v-if="checkResult">
+          <div v-if="checkResult" class="result">
             <div class="result-head">
               <span class="tag" :class="checkResult.ok ? 'on' : 'off'">
                 {{ checkResult.ok ? '校验通过' : '校验未通过' }}
               </span>
-              <span class="dim" v-if="checkResult.durationMs">耗时 {{ checkResult.durationMs }} ms</span>
+              <span v-if="checkResult.durationMs" class="dim">耗时 {{ checkResult.durationMs }} ms</span>
             </div>
-            <ul class="issues" v-if="checkResult.errors && checkResult.errors.length">
+            <ul v-if="checkResult.errors && checkResult.errors.length" class="issues">
               <li v-for="(e, i) in checkResult.errors" :key="'e' + i" class="err">{{ e }}</li>
             </ul>
-            <ul class="issues" v-if="checkResult.warnings && checkResult.warnings.length">
+            <ul v-if="checkResult.warnings && checkResult.warnings.length" class="issues">
               <li v-for="(w, i) in checkResult.warnings" :key="'w' + i" class="warn">{{ w }}</li>
             </ul>
-            <div class="preview" v-if="checkResult.preview && checkResult.preview.length">
+            <div v-if="checkResult.preview && checkResult.preview.length" class="preview">
               <table class="mini">
                 <thead>
                   <tr><th>分组</th><th>分子</th><th>分母</th><th>指标值</th></tr>
@@ -549,7 +549,7 @@
                 </tbody>
               </table>
             </div>
-            <details class="sql-box" v-if="checkResult.sql">
+            <details v-if="checkResult.sql" class="sql-box">
               <summary>编译后的 SQL（点开核对取数口径）</summary>
               <div class="sql-tools">
                 <button type="button" class="btn-copy" :class="{ done: sqlCopied }"
@@ -573,7 +573,7 @@
     </div>
 
     <!-- ==================== 指标规则编辑弹窗 ==================== -->
-    <div class="modal-mask" v-if="ruleDialog" @click.self="ruleDialog = false">
+    <div v-if="ruleDialog" class="modal-mask" @click.self="ruleDialog = false">
       <div class="modal">
         <div class="modal-head">
           <h3>{{ ruleForm.isNew ? '新增指标规则' : '编辑指标规则 · ' + ruleForm.ruleId }}</h3>
@@ -582,11 +582,11 @@
         <div class="modal-body">
           <div class="field">
             <label>指标名称 <span class="req">*</span></label>
-            <input class="tb-input full" v-model.trim="ruleForm.countName" placeholder="如 ICU镇痛评估率" />
+            <input v-model.trim="ruleForm.countName" class="tb-input full" placeholder="如 ICU镇痛评估率" />
           </div>
           <div class="field">
             <label>分子原子项 <span class="req">*</span></label>
-            <select class="tb-input full" v-model="ruleForm.numeratorCode">
+            <select v-model="ruleForm.numeratorCode" class="tb-input full">
               <option value="">（选择原子项）</option>
               <option v-for="o in metricOptions" :key="'n' + o.code" :value="o.code">
                 {{ o.code }} · {{ o.name }}
@@ -596,7 +596,7 @@
           </div>
           <div class="field">
             <label>分母原子项 <span class="req">*</span></label>
-            <select class="tb-input full" v-model="ruleForm.denominatorCode">
+            <select v-model="ruleForm.denominatorCode" class="tb-input full">
               <option value="">（选择原子项）</option>
               <option v-for="o in metricOptions" :key="'d' + o.code" :value="o.code">
                 {{ o.code }} · {{ o.name }}
@@ -607,7 +607,7 @@
           <div class="grid">
             <div class="field">
               <label>放大系数</label>
-              <select class="tb-input full" v-model.number="ruleForm.percentRate">
+              <select v-model.number="ruleForm.percentRate" class="tb-input full">
                 <option :value="100">× 100（百分比 %）</option>
                 <option :value="1000">× 1000（例每千日）</option>
                 <option :value="1">× 1（原样输出）</option>
@@ -615,34 +615,34 @@
             </div>
             <div class="field">
               <label>小数位数</label>
-              <input class="tb-input full" type="number" min="0" max="6"
-                     v-model.number="ruleForm.percentPrecision" />
+              <input v-model.number="ruleForm.percentPrecision" class="tb-input full" type="number" min="0"
+                     max="6" />
             </div>
             <div class="field">
               <label>达标方向</label>
-              <select class="tb-input full" v-model="ruleForm.targetDirection">
+              <select v-model="ruleForm.targetDirection" class="tb-input full">
                 <option value="UP">越高越好（依从率 / 完成率 / 送检率类）</option>
                 <option value="DOWN">越低越好（发病率 / 病死率 / 重返率类）</option>
               </select>
             </div>
             <div class="field">
               <label>目标值</label>
-              <input class="tb-input full" type="number" v-model.number="ruleForm.targetValue"
+              <input v-model.number="ruleForm.targetValue" class="tb-input full" type="number"
                      placeholder="达标线，可留空" />
             </div>
             <div class="field">
               <label>预警值</label>
-              <input class="tb-input full" type="number" v-model.number="ruleForm.warningValue"
+              <input v-model.number="ruleForm.warningValue" class="tb-input full" type="number"
                      placeholder="预警线，可留空" />
             </div>
             <div class="field">
               <label>排序号</label>
-              <input class="tb-input full" type="number" v-model.number="ruleForm.sortNo"
+              <input v-model.number="ruleForm.sortNo" class="tb-input full" type="number"
                      placeholder="留空自动排到最后" />
             </div>
             <div class="field">
               <label>是否上板</label>
-              <select class="tb-input full" v-model.number="ruleForm.isShowPage">
+              <select v-model.number="ruleForm.isShowPage" class="tb-input full">
                 <option :value="1">上板显示</option>
                 <option :value="0">不上板（仅配置留存）</option>
               </select>
@@ -650,7 +650,7 @@
           </div>
           <div class="field">
             <label>备注</label>
-            <input class="tb-input full" v-model.trim="ruleForm.remark" placeholder="口径说明" />
+            <input v-model.trim="ruleForm.remark" class="tb-input full" placeholder="口径说明" />
           </div>
           <p class="sect-hint">
             指标值 = 分子 ÷ 分母 × 放大系数。例：quality_306 ÷ quality_403 × 100 = ICU镇痛评估率。
@@ -666,7 +666,7 @@
     </div>
 
     <!-- ==================== 事实层详情 / 编辑弹窗 ==================== -->
-    <div class="modal-mask" v-if="factDialog" @click.self="closeFact">
+    <div v-if="factDialog" class="modal-mask" @click.self="closeFact">
       <div class="modal wide">
         <div class="modal-head">
           <h3>{{ factEditable ? '编辑事实层 · ' : '事实层 · ' }}{{ factForm.fact }}</h3>
@@ -677,19 +677,19 @@
             <div class="grid">
               <div class="field">
                 <label>事实层名</label>
-                <input class="tb-input full" v-model.trim="factForm.fact" :disabled="!factEditable" />
+                <input v-model.trim="factForm.fact" class="tb-input full" :disabled="!factEditable" />
               </div>
               <div class="field">
                 <label>所属域</label>
-                <input class="tb-input full" v-model.trim="factForm.domain" :disabled="!factEditable" />
+                <input v-model.trim="factForm.domain" class="tb-input full" :disabled="!factEditable" />
               </div>
               <div class="field">
                 <label>来源逻辑表</label>
-                <input class="tb-input full" v-model.trim="factForm.source" :disabled="!factEditable" />
+                <input v-model.trim="factForm.source" class="tb-input full" :disabled="!factEditable" />
               </div>
               <div class="field">
                 <label>状态</label>
-                <select class="tb-input full" v-model="factForm.status" :disabled="!factEditable">
+                <select v-model="factForm.status" class="tb-input full" :disabled="!factEditable">
                   <option value="ACTIVE">ACTIVE 可计算</option>
                   <option value="PENDING_SOURCE">PENDING_SOURCE 待接数据源</option>
                   <option value="PLACEHOLDER">PLACEHOLDER 空壳</option>
@@ -697,51 +697,51 @@
               </div>
               <div class="field">
                 <label>患者主键列</label>
-                <input class="tb-input full" v-model.trim="factForm.patientKey" :disabled="!factEditable" />
+                <input v-model.trim="factForm.patientKey" class="tb-input full" :disabled="!factEditable" />
               </div>
               <div class="field">
                 <label>科室列</label>
-                <input class="tb-input full" v-model.trim="factForm.departKey" :disabled="!factEditable" />
+                <input v-model.trim="factForm.departKey" class="tb-input full" :disabled="!factEditable" />
               </div>
             </div>
 
             <div class="field">
               <label>选列（每行一条，形如 <code>t.adm_time AS adm_time</code>）</label>
-              <textarea class="tb-input full code" rows="5" v-model="factForm.selectText"
+              <textarea v-model="factForm.selectText" class="tb-input full code" rows="5"
                         :disabled="!factEditable" />
             </div>
             <div class="field">
               <label>派生列（每行一条，可写 CASE WHEN … END AS xxx）</label>
-              <textarea class="tb-input full code" rows="5" v-model="factForm.deriveText"
+              <textarea v-model="factForm.deriveText" class="tb-input full code" rows="5"
                         :disabled="!factEditable" />
             </div>
             <div class="field">
               <label>过滤条件（每行一条，逐条 AND）</label>
-              <textarea class="tb-input full code" rows="4" v-model="factForm.whereText"
+              <textarea v-model="factForm.whereText" class="tb-input full code" rows="4"
                         :disabled="!factEditable" />
             </div>
             <div class="field">
               <label>分组列（每行一条，留空 = 患者级不聚合）</label>
-              <textarea class="tb-input full code" rows="2" v-model="factForm.groupText"
+              <textarea v-model="factForm.groupText" class="tb-input full code" rows="2"
                         :disabled="!factEditable" />
             </div>
             <div class="field">
               <label>说明</label>
-              <input class="tb-input full" v-model.trim="factForm.note" :disabled="!factEditable" />
+              <input v-model.trim="factForm.note" class="tb-input full" :disabled="!factEditable" />
             </div>
 
-            <div class="result" v-if="factCheck">
+            <div v-if="factCheck" class="result">
               <div class="result-head">
                 <span class="tag" :class="factCheck.ok ? 'on' : 'off'">
                   {{ factCheck.ok ? '校验通过' : '校验未通过' }}
                 </span>
-                <span class="dim" v-if="factCheck.factRows">试跑产出 {{ factCheck.factRows }} 行</span>
-                <span class="dim" v-if="factCheck.durationMs">耗时 {{ factCheck.durationMs }} ms</span>
+                <span v-if="factCheck.factRows" class="dim">试跑产出 {{ factCheck.factRows }} 行</span>
+                <span v-if="factCheck.durationMs" class="dim">耗时 {{ factCheck.durationMs }} ms</span>
               </div>
-              <ul class="issues" v-if="factCheck.errors && factCheck.errors.length">
+              <ul v-if="factCheck.errors && factCheck.errors.length" class="issues">
                 <li v-for="(e, i) in factCheck.errors" :key="'fe' + i" class="err">{{ e }}</li>
               </ul>
-              <ul class="issues" v-if="factCheck.warnings && factCheck.warnings.length">
+              <ul v-if="factCheck.warnings && factCheck.warnings.length" class="issues">
                 <li v-for="(w, i) in factCheck.warnings" :key="'fw' + i" class="warn">{{ w }}</li>
               </ul>
             </div>
@@ -784,7 +784,7 @@
     </div>
 
     <!-- ==================== 批量导入 ==================== -->
-    <div class="modal-mask" v-if="importDialog" @click.self="importDialog = false">
+    <div v-if="importDialog" class="modal-mask" @click.self="importDialog = false">
       <div class="modal">
         <div class="modal-head">
           <h3>批量导入指标口径</h3>
@@ -812,10 +812,10 @@
             <label>遇到同编号指标时</label>
             <div class="chips">
               <label class="chip" :class="{ on: importMode === 'skip' }">
-                <input type="radio" value="skip" v-model="importMode" /> 跳过（只新增，不动线上口径）
+                <input v-model="importMode" type="radio" value="skip" /> 跳过（只新增，不动线上口径）
               </label>
               <label class="chip" :class="{ on: importMode === 'overwrite' }">
-                <input type="radio" value="overwrite" v-model="importMode" /> 覆盖（用文件内容替换）
+                <input v-model="importMode" type="radio" value="overwrite" /> 覆盖（用文件内容替换）
               </label>
             </div>
             <p class="sect-hint">
@@ -823,11 +823,11 @@
             </p>
           </div>
 
-          <div class="result" v-if="importResult">
+          <div v-if="importResult" class="result">
             <div class="result-head">
               <span class="tag" :class="importResult.failed ? 'pend' : 'on'">{{ importResult.message }}</span>
             </div>
-            <div class="preview" v-if="importResult.items && importResult.items.length">
+            <div v-if="importResult.items && importResult.items.length" class="preview">
               <table class="mini">
                 <thead>
                   <tr><th style="width:190px">编号</th><th style="width:80px">结果</th><th>说明</th></tr>
@@ -853,7 +853,7 @@
     </div>
 
     <!-- ==================== 快照 ==================== -->
-    <div class="modal-mask" v-if="snapshot" @click.self="snapshot = null">
+    <div v-if="snapshot" class="modal-mask" @click.self="snapshot = null">
       <div class="modal">
         <div class="modal-head">
           <h3>快照 · {{ snapshot.defKey }} v{{ snapshot.exprVersion }}</h3>

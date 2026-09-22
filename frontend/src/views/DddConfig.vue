@@ -19,7 +19,7 @@
         <el-button type="primary" @click="openAddDialog">
           <el-icon><Plus /></el-icon> 新增配置
         </el-button>
-        <el-button @click="loadList" :loading="loading">
+        <el-button :loading="loading" @click="loadList">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
       </div>
@@ -86,7 +86,7 @@
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑DDD配置' : '新增DDD配置'" width="600px" class="abx-overlay" @close="resetForm">
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="药品通用名" prop="drugName">
           <el-input v-model="form.drugName" placeholder="如：美罗培南" />
         </el-form-item>
@@ -131,7 +131,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm" :loading="submitting">确定</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitForm">确定</el-button>
       </template>
     </el-dialog>
   </div>

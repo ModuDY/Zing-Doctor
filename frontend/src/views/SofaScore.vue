@@ -46,7 +46,7 @@
       <!-- ============ 右侧主区 ============ -->
       <main class="main">
     <!-- 患者信息行（外链访问时外层已展示，故隐藏） -->
-    <div class="patient-row" v-if="!isExternal">
+    <div v-if="!isExternal" class="patient-row">
       <span class="bed-tag">{{ patient.departCode || patient.bedCode || '—' }}</span>
       <span class="patient-name">{{ patient.name || '—' }}</span>
       <span class="patient-meta"><b>{{ patient.gender || '—' }}</b> / {{ patient.age || '—' }}{{ patient.ageUnit || '岁' }}</span>
@@ -63,6 +63,7 @@
         </div>
         <div class="ov-organs">
           <div v-for="it in items" :key="it.key" class="ov-card">
+            <!-- eslint-disable-next-line vue/no-v-html -->
             <span class="ov-pic" :class="boxClass(scoreOf(it))" v-html="ORGAN_SVG[it.key] || ''"></span>
             <span class="ov-name">{{ it.label }}</span>
             <div class="ov-foot">
@@ -76,9 +77,9 @@
       <!-- ===== 取数时间范围 ===== -->
       <div class="range-row">
         <span class="lbl">取数时间范围：</span>
-        <input class="sel" :class="{ custom: activeRange === 'custom' }" type="datetime-local" v-model="rangeStart" @change="onRangeInput">
+        <input v-model="rangeStart" class="sel" :class="{ custom: activeRange === 'custom' }" type="datetime-local" @change="onRangeInput">
         <span class="tilde">至</span>
-        <input class="sel" :class="{ custom: activeRange === 'custom' }" type="datetime-local" v-model="rangeEnd" @change="onRangeInput">
+        <input v-model="rangeEnd" class="sel" :class="{ custom: activeRange === 'custom' }" type="datetime-local" @change="onRangeInput">
         <span class="range-presets">
           <button :class="['rbtn', { active: activeRange === 24 }]" @click="quickRange(24)">24小时</button>
           <button :class="['rbtn', { active: activeRange === 48 }]" @click="quickRange(48)">48小时</button>
@@ -263,12 +264,12 @@
         </table>
 
         <!-- 提示 -->
-        <div class="tip" v-if="remark">
+        <div v-if="remark" class="tip">
           <span class="ico">!</span>
           <span><b>提示：</b>{{ remark }}</span>
         </div>
         <!-- 手工修正提示：让医生一眼看到哪些项被改过，以及可一键回退 -->
-        <div class="tip tip-manual" v-if="manualEditCount > 0">
+        <div v-if="manualEditCount > 0" class="tip tip-manual">
           <span class="ico" style="background:#e6a23c">✎</span>
           <span>
             <b>手工修正：</b>已修改 {{ manualEditCount }} 项输入值（{{ manualLabels.join('、') }}），相关器官分值与总分已按 SOFA 标准重算；该内容会随记录一并留痕。
@@ -283,7 +284,7 @@
           评分医师：{{ realname || username || '—' }}<br>
           创建时间：{{ fmtTimeNow() }}
         </div>
-        <input class="footer-note" v-model="doctorRemark" placeholder="备注（可选）" />
+        <input v-model="doctorRemark" class="footer-note" placeholder="备注（可选）" />
         <button class="btn" :disabled="reportGenerating" @click="openReport">
           {{ reportGenerating ? '生成中…' : '预览文书' }}
         </button>
@@ -296,7 +297,7 @@
     </div>
 
     <!-- GCS 弹窗（与 APACHE II 同款：自动同步最新 / 手动选择系统记录 / 手工新建评估） -->
-    <div class="modal-mask" v-if="showGcsModal" @click.self="showGcsModal = false">
+    <div v-if="showGcsModal" class="modal-mask" @click.self="showGcsModal = false">
       <div class="modal gcs-modal">
         <div class="modal-head">
           <h3>GCS 评分（神经系统）</h3>
@@ -381,7 +382,7 @@
     </div>
 
     <!-- 来源弹窗 -->
-    <div class="modal-mask" v-if="showSource" @click.self="showSource = false">
+    <div v-if="showSource" class="modal-mask" @click.self="showSource = false">
       <div class="modal">
         <div class="modal-head">
           <h3>{{ sourceItem ? sourceItem.label : '' }} - 数据来源</h3>
@@ -403,14 +404,14 @@
             </div>
           </div>
           <div class="src-section"><b>取值时间：</b>{{ sourceItem && sourceItem.dataTime ? fmtTime(sourceItem.dataTime) : '—' }}</div>
-          <div class="src-section" v-if="sourceItem && sourceItem.note"><b>提示：</b>{{ sourceItem.note }}</div>
-          <div class="src-title">数据趋势（当前取数范围）<span class="src-count" v-if="trendCount > 0">共 {{ trendCount }} 个点</span></div>
+          <div v-if="sourceItem && sourceItem.note" class="src-section"><b>提示：</b>{{ sourceItem.note }}</div>
+          <div class="src-title">数据趋势（当前取数范围）<span v-if="trendCount > 0" class="src-count">共 {{ trendCount }} 个点</span></div>
           <div ref="trendChartRef" style="width:100%;height:200px;margin-bottom:6px;"></div>
-          <div class="src-note src-note-warn" v-if="trendFallback">{{ trendFallback }}</div>
-          <div class="src-note" v-if="sourceItem && (sourceItem.key === 'liver' || sourceItem.key === 'renal')">
+          <div v-if="trendFallback" class="src-note src-note-warn">{{ trendFallback }}</div>
+          <div v-if="sourceItem && (sourceItem.key === 'liver' || sourceItem.key === 'renal')" class="src-note">
             注：趋势图按 mg/dL 展示（与评分取值口径一致），表格「输入值」为 μmol/L。
           </div>
-          <div class="src-note" v-if="sourceItem && sourceItem.key === 'cardio'">
+          <div v-if="sourceItem && sourceItem.key === 'cardio'" class="src-note">
             注：循环趋势仅展示 MAP 序列；血管活性药剂量见上方「当前值」。
           </div>
           <div class="src-title">取数说明</div>
@@ -426,7 +427,7 @@
     </div>
 
     <!-- 评分文书预览弹窗（与 APACHE II 一致：打印 / 导出 PDF / 关闭） -->
-    <div class="modal-mask" v-if="showReportModal" @click.self="showReportModal = false">
+    <div v-if="showReportModal" class="modal-mask" @click.self="showReportModal = false">
       <div class="modal report-modal">
         <div class="modal-head">
           <h3>SOFA 评分文书预览</h3>
@@ -772,7 +773,7 @@ function snapshotInputs() {
 
 /** 该项是否被手工改过（与自动取数结果不同即为改过） */
 function touched(field) {
-  let snap = {}
+  let snap
   try {
     snap = JSON.parse(autoSnapshot.value || '{}')
   } catch (e) {
@@ -1306,7 +1307,7 @@ function openSource(it) {
  */
 function fallbackTrendPoint(it) {
   if (!it) return null
-  let v = null
+  let v
   if (it.key === 'liver') v = isEmptyNum(inputs.bili) ? null : round2(Number(inputs.bili) / 17.1)
   else if (it.key === 'renal') v = isEmptyNum(inputs.creatinine) ? null : round2(Number(inputs.creatinine) / 88.4)
   else if (it.key === 'cardio') v = numOrNull(inputs.map)
@@ -1427,7 +1428,7 @@ async function saveRecord() {
   const cur = currentRecordOf()
   const rec = buildRecord()
   saving.value = true
-  let pdfPromise = null
+  let pdfPromise
   try {
     // 文书里的「记录时间」：覆盖已有记录时与其评分时间一致，新增时为当前时间
     refreshReportTime()

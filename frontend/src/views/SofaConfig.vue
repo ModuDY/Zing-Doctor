@@ -3,7 +3,7 @@
     <div class="head">
       <h2>SOFA 配置管理</h2>
       <div class="filters">
-        <select class="tb-input" v-model="configType" @change="load">
+        <select v-model="configType" class="tb-input" @change="load">
           <option value="">全部类型</option>
           <option v-for="t in typeOptions" :key="t.value" :value="t.value">{{ t.label }}</option>
         </select>
@@ -57,7 +57,7 @@
     </div>
 
     <!-- 编辑弹窗 -->
-    <div class="modal-mask" v-if="showDialog" @click.self="showDialog = false">
+    <div v-if="showDialog" class="modal-mask" @click.self="showDialog = false">
       <div class="modal">
         <div class="modal-head">
           <h3>{{ form.id ? '编辑配置' : '新增配置' }}</h3>
@@ -66,30 +66,30 @@
         <div class="modal-body">
           <div class="field">
             <label>配置类型 <span class="req">*</span></label>
-            <select class="tb-input full" v-model="form.configType">
+            <select v-model="form.configType" class="tb-input full">
               <option v-for="t in typeOptions" :key="t.value" :value="t.value">{{ t.label }}（{{ t.value }}）</option>
             </select>
           </div>
           <div class="field">
             <label>配置键 <span class="req">*</span></label>
-            <input class="tb-input full" v-model.trim="form.configKey" placeholder="如 platelet / map / norepinephrine / M_18_39" />
+            <input v-model.trim="form.configKey" class="tb-input full" placeholder="如 platelet / map / norepinephrine / M_18_39" />
           </div>
           <div class="field">
             <label>配置值</label>
-            <textarea class="tb-input full" rows="2" v-model.trim="form.configValue"
+            <textarea v-model.trim="form.configValue" class="tb-input full" rows="2"
                       placeholder="如 200050 / 100010,100020,100030 / 去甲肾上腺素,0.1"></textarea>
           </div>
           <div class="field">
             <label>项目名称</label>
-            <input class="tb-input full" v-model.trim="form.itemName" placeholder="展示用，如 血小板" />
+            <input v-model.trim="form.itemName" class="tb-input full" placeholder="展示用，如 血小板" />
           </div>
           <div class="field">
             <label>备注</label>
-            <input class="tb-input full" v-model.trim="form.remark" placeholder="说明该项含义 / 注意事项" />
+            <input v-model.trim="form.remark" class="tb-input full" placeholder="说明该项含义 / 注意事项" />
           </div>
           <div class="field">
             <label>排序</label>
-            <input class="tb-input full" type="number" v-model.number="form.sortNo" />
+            <input v-model.number="form.sortNo" class="tb-input full" type="number" />
           </div>
         </div>
         <div class="modal-foot">

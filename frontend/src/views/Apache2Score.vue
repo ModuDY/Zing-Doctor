@@ -7,7 +7,7 @@
         <span class="count">{{ records.length }}</span>
       </div>
       <div style="padding:10px;border-bottom:1px solid #ebeef5">
-        <button @click="addRecord" class="add-record-btn">
+        <button class="add-record-btn" @click="addRecord">
           <span style="font-size:18px;line-height:1">＋</span>
           新增评分
         </button>
@@ -50,7 +50,7 @@
     <main class="main">
       <!-- 患者信息栏 -->
       <!-- 外链访问时外层重症系统已展示患者信息，隐藏本条避免重复；非外链（系统内直接打开）仍显示 -->
-      <div class="patient-bar" v-if="!isExternal">
+      <div v-if="!isExternal" class="patient-bar">
         <div class="patient-name">
           <span class="bed-tag">{{ patientInfo.bedCode || '—' }}</span>
           {{ patientInfo.name || '—' }}
@@ -96,11 +96,11 @@
       <!-- 工具栏 -->
       <div class="toolbar">
         <span class="toolbar-label">取数时间范围：</span>
-        <input type="datetime-local" class="dt-input" :class="{ 'dt-custom': fetchPreset === 'custom' }"
-               v-model="fetchStartTime" @change="onFetchTimeChange">
+        <input v-model="fetchStartTime" type="datetime-local" class="dt-input"
+               :class="{ 'dt-custom': fetchPreset === 'custom' }" @change="onFetchTimeChange">
         <span style="color:#c0c4cc">至</span>
-        <input type="datetime-local" class="dt-input" :class="{ 'dt-custom': fetchPreset === 'custom' }"
-               v-model="fetchEndTime" @change="onFetchTimeChange">
+        <input v-model="fetchEndTime" type="datetime-local" class="dt-input"
+               :class="{ 'dt-custom': fetchPreset === 'custom' }" @change="onFetchTimeChange">
         <span class="range-presets">
           <button :class="['btn', { active: fetchPreset === '24h' }]" @click="setRangePreset('24h')">24小时</button>
           <button :class="['btn', { active: fetchPreset === '48h' }]" @click="setRangePreset('48h')">48小时</button>
@@ -123,7 +123,7 @@
                 <span class="abc-code">A</span>
                 <div class="abc-main">
                   <div class="abc-head"><strong>年龄评分</strong><em>{{ form.age }}岁 → {{ scoreResult.ageScore || 0 }}分</em></div>
-                  <input type="number" v-model.number="form.age" min="0" max="120" @input="calculateScore">
+                  <input v-model.number="form.age" type="number" min="0" max="120" @input="calculateScore">
                 </div>
                 <div class="abc-result"><span>得分</span><b>{{ scoreResult.ageScore || 0 }}</b></div>
               </div>
@@ -163,11 +163,11 @@
               <div class="meta-row">
                 <div class="meta-item">
                   <label>评分时间</label>
-                  <input type="datetime-local" v-model="form.scoreTime">
+                  <input v-model="form.scoreTime" type="datetime-local">
                 </div>
                 <div class="meta-item">
                   <label>评分医师</label>
-                  <input type="text" v-model="form.doctor" placeholder="请输入评分医师">
+                  <input v-model="form.doctor" type="text" placeholder="请输入评分医师">
                 </div>
               </div>
             </div>
@@ -205,20 +205,20 @@
                     <td>
                       <input
                         v-if="item.key !== 'oxygen'"
-                        type="number"
                         v-model.number="form[item.key]"
+                        type="number"
                         :step="item.step || 1"
                         @input="calculateScore"
                       >
                       <div v-else class="oxygen-fields">
-                        <div class="oxygen-field"><span>FiO2(%)</span><input type="number" v-model.number="form.fio2" @input="calculateScore"></div>
-                        <div class="oxygen-field"><span>A-aDO2</span><input type="number" v-model.number="form.aado2" @input="calculateScore"></div>
-                        <div class="oxygen-field"><span>PaO2</span><input type="number" v-model.number="form.pao2" @input="calculateScore"></div>
+                        <div class="oxygen-field"><span>FiO2(%)</span><input v-model.number="form.fio2" type="number" @input="calculateScore"></div>
+                        <div class="oxygen-field"><span>A-aDO2</span><input v-model.number="form.aado2" type="number" @input="calculateScore"></div>
+                        <div class="oxygen-field"><span>PaO2</span><input v-model.number="form.pao2" type="number" @input="calculateScore"></div>
                       </div>
                     </td>
                     <td><span class="range-hit">{{ item.key === 'oxygen' ? getOxygenRange() : getHitRange(item.key, form[item.key]) }}</span></td>
                     <td><span :class="['score-badge', getBadgeClass(scoreResult.apsScores && scoreResult.apsScores[item.key])]">{{ (scoreResult.apsScores && scoreResult.apsScores[item.key]) || 0 }}</span></td>
-                    <td><div class="metric-actions"><button class="btn" @click="openSourceModal(item.label)" style="min-width:50px">来源</button></div></td>
+                    <td><div class="metric-actions"><button class="btn" style="min-width:50px" @click="openSourceModal(item.label)">来源</button></div></td>
                   </tr>
                 </tbody>
               </table>
@@ -257,34 +257,34 @@
               <button :class="['seg-btn', { active: form.diagnosisType === 'operative' }]" @click="form.diagnosisType = 'operative'">手术类</button>
               <button :class="['seg-btn', { active: form.diagnosisType === 'none' }]" @click="form.diagnosisType = 'none'">以上都不是</button>
             </div>
-            <div class="control-group" v-if="form.diagnosisType === 'operative'">
+            <div v-if="form.diagnosisType === 'operative'" class="control-group">
               <span class="ctl-label">急诊手术：</span>
               <span :class="['switch', { on: form.emergencySurgery }]" @click="form.emergencySurgery = !form.emergencySurgery"></span>
               <span style="font-size:12px;color:#606266">{{ form.emergencySurgery ? '是' : '否' }}</span>
             </div>
             <button class="btn btn-text" @click="openWeightTable">权重对照表</button>
           </div>
-          <div class="factor-grid" v-if="form.diagnosisType !== 'none'">
-            <div class="factor-card" v-if="form.diagnosisType === 'nonoperative'">
+          <div v-if="form.diagnosisType !== 'none'" class="factor-grid">
+            <div v-if="form.diagnosisType === 'nonoperative'" class="factor-card">
               <div class="factor-card-title">
                 <span>非手术类诊断权重</span>
                 <b>已选</b>
               </div>
               <div class="factor-options">
                 <label v-for="opt in nonoperativeFactors" :key="opt.name" :class="{ checked: form.selectedNonopFactor === opt.name }">
-                  <input type="radio" name="nonop" :value="opt.name" v-model="form.selectedNonopFactor">
+                  <input v-model="form.selectedNonopFactor" type="radio" name="nonop" :value="opt.name">
                   {{ opt.name }} ({{ opt.weight }})
                 </label>
               </div>
             </div>
-            <div class="factor-card" v-if="form.diagnosisType === 'operative'">
+            <div v-if="form.diagnosisType === 'operative'" class="factor-card">
               <div class="factor-card-title">
                 <span>手术类诊断权重</span>
                 <b>已选</b>
               </div>
               <div class="factor-options">
                 <label v-for="opt in operativeFactors" :key="opt.name" :class="{ checked: form.selectedOpFactor === opt.name }">
-                  <input type="radio" name="op" :value="opt.name" v-model="form.selectedOpFactor">
+                  <input v-model="form.selectedOpFactor" type="radio" name="op" :value="opt.name">
                   {{ opt.name }} ({{ opt.weight }})
                 </label>
               </div>
@@ -328,13 +328,13 @@
       <div class="footer-bar">
         <textarea v-model="form.remark" placeholder="备注（可选）"></textarea>
         <div class="footer-total">总分：{{ scoreResult.totalScore || 0 }} 分</div>
-        <button class="btn" @click="openReport" :disabled="reportGenerating">预览文书</button>
-        <button class="btn btn-success" @click="saveRecord" :disabled="saving">{{ saving ? '保存中…' : '保存评分' }}</button>
+        <button class="btn" :disabled="reportGenerating" @click="openReport">预览文书</button>
+        <button class="btn btn-success" :disabled="saving" @click="saveRecord">{{ saving ? '保存中…' : '保存评分' }}</button>
       </div>
     </main>
 
     <!-- GCS弹窗 -->
-    <div class="modal-mask" v-if="showGcsModal" @click.self="showGcsModal = false">
+    <div v-if="showGcsModal" class="modal-mask" @click.self="showGcsModal = false">
       <div class="modal gcs-modal">
         <div class="modal-head">
           <h3>C 项：GCS 评分（APACHE II）</h3>
@@ -429,7 +429,7 @@
     </div>
 
     <!-- 数据来源弹窗 -->
-    <div class="modal-mask" v-if="showSourceModal" @click.self="showSourceModal = false">
+    <div v-if="showSourceModal" class="modal-mask" @click.self="showSourceModal = false">
       <div class="modal">
         <div class="modal-head">
           <h3>{{ sourceMetric }} - 数据来源</h3>
@@ -499,7 +499,7 @@
     </div>
 
     <!-- 权重对照表弹窗 -->
-    <div class="modal-mask" v-if="showWeightTable" @click.self="showWeightTable = false">
+    <div v-if="showWeightTable" class="modal-mask" @click.self="showWeightTable = false">
       <div class="modal">
         <div class="modal-head">
           <h3>诊断权重对照表</h3>
@@ -538,7 +538,7 @@
     </div>
 
     <!-- 评分文书预览弹窗 -->
-    <div class="modal-mask report-modal-mask" v-if="showReportModal" @click.self="showReportModal = false">
+    <div v-if="showReportModal" class="modal-mask report-modal-mask" @click.self="showReportModal = false">
       <div class="modal report-modal">
         <div class="modal-head">
           <h3>APACHE II 评分文书预览</h3>
@@ -573,7 +573,7 @@
           <div style="font-family:'SimHei','黑体',sans-serif;font-size:23px;font-weight:700;letter-spacing:2px;">危重患者 APACHE II 评分表</div>
         </div>
         <div style="font-size:12px;margin-bottom:3px;line-height:1.8;">
-          姓名：{{ patientInfo.name || '—' }}　　性别：{{ patientInfo.gender || '—' }}　　年龄：{{ patientInfo.age || '—' }}岁　　床号：{{ patientInfo.bedCode || '—' }}　　住院号：{{ patientInfo.inHospitalNo || inHospitalNo || '—' }}
+          姓名：{{ patientInfo.name || '—' }}&emsp;&emsp;性别：{{ patientInfo.gender || '—' }}&emsp;&emsp;年龄：{{ patientInfo.age || '—' }}岁&emsp;&emsp;床号：{{ patientInfo.bedCode || '—' }}&emsp;&emsp;住院号：{{ patientInfo.inHospitalNo || inHospitalNo || '—' }}
         </div>
         <div style="font-size:12px;margin-bottom:6px;">诊断：{{ selectedDiagnosisName !== '—' ? selectedDiagnosisName : (patientInfo.diagnosis || '—') }}</div>
 
@@ -585,7 +585,7 @@
           <tr>
             <td style="border:1px solid #000;padding:5px 6px;font-weight:600;vertical-align:middle;">A.年龄</td>
             <td colspan="9" style="border:1px solid #000;padding:5px 8px;text-align:left;">
-              <span v-for="o in ageOptions" :key="o.label" style="margin-right:18px;white-space:nowrap;">{{ o.label }}　{{ o.checked ? '☑' : '□' }}　{{ o.score }}</span>
+              <span v-for="o in ageOptions" :key="o.label" style="margin-right:18px;white-space:nowrap;">{{ o.label }}&emsp;{{ o.checked ? '☑' : '□' }}&emsp;{{ o.score }}</span>
             </td>
             <td style="border:1px solid #000;padding:5px 4px;">A 计分</td>
             <td style="border:1px solid #000;padding:5px 4px;">{{ scoreResult.ageScore || 0 }}</td>
@@ -594,9 +594,9 @@
             <td style="border:1px solid #000;padding:5px 6px;font-weight:600;vertical-align:middle;text-align:left;">B. 有严重器官系统功能不全或免疫损害</td>
             <td colspan="9" style="border:1px solid #000;padding:6px 8px;text-align:left;line-height:1.65;">
               <div style="font-size:10.5px;margin-bottom:5px;">【严重器官功能不全者：①心：心功能IV级；②肺：慢性缺氧、阻塞性或限制性通气障碍、运动耐力差；③肾：慢性透析者；④肝：肝硬化、门脉高压、有上消化道出血史、肝昏迷、肝功能衰竭史。免疫损害：如接受放疗、化疗、长期或大量激素治疗，有白血病、淋巴瘤、艾滋病等。】</div>
-              <span style="margin-right:20px;white-space:nowrap;">非手术或择期手术后　{{ form.chronicHealth==='elective' ? '☑' : '□' }}　2</span>
-              <span style="margin-right:20px;white-space:nowrap;">不能手术或急症手术后　{{ form.chronicHealth==='nonoperative' ? '☑' : '□' }}　5</span>
-              <span style="white-space:nowrap;">无上述情况　{{ form.chronicHealth==='none' ? '☑' : '□' }}　0</span>
+              <span style="margin-right:20px;white-space:nowrap;">非手术或择期手术后&emsp;{{ form.chronicHealth==='elective' ? '☑' : '□' }}&emsp;2</span>
+              <span style="margin-right:20px;white-space:nowrap;">不能手术或急症手术后&emsp;{{ form.chronicHealth==='nonoperative' ? '☑' : '□' }}&emsp;5</span>
+              <span style="white-space:nowrap;">无上述情况&emsp;{{ form.chronicHealth==='none' ? '☑' : '□' }}&emsp;0</span>
             </td>
             <td style="border:1px solid #000;padding:5px 4px;">B 计分</td>
             <td style="border:1px solid #000;padding:5px 4px;">{{ scoreResult.chronicScore || 0 }}</td>

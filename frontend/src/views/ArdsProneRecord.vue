@@ -103,7 +103,7 @@
             <div class="seg-cell"><div class="k">已填参数</div><div class="v">{{ filledCount }} / {{ params.length }}</div></div>
             <div class="seg-cell">
               <div class="k">时点数</div>
-              <div class="v">{{ timepoints.length }} <small @click="tpDrawer = true" class="link">配置</small></div>
+              <div class="v">{{ timepoints.length }} <small class="link" @click="tpDrawer = true">配置</small></div>
             </div>
           </div>
         </div>
@@ -155,7 +155,7 @@
                       <div class="tm">{{ fmtPlan(tp.planTime) }}</div>
                       <div class="tm">
                         <span :class="['dot', tp.collectStatus === 'done' ? 'ok' : 'pend']"></span>
-                        <span class="at" @click="onCollect(tp.tpIndex)" title="采集此时点">采集</span>
+                        <span class="at" title="采集此时点" @click="onCollect(tp.tpIndex)">采集</span>
                       </div>
                     </th>
                   </tr>
@@ -178,7 +178,7 @@
                           <span class="val">{{ cellText(tp.tpIndex, p.key) }}</span>
                         </template>
                         <template v-else>
-                          <input class="val" v-model="ensureDraft(tp.tpIndex)[p.key]" :placeholder="'—'" @blur="onCellBlur(tp.tpIndex, p.key)" />
+                          <input v-model="ensureDraft(tp.tpIndex)[p.key]" class="val" :placeholder="'—'" @blur="onCellBlur(tp.tpIndex, p.key)" />
                           <span v-if="cellSource(tp.tpIndex, p.key)" class="src" :class="cellSource(tp.tpIndex, p.key)">{{ srcText(cellSource(tp.tpIndex, p.key)) }}</span>
                         </template>
                       </td>
@@ -209,7 +209,7 @@
                 <div class="gl">
                   <div v-for="p in g.items" :key="p.key" :class="['f', g.items.length % 2 === 1 && g.items.indexOf(p) === g.items.length - 1 ? 'wide' : '']">
                     <label>{{ p.name }}{{ p.unit ? '（' + p.unit + '）' : '' }}</label>
-                    <input v-if="!p.calc" class="v edit" v-model="ensureDraft(currentTpIndex)[p.key]" placeholder="—" @blur="onCellBlur(currentTpIndex, p.key)" />
+                    <input v-if="!p.calc" v-model="ensureDraft(currentTpIndex)[p.key]" class="v edit" placeholder="—" @blur="onCellBlur(currentTpIndex, p.key)" />
                     <div v-else class="v calc">{{ cellText(currentTpIndex, p.key) }}</div>
                   </div>
                 </div>
@@ -377,7 +377,7 @@
         </table>
 
         <div class="p-sec">并发症与事件</div>
-        <div class="p-line">{{ compList.length ? compList.join('、') : '无并发症' }}　{{ form.complicationDesc || '' }}</div>
+        <div class="p-line">{{ compList.length ? compList.join('、') : '无并发症' }}&emsp;{{ form.complicationDesc || '' }}</div>
 
         <div class="p-sec">终止指征</div>
         <div class="p-line">{{ stopDetailText }}</div>
@@ -764,10 +764,6 @@ const stopDetailText = computed(() => {
   return '本次俯卧位尚未终止'
 })
 
-const printUser = computed(() => {
-  const params2 = new URLSearchParams(window.location.search)
-  return params2.get('realname') || sessionStorage.getItem('doctor_realname') || '—'
-})
 const printTime = ref('')
 
 // ---------------------------------------------------------------- 电子签名

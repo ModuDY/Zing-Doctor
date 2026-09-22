@@ -1,5 +1,5 @@
 <template>
-  <div class="ss-wrap" ref="wrapRef">
+  <div ref="wrapRef" class="ss-wrap">
     <input
       class="ss-ipt"
       autocomplete="off"

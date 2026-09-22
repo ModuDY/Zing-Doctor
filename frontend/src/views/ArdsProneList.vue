@@ -99,10 +99,14 @@
                   {{ durationText(r) }}
                   <span v-if="summaryOf(r).filled != null" class="fill">{{ summaryOf(r).filled }}/{{ summaryOf(r).total }}</span>
                 </td>
+                <!-- eslint-disable-next-line vue/no-v-html -->
                 <td v-html="pfCell(r)"></td>
                 <td>{{ summaryOf(r).dpMin != null ? summaryOf(r).dpMin + ' cmH₂O' : '—' }}</td>
+                <!-- eslint-disable-next-line vue/no-v-html -->
                 <td v-html="compCell(r)"></td>
+                <!-- eslint-disable-next-line vue/no-v-html -->
                 <td v-html="statCell(r)"></td>
+                <!-- eslint-disable-next-line vue/no-v-html -->
                 <td v-if="archiveEnabled" v-html="arcCell(r)"></td>
                 <td class="upd">
                   <span :title="updByTitle(r)">{{ updBy(r) }}</span> {{ fmtTime(r.updateTime) }}

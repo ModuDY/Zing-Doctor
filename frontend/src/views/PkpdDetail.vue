@@ -13,7 +13,7 @@
         <div class="p-cell"><label>住院号</label><b>{{ data.patient?.patientNo || '—' }}</b></div>
         <div class="p-cell"><label>年龄 / 性别</label><b>{{ data.patient?.age || '—' }} / {{ data.patient?.gender || '—' }}</b></div>
         <div class="p-cell"><label>床位</label><b>{{ data.patient?.bedNo || '—' }}</b></div>
-        <div class="p-cell-group" v-if="data.renal">
+        <div v-if="data.renal" class="p-cell-group">
           <div class="p-cell">
             <label>肾功能分级</label>
             <el-tag :type="renalTagType(data.renal.renalStage)" size="small" effect="dark">{{ data.renal.renalStageText || '—' }}</el-tag>
@@ -23,7 +23,7 @@
             <b>{{ data.renal.crcl || '—' }} mL/min</b>
           </div>
         </div>
-        <div class="p-cell-group" v-if="data.nutrition">
+        <div v-if="data.nutrition" class="p-cell-group">
           <div class="p-cell">
             <label>体重</label>
             <b>{{ data.nutrition.weight || '—' }} kg</b>
@@ -35,7 +35,7 @@
         </div>
         <div class="p-cell p-cell-grow">
           <label>特殊状态</label>
-          <div class="flag-list" v-if="data.specialStatus && data.specialStatus.flags && data.specialStatus.flags.length">
+          <div v-if="data.specialStatus && data.specialStatus.flags && data.specialStatus.flags.length" class="flag-list">
             <el-tag v-for="(f, i) in data.specialStatus.flags" :key="i" size="small" effect="plain" type="warning" class="flag-tag">{{ f }}</el-tag>
           </div>
           <b v-else>—</b>
@@ -70,8 +70,8 @@
                 </div>
               </div>
               <!-- 肌酐趋势图 -->
-              <div class="renal-chart" ref="creatinineChart" v-if="data.renal.creatinineTrend && data.renal.creatinineTrend.length"></div>
-              <div class="empty-chart" v-else>暂无肌酐趋势数据</div>
+              <div v-if="data.renal.creatinineTrend && data.renal.creatinineTrend.length" ref="creatinineChart" class="renal-chart"></div>
+              <div v-else class="empty-chart">暂无肌酐趋势数据</div>
             </div>
             <el-empty v-else description="暂无肾功能数据" :image-size="60" />
           </div>
@@ -98,11 +98,11 @@
                   <span class="ni-value" :class="{ 'warn-text': data.nutrition.obese }">{{ data.nutrition.bmi || '—' }}</span>
                 </div>
               </div>
-              <div class="obese-alert" v-if="data.nutrition.obese">
+              <div v-if="data.nutrition.obese" class="obese-alert">
                 <el-icon><Warning /></el-icon>
                 <span>肥胖患者（BMI {{ data.nutrition.bmi }}），氨基糖苷类/万古霉素等建议按调整体重计算剂量</span>
               </div>
-              <div class="low-weight-alert" v-if="data.nutrition.lowWeight">
+              <div v-if="data.nutrition.lowWeight" class="low-weight-alert">
                 <el-icon><InfoFilled /></el-icon>
                 <span>低体重患者（BMI {{ data.nutrition.bmi }}），需注意按实际体重计算，避免剂量不足</span>
               </div>
@@ -135,7 +135,7 @@
                   <span class="li-value">{{ data.liver.inr || '—' }}</span>
                 </div>
               </div>
-              <div class="liver-note" v-if="data.liver.abnormalText">
+              <div v-if="data.liver.abnormalText" class="liver-note">
                 <el-icon><InfoFilled /></el-icon>
                 <span>{{ data.liver.abnormalText }}</span>
               </div>
@@ -180,16 +180,16 @@
                     <span class="abx-pkpd-k">清除途径</span>
                     <span class="abx-pkpd-v">{{ drug.clearanceRouteText }}</span>
                   </div>
-                  <div class="abx-pkpd-row" v-if="drug.tdmRequired">
+                  <div v-if="drug.tdmRequired" class="abx-pkpd-row">
                     <span class="abx-pkpd-k">TDM</span>
                     <span class="abx-pkpd-v"><el-tag size="small" type="warning" effect="plain">需监测血药浓度</el-tag></span>
                   </div>
-                  <div class="abx-pkpd-row" v-if="!drug.knowledgeMatched">
+                  <div v-if="!drug.knowledgeMatched" class="abx-pkpd-row">
                     <span class="abx-pkpd-k">知识库</span>
                     <span class="abx-pkpd-v" style="color:#78716c">未匹配到药物知识库，仅展示医嘱信息</span>
                   </div>
                 </div>
-                <div class="abx-pkpd-remark" v-if="drug.remark">
+                <div v-if="drug.remark" class="abx-pkpd-remark">
                   <el-icon><InfoFilled /></el-icon>
                   <span>{{ drug.remark }}</span>
                 </div>
@@ -212,13 +212,13 @@
                     {{ rec.needAdjustment ? '需调整' : '常规剂量' }}
                   </el-tag>
                 </div>
-                <div class="rec-dose" v-if="rec.recommendedDose">{{ rec.recommendedDose }}</div>
-                <div class="rec-reason" v-if="rec.adjustmentReason">
+                <div v-if="rec.recommendedDose" class="rec-dose">{{ rec.recommendedDose }}</div>
+                <div v-if="rec.adjustmentReason" class="rec-reason">
                   <el-icon><InfoFilled /></el-icon>
                   <span>{{ rec.adjustmentReason }}</span>
                 </div>
                 <!-- 肾功能剂量调整参考表 -->
-                <div class="renal-dose-table" v-if="rec.renalDoseTable && rec.renalDoseTable.length">
+                <div v-if="rec.renalDoseTable && rec.renalDoseTable.length" class="renal-dose-table">
                   <div class="r-table-title">肾功能剂量参考</div>
                   <table class="r-table">
                     <thead>
@@ -251,11 +251,11 @@
                     <span class="tdm-label">常规目标</span>
                     <span class="tdm-value">{{ tdm.standardTarget }}</span>
                   </div>
-                  <div class="tdm-target" v-if="tdm.severeTarget">
+                  <div v-if="tdm.severeTarget" class="tdm-target">
                     <span class="tdm-label">严重感染</span>
                     <span class="tdm-value">{{ tdm.severeTarget }}</span>
                   </div>
-                  <div class="tdm-target" v-if="tdm.toxicityThreshold">
+                  <div v-if="tdm.toxicityThreshold" class="tdm-target">
                     <span class="tdm-label">毒性阈值</span>
                     <span class="tdm-value warn-text">{{ tdm.toxicityThreshold }}</span>
                   </div>
@@ -275,7 +275,7 @@
       </div>
 
       <!-- 底部：药物相互作用提醒 -->
-      <div class="card interaction-bar" v-if="data.interactionAlerts && data.interactionAlerts.length">
+      <div v-if="data.interactionAlerts && data.interactionAlerts.length" class="card interaction-bar">
         <div class="block-title"><span class="dot dot-red"></span>药物相互作用与安全提醒</div>
         <div class="interaction-list">
           <div v-for="(alert, idx) in data.interactionAlerts" :key="idx" class="interaction-item">

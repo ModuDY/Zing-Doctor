@@ -41,16 +41,21 @@ export default {
     trends: { type: Array, default: () => [] },
     latestMap: { type: Object, default: () => ({}) }
   },
-  computed: {
-    hasLatest() {
-      return this.latestMap && Object.keys(this.latestMap).length > 0
-    }
-  },
   data() {
     return {
       charts: {},
       rendered: {},
       elMap: {}
+    }
+  },
+  computed: {
+    hasLatest() {
+      return this.latestMap && Object.keys(this.latestMap).length > 0
+    }
+  },
+  watch: {
+    trends() {
+      this.$nextTick(() => this.renderAll())
     }
   },
   mounted() {
@@ -59,11 +64,6 @@ export default {
   updated() {
     // DOM 更新后兜底重绘（数据异步到达时 ref 时序不稳定的保险）
     this.$nextTick(() => this.renderAll())
-  },
-  watch: {
-    trends() {
-      this.$nextTick(() => this.renderAll())
-    }
   },
   beforeUnmount() {
     Object.values(this.charts).forEach((c) => { if (c) c.dispose() })

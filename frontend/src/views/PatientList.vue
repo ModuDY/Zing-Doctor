@@ -1,6 +1,6 @@
 <template>
   <div class="abx-theme" style="padding: 20px; max-width: 1200px; margin: 0 auto; min-height: 100vh; background: #fafaf9;">
-    <el-page-header @back="goHome" content="疑似感染患者列表" style="margin-bottom: 16px" />
+    <el-page-header content="疑似感染患者列表" style="margin-bottom: 16px" @back="goHome" />
 
     <el-alert
       type="info"

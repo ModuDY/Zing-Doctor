@@ -19,7 +19,7 @@
             <span class="plus">＋</span>
             新建评估
           </button>
-          <button class="side-ghost-btn" @click="goWordConfig" title="抗菌药物识别词库配置">词库配置</button>
+          <button class="side-ghost-btn" title="抗菌药物识别词库配置" @click="goWordConfig">词库配置</button>
         </div>
         <div class="record-list">
           <div v-for="(item, index) in historyList" :key="item.id"
@@ -94,7 +94,7 @@
             <div class="step-node" :class="{ done: data.bundle1hCompleted === 1 }">
               <div class="step-circle" :class="{ done: data.bundle1hCompleted === 1 }">
                 1H
-                <span class="mini-check" v-if="data.bundle1hCompleted === 1">
+                <span v-if="data.bundle1hCompleted === 1" class="mini-check">
                   <svg viewBox="0 0 10 10"><polyline points="1.5 5.5 4 8 8.5 2" fill="none" stroke-width="2"/></svg>
                 </span>
               </div>
@@ -104,7 +104,7 @@
             <div class="step-node" :class="{ done: data.bundle3hCompleted === 1, active: data.bundle3hCompleted !== 1 && data.bundle1hCompleted === 1 }">
               <div class="step-circle" :class="{ done: data.bundle3hCompleted === 1, active: data.bundle3hCompleted !== 1 && data.bundle1hCompleted === 1 }">
                 3H
-                <span class="mini-check" v-if="data.bundle3hCompleted === 1">
+                <span v-if="data.bundle3hCompleted === 1" class="mini-check">
                   <svg viewBox="0 0 10 10"><polyline points="1.5 5.5 4 8 8.5 2" fill="none" stroke-width="2"/></svg>
                 </span>
               </div>
@@ -114,7 +114,7 @@
             <div class="step-node" :class="{ done: data.bundle6hCompleted === 1, active: data.bundle6hCompleted !== 1 && data.bundle3hCompleted === 1 }">
               <div class="step-circle" :class="{ done: data.bundle6hCompleted === 1, active: data.bundle6hCompleted !== 1 && data.bundle3hCompleted === 1 }">
                 6H
-                <span class="mini-check" v-if="data.bundle6hCompleted === 1">
+                <span v-if="data.bundle6hCompleted === 1" class="mini-check">
                   <svg viewBox="0 0 10 10"><polyline points="1.5 5.5 4 8 8.5 2" fill="none" stroke-width="2"/></svg>
                 </span>
               </div>
@@ -141,12 +141,12 @@
             </span>
           </div>
           <div class="bundle-card-body">
-            <div class="bundle-item" :class="{ done: item.completed }" v-for="(item, index) in bundle1hItems" :key="index">
+            <div v-for="(item, index) in bundle1hItems" :key="index" class="bundle-item" :class="{ done: item.completed }">
               <div class="item-row">
                 <input type="checkbox" class="item-check" :checked="item.completed" @change="onBundle1hItemChange(index, $event.target.checked)">
                 <span class="item-name">{{ item.name }}</span>
               </div>
-              <div class="item-detail" v-if="item.detail">
+              <div v-if="item.detail" class="item-detail">
                 <span class="detail-tag" :class="{ warn: item.warn }">{{ item.detail }}</span>
               </div>
             </div>
@@ -175,18 +175,18 @@
             </span>
           </div>
           <div class="bundle-card-body">
-            <div class="bundle-item" :class="{ done: item.completed }" v-for="(item, index) in bundle3hItems" :key="index">
+            <div v-for="(item, index) in bundle3hItems" :key="index" class="bundle-item" :class="{ done: item.completed }">
               <div class="item-row">
                 <input type="checkbox" class="item-check" :checked="item.completed" @change="onBundle3hItemChange(index, $event.target.checked)">
                 <span class="item-name">{{ item.name }}</span>
               </div>
-              <div class="item-detail" v-if="item.detail">
+              <div v-if="item.detail" class="item-detail">
                 <span class="detail-tag" :class="{ warn: item.warn }">{{ item.detail }}</span>
               </div>
             </div>
           </div>
           <!-- 3小时后评估 -->
-          <div class="assessment-box" v-if="hasAssessmentData">
+          <div v-if="hasAssessmentData" class="assessment-box">
             <div class="assessment-title">📊 3小时后评估</div>
             <div class="assessment-grid">
               <div class="assess-item">
@@ -239,12 +239,12 @@
             </span>
           </div>
           <div class="bundle-card-body">
-            <div class="bundle-item" :class="{ done: item.completed }" v-for="(item, index) in bundle6hItems" :key="index">
+            <div v-for="(item, index) in bundle6hItems" :key="index" class="bundle-item" :class="{ done: item.completed }">
               <div class="item-row">
                 <input type="checkbox" class="item-check" :checked="item.completed" @change="onBundle6hItemChange(index, $event.target.checked)">
                 <span class="item-name">{{ item.name }}</span>
               </div>
-              <div class="item-detail" v-if="item.detail">
+              <div v-if="item.detail" class="item-detail">
                 <span class="detail-tag" :class="{ warn: item.warn }">{{ item.detail }}</span>
               </div>
             </div>
@@ -265,7 +265,7 @@
         <div class="card">
           <div class="block-title">
             <span class="dot dot-cyan"></span>感染相关信息
-            <span class="ref-window" v-if="data.refWindowStart">
+            <span v-if="data.refWindowStart" class="ref-window">
               参考数据窗口 {{ data.refWindowStart }} ~ {{ data.refWindowEnd }}
             </span>
           </div>
@@ -276,7 +276,7 @@
                    放在按钮下面时会被一屏按钮顶到看不见，失去参考意义 -->
               <div class="ref-tags">
                 <span class="ref-tag prefix">系统参考</span>
-                <span class="ref-tag" v-for="v in infectionSiteRefList" :key="v">{{ v }}</span>
+                <span v-for="v in infectionSiteRefList" :key="v" class="ref-tag">{{ v }}</span>
                 <span v-if="!infectionSiteRefList.length" class="ref-tag empty">窗口内无数据</span>
               </div>
               <div class="opt-group">
@@ -289,7 +289,7 @@
               <div class="info-label">致病菌</div>
               <div class="ref-tags">
                 <span class="ref-tag prefix">系统参考</span>
-                <span class="ref-tag" v-for="v in pathogenRefList" :key="v">{{ v }}</span>
+                <span v-for="v in pathogenRefList" :key="v" class="ref-tag">{{ v }}</span>
                 <span v-if="!pathogenRefList.length" class="ref-tag empty">窗口内无数据</span>
               </div>
               <div class="opt-group">
@@ -302,7 +302,7 @@
               <div class="info-label">抗菌药物</div>
               <div class="ref-tags">
                 <span class="ref-tag prefix">系统参考</span>
-                <span class="ref-tag" v-for="v in antibioticRefList" :key="v">{{ v }}</span>
+                <span v-for="v in antibioticRefList" :key="v" class="ref-tag">{{ v }}</span>
                 <span v-if="!antibioticRefList.length" class="ref-tag empty">窗口内无数据</span>
               </div>
               <div class="opt-group">
@@ -317,25 +317,25 @@
         <!-- 液体复苏未达原因 -->
         <div class="card">
           <div class="block-title"><span class="dot dot-orange"></span>液体复苏未达30ml/kg原因</div>
-          <div class="fluid-reason-list" v-if="data.fluidReason">
+          <div v-if="data.fluidReason" class="fluid-reason-list">
             <div class="reason-item" :class="{ checked: data.fluidReason.volumeOverload }">
-              <input type="checkbox" v-model="data.fluidReason.volumeOverload">
+              <input v-model="data.fluidReason.volumeOverload" type="checkbox">
               <span>存在容量过负荷（肺水肿/急性左心衰）</span>
             </div>
             <div class="reason-item" :class="{ checked: data.fluidReason.organInjury }">
-              <input type="checkbox" v-model="data.fluidReason.organInjury">
+              <input v-model="data.fluidReason.organInjury" type="checkbox">
               <span>存在限制性液体复苏的器官损伤（AKI/ARDS等）</span>
             </div>
             <div class="reason-item" :class="{ checked: data.fluidReason.capillaryLeak }">
-              <input type="checkbox" v-model="data.fluidReason.capillaryLeak">
+              <input v-model="data.fluidReason.capillaryLeak" type="checkbox">
               <span>严重毛细血管渗漏</span>
             </div>
             <div class="reason-other">
               <span class="other-label">其他：</span>
-              <input type="text" class="other-input" v-model="data.fluidReason.other" placeholder="请输入其他原因">
+              <input v-model="data.fluidReason.other" type="text" class="other-input" placeholder="请输入其他原因">
             </div>
           </div>
-          <div class="no-reason" v-else>暂无液体复苏未达原因记录</div>
+          <div v-else class="no-reason">暂无液体复苏未达原因记录</div>
         </div>
       </div>
 

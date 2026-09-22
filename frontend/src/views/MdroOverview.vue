@@ -22,7 +22,7 @@
           popper-class="abx-popper"
           @change="handleDateChange"
         />
-        <el-button type="primary" @click="loadData" :loading="loading">
+        <el-button type="primary" :loading="loading" @click="loadData">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
       </div>
@@ -143,7 +143,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick, computed } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { Refresh, User, Setting } from '@element-plus/icons-vue'
 import request from '../api/request'

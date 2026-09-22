@@ -116,7 +116,7 @@
                 placeholder="输入姓名/拼音首字母/工号搜索"
                 style="max-width: 320px; width: 100%"
                 @change="handleStaffSelect"
-                @visible-change="v => { if (v && !this.staffOptions.length) this.searchStaffRemote('') }">
+                @visible-change="v => { if (v && !staffOptions.length) searchStaffRemote('') }">
                 <el-option
                   v-for="item in staffOptions"
                   :key="item.value"

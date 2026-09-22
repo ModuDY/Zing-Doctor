@@ -21,7 +21,7 @@
         <el-button type="primary" @click="openAddDialog">
           <el-icon><Plus /></el-icon> 新增配置
         </el-button>
-        <el-button @click="loadList" :loading="loading">
+        <el-button :loading="loading" @click="loadList">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
       </div>
@@ -100,7 +100,7 @@
 
     <!-- 新增/编辑对话框 -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑配置' : '新增配置'" width="560px" class="abx-overlay" @close="resetForm">
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="配置类型" prop="configType">
           <el-select v-model="form.configType" style="width: 100%;" popper-class="abx-popper">
             <el-option label="细菌分类" value="bacteria_class" />
@@ -131,7 +131,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm" :loading="submitting">确定</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitForm">确定</el-button>
       </template>
     </el-dialog>
   </div>

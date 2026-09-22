@@ -3,10 +3,10 @@
     <div class="head">
       <h2>SOFA 评分总览</h2>
       <div class="filters">
-        <input class="tb-input" v-model="departCode" placeholder="科室编码（留空=全部）" />
-        <input class="tb-input" type="datetime-local" v-model="rangeStart" />
+        <input v-model="departCode" class="tb-input" placeholder="科室编码（留空=全部）" />
+        <input v-model="rangeStart" class="tb-input" type="datetime-local" />
         <span class="sep">~</span>
-        <input class="tb-input" type="datetime-local" v-model="rangeEnd" />
+        <input v-model="rangeEnd" class="tb-input" type="datetime-local" />
         <button class="btn" @click="quickRange(7)">近7天</button>
         <button class="btn" @click="quickRange(30)">近30天</button>
         <button class="btn btn-primary" @click="load">查询</button>
@@ -39,7 +39,7 @@
     <div class="panel">
       <div class="panel-title">总分分布</div>
       <div class="dist">
-        <div class="dist-item" v-for="(v, k) in summary.scoreDistribution" :key="k">
+        <div v-for="(v, k) in summary.scoreDistribution" :key="k" class="dist-item">
           <div class="dist-key">{{ k }}</div>
           <div class="dist-bar"><span :style="{ width: barWidth(v) }"></span></div>
           <div class="dist-val">{{ v }}</div>
@@ -47,7 +47,7 @@
       </div>
     </div>
 
-    <div class="panel" v-if="summary.worsenedList && summary.worsenedList.length">
+    <div v-if="summary.worsenedList && summary.worsenedList.length" class="panel">
       <div class="panel-title">ΔSOFA 恶化患者（较上次升高 ≥ 2，提示器官功能恶化）</div>
       <table class="tbl">
         <thead><tr><th>住院号</th><th>姓名</th><th>床号</th><th>总分</th><th>ΔSOFA</th><th>评分时间</th></tr></thead>
@@ -66,7 +66,7 @@
 
     <div class="panel">
       <div class="panel-title">评分记录<span class="count">{{ (summary.records || []).length }}</span></div>
-      <table class="tbl" v-if="(summary.records || []).length">
+      <table v-if="(summary.records || []).length" class="tbl">
         <thead>
           <tr><th>评分时间</th><th>住院号</th><th>姓名</th><th>总分</th><th>呼吸</th><th>凝血</th><th>肝</th><th>循环</th><th>神经</th><th>肾</th><th>Δ</th></tr>
         </thead>

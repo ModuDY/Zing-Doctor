@@ -18,7 +18,7 @@
         <el-button type="primary" @click="openAddDialog">
           <el-icon><Plus /></el-icon> 新增词条
         </el-button>
-        <el-button @click="loadList" :loading="loading">
+        <el-button :loading="loading" @click="loadList">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
       </div>
@@ -85,7 +85,7 @@
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑词条' : '新增词条'" width="560px" class="abx-overlay" @close="resetForm">
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="110px">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
         <el-form-item label="关键词" prop="keyword">
           <el-input v-model="form.keyword" placeholder="如：美罗培南 / 西替利嗪" />
         </el-form-item>
@@ -106,7 +106,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm" :loading="submitting">确定</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitForm">确定</el-button>
       </template>
     </el-dialog>
   </div>

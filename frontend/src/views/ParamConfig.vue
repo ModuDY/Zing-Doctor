@@ -41,11 +41,11 @@
           <div class="main-actions">
             <el-input v-model="keyword" placeholder="搜索名称 / 参数键 / 备注" clearable class="kw" />
             <el-button type="primary" @click="openAdd">新增参数</el-button>
-            <el-button @click="loadAll" :loading="loading">刷新</el-button>
+            <el-button :loading="loading" @click="loadAll">刷新</el-button>
           </div>
         </div>
 
-        <div class="param-list" v-loading="loading">
+        <div v-loading="loading" class="param-list">
           <div v-for="p in filteredList" :key="p.id" class="param-card">
             <div class="pc-left">
               <div class="pc-title">
@@ -114,7 +114,7 @@
         <p>通用业务参数（建议带）：<code>realname=医生姓名</code> —— 会记录为操作人，页面「评分医生」也据此显示。把示例中的 <code>{host}</code>、<code>{token}</code> 替换为实际部署地址与令牌即可使用。</p>
         <div class="link-actions">
           <el-button type="primary" size="small" @click="onGenToken">随机生成新令牌</el-button>
-          <span class="link-token-tip">当前令牌：<b>{{ maskedToken }}</b>　对外地址：<b>{{ currentBase() || '{host}' }}</b></span>
+          <span class="link-token-tip">当前令牌：<b>{{ maskedToken }}</b>&emsp;对外地址：<b>{{ currentBase() || '{host}' }}</b></span>
         </div>
       </div>
 
@@ -170,18 +170,18 @@
           <div class="form-tip">决定参数在列表页上的控件形态：开关与下拉可就地修改</div>
         </el-form-item>
 
-        <el-form-item label="参数值" v-if="form.paramType === 'switch'">
+        <el-form-item v-if="form.paramType === 'switch'" label="参数值">
           <el-switch v-model="switchValue" active-text="开" inactive-text="关" />
         </el-form-item>
-        <el-form-item label="参数值" v-else-if="form.paramType === 'select'">
+        <el-form-item v-else-if="form.paramType === 'select'" label="参数值">
           <el-select v-model="form.paramValue" class="w-full">
             <el-option v-for="opt in formOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="参数值" v-else-if="form.paramType === 'number'">
+        <el-form-item v-else-if="form.paramType === 'number'" label="参数值">
           <el-input v-model="form.paramValue" type="number" placeholder="数字" />
         </el-form-item>
-        <el-form-item label="参数值" v-else>
+        <el-form-item v-else label="参数值">
           <el-input
             v-model="form.paramValue"
             :type="form.paramType === 'textarea' ? 'textarea' : 'text'"
@@ -190,7 +190,7 @@
           />
         </el-form-item>
 
-        <el-form-item label="选项" v-if="form.paramType === 'select'">
+        <el-form-item v-if="form.paramType === 'select'" label="选项">
           <el-input
             v-model="form.options"
             type="textarea"
@@ -235,7 +235,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="onSave" :loading="saving">保存</el-button>
+        <el-button type="primary" :loading="saving" @click="onSave">保存</el-button>
       </template>
     </el-dialog>
 
@@ -299,7 +299,7 @@
       </el-form>
       <template #footer>
         <el-button @click="groupFormVisible = false">取消</el-button>
-        <el-button type="primary" @click="onGroupSave" :loading="groupSaving">保存</el-button>
+        <el-button type="primary" :loading="groupSaving" @click="onGroupSave">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -400,7 +400,7 @@ const maskedToken = computed(() => {
 })
 function randomToken() {
   const arr = new Uint8Array(24)
-  crypto.getRandomValues(arr)
+  window.crypto.getRandomValues(arr)
   return btoa(String.fromCharCode.apply(null, Array.from(arr))).replace(/[+/=]/g, '').slice(0, 32)
 }
 async function onGenToken() {

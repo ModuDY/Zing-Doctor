@@ -1232,7 +1232,7 @@ const ruleSummary = computed(() => {
 const ovPeriod = computed(() => {
   const now = new Date()
   let year = now.getFullYear()
-  let startMonth = 0
+  let startMonth
   let spanMonths = 1
   if (periodType.value === 'MONTH') {
     const [y, m] = String(monthValue.value || '').split('-').map(Number)

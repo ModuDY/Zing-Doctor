@@ -24,7 +24,7 @@
           popper-class="abx-popper"
           @change="loadData"
         />
-        <el-button type="primary" @click="loadData" :loading="loading">
+        <el-button type="primary" :loading="loading" @click="loadData">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
       </div>

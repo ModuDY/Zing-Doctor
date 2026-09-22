@@ -24,7 +24,7 @@
           popper-class="abx-popper"
           @change="loadData"
         />
-        <el-button type="primary" @click="loadData" :loading="loading">
+        <el-button type="primary" :loading="loading" @click="loadData">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
       </div>
@@ -58,7 +58,7 @@
     </div>
 
     <!-- 患者列表 -->
-    <div class="patient-list" v-loading="loading">
+    <div v-loading="loading" class="patient-list">
       <div v-for="patient in filteredPatients" :key="patient.inHospitalNo" class="patient-card" :class="{ expanded: isExpanded(patient) }">
         <div class="patient-header" @click="toggleExpand(patient)">
           <div class="patient-info">

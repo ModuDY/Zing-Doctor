@@ -24,7 +24,7 @@
         <el-button type="primary" @click="loadData">
           <el-icon><Search /></el-icon> 查询
         </el-button>
-        <span class="depart-tag" v-if="departName">科室：{{ departName }}</span>
+        <span v-if="departName" class="depart-tag">科室：{{ departName }}</span>
       </div>
     </div>
 
@@ -78,16 +78,16 @@
       <div class="table-box">
         <div class="table-title">患者列表（点击行展开详情）</div>
         <el-table
-          :data="patients"
           v-loading="loading"
+          :data="patients"
           row-key="patient_id"
-          @row-click="handleRowClick"
           :expand-row-keys="expandRowKeys"
           class="ards-table"
+          @row-click="handleRowClick"
         >
           <el-table-column type="expand">
             <template #default="{ row }">
-              <div class="detail-panel" v-loading="row.detailLoading">
+              <div v-loading="row.detailLoading" class="detail-panel">
                 <div class="detail-section">
                   <div class="detail-title">呼吸机参数趋势（在科期间）</div>
                   <div class="detail-tabs">
@@ -112,9 +112,9 @@
                     <el-table-column prop="current" label="当前值" width="140" />
                     <el-table-column prop="target" label="目标值" width="140" />
                     <el-table-column prop="status" label="状态" width="120">
-                      <template #default="{ row }">
-                        <el-tag :type="row.status === '达标' ? 'success' : row.status === '无数据' ? 'info' : 'danger'" size="small">
-                          {{ row.status }}
+                      <template #default="{ row: r }">
+                        <el-tag :type="r.status === '达标' ? 'success' : r.status === '无数据' ? 'info' : 'danger'" size="small">
+                          {{ r.status }}
                         </el-tag>
                       </template>
                     </el-table-column>
