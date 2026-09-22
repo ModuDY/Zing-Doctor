@@ -32,7 +32,6 @@ public class XlsxStreamWriter implements Closeable {
 
     private final ZipOutputStream zos;
     private final String[] sheetNames;
-    private int current = -1;
     private boolean sheetOpen = false;
     /** 当前 sheet 内已写行数（含表头），用于生成 r 引用。 */
     private int rowIndex = 0;
@@ -52,7 +51,6 @@ public class XlsxStreamWriter implements Closeable {
         if (index < 0 || index >= sheetNames.length) {
             throw new IllegalArgumentException("sheet 下标越界: " + index);
         }
-        current = index;
         sheetOpen = true;
         rowIndex = 0;
         entry("xl/worksheets/sheet" + (index + 1) + ".xml");
@@ -98,11 +96,6 @@ public class XlsxStreamWriter implements Closeable {
         raw("</sheetData></worksheet>");
         zos.closeEntry();
         sheetOpen = false;
-        current = -1;
-    }
-
-    public int currentSheet() {
-        return current;
     }
 
     @Override
