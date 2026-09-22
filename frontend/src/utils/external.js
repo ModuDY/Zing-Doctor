@@ -93,7 +93,11 @@ export function getExternalHeaders() {
   // 二次校验：只发「看起来像人名」的值。占位值宁可不发——后端本来也会判占位值，
   // 但脏值一旦进了 sessionStorage 就会被反复发出，不如在这里就近掐掉。
   if (operator && !isPlaceholderOperator(operator)) {
-    headers['X-External-Operator'] = operator
+    // 中文名不能裸放进请求头：Servlet 按 ISO-8859-1 解码会变成 ç®¡ç†å 这类乱码
+    // （现场 2026-09-20 实测，写进 create_by 的就是乱码），中间的反向代理还可能
+    // 直接把非 ASCII 的头丢掉——后端判不出身份，create_by 就记成 unknown。
+    // 统一 URL 编码成纯 ASCII 再传，服务端解码还原；纯 ASCII 姓名编码后原样不变。
+    headers['X-External-Operator'] = encodeURIComponent(operator)
   }
   if (expire && sign) {
     headers['X-External-Expire'] = expire

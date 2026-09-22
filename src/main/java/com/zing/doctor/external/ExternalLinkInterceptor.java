@@ -11,6 +11,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -144,7 +146,7 @@ public class ExternalLinkInterceptor implements HandlerInterceptor {
      * 一律按没传处理：否则审计字段会记下一个不是人名的词，看着有操作人，实际追溯不到。
      */
     private String operatorFromExternal(HttpServletRequest request, ExternalLinkContext ctx) {
-        String fromHeader = fixHeaderEncoding(request.getHeader("X-External-Operator"));
+        String fromHeader = decodeOperatorHeader(request.getHeader("X-External-Operator"));
         if (!OperatorContext.isPlaceholder(fromHeader)) {
             return fromHeader.trim();
         }
@@ -156,6 +158,34 @@ public class ExternalLinkInterceptor implements HandlerInterceptor {
             }
         }
         return null;
+    }
+
+    /**
+     * 还原 {@code X-External-Operator} 请求头。
+     *
+     * <p>前端统一按 {@code encodeURIComponent} 发送（纯 ASCII），规避两种真实故障：
+     * <ol>
+     *   <li>Servlet 规范要求请求头按 ISO-8859-1 解码，中文名到服务端会变成
+     *       {@code ç®¡ç†å} 这类乱码，且不是占位值，会被原样写进 create_by；</li>
+     *   <li>中间的反向代理 / 网关对非 ASCII 头值处理不一致，个别链路干脆丢头，
+     *       后端判不出身份，记录里只剩 unknown（页面显示「—」）。</li>
+     * </ol>
+     * 因此先按 URL 解码；值里没有 {@code %} 或解码失败（如姓名本身含 %）时，
+     * 再走 {@link #fixHeaderEncoding} 还原中文 —— 新旧两版前端都能正确识别。
+     */
+    private String decodeOperatorHeader(String raw) {
+        if (StrUtil.isBlank(raw)) {
+            return raw;
+        }
+        String value = raw.trim();
+        if (value.indexOf('%') >= 0) {
+            try {
+                return URLDecoder.decode(value, StandardCharsets.UTF_8.name());
+            } catch (Exception ignored) {
+                // 不是合法的 %XX 串，落回原值继续走下面的中文还原
+            }
+        }
+        return fixHeaderEncoding(value);
     }
 
     /**
