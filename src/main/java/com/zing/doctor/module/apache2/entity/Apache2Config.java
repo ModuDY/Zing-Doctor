@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * APACHE II 配置表
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"apache2_config\"")
+@TableName("\"zing_doctor_db_prod\".\"config_apache2\"")
 public class Apache2Config {
 
     @TableId(type = IdType.ASSIGN_ID)

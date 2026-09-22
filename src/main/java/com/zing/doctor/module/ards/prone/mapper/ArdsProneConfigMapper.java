@@ -20,7 +20,7 @@ public interface ArdsProneConfigMapper extends BaseMapper<ArdsProneConfig> {
     /** 全部启用规则（按参数键、优先级、通道排序），供解析器构建缓存 */
     @Select("SELECT \"id\",\"config_type\",\"config_key\",\"config_value\",\"match_type\",\"priority\","
             + "\"window_min\",\"unit_scale\",\"unit_offset\",\"item_name\",\"remark\",\"sort_no\",\"status\" "
-            + "FROM \"zing_doctor_db_prod\".\"ards_prone_config\" "
+            + "FROM \"zing_doctor_db_prod\".\"config_prone_item\" "
             + "WHERE \"status\" = 1 "
             + "ORDER BY \"config_key\" ASC, \"priority\" ASC, \"config_type\" DESC, \"sort_no\" ASC, \"id\" ASC")
     List<ArdsProneConfig> selectEnabled();
@@ -29,7 +29,7 @@ public interface ArdsProneConfigMapper extends BaseMapper<ArdsProneConfig> {
     @Select("<script>SELECT \"id\",\"config_type\",\"config_key\",\"config_value\",\"match_type\",\"priority\","
             + "\"window_min\",\"unit_scale\",\"unit_offset\",\"item_name\",\"remark\",\"sort_no\",\"status\","
             + "\"create_by\",\"create_time\",\"update_by\",\"update_time\" "
-            + "FROM \"zing_doctor_db_prod\".\"ards_prone_config\" WHERE 1 = 1 "
+            + "FROM \"zing_doctor_db_prod\".\"config_prone_item\" WHERE 1 = 1 "
             + "<if test='configType != null and configType != \"\"'> AND \"config_type\" = #{configType}</if> "
             + "<if test='configKey != null and configKey != \"\"'> AND \"config_key\" = #{configKey}</if> "
             + "ORDER BY \"config_key\" ASC, \"priority\" ASC, \"sort_no\" ASC, \"id\" ASC</script>")
@@ -37,7 +37,7 @@ public interface ArdsProneConfigMapper extends BaseMapper<ArdsProneConfig> {
                                         @Param("configKey") String configKey);
 
     /** 判重：同参数 + 同通道 + 同匹配值视为同一条（一键生成时幂等） */
-    @Select("SELECT COUNT(*) FROM \"zing_doctor_db_prod\".\"ards_prone_config\" "
+    @Select("SELECT COUNT(*) FROM \"zing_doctor_db_prod\".\"config_prone_item\" "
             + "WHERE \"config_key\" = #{configKey} AND \"config_type\" = #{configType} "
             + "AND \"config_value\" = #{configValue}")
     int countSame(@Param("configKey") String configKey,

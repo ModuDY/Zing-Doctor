@@ -148,9 +148,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_qdh_key" ON "zing_doctor_db_prod"."quali
 -- ---------------------------------------------------------------------
 -- D) 页面注册（外链 pageCode）
 -- ---------------------------------------------------------------------
-DELETE FROM "zing_doctor_db_prod"."zing_page_config"
+DELETE FROM "zing_doctor_db_prod"."sys_page_config"
  WHERE "page_code" IN ('quality-config');
-INSERT INTO "zing_doctor_db_prod"."zing_page_config"
+INSERT INTO "zing_doctor_db_prod"."sys_page_config"
     ("page_code", "page_name", "frontend_path", "remark", "status")
 VALUES
     ('quality-config', '质控指标配置', '/page/quality-config',

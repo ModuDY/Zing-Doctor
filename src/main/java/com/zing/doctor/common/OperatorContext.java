@@ -15,7 +15,7 @@ import java.util.Set;
  *
  * <p>身份由服务端解析，统一在 ExternalLinkInterceptor 鉴权通过后写入 request attribute：
  * <ol>
- *   <li>直连登录：按登录账号从 zing_sys_user 查出真实姓名。令牌由服务端签发，
+ *   <li>直连登录：按登录账号从 sys_user 查出真实姓名。令牌由服务端签发，
  *       因此这一步的结果不可能被调用方影响；</li>
  *   <li>外链：取第三方系统随外链带来的身份参数（realname 优先）。</li>
  * </ol>

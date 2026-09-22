@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * SOFA 与 APACHE II 共用同一个地址。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"zing_sys_param\"")
+@TableName("\"zing_doctor_db_prod\".\"sys_param\"")
 public class SysParam {
 
     @TableId(type = IdType.ASSIGN_ID)

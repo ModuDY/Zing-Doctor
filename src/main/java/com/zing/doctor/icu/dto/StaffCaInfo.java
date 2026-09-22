@@ -9,7 +9,7 @@ import lombok.Data;
  * 工号（{@code work_no}）与 ICU 外链参数 {@code username} 一致，故前端拿外链工号即可反查签名。
  *
  * <p>{@code signatureImg} 在 ICU 库中是 CLOB，映射为 {@code String}（与医生库
- * {@code apache2_score_record.pdf_data} 同样的处理方式），内容为 base64（通常 GIF/PNG，
+ * {@code patient_doc_apache2_score_record.pdf_data} 同样的处理方式），内容为 base64（通常 GIF/PNG，
  * 不带 {@code data:} 前缀）。
  */
 @Data

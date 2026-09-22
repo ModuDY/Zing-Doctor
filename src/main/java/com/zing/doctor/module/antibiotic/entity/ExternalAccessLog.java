@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * 外链访问日志。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"zing_external_access_log\"")
+@TableName("\"zing_doctor_db_prod\".\"sys_access_log\"")
 public class ExternalAccessLog implements Serializable {
 
     private static final long serialVersionUID = 1L;

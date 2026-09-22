@@ -3,6 +3,7 @@
     <div class="pc-tabs">
       <button :class="['pc-tab', { on: tab === 'param' }]" @click="tab = 'param'">系统参数</button>
       <button :class="['pc-tab', { on: tab === 'map' }]" @click="tab = 'map'">ARDS 数据映射</button>
+      <button :class="['pc-tab', { on: tab === 'link' }]" @click="tab = 'link'">外链页面</button>
     </div>
 
     <div v-show="tab === 'param'" class="pc-layout">
@@ -96,11 +97,49 @@
       </section>
     </div>
 
-    <!-- ARDS 采集映射规则：数据存 ards_prone_config 表（规则表，与上面的键值型参数分开维护） -->
+    <!-- ARDS 采集映射规则：数据存 config_prone_item 表（规则表，与上面的键值型参数分开维护） -->
     <div v-show="tab === 'map'">
       <ArdsProneConfig embedded />
     </div>
 
+    <!-- 外链页面一览：静态内置清单，便于 ICU 集成方直接取用完整 URL -->
+    <div v-show="tab === 'link'" class="link-wrap">
+      <div class="link-intro">
+        <h3>系统外链页面一览</h3>
+        <p>外部系统（如 ICU 信息系统）通过 <code>/entry/{pageCode}</code> 免登录打开本系统功能页。两种鉴权方式任选其一：</p>
+        <ul>
+          <li><b>ICU 固定令牌（推荐）</b>：URL 带 <code>extToken=已分配的固定令牌</code>，最简单，ICU 外链模板直接写死即可。</li>
+          <li><b>签名校验</b>：URL 带 <code>expire=过期时间戳&amp;sign=按密钥生成的签名</code>，安全性高，由后端程序实时生成。</li>
+        </ul>
+        <p>通用业务参数（建议带）：<code>realname=医生姓名</code> —— 会记录为操作人，页面「评分医生」也据此显示。把示例中的 <code>{host}</code>、<code>{token}</code> 替换为实际部署地址与令牌即可使用。</p>
+      </div>
+
+      <div class="link-toolbar">
+        <el-input v-model="linkKw" placeholder="搜索页面名称 / pageCode" clearable class="link-kw" />
+        <span class="link-count">共 {{ filteredLinks.length }} 个页面</span>
+      </div>
+
+      <div class="link-list">
+        <div v-for="pg in filteredLinks" :key="pg.code" class="link-card">
+          <div class="lc-head">
+            <span class="lc-name">{{ pg.name }}</span>
+            <el-tag size="small" type="primary" effect="plain" class="lc-code">{{ pg.code }}</el-tag>
+          </div>
+          <div class="lc-desc">{{ pg.desc }}</div>
+          <div v-if="pg.params && pg.params.length" class="lc-params">
+            <span class="lc-p-label">业务参数：</span>
+            <el-tag v-for="pa in pg.params" :key="pa.k" size="small" :type="pa.req ? 'danger' : 'info'" effect="plain">
+              {{ pa.k }}{{ pa.req ? '（必填）' : '' }}
+            </el-tag>
+          </div>
+          <div class="lc-url">
+            <code class="lc-url-text">{{ buildExample(pg) }}</code>
+            <el-button link type="primary" size="small" @click="copyLink(pg)">复制</el-button>
+          </div>
+        </div>
+        <el-empty v-if="!filteredLinks.length && !loading" description="没有匹配的页面" />
+      </div>
+    </div>
     <!-- 参数新增 / 编辑 -->
     <el-dialog
       v-model="dialogVisible"
@@ -270,6 +309,85 @@ import ArdsProneConfig from './ArdsProneConfig.vue'
 
 /** 顶部页签：param=系统参数（键值型），map=ARDS 采集映射（规则表型） */
 const tab = ref('param')
+
+/* ---------- 外链页面一览（与 sys_page_config 已注册页面对应） ---------- */
+const linkKw = ref('')
+const LINK_BASE = 'https://{host}'
+const LINK_TOKEN = '{token}'
+const LINK_PAGES = [
+  { code: 'abx-patient-list', name: '疑似感染患者列表', desc: '第一维度：疑似感染/脓毒症患者总览，按科室过滤', params: [
+    { k: 'departCode', req: false, sample: 'ICU01' },
+    { k: 'departName', req: false, sample: '综合ICU' } ] },
+  { code: 'abx-decision', name: '经验性抗感染治疗决策', desc: '单患者经验性抗感染方案决策', params: [
+    { k: 'patientId', req: true, sample: '10001' },
+    { k: 'inHospitalNo', req: true, sample: '201152869' } ] },
+  { code: 'abx-pkpd', name: 'PK/PD 抗菌药物剂量优化', desc: '基于肾功能/体重/低蛋白/CRRT 的抗菌药物剂量个体化', params: [
+    { k: 'patientId', req: true, sample: '10001' },
+    { k: 'inHospitalNo', req: true, sample: '201152869' } ] },
+  { code: 'abx-ddd', name: '抗菌药物使用强度分析', desc: '全院/科室抗菌药物使用率、DDDs、药品排名、趋势', params: [
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'abx-ddd-config', name: 'DDD 值配置管理', desc: '抗菌药物 DDD 值知识库后台配置', params: [] },
+  { code: 'abx-mdro', name: '细菌培养检出监测', desc: '菌株排名、标本分布、趋势、高风险菌预警', params: [] },
+  { code: 'abx-mdro-config', name: '细菌分类配置管理', desc: '革兰阳性/阴性/真菌、高风险菌列表后台配置', params: [] },
+  { code: 'sepsis-bundle', name: '脓毒症休克集束化治疗', desc: '1H/3H/6H 集束化治疗完成情况自动判断与记录', params: [
+    { k: 'inHospitalNo', req: true, sample: '201152869' } ] },
+  { code: 'abx-word-config', name: '抗菌药物识别词库配置', desc: '广谱抗菌药白名单 / 非抗菌药黑名单后台配置', params: [] },
+  { code: 'handover-board', name: '医生交班览表', desc: '按上一全天班次汇总在科患者病情/生命体征/器官支持', params: [] },
+  { code: 'discharge-stats', name: '患者出科统计', desc: '按出科时间范围和科室查询已出科患者，支持导出', params: [] },
+  { code: 'ards-monitor', name: 'ARDS 监测', desc: 'ARDS 患者识别、柏林定义分级、肺保护通气依从性', params: [
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'apache2-overview', name: 'APACHE II 评分总览', desc: '主任视角：科室评分统计、分布、时机对比、患者列表', params: [
+    { k: 'departCode', req: false, sample: 'ICU01' },
+    { k: 'departName', req: false, sample: '综合ICU' } ] },
+  { code: 'apache2-score', name: 'APACHE II 评分评估', desc: '单患者 APACHE II 评分录入与保存', params: [
+    { k: 'inHospitalNo', req: true, sample: '201152869' },
+    { k: 'patientName', req: false, sample: '陈丽珍' },
+    { k: 'departCode', req: false, sample: 'ICU01' },
+    { k: 'realname', req: false, sample: '张医生' } ] },
+  { code: 'sofa-score', name: 'SOFA 评分', desc: 'SOFA 6 器官评分 + 总分 + 趋势', params: [
+    { k: 'inHospitalNo', req: true, sample: '201152869' },
+    { k: 'patientId', req: false, sample: '10001' },
+    { k: 'realname', req: false, sample: '张医生' } ] },
+  { code: 'sofa-overview', name: 'SOFA 评分总览', desc: '科室评分分布、ΔSOFA 恶化预警、患者列表', params: [
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'sofa-config', name: 'SOFA 配置管理', desc: 'SOFA 取数项映射、血管活性药阈值、换算系数、默认体重', params: [] },
+  { code: 'ards-prone-list', name: 'ARDS 俯卧位通气记录', desc: '按住院号查看俯卧位历史疗程与归档状态', params: [
+    { k: 'inHospitalNo', req: true, sample: '201152869' },
+    { k: 'departCode', req: false, sample: 'ICU01' },
+    { k: 'inHospitalSerialNo', req: false, sample: '20260904001' },
+    { k: 'inDepartTime', req: false, sample: '2026-09-04 08:00' } ] },
+  { code: 'ards-prone-record', name: 'ARDS 俯卧位记录填写', desc: '37 项参数 × 时点矩阵、打印预览与 PDF 导出', params: [
+    { k: 'id', req: true, sample: '1024' },
+    { k: 'scr', req: false, sample: 'print' } ] },
+  { code: 'ards-prone-config', name: 'ARDS 俯卧位数据映射配置', desc: '采集项 → 监护/LIS 项目映射、候选值、试采核对', params: [] },
+  { code: 'quality-board', name: '质控指标看板', desc: '127 条指标按域分组、周期切换、点数字下钻', params: [
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'quality-monthly', name: '质控月度汇总', desc: '1-12 月横排对比，同比/环比，支持 xlsx 导出', params: [
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'quality-config', name: '质控指标配置', desc: '指标口径编辑、事实层配置、变更历史与回滚', params: [] },
+  { code: 'param-config', name: '参数设置', desc: '系统参数、ARDS 采集映射、外链页面一览', params: [] }
+]
+const filteredLinks = computed(() => {
+  const kw = linkKw.value.trim().toLowerCase()
+  if (!kw) return LINK_PAGES
+  return LINK_PAGES.filter((p) =>
+    p.name.toLowerCase().includes(kw) || p.code.toLowerCase().includes(kw) || (p.desc || '').toLowerCase().includes(kw)
+  )
+})
+function buildExample(pg) {
+  let url = `${LINK_BASE}/entry/${pg.code}?extToken=${LINK_TOKEN}&realname=张医生`
+  ;(pg.params || []).forEach((pa) => { url += `&${pa.k}=${pa.sample}` })
+  return url
+}
+async function copyLink(pg) {
+  const url = buildExample(pg)
+  try {
+    await navigator.clipboard.writeText(url)
+    ElMessage.success('已复制：' + pg.name)
+  } catch (e) {
+    ElMessage.warning('复制失败，请手动选择：' + url)
+  }
+}
 
 const list = ref([])
 const groups = ref([])
@@ -640,4 +758,37 @@ onMounted(loadAll)
 
 .form-tip { font-size: 11px; color: #a8a29e; line-height: 1.5; margin-top: 2px; }
 .w-full { width: 100%; }
+
+/* 外链页面一览 */
+.link-wrap { max-width: 1100px; }
+.link-intro {
+  background: #fff; border: 1px solid #ebeef5; border-radius: 6px;
+  padding: 14px 18px; margin-bottom: 12px; font-size: 13px; color: #4b5563; line-height: 1.7;
+}
+.link-intro h3 { margin: 0 0 6px; font-size: 16px; color: #292524; }
+.link-intro p { margin: 6px 0; }
+.link-intro ul { margin: 6px 0; padding-left: 20px; }
+.link-intro code, .lc-url-text {
+  background: #f1f5f9; color: #0f766e; padding: 1px 6px; border-radius: 3px;
+  font-family: Consolas, Monaco, monospace; font-size: 12px;
+}
+.link-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.link-kw { width: 280px; }
+.link-count { font-size: 12px; color: #78716c; }
+.link-list { display: flex; flex-direction: column; gap: 8px; }
+.link-card {
+  background: #fff; border: 1px solid #ebeef5; border-radius: 6px; padding: 12px 16px;
+}
+.link-card:hover { border-color: #99f6e4; }
+.lc-head { display: flex; align-items: center; gap: 8px; }
+.lc-name { font-weight: 600; color: #303133; font-size: 14px; }
+.lc-code { font-family: Consolas, Monaco, monospace; }
+.lc-desc { margin: 6px 0; font-size: 12px; color: #78716c; }
+.lc-params { margin-bottom: 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.lc-p-label { font-size: 12px; color: #a8a29e; margin-right: 2px; }
+.lc-url {
+  display: flex; align-items: center; gap: 8px; background: #f8fafc;
+  border: 1px dashed #e2e8f0; border-radius: 4px; padding: 6px 10px;
+}
+.lc-url-text { flex: 1; background: transparent; word-break: break-all; color: #334155; font-size: 12px; }
 </style>

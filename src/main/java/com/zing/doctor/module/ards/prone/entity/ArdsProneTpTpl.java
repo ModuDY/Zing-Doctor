@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * ARDS 俯卧位时点模板（depart_code 为空 = 全院默认模板）。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"ards_prone_tp_tpl\"")
+@TableName("\"zing_doctor_db_prod\".\"config_prone_timepoint_tpl\"")
 public class ArdsProneTpTpl {
 
     @TableId(type = IdType.ASSIGN_ID)

@@ -22,7 +22,7 @@ public interface ArdsProneRecordMapper extends BaseMapper<ArdsProneRecord> {
             + "\"file_path\",\"nurse_sign\",\"doctor_sign\",\"senior_sign\","
             + "\"doctor_work_no\" AS \"doctorWorkNo\",\"nurse_work_no\" AS \"nurseWorkNo\",\"senior_work_no\" AS \"seniorWorkNo\",\"status\","
             + "\"create_by\",\"create_time\",\"update_by\",\"update_time\" "
-            + "FROM \"zing_doctor_db_prod\".\"ards_prone_record\" "
+            + "FROM \"zing_doctor_db_prod\".\"patient_doc_prone_record\" "
             + "WHERE \"in_hospital_no\" = #{inHospitalNo} AND \"status\" = 1 "
             + "ORDER BY \"start_time\" DESC")
     List<ArdsProneRecord> selectListByPatient(@Param("inHospitalNo") String inHospitalNo);
@@ -35,7 +35,7 @@ public interface ArdsProneRecordMapper extends BaseMapper<ArdsProneRecord> {
             + "\"record_status\",\"archive_status\",\"archive_doc_no\",\"nurse_sign\",\"doctor_sign\","
             + "\"doctor_work_no\" AS \"doctorWorkNo\",\"nurse_work_no\" AS \"nurseWorkNo\",\"senior_work_no\" AS \"seniorWorkNo\",\"status\","
             + "\"create_by\",\"create_time\",\"update_by\",\"update_time\" "
-            + "FROM \"zing_doctor_db_prod\".\"ards_prone_record\" "
+            + "FROM \"zing_doctor_db_prod\".\"patient_doc_prone_record\" "
             + "WHERE \"status\" = 1 "
             + "AND (#{departCode} IS NULL OR \"depart_code\" = #{departCode}) "
             + "ORDER BY \"start_time\" DESC")
@@ -43,7 +43,7 @@ public interface ArdsProneRecordMapper extends BaseMapper<ArdsProneRecord> {
 
     /** 只取 PDF Base64 与文件名（避免整行大字段回传） */
     @Select("SELECT \"id\", \"pdf_data\" AS \"pdfData\", \"pdf_name\" AS \"pdfName\" "
-            + "FROM \"zing_doctor_db_prod\".\"ards_prone_record\" WHERE \"id\" = #{id}")
+            + "FROM \"zing_doctor_db_prod\".\"patient_doc_prone_record\" WHERE \"id\" = #{id}")
     ArdsProneRecord selectPdfById(@Param("id") Long id);
 
     /**
@@ -53,7 +53,7 @@ public interface ArdsProneRecordMapper extends BaseMapper<ArdsProneRecord> {
      * 查询失败（无权限等）返回 null，同样按未扩列处理。
      */
     @Select("SELECT DATA_LENGTH FROM ALL_TAB_COLUMNS "
-            + "WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD' AND UPPER(TABLE_NAME) = 'ARDS_PRONE_RECORD' "
+            + "WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD' AND UPPER(TABLE_NAME) = 'PATIENT_DOC_PRONE_RECORD' "
             + "AND UPPER(COLUMN_NAME) = #{columnName}")
     Integer selectColumnLength(@Param("columnName") String columnName);
 }

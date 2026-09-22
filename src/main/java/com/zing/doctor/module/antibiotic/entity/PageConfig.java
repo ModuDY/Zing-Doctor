@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * 页面注册表：每个可外链访问的功能页面对应一行。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"zing_page_config\"")
+@TableName("\"zing_doctor_db_prod\".\"sys_page_config\"")
 public class PageConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;

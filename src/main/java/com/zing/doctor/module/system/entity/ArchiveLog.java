@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * （成功与否、失败原因、当时推的是什么）。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"zing_archive_log\"")
+@TableName("\"zing_doctor_db_prod\".\"sys_archive_log\"")
 public class ArchiveLog {
 
     @TableId(type = IdType.ASSIGN_ID)

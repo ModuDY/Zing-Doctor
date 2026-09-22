@@ -15,5 +15,5 @@ USE `zing_doctor_db_prod`;
 -- 达梦 DM8；DbInit 对 ALTER TABLE ADD COLUMN 做了列存在检查，可重复执行
 -- ================================================================
 
-CALL zing_add_column('apache2_score_record', 'pdf_data', 'TEXT COMMENT ''评分文书PDF的Base64（不含data前缀）''');
-CALL zing_add_column('apache2_score_record', 'pdf_name', 'VARCHAR(200) COMMENT ''PDF文件名''');
+CALL zing_add_column('patient_doc_apache2_score_record', 'pdf_data', 'TEXT COMMENT ''评分文书PDF的Base64（不含data前缀）''');
+CALL zing_add_column('patient_doc_apache2_score_record', 'pdf_name', 'VARCHAR(200) COMMENT ''PDF文件名''');

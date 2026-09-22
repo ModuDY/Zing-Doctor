@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * <p>删除时点走软删除（status=0）：已填写的历史数据保留可查。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"ards_prone_timepoint\"")
+@TableName("\"zing_doctor_db_prod\".\"patient_doc_prone_timepoint\"")
 public class ArdsProneTimepoint {
 
     @TableId(type = IdType.ASSIGN_ID)

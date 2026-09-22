@@ -519,6 +519,8 @@ SQL
     17_quality_rule_local.sql 18_quality_manual_audit.sql
     19_quality_target_direction.sql 20_quality_fact_patient_default_cols.sql
     21_ards_prone.sql 22_ards_prone_config.sql 23_ards_prone_sign_work_no.sql
+    # 25/26 表名规范化 rename（人工改写的存储过程版；全新 MariaDB 库无旧表 → 全部跳过，幂等）
+    25_rename_doctor_tables.sql 26_rename_clinical_tables.sql
   )
   for f in "${MAIN_SQL[@]}"; do
     [ -f "$SQL_DIR/$f" ] || { warn "缺少 $f，跳过"; continue; }

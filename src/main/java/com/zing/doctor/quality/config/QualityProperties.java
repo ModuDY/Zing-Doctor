@@ -108,8 +108,8 @@ public class QualityProperties {
     /** 事实层物化落库的 schema（医生决策系统主库） */
     private String factSchema = "zing_doctor_db_prod";
 
-    /** 事实层表名前缀，最终表名 = 前缀 + factName */
-    private String factTablePrefix = "qc_";
+    /** 事实层表名前缀，最终表名 = 前缀 + factName + 周期日期（对齐 ICU 命名：quality_fact_*） */
+    private String factTablePrefix = "quality_fact_";
 
     /** 是否把事实层物化为物理表（true=一次生成多指标复用，性能最优） */
     private boolean materializeFacts = true;

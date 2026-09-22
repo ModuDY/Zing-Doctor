@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * 抗感染决策记录。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"zing_decision_record\"")
+@TableName("\"zing_doctor_db_prod\".\"patient_doc_decision_record\"")
 public class DecisionRecord implements Serializable {
 
     private static final long serialVersionUID = 1L;

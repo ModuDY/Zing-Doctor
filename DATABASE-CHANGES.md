@@ -7,7 +7,8 @@
 > 所以**先跑 `install.sh`，再照着下面的清单逐项核对**——只有三条通道都没命中、或日志里明确报了失败，
 > 才需要人工补执行。
 >
-> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（09/10/11/12/13/14/15/16/17/18/19/20/21/22/23）；全量初始化与
+> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（**25/26**/09/10/11/12/13/14/15/16/17/18/19/20/21/22/23，
+> 注意 25/26 的 rename 排在最前）；全量初始化与
 > 一次性脚本（如 06_abx_drug_dict.sql）不在其内。漏执行 = 新代码一上来就 500。
 > MySQL/MariaDB 环境由 `install-mariadb-debian.sh` 每次全量重跑 `MAIN_SQL`，不存在「漏增量」问题，但脚本必须两边都有（见下方四步规则）。
 >
@@ -26,7 +27,7 @@
 1. 用 DM 管理工具 / disql 连到达梦（SYSDBA 或同权限账号）
 2. 翻到下面「批次记录」，从自己**还没执行**的批次开始，按 ①②③ 顺序执行
 3. 某一块报「已存在 / already exists」→ 说明已执行过，**跳过该块继续**
-4. 全新部署不用来这里，`sql/` 目录下按序号（01 → 23）依次全跑即可
+4. 全新部署不用来这里，`sql/` 目录下按序号（01 → 26）依次全跑即可（25/26 是 rename，空库无旧表会整段跳过）
 
 ---
 
@@ -42,7 +43,7 @@
 | Spring profile | `dm`（默认） | `mariadb` / `mysql`（安装脚本自动写入） |
 | 数据库对象 | schema `zing_doctor_db_prod`（统一 SYSDBA 连接、显式模式前缀） | database `zing_doctor_db_prod` |
 | 幂等手段 | 脚本内 PL/SQL 判存在 + JDBC 工具（`tools/db-init`）查元数据跳过 | `IF NOT EXISTS` + `sql/mysql/00b_*` 的幂等存储过程 |
-| 每次升级是否全量重跑 | **否**：探测 `zing_page_config` 已存在则只跑增量清单 | **是**：`MAIN_SQL` 里的脚本每次全跑 |
+| 每次升级是否全量重跑 | **否**：探测 `sys_page_config`（含旧名 `zing_page_config`，改名前后都要认）已存在则只跑增量清单 | **是**：`MAIN_SQL` 里的脚本每次全跑 |
 | 需维护的清单 | `FULL_SQL` / `FULL_SQL_JDBC` / `INCREMENTAL_SQL`（三处） | `MAIN_SQL`（一处） |
 | 跳过 SQL 的参数 | `--skip-db` | `--config-only` |
 | 备份方式 | `dexp` 或 DBA 侧模式备份 | `mysqldump` / `mariadb-dump` |
@@ -64,9 +65,28 @@
 ### 一次性脚本与人工动作（两边都一样）
 
 - `06_abx_drug_dict.sql` 是**一次性脚本**（裸 `CREATE TABLE`），不在达梦增量清单内；老库从未执行过需手动跑一次，
-  否则抗菌药识别持续告警 `无效的表或视图名[zing_abx_drug_dict]`。
+  否则抗菌药识别持续告警 `无效的表或视图名[config_abx_drug_dict]`。
 - `11_quality_count_rule.sql` 建表后，需在看板点一次「同步指标规则」从 ICU 侧灌数（脚本刻意不含同步语句）。
 - `03_word_inc_*` / `04_abx_word_training.sql` 为词库增量，按需执行；MySQL 侧默认在 `install-mariadb-debian.sh` 里注释掉，需要时手动放出来。
+- **`sql/27_restore_config_snapshot.sql`（2026-09-22 达梦生产库配置快照）**：
+  由 `tools/dm-query/DmExport.java` 从达梦生产库全量导出，含 17 张配置表共 1204 行
+  （页面注册 / 系统参数 / 账号 / DDD / MDRO / 抗菌药字典 / 识别词库 / ARDS 映射与时点模板 /
+  APACHE II 与 SOFA 评分配置 / 质控指标·定义·规则·事实层·历史）。
+  用途是**删库重建后把现场配置自动灌回新库**：已加进 `install.sh` 的 `FULL_SQL` / `FULL_SQL_JDBC`
+  （全新初始化通道，排在 26 之后），重建完跑一次 `install.sh` 就带上，不用手工补。
+  ⚠️ **它绝不能进 `INCREMENTAL_SQL`**：语义是「每张配置表先 `DELETE` 再 `INSERT`，整表重置为快照」
+  （会把 `02_seed` 灌的出厂配置覆盖成生产值——这是预期效果），一旦纳入增量，每次升级都会把现场配置
+  打回 2026-09-22 的旧值。老库升级时 `install.sh` 检测到 `sys_page_config` 已存在就走增量，本文件不会被加载。
+  已通过冒烟验证（临时模式全量执行 OK=1221 / FAIL=0，行数逐表比对一致）。
+  现场配置再有变更时重跑 `DmExport` 覆盖本文件即可（用法见该 Java 文件头部）。
+  ⚠️ 脚本内含 `sys_user.password_hash`（4 个账号的密码哈希），属敏感文件，不要随意外发；重建后密码保持不变。
+  ⚠️ 它**不含**业务数据与计算结果（俯卧位记录 / 评分记录 / 脓毒症记录 / `quality_metric_result` /
+  `quality_calc_run`·`calc_trace` / `quality_monthly_report` / 日志表 / 物化表 `quality_fact_*`），
+  这些要用 `dexp`（达梦）或 `mysqldump`（MySQL）单独备份，**删库前务必先做**。
+- **MySQL / MariaDB 侧没有 27 的自动版**（`dm_to_mysql.py` 的 `MANUAL` 里已登记跳过生成）：
+  `install-mariadb-debian.sh` 的 `MAIN_SQL` 是**每次升级都全跑**的，自动灌快照会每次把配置重置成导出当天的值。
+  MariaDB 环境重建后，人工执行一次 `tools/restore-config/restore_config_mysql_20260922.sql`
+  （`mysql -uroot -p zing_doctor_db_prod < 该文件`）。
 
 ### 漂移自检（建议每次交付打包前跑）
 
@@ -81,23 +101,154 @@ ls sql/*.sql | wc -l && ls sql/mysql/*.sql | wc -l   # 除 00b/00c/24_fix/instal
 ```
 
 > 常见漂移原因：① 只改了达梦版忘了跑 `dm_to_mysql.py`；② 直接手改了 `sql/mysql/` 里的文件 —— 下次转换会被覆盖回去，改动凭空消失。
+>
+> **例外（不受上面②约束）**：`sql/mysql/25_rename_doctor_tables.sql` 与 `sql/mysql/26_rename_clinical_tables.sql`
+> 是**人工改写**并长期维护的 —— 达梦版用 PL/SQL 游标 + 动态 DDL，转换器只能吐出语法碎片，
+> 因此这两个文件已在 `tools/dm_to_mysql.py` 的 `MANUAL` 列表里登记跳过（重跑工具会打印 `SKIP`）。
+> **改达梦版 25/26 时必须同步手改这两个 MySQL 版**，反之不要指望跑一次工具就能同步。
 
 ## 执行状态速查
 
 ```sql
 -- 某张表有哪些列（对照清单确认缺什么）
-SELECT UPPER(COLUMN_NAME) FROM USER_TAB_COLUMNS WHERE UPPER(TABLE_NAME) = 'SOFA_SCORE_RECORD';
+SELECT UPPER(COLUMN_NAME) FROM USER_TAB_COLUMNS WHERE UPPER(TABLE_NAME) = 'PATIENT_DOC_SOFA_SCORE_RECORD';
 
 -- 某张表是否存在
-SELECT TABLE_NAME FROM USER_TABLES WHERE UPPER(TABLE_NAME) = 'ZING_SYS_PARAM';
+SELECT TABLE_NAME FROM USER_TABLES WHERE UPPER(TABLE_NAME) = 'SYS_PARAM';
 
 -- 某配置是否已写入
-SELECT COUNT(*) FROM "zing_doctor_db_prod"."zing_sys_param" WHERE "param_key" = 'ARCHIVE_DIR';
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'ARCHIVE_DIR';
 ```
 
 ---
 
 ## 批次记录
+
+### 2026-09-22 · 表名对齐 ICU 命名规范（32 张表 rename，含第二批 11 张）
+
+**⚠️ 这是全库范围的改名：必须与同名版本的代码同时上线，不能只升一边。**
+代码里 34 个 `@TableName`、MyBatis SQL、SQL 脚本、文档已全部改成新表名；
+只要库没跟着 rename，**所有模块**（不只是新功能）打开即报「无效的表或视图名」。
+反过来只 rename 库不升代码也是同样的表现。
+
+**背景**：医生库此前三套写法混用 —— 无前缀（`ards_prone_*` / `sofa_*`）、产品前缀（`zing_*`）、
+缩写前缀（`qc_fact_*`）。ICU 源库 810 张表统一遵循 `<主体>_<业务>_<明细>`（`patient` 442 /
+`config` 225 / `icu` 43 / `sys` 38 / `quality` 14），且不含产品前缀与缩写。跨库联查时
+同一条 SQL 里出现两种命名习惯，读代码要靠猜，故一次性对齐。
+
+**涉及（32 张 = 第一批 21 + 第二批 11）**
+
+| 现状 | 新名 | 依据 |
+|---|---|---|
+| `zing_sys_user` / `zing_sys_param` / `zing_param_group` / `zing_page_config` / `zing_archive_log` / `zing_external_access_log` | `sys_user` / `sys_param` / `sys_param_group` / `sys_page_config` / `sys_archive_log` / `sys_access_log` | 对齐 ICU 的 `sys_*` 38 张 |
+| `zing_abx_drug_dict` / `zing_abx_word_config` / `zing_ddd_config` / `zing_mdro_config` | `config_abx_drug_dict` / `config_abx_word` / `config_ddd` / `config_mdro` | 对齐 `config_*` 225 张 |
+| `zing_decision_record` / `zing_advice_log` / `zing_doctor_handover` | `patient_doc_decision_record` / `patient_doc_advice_log` / `patient_doc_handover_record` | 对齐 ICU 的 `patient_doc_*` 102 张 |
+| `ards_prone_record` / `_timepoint` / `_cell` / `_cell_log` | `patient_doc_prone_record` / `_timepoint` / `_cell` / `_cell_log` | 同上 |
+| `ards_prone_config` / `ards_prone_tp_tpl` | `config_prone_item` / `config_prone_timepoint_tpl` | 配置类进 `config_*` |
+| `apache2_config` / `apache2_score_record` | `config_apache2` / `patient_doc_apache2_score_record` | |
+| `sofa_config` / `sofa_score_record` | `config_sofa` / `patient_doc_sofa_score_record` | |
+| `sepsis_bundle_record` | `patient_doc_sepsis_bundle_record` | |
+| `qc_fact_*`（运行时物化表，8 张） | `quality_fact_*` | 去掉 `qc_` 缩写 |
+
+已经合规、未动的 10 张：`quality_index` / `quality_metric_def` / `quality_metric_patient` /
+`quality_metric_result` / `quality_calc_run` / `quality_calc_trace` / `quality_count_rule` /
+`quality_def_history` / `quality_fact_def` / `quality_monthly_report`。
+
+**为什么分两批**：第二批（俯卧位 / ApacheII / SOFA / 脓毒症）在 ICU 源库里有同类载体且有数据
+（`patient_apache_record` 374 行等），要不要「自建还是读源表」是业务口径问题，单独一批发出。
+**现已确认口径为「医生系统自建表」**，故两批一起落地。
+
+**数据安全性（已核验）**
+
+- 用的是 `ALTER TABLE … RENAME`，只改数据字典里的表名，**数据、索引、主键、授权全部跟随**，
+  不是「建新表 + INSERT SELECT」，不存在丢数据风险，也不需要额外磁盘空间；
+- 医生库当前 `0 视图 / 0 触发器 / 0 同义词`，34 条约束全是主键（无外键），不存在依赖对象失效；
+- rename 不影响列值（页面注册表里的 `frontend_path`、指标定义里的 `fact_name` 都不动）。
+- ⚠️ 仍需**先行备份**（`dexp` 模式备份 / `mysqldump`）：rename 本身安全，但它是全库范围、
+  不可逆的方向性操作，回滚只能把名字再改回去。
+
+**配套的代码改动**（同一批次，已一并落地）
+
+- 34 个 `@TableName`、MyBatis 内联 SQL、`quality/*.yaml`、Vue 页面里的表名同步；
+- `QualityProperties.factTablePrefix`：`qc_` → `quality_fact_`（物化表前缀）；
+- 顺手修了一个既有 BUG：`QualityEngine` 清理旧物化表时把前缀拼成了 `prefix + "fact_%"`，
+  前缀换成 `quality_fact_` 后会变成 `quality_fact_fact_%`，一轮都匹配不到、历史事实表再也清理不掉。
+  已改为 `prefix + "%"`。
+
+**自动应用**
+
+- `install.sh`：`25/26` 加进了 `FULL_SQL`、`FULL_SQL_JDBC`、`INCREMENTAL_SQL` **三处清单**。
+- ⚠️ **顺序关键**：25/26 在 `INCREMENTAL_SQL` 里排**最前**（在 09 之前）。历史脚本里的表名已改新名，
+  若不先 rename，它们在老库上会「新建一张新名的空表」而不是补到原有表上 —— 表现为页面能打开但
+  数据全不见，旧表变成孤儿表。先改名，后续脚本才补到正确的表上。
+- `install.sh` 探测「是否老库」的那句 `all_tables` 查询，已改为
+  `UPPER(table_name) IN ('ZING_PAGE_CONFIG','SYS_PAGE_CONFIG')`：**新旧名都要认**，
+  只判断新名会把尚未 rename 的老库当成空库去重跑全量，后果同样是「按新名建一套空表、老表变孤儿」。
+- `install-mariadb-debian.sh`：25/26 追加进 `MAIN_SQL`（每次全跑，全新库无旧表则整段跳过）。
+- `tools/build-delivery.ps1`：合成 `install-all.sql` 的清单已包含 MySQL 版 25/26。
+
+**MySQL / MariaDB 版为人工改写**：达梦版用 PL/SQL 游标 + 动态 DDL，`dm_to_mysql.py` 转出来的
+是语法碎片，故 `sql/mysql/25_*`、`sql/mysql/26_*` 是手写的存储过程版，并已在转换脚本的
+`MANUAL` 列表登记跳过（重跑工具会打印 `SKIP`，不会覆盖人工版）。**改达梦版时必须同步手改这两个文件。**
+
+**人工补执行（自动增量三条通道都没命中时）**
+
+停机窗口内，先把应用停掉，备份后再执行 —— 改名期间若有请求进来，会同时出现新旧两套表名的 SQL。
+
+```bash
+# 达梦（SYSDBA）
+disql SYSDBA/口令@host:port
+SQL> start /opt/zing-doctor/sql/25_rename_doctor_tables.sql
+SQL> start /opt/zing-doctor/sql/26_rename_clinical_tables.sql
+
+# MySQL / MariaDB
+mysql -uroot -p zing_doctor_db_prod < sql/mysql/25_rename_doctor_tables.sql
+mysql -uroot -p zing_doctor_db_prod < sql/mysql/26_rename_clinical_tables.sql
+```
+
+执行后核对（三条都要看）：
+
+```sql
+-- ① 新表应全部到位：第一批 13 张静态表 → 13；第二批 11 张 → 11
+SELECT COUNT(*) FROM ALL_TABLES
+ WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD'
+   AND TABLE_NAME IN ('sys_user','sys_param','sys_param_group','sys_page_config',
+     'sys_archive_log','sys_access_log','config_abx_drug_dict','config_abx_word',
+     'config_ddd','config_mdro','patient_doc_decision_record','patient_doc_advice_log',
+     'patient_doc_handover_record');
+
+SELECT COUNT(*) FROM ALL_TABLES
+ WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD'
+   AND TABLE_NAME IN ('patient_doc_prone_record','patient_doc_prone_timepoint',
+     'patient_doc_prone_cell','patient_doc_prone_cell_log','config_prone_item',
+     'config_prone_timepoint_tpl','config_apache2','config_sofa',
+     'patient_doc_apache2_score_record','patient_doc_sofa_score_record',
+     'patient_doc_sepsis_bundle_record');
+
+-- ② 旧名残留必须为 0（非 0 即为漏改）
+SELECT TABLE_NAME FROM ALL_TABLES
+ WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD'
+   AND (TABLE_NAME LIKE 'zing\_%' ESCAPE '\'
+        OR TABLE_NAME LIKE 'qc\_fact%' ESCAPE '\'
+        OR TABLE_NAME LIKE 'ards\_prone%' ESCAPE '\'
+        OR UPPER(TABLE_NAME) IN ('APACHE2_CONFIG','APACHE2_SCORE_RECORD',
+                                 'SOFA_CONFIG','SOFA_SCORE_RECORD','SEPSIS_BUNDLE_RECORD'));
+
+-- ③ 物化事实表已换前缀（行数应与迁移前的 qc_fact_* 一致）
+SELECT COUNT(*) FROM ALL_TABLES
+ WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD' AND TABLE_NAME LIKE 'quality\_fact%' ESCAPE '\';
+
+-- ④ 抽样验数（改名前后行数必须一致，与本文「05 / 07 批次」记录核对）
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."patient_doc_prone_record";        -- 迁移前 3
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_page_config";                 -- 迁移前 24
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."patient_doc_apache2_score_record"; -- 迁移前 129
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."patient_doc_sofa_score_record";    -- 迁移前 109
+```
+
+**回滚**（线条很清楚，但同样要停机 + 与代码版本一起退）：把 `sql/25_*`、`sql/26_*` 头部注释里的
+回滚段反向执行；两个文件的注释块里已按「新名 → 旧名」逐条列好 ALTER 语句，照抄即可。
+回滚前先把代码版本一并退回（代码里的 `@TableName` 已是新名，只回滚库会让全模块报表不存在）。
+物化事实表（`quality_fact_*`）属重算缓存，回滚时直接 `DROP`，下轮批算会按旧前缀重建。
 
 ### 2026-09-18 · ARDS 采集映射配置表 + 记录主表日期扩列
 
@@ -106,13 +257,13 @@ SELECT COUNT(*) FROM "zing_doctor_db_prod"."zing_sys_param" WHERE "param_key" = 
 
 **涉及**
 
-- 新建表：`ards_prone_config`（数据采集映射规则表，含唯一键 `uk_ards_prone_config`）
-- 加列：`ards_prone_record` 增加 `admit_date`、`discharge_date`（依赖 21 建表，故必须排在其后）
+- 新建表：`config_prone_item`（数据采集映射规则表，含唯一键 `uk_config_prone_item`）
+- 加列：`patient_doc_prone_record` 增加 `admit_date`、`discharge_date`（依赖 21 建表，故必须排在其后）
 - 执行脚本：`sql/22_ards_prone_config.sql`（CREATE 判存在、ADD COLUMN 判列存在、种子带
   `WHERE NOT EXISTS`，可重复执行）
 
 **不执行的后果**：参数设置 →「ARDS 数据映射」页签点「一键从内置生成」500
-「无效的表或视图名[ards_prone_config]」；采集本身不受影响（回退内置关键字）。
+「无效的表或视图名[config_prone_item]」；采集本身不受影响（回退内置关键字）。
 
 **自动应用**：`sql/22_ards_prone_config.sql` 已加入 `install.sh` 的 `INCREMENTAL_SQL` 与全量清单
 `FULL_SQL` / `FULL_SQL_JDBC`。
@@ -122,7 +273,7 @@ SELECT COUNT(*) FROM "zing_doctor_db_prod"."zing_sys_param" WHERE "param_key" = 
 ```sql
 -- 应返回 1
 SELECT COUNT(*) FROM ALL_TABLES
- WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD' AND UPPER(TABLE_NAME) = 'ARDS_PRONE_CONFIG';
+ WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD' AND UPPER(TABLE_NAME) = 'CONFIG_PRONE_ITEM';
 ```
 
 ### 2026-09-17 · ARDS 俯卧位通气治疗记录：新增 5 张表 + 页面注册 + 参数种子
@@ -132,10 +283,10 @@ SELECT COUNT(*) FROM ALL_TABLES
 
 **涉及**（只新建表与配置数据，不改既有表）
 
-- 新建表：`ards_prone_record`（记录主表）、`ards_prone_timepoint`（时点）、`ards_prone_cell`（单元格值）、
-  `ards_prone_cell_log`（更正留痕）、`ards_prone_tp_tpl`（科室时点模板）
-- 页面注册：`zing_page_config` 新增 `ards-prone-list`、`ards-prone-record`（外链 `/entry/{pageCode}` 依赖）
-- 参数：`zing_param_group` 新增分组 `ards_prone`；`zing_sys_param` 新增 5 个键 ——
+- 新建表：`patient_doc_prone_record`（记录主表）、`patient_doc_prone_timepoint`（时点）、`patient_doc_prone_cell`（单元格值）、
+  `patient_doc_prone_cell_log`（更正留痕）、`config_prone_timepoint_tpl`（科室时点模板）
+- 页面注册：`sys_page_config` 新增 `ards-prone-list`、`ards-prone-record`（外链 `/entry/{pageCode}` 依赖）
+- 参数：`sys_param_group` 新增分组 `ards_prone`；`sys_param` 新增 5 个键 ——
   `ARDS_PRONE_APACHE2_SHOW`、`ARDS_PRONE_DOC_CODE`、`ARDS_PRONE_TPL_NO`、
   `ARDS_PRONE_ARCHIVE_ENABLED`、`ARDS_PRONE_RECORD_PREFIX`
 - 执行脚本：`sql/21_ards_prone.sql`（DDL 用 PL/SQL 判存在，页面注册先 DELETE 再 INSERT，种子带
@@ -153,10 +304,10 @@ SELECT COUNT(*) FROM ALL_TABLES
 SELECT TABLE_NAME FROM USER_TABLES WHERE UPPER(TABLE_NAME) LIKE 'ARDS_PRONE%';
 
 -- 应返回 5
-SELECT COUNT(*) FROM "zing_doctor_db_prod"."zing_sys_param" WHERE "param_group" = 'ards_prone';
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_param" WHERE "param_group" = 'ards_prone';
 
 -- 应返回 2
-SELECT COUNT(*) FROM "zing_doctor_db_prod"."zing_page_config"
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_page_config"
  WHERE "page_code" IN ('ards-prone-list','ards-prone-record');
 ```
 
@@ -433,9 +584,9 @@ SELECT "index_code", "impl_status", "value_type", "scale", "numerator_metric", "
 
 **涉及**
 
-- `sofa_score_record`、`apache2_score_record` 增加 `archive_status` / `archive_time` / `file_path` 三列
-- 新建 `zing_sys_param`（系统参数表，参数设置页面）
-- 新建 `zing_archive_log`（归档推送流水表）
+- `patient_doc_sofa_score_record`、`patient_doc_apache2_score_record` 增加 `archive_status` / `archive_time` / `file_path` 三列
+- 新建 `sys_param`（系统参数表，参数设置页面）
+- 新建 `sys_archive_log`（归档推送流水表）
 - 注册页面 `param-config`（参数设置）
 - 写入两条默认参数：`ARCHIVE_API_URL`、`ARCHIVE_DIR`
 
@@ -444,19 +595,19 @@ SELECT "index_code", "impl_status", "value_type", "scale", "numerator_metric", "
 **① 评分记录加列**
 
 ```sql
-ALTER TABLE "zing_doctor_db_prod"."sofa_score_record" ADD COLUMN "archive_status" TINYINT DEFAULT 0;
-ALTER TABLE "zing_doctor_db_prod"."sofa_score_record" ADD COLUMN "archive_time" TIMESTAMP;
-ALTER TABLE "zing_doctor_db_prod"."sofa_score_record" ADD COLUMN "file_path" VARCHAR(500);
+ALTER TABLE "zing_doctor_db_prod"."patient_doc_sofa_score_record" ADD COLUMN "archive_status" TINYINT DEFAULT 0;
+ALTER TABLE "zing_doctor_db_prod"."patient_doc_sofa_score_record" ADD COLUMN "archive_time" TIMESTAMP;
+ALTER TABLE "zing_doctor_db_prod"."patient_doc_sofa_score_record" ADD COLUMN "file_path" VARCHAR(500);
 
-ALTER TABLE "zing_doctor_db_prod"."apache2_score_record" ADD COLUMN "archive_status" TINYINT DEFAULT 0;
-ALTER TABLE "zing_doctor_db_prod"."apache2_score_record" ADD COLUMN "archive_time" TIMESTAMP;
-ALTER TABLE "zing_doctor_db_prod"."apache2_score_record" ADD COLUMN "file_path" VARCHAR(500);
+ALTER TABLE "zing_doctor_db_prod"."patient_doc_apache2_score_record" ADD COLUMN "archive_status" TINYINT DEFAULT 0;
+ALTER TABLE "zing_doctor_db_prod"."patient_doc_apache2_score_record" ADD COLUMN "archive_time" TIMESTAMP;
+ALTER TABLE "zing_doctor_db_prod"."patient_doc_apache2_score_record" ADD COLUMN "file_path" VARCHAR(500);
 ```
 
 **② 系统参数表**
 
 ```sql
-CREATE TABLE "zing_doctor_db_prod"."zing_sys_param" (
+CREATE TABLE "zing_doctor_db_prod"."sys_param" (
     "id"           BIGINT        IDENTITY(1,1) NOT NULL,
     "param_key"    VARCHAR(64)   NOT NULL,
     "param_name"   VARCHAR(128)  NOT NULL,
@@ -469,15 +620,15 @@ CREATE TABLE "zing_doctor_db_prod"."zing_sys_param" (
     "create_time"  TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "update_by"    VARCHAR(64),
     "update_time"  TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT "pk_zing_sys_param" PRIMARY KEY ("id")
+    CONSTRAINT "pk_sys_param" PRIMARY KEY ("id")
 );
-CREATE UNIQUE INDEX "uk_zing_sys_param_key" ON "zing_doctor_db_prod"."zing_sys_param" ("param_key");
+CREATE UNIQUE INDEX "uk_sys_param_key" ON "zing_doctor_db_prod"."sys_param" ("param_key");
 ```
 
 **③ 归档推送流水表**
 
 ```sql
-CREATE TABLE "zing_doctor_db_prod"."zing_archive_log" (
+CREATE TABLE "zing_doctor_db_prod"."sys_archive_log" (
     "id"             BIGINT        IDENTITY(1,1) NOT NULL,
     "biz"            VARCHAR(32),
     "record_id"      BIGINT,
@@ -494,17 +645,17 @@ CREATE TABLE "zing_doctor_db_prod"."zing_archive_log" (
     "resp_message"   VARCHAR(1000),
     "operator"       VARCHAR(64),
     "create_time"    TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT "pk_zing_archive_log" PRIMARY KEY ("id")
+    CONSTRAINT "pk_sys_archive_log" PRIMARY KEY ("id")
 );
-CREATE INDEX "idx_zing_archive_log_rec" ON "zing_doctor_db_prod"."zing_archive_log" ("biz", "record_id");
-CREATE INDEX "idx_zing_archive_log_no"  ON "zing_doctor_db_prod"."zing_archive_log" ("in_hospital_no");
+CREATE INDEX "idx_sys_archive_log_rec" ON "zing_doctor_db_prod"."sys_archive_log" ("biz", "record_id");
+CREATE INDEX "idx_sys_archive_log_no"  ON "zing_doctor_db_prod"."sys_archive_log" ("in_hospital_no");
 ```
 
 **④ 页面注册**
 
 ```sql
-DELETE FROM "zing_doctor_db_prod"."zing_page_config" WHERE "page_code" = 'param-config';
-INSERT INTO "zing_doctor_db_prod"."zing_page_config"
+DELETE FROM "zing_doctor_db_prod"."sys_page_config" WHERE "page_code" = 'param-config';
+INSERT INTO "zing_doctor_db_prod"."sys_page_config"
     ("page_code", "page_name", "frontend_path", "remark", "status")
 VALUES ('param-config', '参数设置', '/page/param-config', '系统参数设置：文书归档接口地址、归档目录等', 1);
 ```
@@ -514,22 +665,22 @@ VALUES ('param-config', '参数设置', '/page/param-config', '系统参数设�
 > 达梦不允许没有 FROM 的 SELECT，这里的 `FROM DUAL` 不能省。
 
 ```sql
-INSERT INTO "zing_doctor_db_prod"."zing_sys_param"
+INSERT INTO "zing_doctor_db_prod"."sys_param"
     ("param_key", "param_name", "param_value", "param_group", "sort_no", "status", "remark")
 SELECT 'ARCHIVE_API_URL', '文书归档接口地址', '', 'archive', 1, 1,
        '评分文书归档推送地址（完整 URL，含 jodName），SOFA 与 APACHE II 共用'
   FROM DUAL
  WHERE NOT EXISTS (
-        SELECT 1 FROM "zing_doctor_db_prod"."zing_sys_param" WHERE "param_key" = 'ARCHIVE_API_URL'
+        SELECT 1 FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'ARCHIVE_API_URL'
   );
 
-INSERT INTO "zing_doctor_db_prod"."zing_sys_param"
+INSERT INTO "zing_doctor_db_prod"."sys_param"
     ("param_key", "param_name", "param_value", "param_group", "sort_no", "status", "remark")
 SELECT 'ARCHIVE_DIR', '归档目录', '/ICU/#in_hospital_no#/#doc_code#/#score_date#', 'archive', 2, 1,
        '文书存放目录规则：占位符 #in_hospital_no# 住院号 / #doc_code# 文书编码(sofa|apache2) / #score_date# 评分日期，也支持 #patient_id# / #patient_name#'
   FROM DUAL
  WHERE NOT EXISTS (
-        SELECT 1 FROM "zing_doctor_db_prod"."zing_sys_param" WHERE "param_key" = 'ARCHIVE_DIR'
+        SELECT 1 FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'ARCHIVE_DIR'
   );
 ```
 
@@ -541,31 +692,31 @@ SELECT 'ARCHIVE_DIR', '归档目录', '/ICU/#in_hospital_no#/#doc_code#/#score_d
 
 > ✅ **本批次已由 `install.sh` 自动执行**：新库走全量初始化，老库（已初始化过）走增量升级
 > （增量脚本清单：`12_archive.sql` → `13_auth.sql` → `14_param_framework.sql`，顺序不可调换，
-> 14 要给 12 建的 `zing_sys_param` 加列），三个脚本都是幂等的，重跑不会有副作用。
+> 14 要给 12 建的 `sys_param` 加列），三个脚本都是幂等的，重跑不会有副作用。
 > 只有当服务器既没有 `disql`、也没有达梦容器、也没有 `java` 时才会降级为手工执行，
 > 届时 `install.sh` 会直接打印提示。下面内容保留为**手工兜底**与执行后自检用。
 
 **涉及**
 
-- 新建 `zing_sys_user`（直连登录账号表：账号密码登录，区别于外链免登录）
-- `zing_sys_param` 增加 `param_type` / `options` / `default_value` / `required` / `regex` 五列
-- 新建 `zing_param_group`（参数分组表）+ 预置 5 个分组（文书归档 / 外链集成 / 评分配置 / 质控配置 / 系统设置）
+- 新建 `sys_user`（直连登录账号表：账号密码登录，区别于外链免登录）
+- `sys_param` 增加 `param_type` / `options` / `default_value` / `required` / `regex` 五列
+- 新建 `sys_param_group`（参数分组表）+ 预置 5 个分组（文书归档 / 外链集成 / 评分配置 / 质控配置 / 系统设置）
 - 新增 3 个「外链工号自动注册」参数，**开关默认关**
 
 **不执行的后果**：
 
-- 不建 `zing_sys_user` → 直连打开页面登录报 500（表不存在）
+- 不建 `sys_user` → 直连打开页面登录报 500（表不存在）
 - 不加那五列 → **参数设置页打开即 500**（`无效的列名[param_type]`）
-- 不建 `zing_param_group` → 参数设置页左侧分组导航空白，参数列表取不到分组
+- 不建 `sys_param_group` → 参数设置页左侧分组导航空白，参数列表取不到分组
 
 **① 直连登录账号表**
 
 可直接执行 `sql/13_auth.sql`（幂等：表已存在报「对象已存在」可忽略）。核心语句：
 
 ```sql
-CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_sys_user" START WITH 1 INCREMENT BY 1;
-CREATE TABLE "zing_doctor_db_prod"."zing_sys_user" (
-    "id"              BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_zing_sys_user".NEXTVAL NOT NULL,
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_sys_user" START WITH 1 INCREMENT BY 1;
+CREATE TABLE "zing_doctor_db_prod"."sys_user" (
+    "id"              BIGINT DEFAULT "zing_doctor_db_prod"."SEQ_sys_user".NEXTVAL NOT NULL,
     "username"        VARCHAR(64)  NOT NULL,
     "real_name"       VARCHAR(64),
     "password_hash"   VARCHAR(200) NOT NULL,
@@ -573,9 +724,9 @@ CREATE TABLE "zing_doctor_db_prod"."zing_sys_user" (
     "last_login_time" TIMESTAMP,
     "create_time"     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "update_time"     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT "pk_zing_sys_user" PRIMARY KEY ("id")
+    CONSTRAINT "pk_sys_user" PRIMARY KEY ("id")
 );
-CREATE UNIQUE INDEX "uk_zing_sys_user_name" ON "zing_doctor_db_prod"."zing_sys_user" ("username");
+CREATE UNIQUE INDEX "uk_sys_user_name" ON "zing_doctor_db_prod"."sys_user" ("username");
 ```
 
 > 管理员账号**不用手工插**：后端首次启动自动写入 `admin / zing@123`，已有同名账号不覆盖。
@@ -586,15 +737,15 @@ CREATE UNIQUE INDEX "uk_zing_sys_user_name" ON "zing_doctor_db_prod"."zing_sys_u
 可直接执行 `sql/14_param_framework.sql`（幂等：列名已存在 / 对象已存在均报错可忽略）。核心语句：
 
 ```sql
-ALTER TABLE "zing_doctor_db_prod"."zing_sys_param" ADD COLUMN "param_type"    VARCHAR(20)   DEFAULT 'text';
-ALTER TABLE "zing_doctor_db_prod"."zing_sys_param" ADD COLUMN "options"       VARCHAR(1000);
-ALTER TABLE "zing_doctor_db_prod"."zing_sys_param" ADD COLUMN "default_value" VARCHAR(1000);
-ALTER TABLE "zing_doctor_db_prod"."zing_sys_param" ADD COLUMN "required"      TINYINT       DEFAULT 0;
-ALTER TABLE "zing_doctor_db_prod"."zing_sys_param" ADD COLUMN "regex"         VARCHAR(200);
+ALTER TABLE "zing_doctor_db_prod"."sys_param" ADD COLUMN "param_type"    VARCHAR(20)   DEFAULT 'text';
+ALTER TABLE "zing_doctor_db_prod"."sys_param" ADD COLUMN "options"       VARCHAR(1000);
+ALTER TABLE "zing_doctor_db_prod"."sys_param" ADD COLUMN "default_value" VARCHAR(1000);
+ALTER TABLE "zing_doctor_db_prod"."sys_param" ADD COLUMN "required"      TINYINT       DEFAULT 0;
+ALTER TABLE "zing_doctor_db_prod"."sys_param" ADD COLUMN "regex"         VARCHAR(200);
 
-CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_zing_param_group" START WITH 1 INCREMENT BY 1;
-CREATE TABLE "zing_doctor_db_prod"."zing_param_group" (
-    "id"          BIGINT       DEFAULT "zing_doctor_db_prod"."SEQ_zing_param_group".NEXTVAL NOT NULL,
+CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_sys_param_group" START WITH 1 INCREMENT BY 1;
+CREATE TABLE "zing_doctor_db_prod"."sys_param_group" (
+    "id"          BIGINT       DEFAULT "zing_doctor_db_prod"."SEQ_sys_param_group".NEXTVAL NOT NULL,
     "group_code"  VARCHAR(64)  NOT NULL,
     "group_name"  VARCHAR(128) NOT NULL,
     "sort_no"     INT          DEFAULT 0,
@@ -603,17 +754,17 @@ CREATE TABLE "zing_doctor_db_prod"."zing_param_group" (
     "status"      TINYINT      DEFAULT 1,
     "create_time" TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "update_time" TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT "pk_zing_param_group" PRIMARY KEY ("id")
+    CONSTRAINT "pk_sys_param_group" PRIMARY KEY ("id")
 );
-CREATE UNIQUE INDEX "uk_zing_param_group_code" ON "zing_doctor_db_prod"."zing_param_group" ("group_code");
+CREATE UNIQUE INDEX "uk_sys_param_group_code" ON "zing_doctor_db_prod"."sys_param_group" ("group_code");
 ```
 
 **执行后自检**：
 
 ```sql
-SELECT "group_code", "group_name" FROM "zing_doctor_db_prod"."zing_param_group" ORDER BY "sort_no";
+SELECT "group_code", "group_name" FROM "zing_doctor_db_prod"."sys_param_group" ORDER BY "sort_no";
 SELECT "param_key", "param_value", "param_type"
-  FROM "zing_doctor_db_prod"."zing_sys_param" ORDER BY "param_group", "sort_no";
+  FROM "zing_doctor_db_prod"."sys_param" ORDER BY "param_group", "sort_no";
 ```
 
 **执行后配置**：进「参数设置」→「外链集成」分组，`AUTO_REGISTER_ENABLED` 默认 **关闭**（外链 token 是固定明文，开启后任何持有外链者都能注册账号），需要时再打开。

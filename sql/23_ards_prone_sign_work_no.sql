@@ -3,7 +3,7 @@
 -- ARDS 俯卧位通气治疗记录 —— 签名人「工号」落库
 --
 -- 背景：
---   ards_prone_record 只存了签名人姓名（nurse_sign / doctor_sign / senior_sign），
+--   patient_doc_prone_record 只存了签名人姓名（nurse_sign / doctor_sign / senior_sign），
 --   工号没落库，于是文书上无法还原电子签名图：
 --     · ICU 侧的电子签名存在只读库 config_staff_ca_info.signature_img，
 --       只能按工号（work_no）查，重名、改名、同名不同人时按姓名查必然出错；
@@ -38,41 +38,41 @@ DECLARE
 BEGIN
     SELECT COUNT(*) INTO v_tab FROM ALL_TABLES
      WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD'
-       AND UPPER(TABLE_NAME) = 'ARDS_PRONE_RECORD';
+       AND UPPER(TABLE_NAME) = 'PATIENT_DOC_PRONE_RECORD';
 
     IF v_tab > 0 THEN
         -- 记录医师工号
         SELECT COUNT(*) INTO v_cnt FROM ALL_TAB_COLUMNS
          WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD'
-           AND UPPER(TABLE_NAME) = 'ARDS_PRONE_RECORD'
+           AND UPPER(TABLE_NAME) = 'PATIENT_DOC_PRONE_RECORD'
            AND UPPER(COLUMN_NAME) = 'DOCTOR_WORK_NO';
         IF v_cnt = 0 THEN
-            EXECUTE IMMEDIATE 'ALTER TABLE "zing_doctor_db_prod"."ards_prone_record" ADD "doctor_work_no" VARCHAR(32)';
+            EXECUTE IMMEDIATE 'ALTER TABLE "zing_doctor_db_prod"."patient_doc_prone_record" ADD "doctor_work_no" VARCHAR(32)';
         END IF;
 
         -- 记录护士工号
         SELECT COUNT(*) INTO v_cnt FROM ALL_TAB_COLUMNS
          WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD'
-           AND UPPER(TABLE_NAME) = 'ARDS_PRONE_RECORD'
+           AND UPPER(TABLE_NAME) = 'PATIENT_DOC_PRONE_RECORD'
            AND UPPER(COLUMN_NAME) = 'NURSE_WORK_NO';
         IF v_cnt = 0 THEN
-            EXECUTE IMMEDIATE 'ALTER TABLE "zing_doctor_db_prod"."ards_prone_record" ADD "nurse_work_no" VARCHAR(32)';
+            EXECUTE IMMEDIATE 'ALTER TABLE "zing_doctor_db_prod"."patient_doc_prone_record" ADD "nurse_work_no" VARCHAR(32)';
         END IF;
 
         -- 上级医师工号
         SELECT COUNT(*) INTO v_cnt FROM ALL_TAB_COLUMNS
          WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD'
-           AND UPPER(TABLE_NAME) = 'ARDS_PRONE_RECORD'
+           AND UPPER(TABLE_NAME) = 'PATIENT_DOC_PRONE_RECORD'
            AND UPPER(COLUMN_NAME) = 'SENIOR_WORK_NO';
         IF v_cnt = 0 THEN
-            EXECUTE IMMEDIATE 'ALTER TABLE "zing_doctor_db_prod"."ards_prone_record" ADD "senior_work_no" VARCHAR(32)';
+            EXECUTE IMMEDIATE 'ALTER TABLE "zing_doctor_db_prod"."patient_doc_prone_record" ADD "senior_work_no" VARCHAR(32)';
         END IF;
 
-        EXECUTE IMMEDIATE 'COMMENT ON COLUMN "zing_doctor_db_prod"."ards_prone_record"."doctor_work_no" IS '
+        EXECUTE IMMEDIATE 'COMMENT ON COLUMN "zing_doctor_db_prod"."patient_doc_prone_record"."doctor_work_no" IS '
             || '''记录医师工号：按此从 config_staff_ca_info 取电子签名图；空则文书打印姓名''';
-        EXECUTE IMMEDIATE 'COMMENT ON COLUMN "zing_doctor_db_prod"."ards_prone_record"."nurse_work_no" IS '
+        EXECUTE IMMEDIATE 'COMMENT ON COLUMN "zing_doctor_db_prod"."patient_doc_prone_record"."nurse_work_no" IS '
             || '''记录护士工号（同上）''';
-        EXECUTE IMMEDIATE 'COMMENT ON COLUMN "zing_doctor_db_prod"."ards_prone_record"."senior_work_no" IS '
+        EXECUTE IMMEDIATE 'COMMENT ON COLUMN "zing_doctor_db_prod"."patient_doc_prone_record"."senior_work_no" IS '
             || '''上级医师工号（同上）''';
     END IF;
 END;

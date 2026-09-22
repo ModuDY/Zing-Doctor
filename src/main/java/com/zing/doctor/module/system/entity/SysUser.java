@@ -10,11 +10,11 @@ import java.time.LocalDateTime;
 /**
  * 直连登录账号。
  *
- * <p>与外链免登录（{@code zing_page_config} + extToken/签名）是两条独立通道：
+ * <p>与外链免登录（{@code sys_page_config} + extToken/签名）是两条独立通道：
  * 直连用户在 {@code /page/login} 用账号密码换取 JWT；外链由 ICU 系统带凭证直接进页面，不落此表。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"zing_sys_user\"")
+@TableName("\"zing_doctor_db_prod\".\"sys_user\"")
 public class SysUser {
 
     @TableId(type = IdType.ASSIGN_ID)

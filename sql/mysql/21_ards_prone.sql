@@ -8,7 +8,7 @@ SET NAMES utf8mb4;
 USE `zing_doctor_db_prod`;
 
 -- ---- 以下为原达梦 PL/SQL 幂等块转换得到的 DDL ----
-CREATE TABLE IF NOT EXISTS `ards_prone_record` (
+CREATE TABLE IF NOT EXISTS `patient_doc_prone_record` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `record_no` VARCHAR(64) COMMENT '记录编号（PP-yyyyMMdd-序号）',
   `patient_id` VARCHAR(64) COMMENT '患者ID（patient_info.id）',
@@ -52,10 +52,10 @@ CREATE TABLE IF NOT EXISTS `ards_prone_record` (
   `update_time` TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
 PRIMARY KEY (`id`)
 ) COMMENT='ARDS 俯卧位通气治疗记录主表';
-CALL zing_add_index('ards_prone_record', 'idx_ards_prone_patient', 0, '`in_hospital_no`');
-CALL zing_add_index('ards_prone_record', 'idx_ards_prone_depart', 0, '`depart_code`');
-CALL zing_add_index('ards_prone_record', 'idx_ards_prone_time', 0, '`start_time`');
-CREATE TABLE IF NOT EXISTS `ards_prone_timepoint` (
+CALL zing_add_index('patient_doc_prone_record', 'idx_ards_prone_patient', 0, '`in_hospital_no`');
+CALL zing_add_index('patient_doc_prone_record', 'idx_ards_prone_depart', 0, '`depart_code`');
+CALL zing_add_index('patient_doc_prone_record', 'idx_ards_prone_time', 0, '`start_time`');
+CREATE TABLE IF NOT EXISTS `patient_doc_prone_timepoint` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `record_id` BIGINT        NOT NULL,
   `tp_index` INT           NOT NULL COMMENT '时点序号（0 起，0 = T0 翻身前）',
@@ -70,8 +70,8 @@ CREATE TABLE IF NOT EXISTS `ards_prone_timepoint` (
   `update_time` TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
 PRIMARY KEY (`id`)
 ) COMMENT='ARDS 俯卧位记录时点表';
-CALL zing_add_index('ards_prone_timepoint', 'idx_ards_prone_tp_rec', 0, '`record_id`');
-CREATE TABLE IF NOT EXISTS `ards_prone_cell` (
+CALL zing_add_index('patient_doc_prone_timepoint', 'idx_ards_prone_tp_rec', 0, '`record_id`');
+CREATE TABLE IF NOT EXISTS `patient_doc_prone_cell` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `record_id` BIGINT        NOT NULL,
   `tp_index` INT           NOT NULL,
@@ -88,8 +88,8 @@ CREATE TABLE IF NOT EXISTS `ards_prone_cell` (
   `update_time` TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
 PRIMARY KEY (`id`)
 ) COMMENT='ARDS 俯卧位记录单元格值表（参数 × 时点）';
-CALL zing_add_index('ards_prone_cell', 'idx_ards_prone_cell_rec', 0, '`record_id`, `tp_index`');
-CREATE TABLE IF NOT EXISTS `ards_prone_cell_log` (
+CALL zing_add_index('patient_doc_prone_cell', 'idx_patient_doc_prone_cell_rec', 0, '`record_id`, `tp_index`');
+CREATE TABLE IF NOT EXISTS `patient_doc_prone_cell_log` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `record_id` BIGINT        NOT NULL,
   `tp_index` INT,
@@ -103,8 +103,8 @@ CREATE TABLE IF NOT EXISTS `ards_prone_cell_log` (
   `create_time` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
 PRIMARY KEY (`id`)
 ) COMMENT='ARDS 俯卧位记录单元格更正留痕表（提交后不限时更正，全程留痕）';
-CALL zing_add_index('ards_prone_cell_log', 'idx_ards_prone_log_rec', 0, '`record_id`');
-CREATE TABLE IF NOT EXISTS `ards_prone_tp_tpl` (
+CALL zing_add_index('patient_doc_prone_cell_log', 'idx_ards_prone_log_rec', 0, '`record_id`');
+CREATE TABLE IF NOT EXISTS `config_prone_timepoint_tpl` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `depart_code` VARCHAR(64)   DEFAULT '',
   `tp_index` INT           NOT NULL,
@@ -117,21 +117,21 @@ CREATE TABLE IF NOT EXISTS `ards_prone_tp_tpl` (
   `update_time` TIMESTAMP     DEFAULT CURRENT_TIMESTAMP NOT NULL,
 PRIMARY KEY (`id`)
 ) COMMENT='ARDS 俯卧位时点模板（科室为空=全院默认）';
-CALL zing_add_index('ards_prone_tp_tpl', 'idx_ards_prone_tpl_dep', 0, '`depart_code`');
-CALL zing_add_column('ards_prone_cell', 'uk_ards_prone_cell_guard', 'TINYINT AS (CASE WHEN `status` = 1 THEN 1 ELSE NULL END) STORED');
-CALL zing_add_index('ards_prone_cell', 'uk_ards_prone_cell', 1, '`record_id`, `tp_index`, `param_key`, `uk_ards_prone_cell_guard`');
+CALL zing_add_index('config_prone_timepoint_tpl', 'idx_ards_prone_tpl_dep', 0, '`depart_code`');
+CALL zing_add_column('patient_doc_prone_cell', 'uk_patient_doc_prone_cell_guard', 'TINYINT AS (CASE WHEN `status` = 1 THEN 1 ELSE NULL END) STORED');
+CALL zing_add_index('patient_doc_prone_cell', 'uk_patient_doc_prone_cell', 1, '`record_id`, `tp_index`, `param_key`, `uk_patient_doc_prone_cell_guard`');
 
 -- =====================================================================
 -- 21) ARDS 俯卧位通气治疗记录模块增量（达梦 DM8）
 --
 -- 内容：
---   1) ards_prone_record       俯卧位疗程主记录（患者信息 + 并发症/终止/签名 + 归档字段）
---   2) ards_prone_timepoint    时点（T0 / +15min / +2h …，支持自定义与软删除）
---   3) ards_prone_cell         单元格值（参数 × 时点），每值带来源与采集时间
---   4) ards_prone_cell_log     单元格更正留痕（原值/新值/修改人/时间/原因）
---   5) ards_prone_tp_tpl       时点模板（depart_code 为空 = 全院默认）
---   6) zing_page_config        页面注册（列表页 / 填写页）
---   7) zing_param_group + zing_sys_param  参数分组与参数种子
+--   1) patient_doc_prone_record       俯卧位疗程主记录（患者信息 + 并发症/终止/签名 + 归档字段）
+--   2) patient_doc_prone_timepoint    时点（T0 / +15min / +2h …，支持自定义与软删除）
+--   3) patient_doc_prone_cell         单元格值（参数 × 时点），每值带来源与采集时间
+--   4) patient_doc_prone_cell_log     单元格更正留痕（原值/新值/修改人/时间/原因）
+--   5) config_prone_timepoint_tpl       时点模板（depart_code 为空 = 全院默认）
+--   6) sys_page_config        页面注册（列表页 / 填写页）
+--   7) sys_param_group + sys_param  参数分组与参数种子
 --      （归档接口地址 ARCHIVE_API_URL、归档目录 ARCHIVE_DIR 与 SOFA/APACHE II 共用，本脚本不重复建）
 --
 -- 设计依据：docs/ards-prone/设计方案.md v4.1
@@ -171,9 +171,9 @@ CALL zing_add_index('ards_prone_cell', 'uk_ards_prone_cell', 1, '`record_id`, `t
 -- ---------------------------------------------------------------------
 -- 6) 页面注册（外链 pageCode → 前端路由）
 -- ---------------------------------------------------------------------
-DELETE FROM `zing_page_config`
+DELETE FROM `sys_page_config`
  WHERE `page_code` IN ('ards-prone-list', 'ards-prone-record');
-INSERT INTO `zing_page_config`
+INSERT INTO `sys_page_config`
     (`page_code`, `page_name`, `frontend_path`, `remark`, `status`)
 VALUES
     ('ards-prone-list', 'ARDS 俯卧位通气记录', '/page/ards-prone-list',
@@ -185,54 +185,54 @@ VALUES
 -- 7) 参数分组与参数种子
 --    归档接口地址 ARCHIVE_API_URL / 归档目录 ARCHIVE_DIR 与 SOFA、APACHE II 共用，此处不重复建
 -- ---------------------------------------------------------------------
-INSERT INTO `zing_param_group`
+INSERT INTO `sys_param_group`
     (`group_code`, `group_name`, `sort_no`, `status`, `remark`, `create_time`, `update_time`)
 SELECT 'ards_prone', 'ARDS 俯卧位通气', 30, 1, 'ARDS 俯卧位通气治疗记录：归档参数、APACHE II 显示开关、时点模板',
        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
   FROM DUAL
- WHERE NOT EXISTS (SELECT 1 FROM `zing_param_group` WHERE `group_code` = 'ards_prone');
+ WHERE NOT EXISTS (SELECT 1 FROM `sys_param_group` WHERE `group_code` = 'ards_prone');
 
-INSERT INTO `zing_sys_param`
+INSERT INTO `sys_param`
     (`param_key`, `param_name`, `param_value`, `param_group`, `param_type`, `default_value`, `sort_no`, `status`, `remark`)
 SELECT 'ARDS_PRONE_APACHE2_SHOW', 'APACHE II 评分显示', '1', 'ards_prone', 'switch', '1', 1, 1,
        '是否显示 APACHE II：作用于填写页、文书预览、打印文书、回传文书四处；默认显示，全院统一（不允许科室单独设置）'
   FROM DUAL
- WHERE NOT EXISTS (SELECT 1 FROM `zing_sys_param` WHERE `param_key` = 'ARDS_PRONE_APACHE2_SHOW');
+ WHERE NOT EXISTS (SELECT 1 FROM `sys_param` WHERE `param_key` = 'ARDS_PRONE_APACHE2_SHOW');
 
-INSERT INTO `zing_sys_param`
+INSERT INTO `sys_param`
     (`param_key`, `param_name`, `param_value`, `param_group`, `param_type`, `default_value`, `sort_no`, `status`, `remark`)
 SELECT 'ARDS_PRONE_ARCHIVE_ENABLED', '归档回传功能启用', '0', 'ards_prone', 'switch', '0', 3, 1,
        '是否显示归档回传按钮与状态列：关闭后列表页隐藏归档列、填写页隐藏归档按钮与打印并归档按钮；默认关闭，院方未对接归档接口时不要开启'
   FROM DUAL
- WHERE NOT EXISTS (SELECT 1 FROM `zing_sys_param` WHERE `param_key` = 'ARDS_PRONE_ARCHIVE_ENABLED');
+ WHERE NOT EXISTS (SELECT 1 FROM `sys_param` WHERE `param_key` = 'ARDS_PRONE_ARCHIVE_ENABLED');
 
-INSERT INTO `zing_sys_param`
+INSERT INTO `sys_param`
     (`param_key`, `param_name`, `param_value`, `param_group`, `param_type`, `default_value`, `sort_no`, `status`, `remark`)
 SELECT 'ARDS_PRONE_DOC_CODE', '归档文档类型编码', 'ARDS_PRONE_REC', 'ards_prone', 'text', 'ARDS_PRONE_REC', 2, 1,
        '文书归档 doc_code：与 APACHE II(apache2)、SOFA(sofa) 走同一归档接口与传参，仅此编码不同'
   FROM DUAL
- WHERE NOT EXISTS (SELECT 1 FROM `zing_sys_param` WHERE `param_key` = 'ARDS_PRONE_DOC_CODE');
+ WHERE NOT EXISTS (SELECT 1 FROM `sys_param` WHERE `param_key` = 'ARDS_PRONE_DOC_CODE');
 
-INSERT INTO `zing_sys_param`
+INSERT INTO `sys_param`
     (`param_key`, `param_name`, `param_value`, `param_group`, `param_type`, `default_value`, `sort_no`, `status`, `remark`)
 SELECT 'ARDS_PRONE_TPL_NO', '文书模板编号', '', 'ards_prone', 'text', '', 3, 0,
        '院方归档接口要求的模板编号（如无要求可留空）'
   FROM DUAL
- WHERE NOT EXISTS (SELECT 1 FROM `zing_sys_param` WHERE `param_key` = 'ARDS_PRONE_TPL_NO');
+ WHERE NOT EXISTS (SELECT 1 FROM `sys_param` WHERE `param_key` = 'ARDS_PRONE_TPL_NO');
 
-INSERT INTO `zing_sys_param`
+INSERT INTO `sys_param`
     (`param_key`, `param_name`, `param_value`, `param_group`, `param_type`, `default_value`, `sort_no`, `status`, `remark`)
 SELECT 'ARDS_PRONE_ARCHIVE_ENABLED', '启用文书归档', '1', 'ards_prone', 'switch', '1', 4, 1,
        '关闭后打印与保存不再推送归档，仅本地留档'
   FROM DUAL
- WHERE NOT EXISTS (SELECT 1 FROM `zing_sys_param` WHERE `param_key` = 'ARDS_PRONE_ARCHIVE_ENABLED');
+ WHERE NOT EXISTS (SELECT 1 FROM `sys_param` WHERE `param_key` = 'ARDS_PRONE_ARCHIVE_ENABLED');
 
-INSERT INTO `zing_sys_param`
+INSERT INTO `sys_param`
     (`param_key`, `param_name`, `param_value`, `param_group`, `param_type`, `default_value`, `sort_no`, `status`, `remark`)
 SELECT 'ARDS_PRONE_RECORD_PREFIX', '记录编号前缀', 'PP', 'ards_prone', 'text', 'PP', 5, 1,
        '记录编号前缀：编号规则为 前缀-yyyyMMdd-当日序号'
   FROM DUAL
- WHERE NOT EXISTS (SELECT 1 FROM `zing_sys_param` WHERE `param_key` = 'ARDS_PRONE_RECORD_PREFIX');
+ WHERE NOT EXISTS (SELECT 1 FROM `sys_param` WHERE `param_key` = 'ARDS_PRONE_RECORD_PREFIX');
 
 -- ---------------------------------------------------------------------
 -- 8) 单元格唯一约束：防止并发保存产生重复记录

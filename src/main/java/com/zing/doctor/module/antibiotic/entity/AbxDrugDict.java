@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
  * （HIS 取消抗菌药标记后由同步任务置 0，不物理删除，保留历史可追溯）。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"zing_abx_drug_dict\"")
+@TableName("\"zing_doctor_db_prod\".\"config_abx_drug_dict\"")
 public class AbxDrugDict implements Serializable {
 
     private static final long serialVersionUID = 1L;

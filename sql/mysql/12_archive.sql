@@ -14,11 +14,11 @@ USE `zing_doctor_db_prod`;
 -- 医生决策系统 - 系统参数 + 评分文书归档增量（达梦 DM8）
 --
 -- 内容：
---   1) zing_sys_param        系统参数表（归档接口地址 / 归档目录）
---   2) zing_archive_log      归档推送流水表（跟踪每次推送与结果）
---   3) sofa_score_record     新增归档字段 archive_status / archive_time / file_path
---   4) apache2_score_record  同上
---   5) zing_page_config      页面注册（参数设置 /page/param-config）
+--   1) sys_param        系统参数表（归档接口地址 / 归档目录）
+--   2) sys_archive_log      归档推送流水表（跟踪每次推送与结果）
+--   3) patient_doc_sofa_score_record     新增归档字段 archive_status / archive_time / file_path
+--   4) patient_doc_apache2_score_record  同上
+--   5) sys_page_config      页面注册（参数设置 /page/param-config）
 --
 -- 幂等：ALTER TABLE ADD COLUMN 由部署脚本做列存在检查，可重复执行；
 --       页面注册与默认参数用「先删后插 / NOT EXISTS」守卫，重复执行不产生重复行。
@@ -31,7 +31,7 @@ USE `zing_doctor_db_prod`;
 -- ---------------------------------------------------------------------
 -- 1) 系统参数表
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `zing_sys_param` (
+CREATE TABLE IF NOT EXISTS `sys_param` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `param_key` VARCHAR(64)   NOT NULL COMMENT '参数键（唯一，如 ARCHIVE_API_URL / ARCHIVE_DIR）',
   `param_name` VARCHAR(128)  NOT NULL COMMENT '参数名称（页面展示）',
@@ -47,12 +47,12 @@ CREATE TABLE IF NOT EXISTS `zing_sys_param` (
   PRIMARY KEY (`id`)
 ) COMMENT='系统参数表（参数设置页面维护，如文书归档接口地址、归档目录）';
 
-CALL zing_add_index('zing_sys_param', 'uk_zing_sys_param_key', 1, '`param_key`');
+CALL zing_add_index('sys_param', 'uk_sys_param_key', 1, '`param_key`');
 
 -- ---------------------------------------------------------------------
 -- 2) 归档推送流水表：记录每次归档/撤销的时间、file_path 与对方响应，便于追溯
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `zing_archive_log` (
+CREATE TABLE IF NOT EXISTS `sys_archive_log` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `biz` VARCHAR(32) COMMENT '业务：SOFA / APACHE2',
   `record_id` BIGINT COMMENT '评分记录 ID',
@@ -72,8 +72,8 @@ CREATE TABLE IF NOT EXISTS `zing_archive_log` (
   PRIMARY KEY (`id`)
 ) COMMENT='文书归档推送流水';
 
-CALL zing_add_index('zing_archive_log', 'idx_zing_archive_log_rec', 0, '`biz`, `record_id`');
-CALL zing_add_index('zing_archive_log', 'idx_zing_archive_log_no', 0, '`in_hospital_no`');
+CALL zing_add_index('sys_archive_log', 'idx_sys_archive_log_rec', 0, '`biz`, `record_id`');
+CALL zing_add_index('sys_archive_log', 'idx_sys_archive_log_no', 0, '`in_hospital_no`');
 
 -- ---------------------------------------------------------------------
 -- 3) 评分记录归档字段
@@ -81,19 +81,19 @@ CALL zing_add_index('zing_archive_log', 'idx_zing_archive_log_no', 0, '`in_hospi
 --    archive_time  ：最近一次归档成功时间
 --    file_path     ：按归档目录规则拼出的文件路径（每次归档刷新为最新）
 -- ---------------------------------------------------------------------
-CALL zing_add_column('sofa_score_record', 'archive_status', 'TINYINT DEFAULT 0 COMMENT ''归档状态：0待归档 1已归档''');
-CALL zing_add_column('sofa_score_record', 'archive_time', 'TIMESTAMP COMMENT ''最近一次归档成功时间''');
-CALL zing_add_column('sofa_score_record', 'file_path', 'VARCHAR(500) COMMENT ''文书归档路径（按参数设置页的归档目录规则生成）''');
+CALL zing_add_column('patient_doc_sofa_score_record', 'archive_status', 'TINYINT DEFAULT 0 COMMENT ''归档状态：0待归档 1已归档''');
+CALL zing_add_column('patient_doc_sofa_score_record', 'archive_time', 'TIMESTAMP COMMENT ''最近一次归档成功时间''');
+CALL zing_add_column('patient_doc_sofa_score_record', 'file_path', 'VARCHAR(500) COMMENT ''文书归档路径（按参数设置页的归档目录规则生成）''');
 
-CALL zing_add_column('apache2_score_record', 'archive_status', 'TINYINT DEFAULT 0 COMMENT ''归档状态：0待归档 1已归档''');
-CALL zing_add_column('apache2_score_record', 'archive_time', 'TIMESTAMP COMMENT ''最近一次归档成功时间''');
-CALL zing_add_column('apache2_score_record', 'file_path', 'VARCHAR(500) COMMENT ''文书归档路径（按参数设置页的归档目录规则生成）''');
+CALL zing_add_column('patient_doc_apache2_score_record', 'archive_status', 'TINYINT DEFAULT 0 COMMENT ''归档状态：0待归档 1已归档''');
+CALL zing_add_column('patient_doc_apache2_score_record', 'archive_time', 'TIMESTAMP COMMENT ''最近一次归档成功时间''');
+CALL zing_add_column('patient_doc_apache2_score_record', 'file_path', 'VARCHAR(500) COMMENT ''文书归档路径（按参数设置页的归档目录规则生成）''');
 
 -- ---------------------------------------------------------------------
 -- 4) 页面注册（外链 pageCode）
 -- ---------------------------------------------------------------------
-DELETE FROM `zing_page_config` WHERE `page_code` = 'param-config';
-INSERT INTO `zing_page_config`
+DELETE FROM `sys_page_config` WHERE `page_code` = 'param-config';
+INSERT INTO `sys_page_config`
     (`page_code`, `page_name`, `frontend_path`, `remark`, `status`)
 VALUES
     ('param-config', '参数设置', '/page/param-config',
@@ -105,20 +105,20 @@ VALUES
 --    ARCHIVE_DIR    ：归档目录规则，占位符 #in_hospital_no# / #doc_code# / #score_date#
 --                     也支持 #patient_id# / #patient_name#
 -- ---------------------------------------------------------------------
-INSERT INTO `zing_sys_param`
+INSERT INTO `sys_param`
     (`param_key`, `param_name`, `param_value`, `param_group`, `sort_no`, `status`, `remark`)
 SELECT 'ARCHIVE_API_URL', '文书归档接口地址', '', 'archive', 1, 1,
        '评分文书归档推送地址（完整 URL，含 jodName），SOFA 与 APACHE II 共用'
   FROM DUAL
  WHERE NOT EXISTS (
-        SELECT 1 FROM `zing_sys_param` WHERE `param_key` = 'ARCHIVE_API_URL'
+        SELECT 1 FROM `sys_param` WHERE `param_key` = 'ARCHIVE_API_URL'
   );
 
-INSERT INTO `zing_sys_param`
+INSERT INTO `sys_param`
     (`param_key`, `param_name`, `param_value`, `param_group`, `sort_no`, `status`, `remark`)
 SELECT 'ARCHIVE_DIR', '归档目录', '/ICU/#in_hospital_no#/#doc_code#/#score_date#', 'archive', 2, 1,
        '文书存放目录规则：占位符 #in_hospital_no# 住院号 / #doc_code# 文书编码(sofa|apache2) / #score_date# 评分日期，也支持 #patient_id# / #patient_name#'
   FROM DUAL
  WHERE NOT EXISTS (
-        SELECT 1 FROM `zing_sys_param` WHERE `param_key` = 'ARCHIVE_DIR'
+        SELECT 1 FROM `sys_param` WHERE `param_key` = 'ARCHIVE_DIR'
   );

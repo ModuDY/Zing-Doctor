@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * ARDS 俯卧位采集映射配置表（与 sofa_config / apache2_config 同构，追加表达力字段）。
+ * ARDS 俯卧位采集映射配置表（与 config_sofa / config_apache2 同构，追加表达力字段）。
  *
  * <p>一行 = 一条映射规则：把「ARDS 参数项（config_key）」映射到「数据源项目」。
  * 同一参数可配多条规则，取数时按 priority 升序尝试（数字小优先），
@@ -28,7 +28,7 @@ import java.time.LocalDateTime;
  * </ul>
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"ards_prone_config\"")
+@TableName("\"zing_doctor_db_prod\".\"config_prone_item\"")
 public class ArdsProneConfig {
 
     @TableId(type = IdType.ASSIGN_ID)

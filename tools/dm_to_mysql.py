@@ -46,7 +46,7 @@ def convert_type(line):
 # ---------------------------------------------------------------------------
 # 索引里的表达式（达梦「部分唯一索引」）兼容处理
 # 达梦允许索引列写表达式，例如：
-#   CREATE UNIQUE INDEX uk_ards_prone_cell ON ards_prone_cell
+#   CREATE UNIQUE INDEX uk_patient_doc_prone_cell ON patient_doc_prone_cell
 #     (record_id, tp_index, param_key, CASE WHEN status = 1 THEN 1 ELSE NULL END)
 # 语义：只有 status=1 的行参与唯一性（NULL 在唯一索引里不算冲突），软删除行被排除。
 # MySQL / MariaDB 不支持表达式索引，等价做法是：
@@ -499,7 +499,19 @@ if __name__ == '__main__':
     # 全局注释字典（跨文件兜底，如 08 的注释对应 07 建的列）
     g_tbl, g_col = scan_global_comments(src_dir)
 
-    files = sorted(f for f in os.listdir(src_dir) if f.endswith('.sql'))
+    # 人工维护、不参与自动转换的脚本：
+    #   25/26 表名 rename 用的是 PL/SQL 游标 + EXECUTE IMMEDIATE 动态 DDL，
+    #   转换器会把拼接字符串原样吐出来（语法碎片），因此 MySQL 版由人工改写。
+    #   27 是达梦生产库导出的配置快照（1204 行 INSERT，带 schema 前缀与达梦 TIMESTAMP 字面量），
+    #   且 MySQL 侧 install-mariadb-debian.sh 的 MAIN_SQL 是「每次升级都全跑」——
+    #   自动灌快照会导致每次升级把现场配置重置成导出当天的值，故 MySQL 侧不提供自动版，
+    #   重建后用 tools/restore-config/restore_config_mysql_*.sql 人工执行一次。
+    #   放进这里以免重跑本工具时把人工版本覆盖掉、或凭空生成一个不该存在的 MySQL 版。
+    MANUAL = {'25_rename_doctor_tables.sql', '26_rename_clinical_tables.sql',
+              '27_restore_config_snapshot.sql'}
+
+    files = sorted(f for f in os.listdir(src_dir)
+                   if f.endswith('.sql') and f not in MANUAL)
     for fname in files:
         try:
             convert(os.path.join(src_dir, fname), os.path.join(dst_dir, fname), g_tbl, g_col)
@@ -508,4 +520,6 @@ if __name__ == '__main__':
             print(f'  FAIL: {fname}: {e}')
             import traceback
             traceback.print_exc()
+    for fname in sorted(MANUAL):
+        print(f'  SKIP(MySQL 版人工维护): {fname}')
     print('done')

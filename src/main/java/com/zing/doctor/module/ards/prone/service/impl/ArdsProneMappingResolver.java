@@ -21,7 +21,7 @@ import java.util.Map;
  *
  * <p>解析顺序（前者命中即返回，不做沿用）：
  * <ol>
- *   <li>{@code ards_prone_config} 启用规则：按 priority 升序（数字小优先），
+ *   <li>{@code config_prone_item} 启用规则：按 priority 升序（数字小优先），
  *       同一优先级先监护通道后退检验通道；规则值逗号分隔多值，任一命中即可</li>
  *   <li>该参数无规则或规则全部未命中 → 回退 {@code ArdsProneDict} 内置关键字（from=builtin）</li>
  * </ol>

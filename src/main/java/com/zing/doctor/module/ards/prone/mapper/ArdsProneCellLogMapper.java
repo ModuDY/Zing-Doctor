@@ -14,7 +14,7 @@ public interface ArdsProneCellLogMapper extends BaseMapper<ArdsProneCellLog> {
 
     @Select("SELECT \"id\",\"record_id\",\"tp_index\",\"param_key\",\"old_value\",\"new_value\","
             + "\"old_source\",\"new_source\",\"reason\",\"operator\",\"create_time\" "
-            + "FROM \"zing_doctor_db_prod\".\"ards_prone_cell_log\" "
+            + "FROM \"zing_doctor_db_prod\".\"patient_doc_prone_cell_log\" "
             + "WHERE \"record_id\" = #{recordId} "
             + "ORDER BY \"create_time\" DESC")
     List<ArdsProneCellLog> selectByRecord(@Param("recordId") Long recordId);

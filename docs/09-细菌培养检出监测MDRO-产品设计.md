@@ -77,13 +77,13 @@ AND li.lis_item_result <> '阴性'
 
 ### 3.4 革兰分类（`MdroConfigService#matchBacteriaClass`）
 
-- 数据来源：`zing_mdro_config` 中 `config_type='bacteria_class'` 且 `status=1` 的记录；
+- 数据来源：`config_mdro` 中 `config_type='bacteria_class'` 且 `status=1` 的记录；
 - 匹配顺序：**先精确等于 `bacteria_name`，再按 `keywords`（逗号分隔）逐个 `contains` 模糊匹配**；
 - 返回值：`gram_positive` / `gram_negative` / `fungi` / `other`（未命中即 `other`，**仍计入统计**）。
 
 ### 3.5 高风险菌（`isHighRiskBacteria`）
 
-- 数据来源：`zing_mdro_config` 中 `config_type='high_risk'` 且 `status=1` 的记录；
+- 数据来源：`config_mdro` 中 `config_type='high_risk'` 且 `status=1` 的记录；
 - 匹配规则同 3.4（精确 → 关键词 contains）；
 - 种子数据覆盖：耐甲氧西林金黄色葡萄球菌、碳青霉烯类耐药肠杆菌（CRE/KPC/NDM）、耐碳青霉烯鲍曼不动杆菌、耐碳青霉烯铜绿假单胞菌、产 ESBL 大肠埃希菌/肺炎克雷伯菌、嗜麦芽窄食单胞菌、白色念珠菌以外的耐药念珠菌、粪肠球菌（VRE 相关）等。
 
@@ -115,12 +115,12 @@ AND li.lis_item_result <> '阴性'
 | 检验主表（标本） | `patient_info_lis` | `lis_short_name（标本类型）, lis_name, lis_order_ward_name, lis_order_doctor_name` |
 | 患者信息 | `patient_info` | `name, gender, age, ward_name, bed_code, in_depart_time, out_depart_time, is_in_depart, depart_code` |
 | 科室下拉 | `sys_depart` | `selectAllDepartments()` |
-| 分类/高风险配置 | `zing_mdro_config` | `config_type, bacteria_name, bacteria_class, is_high_risk, keywords` |
+| 分类/高风险配置 | `config_mdro` | `config_type, bacteria_name, bacteria_class, is_high_risk, keywords` |
 
-## 五、配置表（`zing_mdro_config`）
+## 五、配置表（`config_mdro`）
 
 ```sql
-CREATE TABLE "zing_doctor_db_prod"."zing_mdro_config" (
+CREATE TABLE "zing_doctor_db_prod"."config_mdro" (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     config_type    VARCHAR(32),   -- bacteria_class 细菌分类 / high_risk 高风险菌 / specimen 标本类型
     bacteria_name  VARCHAR(128),  -- 细菌名称（精确匹配用）

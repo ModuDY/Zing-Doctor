@@ -8,7 +8,7 @@ SET NAMES utf8mb4;
 USE `zing_doctor_db_prod`;
 
 -- ---- 以下为原达梦 PL/SQL 幂等块转换得到的 DDL ----
-CREATE TABLE IF NOT EXISTS `ards_prone_config` (
+CREATE TABLE IF NOT EXISTS `config_prone_item` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `config_type` VARCHAR(32)  NOT NULL COMMENT '数据源通道：observe_item 监护/呼吸机 / lis_item 检验/血气',
   `config_key` VARCHAR(128) NOT NULL COMMENT 'ARDS 参数编码（ArdsProneDict 的 key，如 hr / map / peep / pao2）',
@@ -28,28 +28,28 @@ CREATE TABLE IF NOT EXISTS `ards_prone_config` (
   `update_time` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
 PRIMARY KEY (`id`)
 ) COMMENT='ARDS 俯卧位采集映射配置表（参数项 ← 数据源项目；表空或未命中回退字典内置关键字）';
-CALL zing_add_index('ards_prone_config', 'idx_ards_prone_config_key', 0, '`config_key`, `config_type`, `status`');
-ALTER TABLE `ards_prone_record` MODIFY `admit_date` VARCHAR(20);
-ALTER TABLE `ards_prone_record` MODIFY `record_date` VARCHAR(20);
+CALL zing_add_index('config_prone_item', 'idx_config_prone_item_key', 0, '`config_key`, `config_type`, `status`');
+ALTER TABLE `patient_doc_prone_record` MODIFY `admit_date` VARCHAR(20);
+ALTER TABLE `patient_doc_prone_record` MODIFY `record_date` VARCHAR(20);
 
--- =====================================================================
+﻿-- =====================================================================
 -- 22_ards_prone_config.sql
 -- ARDS 俯卧位通气治疗记录 —— 采集映射配置（参数项 → 数据源项目）
 --
 -- 背景：
 --   原先把「ARDS 参数项 ← 监护/LIS 项目」的匹配关键字硬编码在 ArdsProneDict，
---   现场数据元命名一变就要改代码发版。本脚本把映射搬到配置表，与 sofa_config /
---   apache2_config 同一套做法（config_type + config_key + config_value），
+--   现场数据元命名一变就要改代码发版。本脚本把映射搬到配置表，与 config_sofa /
+--   config_apache2 同一套做法（config_type + config_key + config_value），
 --   并追加 match_type / priority / window_min / unit_scale / unit_offset 表达力字段。
 --
 -- 内容：
---   1) ards_prone_config 表 + 序列 + 索引（监测项目映射配置）
---   2) ards_prone_record 的 admit_date / record_date 扩列：VARCHAR(10) → VARCHAR(20)
+--   1) config_prone_item 表 + 序列 + 索引（监测项目映射配置）
+--   2) patient_doc_prone_record 的 admit_date / record_date 扩列：VARCHAR(10) → VARCHAR(20)
 --      （支持显示格式 yyyy-MM-dd HH:mm；未执行时代码自动降级为只存日期）
---   3) zing_page_config 注册映射配置页（ards-prone-config）
+--   3) sys_page_config 注册映射配置页（ards-prone-config）
 --   4) 不预置种子：由配置页「一键从内置生成」按 ArdsProneDict 写入（幂等，现场可改）
 --
--- 说明：本脚本不改动 ards_prone_cell 表结构。取值来源项目（item_code / 项目名称）
+-- 说明：本脚本不改动 patient_doc_prone_cell 表结构。取值来源项目（item_code / 项目名称）
 --       在采集时随接口返回并在「采集明细」中即时展示，不落库，
 --       以避免「jar 已升级但库未加列」导致的取数报错。
 --
@@ -80,9 +80,9 @@ ALTER TABLE `ards_prone_record` MODIFY `record_date` VARCHAR(20);
 -- ---------------------------------------------------------------------
 -- 3) 页面注册（外链 pageCode）
 -- ---------------------------------------------------------------------
-DELETE FROM `zing_page_config`
+DELETE FROM `sys_page_config`
  WHERE `page_code` = 'ards-prone-config';
-INSERT INTO `zing_page_config`
+INSERT INTO `sys_page_config`
     (`page_code`, `page_name`, `frontend_path`, `remark`, `status`)
 VALUES
     ('ards-prone-config', 'ARDS 俯卧位数据映射配置', '/page/ards-prone-config',
@@ -92,6 +92,6 @@ VALUES
 -- 4) 核对（可选）
 -- ---------------------------------------------------------------------
 --   SELECT `config_key`, `config_type`, `match_type`, `config_value`, `priority`, `status`
---     FROM `ards_prone_config` ORDER BY `config_key`, `priority`;
+--     FROM `config_prone_item` ORDER BY `config_key`, `priority`;
 --   SELECT `page_code`, `page_name`, `frontend_path`, `status`
---     FROM `zing_page_config` WHERE `page_code` = 'ards-prone-config';
+--     FROM `sys_page_config` WHERE `page_code` = 'ards-prone-config';

@@ -14,7 +14,7 @@ public interface ArdsProneTimepointMapper extends BaseMapper<ArdsProneTimepoint>
 
     @Select("SELECT \"id\",\"record_id\",\"tp_index\",\"tp_label\",\"offset_minutes\",\"plan_time\","
             + "\"collect_status\",\"status\",\"create_by\",\"create_time\",\"update_by\",\"update_time\" "
-            + "FROM \"zing_doctor_db_prod\".\"ards_prone_timepoint\" "
+            + "FROM \"zing_doctor_db_prod\".\"patient_doc_prone_timepoint\" "
             + "WHERE \"record_id\" = #{recordId} AND \"status\" = 1 "
             + "ORDER BY \"tp_index\" ASC")
     List<ArdsProneTimepoint> selectByRecord(@Param("recordId") Long recordId);

@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * 脓毒症休克集束化治疗记录表
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"sepsis_bundle_record\"")
+@TableName("\"zing_doctor_db_prod\".\"patient_doc_sepsis_bundle_record\"")
 public class SepsisBundleRecord {
 
     @TableId(type = IdType.ASSIGN_ID)

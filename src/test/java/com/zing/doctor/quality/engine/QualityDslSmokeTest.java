@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class QualityDslSmokeTest {
 
     /** 编译期用的占位事实表名：只验证 SQL 文本生成，不求真实存在。 */
-    private static final String FACT_PLACEHOLDER = "\"zing_doctor_db_prod\".\"qc_fact_placeholder\"";
+    private static final String FACT_PLACEHOLDER = "\"zing_doctor_db_prod\".\"quality_fact_placeholder\"";
 
     private static final LocalDateTime PERIOD_START = LocalDateTime.of(2026, 1, 1, 0, 0, 0);
     private static final LocalDateTime PERIOD_END = LocalDateTime.of(2026, 1, 31, 23, 59, 59);

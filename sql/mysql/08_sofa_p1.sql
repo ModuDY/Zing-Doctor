@@ -14,12 +14,12 @@ USE `zing_doctor_db_prod`;
 -- zing-doctor SOFA 评分 P1 增量（达梦 DM8）
 --
 -- 内容：
---   1) sofa_score_record 文书 PDF 大字段（pdf_data / pdf_name）的列注释
+--   1) patient_doc_sofa_score_record 文书 PDF 大字段（pdf_data / pdf_name）的列注释
 --      —— 这两列已**直接定义在 07_sofa.sql 的 CREATE TABLE** 中，
 --         本脚本不再重复 ALTER，避免「07 已建表 + 08 再 ADD COLUMN」重复报错。
 --   2) 注册 SOFA 配置管理后台页面（sofa-config）
 --
--- 幂等：--   CALL zing_add_column('sofa_score_record', 'pdf_name', 'VARCHAR(200) COMMENT ''PDF文件名''');
+-- 幂等：--   CALL zing_add_column('patient_doc_sofa_score_record', 'pdf_name', 'VARCHAR(200) COMMENT ''PDF文件名''');
 -- 全新部署无需执行上述 ALTER。
 -- =====================================================================
 
@@ -29,9 +29,9 @@ USE `zing_doctor_db_prod`;
 -- ---------------------------------------------------------------------
 -- 2) 注册 SOFA 配置管理后台页面
 -- ---------------------------------------------------------------------
-DELETE FROM `zing_page_config`
+DELETE FROM `sys_page_config`
  WHERE `page_code` = 'sofa-config';
-INSERT INTO `zing_page_config`
+INSERT INTO `sys_page_config`
     (`page_code`, `page_name`, `frontend_path`, `remark`, `status`)
 VALUES
     ('sofa-config', 'SOFA 配置管理', '/page/sofa-config',

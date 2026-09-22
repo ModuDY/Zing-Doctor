@@ -5,7 +5,7 @@ import com.zing.doctor.module.antibiotic.entity.AbxDrugDict;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
- * 抗菌药物字典 Mapper（医生库 zing_doctor_db_prod.zing_abx_drug_dict）。
+ * 抗菌药物字典 Mapper（医生库 zing_doctor_db_prod.config_abx_drug_dict）。
  *
  * <p>本表由 {@code AbxDrugSyncTask} 从 ICU 药品字典同步，读多写少：
  * <ul>

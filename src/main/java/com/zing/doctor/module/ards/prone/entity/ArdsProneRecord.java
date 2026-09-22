@@ -12,11 +12,11 @@ import java.time.LocalDateTime;
 /**
  * ARDS 俯卧位通气治疗记录主表。
  *
- * <p>一次俯卧位疗程一条记录；37 项参数 × N 个时点的值落在 {@code ards_prone_cell}，
- * 时点定义落在 {@code ards_prone_timepoint}。
+ * <p>一次俯卧位疗程一条记录；37 项参数 × N 个时点的值落在 {@code patient_doc_prone_cell}，
+ * 时点定义落在 {@code patient_doc_prone_timepoint}。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"ards_prone_record\"")
+@TableName("\"zing_doctor_db_prod\".\"patient_doc_prone_record\"")
 public class ArdsProneRecord {
 
     @TableId(type = IdType.ASSIGN_ID)

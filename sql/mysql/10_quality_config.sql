@@ -133,9 +133,9 @@ CALL zing_add_index('quality_def_history', 'idx_qdh_key', 0, '`def_type`, `def_k
 -- ---------------------------------------------------------------------
 -- D) 页面注册（外链 pageCode）
 -- ---------------------------------------------------------------------
-DELETE FROM `zing_page_config`
+DELETE FROM `sys_page_config`
  WHERE `page_code` IN ('quality-config');
-INSERT INTO `zing_page_config`
+INSERT INTO `sys_page_config`
     (`page_code`, `page_name`, `frontend_path`, `remark`, `status`)
 VALUES
     ('quality-config', '质控指标配置', '/page/quality-config',

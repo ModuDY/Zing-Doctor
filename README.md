@@ -38,7 +38,7 @@
 
 > 共 22 个已注册外链页面；`abx-ddd-patients` / `abx-mdro-patients` 为总览页内部跳转的明细页，不经 `/entry` 外链进入。
 >
-> `ards-prone-config` 已注册、可外链直达，但常规入口是**系统设置 → 参数设置 →「ARDS 数据映射」页签**：映射是「37 项 × 多通道」的规则表（通道/匹配方式/匹配值/优先级/时间窗/单位换算），塞进键值型参数只能编辑一坨 JSON，无法表格浏览、候选选择与试采核对，故单独建表 `ards_prone_config`，只把入口合进参数设置。
+> `ards-prone-config` 已注册、可外链直达，但常规入口是**系统设置 → 参数设置 →「ARDS 数据映射」页签**：映射是「37 项 × 多通道」的规则表（通道/匹配方式/匹配值/优先级/时间窗/单位换算），塞进键值型参数只能编辑一坨 JSON，无法表格浏览、候选选择与试采核对，故单独建表 `config_prone_item`，只把入口合进参数设置。
 >
 > 质控两个页面由 YAML 配置驱动（`src/main/resources/quality/`），指标增删改只改配置并调一次 `POST /api/quality/sync-index`，不改接口与前端。详见 [质控指标中台 · 产品设计](docs/15-质控指标中台-产品设计.md)。
 
@@ -138,6 +138,8 @@ CI_SECURITY_SCAN=1 bash tools/ci.sh   # 额外跑后端依赖漏洞扫描（需�
 - [质控指标可视化配置 · 改造方案](docs/16-质控指标可视化配置-改造方案.md)
 - [ARDS 俯卧位通气治疗记录 · 产品设计](docs/17-ARDS俯卧位通气治疗记录-产品设计.md)（设计依据详见 `docs/ards-prone/设计方案.md`）
 - [数据库变更清单](DATABASE-CHANGES.md)（新增表/加列按批次记录，含漏执行的后果与人工补执行 SQL；**达梦 / MySQL 双库的脚本归属与新增脚本四步规则**也在其中）
+- [ICU 数据库结构与样例](docs/18-ICU数据库结构与样例.md)（只读源库 `zing_icu_db_prod` 的表 / 字段 / 常用查询，**以及真实数据体检结论**：哪些列全是 NULL、哪些口径在这台库上取不到数；写 ICU 查询前先看它）
+- [达梦数据库结构与样例](docs/19-达梦数据库结构与样例.md)（达梦 DM8 侧：医生库 42 张表的清单与行数、ICU 源库体检、**两台库对照**、达梦方言写法；本机无 `disql`，查库用 [`tools/dm-query/DmQuery.java`](tools/dm-query/DmQuery.java) 走 JDBC）
 - 一键部署（达梦）：解压后执行 `bash install.sh`（自动初始化达梦 + 老库自动套用增量脚本 + 构建启动，支持内网离线）
 - 一键部署（MySQL / MariaDB）：配好 `conf/db.conf` 后执行 `sudo ./install-mariadb-debian.sh`（升级流程与达梦不同，对照见 [安装部署手册 §4.1 / §4.2](docs/04-安装部署手册.md)，本套脚本说明见 [sql/mysql/README.md](sql/mysql/README.md)）
 

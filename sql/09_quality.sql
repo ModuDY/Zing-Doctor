@@ -256,9 +256,9 @@ CREATE INDEX "zing_doctor_db_prod"."idx_quality_monthly_domain" ON "zing_doctor_
 -- ---------------------------------------------------------------------
 -- 7) 页面注册（外链 pageCode）
 -- ---------------------------------------------------------------------
-DELETE FROM "zing_doctor_db_prod"."zing_page_config"
+DELETE FROM "zing_doctor_db_prod"."sys_page_config"
  WHERE "page_code" IN ('quality-board', 'quality-monthly');
-INSERT INTO "zing_doctor_db_prod"."zing_page_config"
+INSERT INTO "zing_doctor_db_prod"."sys_page_config"
     ("page_code", "page_name", "frontend_path", "remark", "status")
 VALUES
     ('quality-board', '质控指标看板', '/page/quality-board',

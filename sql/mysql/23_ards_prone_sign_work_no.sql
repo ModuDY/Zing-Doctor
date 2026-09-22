@@ -8,16 +8,16 @@ SET NAMES utf8mb4;
 USE `zing_doctor_db_prod`;
 
 -- ---- 以下为原达梦 PL/SQL 幂等块转换得到的 DDL ----
-CALL zing_add_column('ards_prone_record', 'doctor_work_no', 'VARCHAR(32) COMMENT ''记录医师工号：按此从 config_staff_ca_info 取电子签名图；空则文书打印姓名''');
-CALL zing_add_column('ards_prone_record', 'nurse_work_no', 'VARCHAR(32) COMMENT ''记录护士工号（同上）''');
-CALL zing_add_column('ards_prone_record', 'senior_work_no', 'VARCHAR(32) COMMENT ''上级医师工号（同上）''');
+CALL zing_add_column('patient_doc_prone_record', 'doctor_work_no', 'VARCHAR(32) COMMENT ''记录医师工号：按此从 config_staff_ca_info 取电子签名图；空则文书打印姓名''');
+CALL zing_add_column('patient_doc_prone_record', 'nurse_work_no', 'VARCHAR(32) COMMENT ''记录护士工号（同上）''');
+CALL zing_add_column('patient_doc_prone_record', 'senior_work_no', 'VARCHAR(32) COMMENT ''上级医师工号（同上）''');
 
 -- =====================================================================
 -- 23_ards_prone_sign_work_no.sql
 -- ARDS 俯卧位通气治疗记录 —— 签名人「工号」落库
 --
 -- 背景：
---   ards_prone_record 只存了签名人姓名（nurse_sign / doctor_sign / senior_sign），
+--   patient_doc_prone_record 只存了签名人姓名（nurse_sign / doctor_sign / senior_sign），
 --   工号没落库，于是文书上无法还原电子签名图：
 --     · ICU 侧的电子签名存在只读库 config_staff_ca_info.signature_img，
 --       只能按工号（work_no）查，重名、改名、同名不同人时按姓名查必然出错；

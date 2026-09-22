@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
  * 本表用于细菌分类统计和高风险细菌标记。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"zing_mdro_config\"")
+@TableName("\"zing_doctor_db_prod\".\"config_mdro\"")
 public class MdroConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;

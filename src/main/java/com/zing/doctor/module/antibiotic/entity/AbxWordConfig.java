@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * 支持后台页面新增/修改/停用，表空时回退代码内置默认。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"zing_abx_word_config\"")
+@TableName("\"zing_doctor_db_prod\".\"config_abx_word\"")
 public class AbxWordConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;

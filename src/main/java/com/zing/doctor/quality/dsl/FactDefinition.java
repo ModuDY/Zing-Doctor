@@ -23,7 +23,7 @@ import java.util.List;
 @Data
 public class FactDefinition {
 
-    /** 事实层名，同时作为物化表名后缀（qc_ + fact） */
+    /** 事实层名，同时作为物化表名后缀（quality_fact_ + fact + 周期日期） */
     private String fact;
 
     /** 所属域 */

@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
  * 采集窗口内无数据一律置空转手工，不沿用历史值。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"ards_prone_cell\"")
+@TableName("\"zing_doctor_db_prod\".\"patient_doc_prone_cell\"")
 public class ArdsProneCell {
 
     @TableId(type = IdType.ASSIGN_ID)

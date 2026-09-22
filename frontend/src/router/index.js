@@ -4,8 +4,8 @@ import { isLoggedIn } from '../utils/auth'
 
 /**
  * 路由规范：
- *  - 所有可外链页面统一挂在 /page/{pageCode} 下，与 zing_page_config.frontend_path 一一对应；
- *  - 新增可外链页面 = 在 zing_page_config 注册一行 + 在此登记一条路由；
+ *  - 所有可外链页面统一挂在 /page/{pageCode} 下，与 sys_page_config.frontend_path 一一对应；
+ *  - 新增可外链页面 = 在 sys_page_config 注册一行 + 在此登记一条路由；
  *  - 外链访问统一走后端 /entry/{pageCode}，校验签名后 302 到本路由（并透传 pageCode/expire/sign）。
  */
 const routes = [

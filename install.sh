@@ -118,8 +118,9 @@ detect_disql
 #
 # ⚠️ 顺序 = 依赖顺序，不要随意调整：
 #   01 建模式 → 02 种子 → 06/07/08 业务表 → 09/10/11 质控表 → 12/13/14 系统表
-#   → 15~20 给上述表加列 → 21 ARDS 俯卧位 5 张表（参数种子写 zing_sys_param，由 14 建）
-#   → 22 ARDS 映射配置表 + ards_prone_record 加列（依赖 21）。
+#   → 15~20 给上述表加列 → 21 ARDS 俯卧位 5 张表（参数种子写 sys_param，由 14 建）
+#   → 22 ARDS 映射配置表 + patient_doc_prone_record 加列（依赖 21）
+#   → 25/26 表名规范化 rename（空库无旧表，整段跳过；放在最后不影响全新安装顺序）。
 FULL_SQL=(
     "00_init_user.sql"
     "01_schema.sql"
@@ -142,6 +143,16 @@ FULL_SQL=(
     "21_ards_prone.sql"
     "22_ards_prone_config.sql"
     "23_ards_prone_sign_work_no.sql"
+    # 25/26 表名规范化（zing_* → sys_*/config_*/patient_doc_*、qc_fact_* → quality_fact_*、
+    # ards_prone_*/apache2_*/sofa_*/sepsis_* → patient_doc_*/config_*）。
+    # 全新库没有旧表，全部跳过；半初始化库按存在性逐个改名，幂等。
+    "25_rename_doctor_tables.sql"
+    "26_rename_clinical_tables.sql"
+    # 27 配置快照：把现场维护过的配置灌回新库（17 张配置表 / 1204 行，2026-09-22 达梦生产库导出）。
+    #    必须排最后 —— 它按「整表 DELETE + INSERT」把 02_seed 灌的出厂配置覆盖成生产值。
+    #    ⚠️ 只加进 FULL_SQL（全新初始化）；INCREMENTAL_SQL 里绝不能加，否则每次升级都会
+    #       把现场配置打回 2026-09-22 的快照。重新部署后想更新快照就重跑 DmExport 覆盖本文件。
+    "27_restore_config_snapshot.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -169,6 +180,10 @@ FULL_SQL_JDBC=(
     "21_ards_prone.sql"
     "22_ards_prone_config.sql"
     "23_ards_prone_sign_work_no.sql"
+    "25_rename_doctor_tables.sql"
+    "26_rename_clinical_tables.sql"
+    # 27 配置快照（同上，仅全新初始化；不进 INCREMENTAL_SQL）
+    "27_restore_config_snapshot.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -182,14 +197,20 @@ FULL_SQL_JDBC=(
 #   09/10/11 建表（质控结果表 / 配置真源三表 / 规则表）→ 15/16/17/18/19 给这些表加列。
 #   DbInit 的幂等只覆盖 CREATE 与 ADD COLUMN，**不检查 ALTER 的目标表是否存在** ——
 #   一旦把 15/16/17 排到 10/11 前面，老库上会因「表不存在」直接抛错并中断该文件，
-#   连排在后面的 12/13/14 都跑不到（老库漏建 zing_sys_param 相关列多半就是这么来的）。
-#   12 必须排在 14 之前：14 会给 zing_sys_param 加列，而该表由 12 创建。
+#   连排在后面的 12/13/14 都跑不到（老库漏建 sys_param 相关列多半就是这么来的）。
+#   12 必须排在 14 之前：14 会给 sys_param 加列，而该表由 12 创建。
 #
 # 09/10/11 的写入都是幂等的（页面注册先 DELETE 再 INSERT，种子 INSERT 带 WHERE NOT EXISTS），
 # 且这三份脚本内均无 DROP TABLE / TRUNCATE —— 对已有数据只会「补表补列」，不会清数据。
 # 把 09/10/11 纳入增量（而不是只靠人工执行）是必须的：老库漏跑 10 会让
 # config-source 兜底回退 yaml，表现为「配置页只能看、没有新增按钮」，且不报任何错。
 INCREMENTAL_SQL=(
+    # 25/26 表名规范化必须排在所有脚本之前：历史脚本（01/21/22/23…）里的表名已统一改成新名，
+    # 若不先 rename，它们在老库上会「新建一张新名的空表」而不是补到原有表上，
+    # 表现为页面能打开但数据全不见（且旧表变成孤儿表）。先改名，后续脚本才补到正确的表上。
+    # 幂等：仅当「旧表存在 且 新表不存在」时执行，全新库整段跳过。
+    "25_rename_doctor_tables.sql"
+    "26_rename_clinical_tables.sql"
     "09_quality.sql"
     "10_quality_config.sql"
     "11_quality_count_rule.sql"
@@ -202,12 +223,12 @@ INCREMENTAL_SQL=(
     "12_archive.sql"
     "13_auth.sql"
     "14_param_framework.sql"
-    # 21 建 ARDS 俯卧位 5 张表 + 页面注册 + 参数种子；参数种子写 zing_sys_param（14 建），故排最后
+    # 21 建 ARDS 俯卧位 5 张表 + 页面注册 + 参数种子；参数种子写 sys_param（14 建），故排最后
     "21_ards_prone.sql"
-    # 22 建 ARDS 采集映射配置表 + ards_prone_record 日期扩列（依赖 21，故排其后）；
-    #    漏执行表现：参数设置页「ARDS 数据映射」点「一键从内置生成」500「无效的表或视图名[ards_prone_config]」
+    # 22 建 ARDS 采集映射配置表 + patient_doc_prone_record 日期扩列（依赖 21，故排其后）；
+    #    漏执行表现：参数设置页「ARDS 数据映射」点「一键从内置生成」500「无效的表或视图名[config_prone_item]」
     "22_ards_prone_config.sql"
-    # 23 给 ards_prone_record 补三个签名人工号列（依赖 21）；
+    # 23 给 patient_doc_prone_record 补三个签名人工号列（依赖 21）；
     #    漏执行表现：文书签名区只打印姓名、不显示电子签名图，且保存记录报「无效的列名[doctor_work_no]」
     "23_ards_prone_sign_work_no.sql"
 )
@@ -360,12 +381,15 @@ init_db() {
   for f in "${FULL_SQL_JDBC[@]}"; do jfiles+=("$ROOT/sql/$f"); done
   # 表已存在则跳过初始化（重复部署场景，避免报错）
   # ⚠️ 表名是双引号小写建的，比较必须统一 UPPER；否则老库识别不出来，会去重跑全量并报错
+  # ⚠️ 新旧名都要认：sys_page_config 由 25 号 rename 而来（旧名 zing_page_config）。
+  #    只判断新名的话，尚未执行过 rename 的老库会被当成空库去重跑全量：
+  #    01_schema.sql 会按新名再建一套空表，老表留在原地变成孤儿表（数据看起来「全没了」）。
   if [ -n "$DISQL" ]; then
-    local _exist="$(echo "SELECT COUNT(*) FROM all_tables WHERE UPPER(owner)='ZING_DOCTOR_DB_PROD' AND UPPER(table_name)='ZING_PAGE_CONFIG';" \
+    local _exist="$(echo "SELECT COUNT(*) FROM all_tables WHERE UPPER(owner)='ZING_DOCTOR_DB_PROD' AND UPPER(table_name) IN ('ZING_PAGE_CONFIG','SYS_PAGE_CONFIG');" \
          | "$DISQL" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" 2>/dev/null \
          | grep -oE '[0-9]+' | tail -1)"
-    if [ "$_exist" = "1" ]; then
-      info "检测到 zing_doctor_db_prod.zing_page_config 表已存在，跳过全量初始化（如需重建请先 DROP SCHEMA）"
+    if [ -n "$_exist" ] && [ "$_exist" -gt 0 ] 2>/dev/null; then
+      info "检测到 zing_doctor_db_prod 的业务表（sys_page_config / 旧名 zing_page_config）已存在，跳过全量初始化（如需重建请先 DROP SCHEMA）"
       # 老库升级：自动套用增量脚本（幂等），不再要求人工执行 SQL
       apply_incremental
       warn "老库升级：sql/06_abx_drug_dict.sql 为一次性脚本，若从未执行过需手动执行一次，否则抗菌药识别词库刷新会持续告警“无效的表或视图名[zing_abx_drug_dict]”"

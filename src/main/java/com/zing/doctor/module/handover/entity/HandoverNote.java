@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * 医生交班览表 - 手工交班记录（一个患者一个封板班次一条）。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"zing_doctor_handover\"")
+@TableName("\"zing_doctor_db_prod\".\"patient_doc_handover_record\"")
 public class HandoverNote {
 
     @TableId(type = IdType.ASSIGN_ID)

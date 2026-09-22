@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
  * 表空时回退代码内置默认值。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"sofa_config\"")
+@TableName("\"zing_doctor_db_prod\".\"config_sofa\"")
 public class SofaConfig {
 
     @TableId(type = IdType.ASSIGN_ID)

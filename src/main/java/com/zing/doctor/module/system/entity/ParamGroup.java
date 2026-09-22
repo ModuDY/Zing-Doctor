@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * 再把参数挂到该分组下，不需要改代码发版。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"zing_param_group\"")
+@TableName("\"zing_doctor_db_prod\".\"sys_param_group\"")
 public class ParamGroup {
 
     /**

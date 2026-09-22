@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * APACHE II 评分记录表
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"apache2_score_record\"")
+@TableName("\"zing_doctor_db_prod\".\"patient_doc_apache2_score_record\"")
 public class Apache2ScoreRecord {
 
     @TableId(type = IdType.ASSIGN_ID)

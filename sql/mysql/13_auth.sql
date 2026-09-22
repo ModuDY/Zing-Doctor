@@ -8,7 +8,7 @@ SET NAMES utf8mb4;
 USE `zing_doctor_db_prod`;
 
 -- ---- 以下为原达梦 PL/SQL 幂等块转换得到的 DDL ----
-CREATE TABLE IF NOT EXISTS `zing_sys_user` (
+CREATE TABLE IF NOT EXISTS `sys_user` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `username` VARCHAR(64)  NOT NULL COMMENT '登录账号（唯一）',
   `real_name` VARCHAR(64) COMMENT '姓名（页面右上角展示）',
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS `zing_sys_user` (
   `update_time` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
 PRIMARY KEY (`id`)
 ) COMMENT='直连登录账号表（用户名密码登录，区别于外链免登录）';
-CALL zing_add_index('zing_sys_user', 'uk_zing_sys_user_name', 1, '`username`');
+CALL zing_add_index('sys_user', 'uk_sys_user_name', 1, '`username`');
 
 -- =====================================================================
 -- 医生决策系统 - 直连登录认证增量（达梦 DM8）
@@ -32,7 +32,7 @@ CALL zing_add_index('zing_sys_user', 'uk_zing_sys_user_name', 1, '`username`');
 --     - 外链访问：仍走 extToken / expire+sign 校验，不需要登录（逻辑不变）。
 --
 -- 内容：
---   1) zing_sys_user  管理员/用户表
+--   1) sys_user  管理员/用户表
 --
 -- 幂等说明（重要）：
 --   本脚本可被 install.sh 重复执行（新库全量初始化 + 老库增量升级都会跑）。

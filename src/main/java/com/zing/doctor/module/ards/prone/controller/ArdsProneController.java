@@ -163,7 +163,7 @@ public class ArdsProneController {
     private String configErrMsg(Exception e, String action) {
         String msg = e == null || e.getMessage() == null ? "" : e.getMessage();
         if (msg.contains("无效的表或视图名") || msg.contains("表或视图不存在")) {
-            return "数据映射配置表 ards_prone_config 未初始化：请先执行 sql/22_ards_prone_config.sql 建表后重试"
+            return "数据映射配置表 config_prone_item 未初始化：请先执行 sql/22_ards_prone_config.sql 建表后重试"
                     + "（采集功能不受影响，当前自动回退内置关键字）";
         }
         return action + "失败: " + msg;

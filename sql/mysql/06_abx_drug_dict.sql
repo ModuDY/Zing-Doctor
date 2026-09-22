@@ -14,7 +14,7 @@ USE `zing_doctor_db_prod`;
 -- 抗菌药物字典（HIS 药品字典同步表）
 --
 -- 背景：
---   抗菌药识别原本依赖 zing_abx_word_config 的「关键词白名单 + 黑名单」，
+--   抗菌药识别原本依赖 config_abx_word 的「关键词白名单 + 黑名单」，
 --   但 HIS 药品字典（ICU 库 zing_icu_db_prod.config_drug，字段 is_antibiotics）
 --   才是`哪种药是抗菌药`的权威来源。本表用于承接 HIS 的抗菌药清单，
 --   由 AbxDrugSyncTask 夜间定时同步（也可页面手动触发），
@@ -24,7 +24,7 @@ USE `zing_doctor_db_prod`;
 --   zing_icu_db_prod.config_drug (is_antibiotics='1')
 --        │  夜间定时 / 手动触发（只读数据源，不写 ICU）
 --        ▼
---   zing_doctor_db_prod.zing_abx_drug_dict（本表）
+--   zing_doctor_db_prod.config_abx_drug_dict（本表）
 --        │  内存快照（5 分钟 TTL）
 --        ▼
 --   AbxDrugRecognizer#isAntibiotic / isBroadSpectrum / isNonAntibiotic
@@ -35,7 +35,7 @@ USE `zing_doctor_db_prod`;
 --   SQL> start /opt/zing-doctor/sql/06_abx_drug_dict.sql
 -- =====================================================================
 
-CREATE TABLE IF NOT EXISTS `zing_abx_drug_dict` (
+CREATE TABLE IF NOT EXISTS `config_abx_drug_dict` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `drug_code` VARCHAR(64)  NOT NULL COMMENT 'HIS 药品编码（唯一键，用于增量比对）',
   `drug_name` VARCHAR(255) COMMENT '药品名称（含商品名，如 盐酸克林霉素胶囊(特丽仙)）',
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS `zing_abx_drug_dict` (
 ) COMMENT='抗菌药物字典（HIS config_drug 中 is_antibiotics=1 的同步副本）';
 
 -- 唯一索引：药品编码，夜间同步按它做增量比对（存在则更新，不存在则新增）
-CALL zing_add_index('zing_abx_drug_dict', 'uk_zing_abx_drug_dict_code', 1, '`drug_code`');
+CALL zing_add_index('config_abx_drug_dict', 'uk_config_abx_drug_dict_code', 1, '`drug_code`');
 
 -- 识别时按状态过滤，建立普通索引
-CALL zing_add_index('zing_abx_drug_dict', 'idx_zing_abx_drug_dict_status', 0, '`status`');
+CALL zing_add_index('config_abx_drug_dict', 'idx_config_abx_drug_dict_status', 0, '`status`');

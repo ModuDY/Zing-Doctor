@@ -571,7 +571,7 @@ public class ArdsProneServiceImpl implements ArdsProneService {
     /**
      * 采集 / 试采主流程（同一取数与匹配口径）。
      *
-     * <p>取数走 {@code ArdsProneMappingResolver}：优先配置规则（ards_prone_config），
+     * <p>取数走 {@code ArdsProneMappingResolver}：优先配置规则（config_prone_item），
      * 无规则或未命中回退字典内置关键字；返回每项来源明细（哪个项目、哪个编码、源时间），
      * 供填写页「采集明细」与配置页试采核对。
      *
@@ -1530,7 +1530,7 @@ public class ArdsProneServiceImpl implements ArdsProneService {
             Integer len = recordMapper.selectColumnLength("RECORD_DATE");
             ok = len != null && len >= 16;
             if (!ok) {
-                log.warn("ards_prone_record.record_date 列长度不足 16（当前 {}），"
+                log.warn("patient_doc_prone_record.record_date 列长度不足 16（当前 {}），"
                         + "入院日期/记录日期暂按 yyyy-MM-dd 写入；执行 sql/22_ards_prone_config.sql 扩列后自动恢复", len);
             }
         } catch (Exception e) {

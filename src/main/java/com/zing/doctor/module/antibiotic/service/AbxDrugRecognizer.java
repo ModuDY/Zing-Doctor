@@ -22,18 +22,18 @@ import java.util.regex.Pattern;
  * 抗菌药物统一识别器 —— 全系统「这条医嘱/药品是不是抗菌药」的唯一判定入口。
  *
  * <h3>为什么需要它</h3>
- * 抗菌药识别原来在多个模块各写一份：脓毒症集束化（zing_abx_word_config 白/黑名单）、
+ * 抗菌药识别原来在多个模块各写一份：脓毒症集束化（config_abx_word 白/黑名单）、
  * 医生交班览表（硬编码 61 个通用名数组）、当前抗菌药（硬编码 46 个关键词）。
  * 三份词表互不同步，新药/商品名/复方制剂极易漏判。本类把判定统一为一条链路，
- * 并以 HIS 药品字典（{@code is_antibiotics='1'} 同步至 zing_abx_drug_dict）为权威依据。
+ * 并以 HIS 药品字典（{@code is_antibiotics='1'} 同步至 config_abx_drug_dict）为权威依据。
  *
  * <h3>判定顺序（三级）</h3>
  * <ol>
- *   <li><b>黑名单优先排除</b>（zing_abx_word_config.non_antibiotic）：电解质/营养/镇静镇痛/
+ *   <li><b>黑名单优先排除</b>（config_abx_word.non_antibiotic）：电解质/营养/镇静镇痛/
  *       外用剂型等非抗菌药，命中即判为「非抗菌药」，即使字典或白名单命中也不认；</li>
- *   <li><b>药品字典精确匹配</b>（zing_abx_drug_dict）：按 药品名 / 简称 / 通用名，
+ *   <li><b>药品字典精确匹配</b>（config_abx_drug_dict）：按 药品名 / 简称 / 通用名，
  *       以及「去商品名括号 + 去剂型词」的基名匹配，命中即判为抗菌药；</li>
- *   <li><b>白名单包含匹配</b>（zing_abx_word_config.broad_spectrum）：兜底，
+ *   <li><b>白名单包含匹配</b>（config_abx_word.broad_spectrum）：兜底，
  *       覆盖字典尚未同步到的新药。</li>
  * </ol>
  *
@@ -311,7 +311,7 @@ public class AbxDrugRecognizer {
     }
 
     // ------------------------------------------------------------------
-    // 内置兜底词表（zing_abx_word_config / zing_abx_drug_dict 均无数据时使用）
+    // 内置兜底词表（config_abx_word / config_abx_drug_dict 均无数据时使用）
     // 原实现散落在 SepsisBundleServiceImpl，统一收敛到此处，避免多份词表互相漂移。
     // ------------------------------------------------------------------
 

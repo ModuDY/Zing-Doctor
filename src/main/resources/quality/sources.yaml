@@ -37,7 +37,7 @@ tables:
   
 
   # ---------- 已实库验证：医生库 ----------
-  apache2_score_record:    { ds: doctor, name: apache2_score_record,               pk: id, timeField: score_time }
+  patient_doc_apache2_score_record: { ds: doctor, name: patient_doc_apache2_score_record, pk: id, timeField: score_time }
 
   # ---------- 待接数据源 ----------
   # 这三张表尚未在实库确认。此处先「登记」而非留空，是为了：

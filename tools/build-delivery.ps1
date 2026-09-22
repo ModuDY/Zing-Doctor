@@ -154,7 +154,7 @@ if (Test-Path "$root\conf") {
 }
 
 # ---------- 合成 MySQL/MariaDB 一次性初始化脚本 ----------
-# 应用与库分两台机器时，应用机常常没有客户端；把 25 个脚本合成一个文件，
+# 应用与库分两台机器时，应用机常常没有客户端；把 sql/mysql 下全部脚本合成一个文件，
 # 部署方只需把这一份拷到数据库服务器执行一次（顺序与 install 脚本一致）。
 $myDir = Join-Path $work 'sql\mysql'
 if (Test-Path $myDir) {

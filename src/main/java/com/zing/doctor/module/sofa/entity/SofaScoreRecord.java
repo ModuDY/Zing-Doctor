@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
  * 各项原始值以 JSON 落库（resp_data 等），供医生回填复核与「来源」弹窗追溯。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"sofa_score_record\"")
+@TableName("\"zing_doctor_db_prod\".\"patient_doc_sofa_score_record\"")
 public class SofaScoreRecord {
 
     @TableId(type = IdType.ASSIGN_ID)

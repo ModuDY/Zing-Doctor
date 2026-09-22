@@ -15,7 +15,7 @@ import java.util.Map;
  * 比关键词白名单可靠得多（能覆盖新药、商品名、复方制剂）。
  *
  * <p>同步策略：{@code AbxDrugSyncTask} 夜间（默认 03:20）全量拉取本查询结果，
- * 按 {@code drug_code} 与医生库 {@code zing_abx_drug_dict} 做增量比对。
+ * 按 {@code drug_code} 与医生库 {@code config_abx_drug_dict} 做增量比对。
  * 本 Mapper 只读（数据源 read-only: true），绝不写 ICU。
  *
  * <p>达梦方言注意事项：

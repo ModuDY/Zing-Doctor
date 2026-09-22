@@ -372,7 +372,7 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
         List<Map<String, Object>> antibioticList = icuPatientMapper.selectAntibioticAdvice(inHospitalNo);
         // 抗菌药识别：白名单包含匹配（命中抗菌药通用名）+ 黑名单排除（双重保险）
         // 必须用白名单，不能纯黑名单排除：中药/营养药/解热镇痛药等非抗菌药有几千种，黑名单永远列不全
-        // 白名单来自 zing_abx_word_config(broad_spectrum)，已训练61个核心抗菌药通用名（含内置默认兜底）
+        // 白名单来自 config_abx_word(broad_spectrum)，已训练61个核心抗菌药通用名（含内置默认兜底）
         antibioticList = antibioticList.stream()
                 .filter(a -> isBroadSpectrum(str(a.get("name"))))
                 .filter(a -> !isNonAntibiotic(str(a.get("name"))))
@@ -1047,7 +1047,7 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
 
     /**
      * 判断是否为广谱抗菌药物。委托统一识别器 {@link AbxDrugRecognizer#isBroadSpectrum(String)}，
-     * 词表口径 = zing_abx_word_config(broad_spectrum)，表空回退内置默认；与全系统保持一致。
+     * 词表口径 = config_abx_word(broad_spectrum)，表空回退内置默认；与全系统保持一致。
      */
     private boolean isBroadSpectrum(String name) {
         return abxDrugRecognizer.isBroadSpectrum(name);

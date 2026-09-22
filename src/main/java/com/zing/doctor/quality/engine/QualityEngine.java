@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>性能设计：
  * <ol>
- *   <li><b>事实层一次物化，多指标复用</b>：一个周期内 qc_fact_* 只建一次，
+ *   <li><b>事实层一次物化，多指标复用</b>：一个周期内 quality_fact_* 只建一次，
  *       同域 N 条指标共享 → 1 次扫描 + N 次轻聚合，替代老系统 N 次全量扫描</li>
  *   <li><b>SQL 全下推</b>：不在 JVM 里循环明细，只搬运聚合结果</li>
  *   <li><b>按周期隔离事实表</b>：表名带周期后缀，跨周期下钻不会读到过期数据</li>
@@ -626,7 +626,9 @@ public class QualityEngine {
             return;
         }
         try {
-            String like = props.getFactTablePrefix() + "fact_%";
+            // 前缀已含 fact 段（quality_fact_），这里只补通配；写成 prefix + "fact_%" 会拼成
+            // quality_fact_fact_%，一轮都匹配不到，历史事实表便再也清理不掉
+            String like = props.getFactTablePrefix() + "%";
             List<Map<String, Object>> tables = sqlMapper.query(
                     "SELECT TABLE_NAME AS TN FROM ALL_TABLES WHERE TABLE_NAME LIKE '" + like + "'");
             for (Map<String, Object> t : tables) {

@@ -12,7 +12,7 @@ import org.apache.ibatis.annotations.Select;
 @Mapper
 public interface PageConfigMapper extends BaseMapper<PageConfig> {
 
-    @Select("SELECT * FROM \"zing_doctor_db_prod\".\"zing_page_config\" "
+    @Select("SELECT * FROM \"zing_doctor_db_prod\".\"sys_page_config\" "
             + "WHERE page_code = #{pageCode} AND status = 1 "
             + "AND ROWNUM <= 1")
     PageConfig selectByPageCode(@Param("pageCode") String pageCode);

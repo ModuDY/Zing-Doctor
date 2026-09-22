@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * 初始数据按 WHO ATC/DDD 最新版本录入，支持后台页面修改。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"zing_ddd_config\"")
+@TableName("\"zing_doctor_db_prod\".\"config_ddd\"")
 public class DddConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;

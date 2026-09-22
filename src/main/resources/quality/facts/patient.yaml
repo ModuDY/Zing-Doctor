@@ -2,7 +2,7 @@
 # 事实层（DWD）· 患者流转 + 评分/资源
 #
 # 本文件是「与手写 SQL 建中间表」的关键区别：事实层由 DSL 声明，
-# 引擎编译成 SQL 并物化为物理表（qc_fact_*_yyyyMMdd），同域指标共享一次扫描。
+# 引擎编译成 SQL 并物化为物理表（quality_fact_*_yyyyMMdd），同域指标共享一次扫描。
 #
 # 约定：
 #   · :periodStart / :periodEnd 由引擎按周期注入，配置里直接当常量用；
@@ -82,7 +82,7 @@
 - fact: fact_score_resource
   domain: 评分_资源
   status: ACTIVE
-  source: apache2_score_record
+  source: patient_doc_apache2_score_record
   alias: a
   departKey: depart_code
   note: APACHE II 评分记录；预计病死率取 mortality_rate 均值

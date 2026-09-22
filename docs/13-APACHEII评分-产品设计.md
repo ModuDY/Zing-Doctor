@@ -230,7 +230,7 @@ ln(R / 1−R) = −3.5174 + 总分 × 0.1467 + 0.6031 × [非手术 或 急诊�
 |---|---|---|
 | `apache2.auto-generate.cron` | `0 0 1,7,13,19 * * ?` | 自动初评执行周期 |
 | `apache2.auto-generate.over-hours` | `24` | 入科超过多少小时才自动初评（≤0 回退 24） |
-| FiO₂ 项目编码等取数配置 | 见 `config/{configType}` | 数据库可配（`apache2_config`），避免硬编码科室差异 |
+| FiO₂ 项目编码等取数配置 | 见 `config/{configType}` | 数据库可配（`config_apache2`），避免硬编码科室差异 |
 
 ## 十、关键实现细节与风险点
 

@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * <p>提交后不设修改时限，任何更正都保留原值、新值、修改人、时间与原因。
  */
 @Data
-@TableName("\"zing_doctor_db_prod\".\"ards_prone_cell_log\"")
+@TableName("\"zing_doctor_db_prod\".\"patient_doc_prone_cell_log\"")
 public class ArdsProneCellLog {
 
     @TableId(type = IdType.ASSIGN_ID)

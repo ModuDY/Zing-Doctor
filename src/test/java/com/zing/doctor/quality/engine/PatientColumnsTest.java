@@ -161,7 +161,7 @@ class PatientColumnsTest {
     private String compile(Set<String> availableColumns, List<PatientFieldDefinition> fields) {
         MetricDefinition m = new MetricDefinition();
         m.setPatientFields(fields);
-        return compiler.compilePatients(m, "qc_fact_demo", new FactDefinition(), null, false,
+        return compiler.compilePatients(m, "quality_fact_demo", new FactDefinition(), null, false,
                 availableColumns);
     }
 

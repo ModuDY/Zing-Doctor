@@ -95,12 +95,12 @@ SELECT ... FROM (
 | 患者与在科时间 | `patient_info` | `in_hospital_no, depart_code, in_depart_time, out_depart_time, del_flag` |
 | 患者列表（分母） | `patient_info` | `selectPatientsForStats(startTime, endTime, departCode)` |
 | 科室下拉 | `sys_depart` | `selectAllDepartments()` |
-| DDD 知识库 | `zing_ddd_config` | `drug_name, atc_code, ddd_value, ddd_unit, route, manage_level, drug_class, keywords, status` |
+| DDD 知识库 | `config_ddd` | `drug_name, atc_code, ddd_value, ddd_unit, route, manage_level, drug_class, keywords, status` |
 
-## 四、DDD 知识库（`zing_ddd_config`）
+## 四、DDD 知识库（`config_ddd`）
 
 ```sql
-CREATE TABLE "zing_doctor_db_prod"."zing_ddd_config" (
+CREATE TABLE "zing_doctor_db_prod"."config_ddd" (
     id BIGINT IDENTITY(1,1) PRIMARY KEY,
     drug_name    VARCHAR(128) NOT NULL,   -- 药品通用名
     atc_code     VARCHAR(32),             -- WHO ATC 编码

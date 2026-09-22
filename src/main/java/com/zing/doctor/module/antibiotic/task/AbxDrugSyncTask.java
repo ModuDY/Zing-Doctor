@@ -13,7 +13,7 @@ import java.util.Map;
  * 抗菌药物字典夜间同步定时任务。
  *
  * <p>把 HIS 药品字典（ICU 库 {@code zing_icu_db_prod.config_drug}）中
- * {@code is_antibiotics = '1'} 的药品同步到医生库 {@code zing_abx_drug_dict}，
+ * {@code is_antibiotics = '1'} 的药品同步到医生库 {@code config_abx_drug_dict}，
  * 供 {@code AbxDrugRecognizer} 做精确匹配，从而：
  * <ul>
  *   <li><b>自动发现 is_antibiotics 变更</b>：HIS 新增抗菌药 → 次日自动进入识别字典；

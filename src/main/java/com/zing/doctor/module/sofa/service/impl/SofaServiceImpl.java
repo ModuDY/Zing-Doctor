@@ -698,7 +698,7 @@ public class SofaServiceImpl implements SofaService {
         return v > 0 ? round(v, 1) : null;
     }
 
-    /** 年龄+性别默认体重（sofa_config: default_weight，键形如 M_18_39；<18 岁不适用） */
+    /** 年龄+性别默认体重（config_sofa: default_weight，键形如 M_18_39；<18 岁不适用） */
     private Double defaultWeight(Integer age, String gender) {
         if (age == null || age < 18) return null;
         String band;

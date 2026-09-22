@@ -43,7 +43,7 @@ USE `zing_doctor_db_prod`;
 -- ---------------------------------------------------------------------
 -- 页面注册表：每个可外链打开的功能页面在此登记（外链 pageCode 唯一）
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `zing_page_config` (
+CREATE TABLE IF NOT EXISTS `sys_page_config` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `page_code` VARCHAR(64)  NOT NULL COMMENT '页面编码（外链 pageCode，唯一）',
   `page_name` VARCHAR(128) NOT NULL COMMENT '页面名称',
@@ -54,12 +54,12 @@ CREATE TABLE IF NOT EXISTS `zing_page_config` (
   `update_time` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`)
 ) COMMENT='页面注册表';
-CALL zing_add_index('zing_page_config', 'uk_zing_page_config_page_code', 1, '`page_code`');
+CALL zing_add_index('sys_page_config', 'uk_sys_page_config_page_code', 1, '`page_code`');
 
 -- ---------------------------------------------------------------------
 -- 外链访问日志：记录外部系统（ICU）外链进入医生决策系统的访问
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `zing_external_access_log` (
+CREATE TABLE IF NOT EXISTS `sys_access_log` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `page_code` VARCHAR(64) NOT NULL COMMENT '被访问页面编码',
   `source_system` VARCHAR(64) DEFAULT 'icu' NOT NULL COMMENT '来源系统标识',
@@ -68,13 +68,13 @@ CREATE TABLE IF NOT EXISTS `zing_external_access_log` (
   `access_time` TIMESTAMP   DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '访问时间',
   PRIMARY KEY (`id`)
 ) COMMENT='外链访问日志';
-CALL zing_add_index('zing_external_access_log', 'idx_zing_external_access_log_page', 0, '`page_code`');
-CALL zing_add_index('zing_external_access_log', 'idx_zing_external_access_log_time', 0, '`access_time`');
+CALL zing_add_index('sys_access_log', 'idx_sys_access_log_page', 0, '`page_code`');
+CALL zing_add_index('sys_access_log', 'idx_sys_access_log_time', 0, '`access_time`');
 
 -- ---------------------------------------------------------------------
 -- 抗感染决策记录：第一维度（经验性抗感染治疗决策）医生决策留痕
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `zing_decision_record` (
+CREATE TABLE IF NOT EXISTS `patient_doc_decision_record` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `patient_id` VARCHAR(64)  NOT NULL COMMENT 'ICU 患者 ID',
   `patient_no` VARCHAR(64) COMMENT '住院号/就诊号',
@@ -94,13 +94,13 @@ CREATE TABLE IF NOT EXISTS `zing_decision_record` (
   `update_time` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
   PRIMARY KEY (`id`)
 ) COMMENT='抗感染决策记录';
-CALL zing_add_index('zing_decision_record', 'idx_zing_decision_record_patient', 0, '`patient_id`');
-CALL zing_add_index('zing_decision_record', 'idx_zing_decision_record_status', 0, '`decision_status`');
+CALL zing_add_index('patient_doc_decision_record', 'idx_patient_doc_decision_record_patient', 0, '`patient_id`');
+CALL zing_add_index('patient_doc_decision_record', 'idx_patient_doc_decision_record_status', 0, '`decision_status`');
 
 -- ---------------------------------------------------------------------
 -- 抗感染方案推荐日志：一次决策记录对应的系统推荐方案明细（可多条）
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `zing_advice_log` (
+CREATE TABLE IF NOT EXISTS `patient_doc_advice_log` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `decision_record_id` BIGINT       NOT NULL COMMENT '关联决策记录 ID',
   `drug_name` VARCHAR(128) NOT NULL COMMENT '推荐药品/方案名',
@@ -112,13 +112,13 @@ CREATE TABLE IF NOT EXISTS `zing_advice_log` (
   `create_time` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
   PRIMARY KEY (`id`)
 ) COMMENT='抗感染方案推荐日志';
-CALL zing_add_index('zing_advice_log', 'idx_zing_advice_log_record', 0, '`decision_record_id`');
+CALL zing_add_index('patient_doc_advice_log', 'idx_patient_doc_advice_log_record', 0, '`decision_record_id`');
 
 -- ---------------------------------------------------------------------
 -- 抗菌药物 DDD 值配置表：第三维度（使用强度分析）的核心知识库
 -- 初始数据按 WHO ATC/DDD 最新版本录入，支持后台页面修改
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `zing_ddd_config` (
+CREATE TABLE IF NOT EXISTS `config_ddd` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `drug_name` VARCHAR(128) NOT NULL COMMENT '药品通用名',
   `atc_code` VARCHAR(32) COMMENT 'WHO ATC编码',
@@ -134,9 +134,9 @@ CREATE TABLE IF NOT EXISTS `zing_ddd_config` (
   `update_time` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
   PRIMARY KEY (`id`)
 ) COMMENT='抗菌药物DDD值配置表';
-CALL zing_add_index('zing_ddd_config', 'uk_zing_ddd_config_drug_route', 1, '`drug_name`, `route`');
-CALL zing_add_index('zing_ddd_config', 'idx_zing_ddd_config_class', 0, '`drug_class`');
-CALL zing_add_index('zing_ddd_config', 'idx_zing_ddd_config_level', 0, '`manage_level`');
+CALL zing_add_index('config_ddd', 'uk_config_ddd_drug_route', 1, '`drug_name`, `route`');
+CALL zing_add_index('config_ddd', 'idx_config_ddd_class', 0, '`drug_class`');
+CALL zing_add_index('config_ddd', 'idx_config_ddd_level', 0, '`manage_level`');
 
 -- ---------------------------------------------------------------------
 -- 第四维度：细菌培养检出监测配置表
@@ -144,7 +144,7 @@ CALL zing_add_index('zing_ddd_config', 'idx_zing_ddd_config_level', 0, '`manage_
 -- 由于 ICU 库细菌名称中无耐药关键词，MDRO 精确判定需药敏结果支持，
 -- 本表用于细菌分类统计和高风险细菌标记。
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `zing_mdro_config` (
+CREATE TABLE IF NOT EXISTS `config_mdro` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `config_type` VARCHAR(20)  NOT NULL COMMENT '配置类型：bacteria_class细菌分类, high_risk高风险细菌, specimen标本类型',
   `bacteria_name` VARCHAR(128) COMMENT '细菌名称',
@@ -157,15 +157,15 @@ CREATE TABLE IF NOT EXISTS `zing_mdro_config` (
   `update_time` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
   PRIMARY KEY (`id`)
 ) COMMENT='细菌培养监测配置表（第四维度）';
-CALL zing_add_index('zing_mdro_config', 'idx_zing_mdro_config_type', 0, '`config_type`');
-CALL zing_add_index('zing_mdro_config', 'idx_zing_mdro_config_class', 0, '`bacteria_class`');
-CALL zing_add_index('zing_mdro_config', 'idx_zing_mdro_config_risk', 0, '`is_high_risk`');
+CALL zing_add_index('config_mdro', 'idx_config_mdro_type', 0, '`config_type`');
+CALL zing_add_index('config_mdro', 'idx_config_mdro_class', 0, '`bacteria_class`');
+CALL zing_add_index('config_mdro', 'idx_config_mdro_risk', 0, '`is_high_risk`');
 
 -- ---------------------------------------------------------------------
 -- 脓毒症休克集束化治疗记录表
 -- 用于记录脓毒症/感染性休克患者1H/3H/6H集束化治疗完成情况
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `sepsis_bundle_record` (
+CREATE TABLE IF NOT EXISTS `patient_doc_sepsis_bundle_record` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `patient_id` VARCHAR(64) COMMENT '患者ID',
   `in_hospital_no` VARCHAR(64)  NOT NULL COMMENT '住院号',
@@ -190,15 +190,15 @@ CREATE TABLE IF NOT EXISTS `sepsis_bundle_record` (
   `update_time` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`)
 ) COMMENT='脓毒症休克集束化治疗记录表';
-CALL zing_add_index('sepsis_bundle_record', 'idx_sepsis_bundle_patient', 0, '`in_hospital_no`');
-CALL zing_add_index('sepsis_bundle_record', 'idx_sepsis_bundle_depart', 0, '`depart_code`');
-CALL zing_add_index('sepsis_bundle_record', 'idx_sepsis_bundle_time', 0, '`diagnosis_time`');
+CALL zing_add_index('patient_doc_sepsis_bundle_record', 'idx_sepsis_bundle_patient', 0, '`in_hospital_no`');
+CALL zing_add_index('patient_doc_sepsis_bundle_record', 'idx_sepsis_bundle_depart', 0, '`depart_code`');
+CALL zing_add_index('patient_doc_sepsis_bundle_record', 'idx_sepsis_bundle_time', 0, '`diagnosis_time`');
 
 -- ---------------------------------------------------------------------
 -- 抗菌药物识别词库配置表（脓毒症集束化：广谱抗菌药白名单 + 非抗菌药黑名单）
 -- 后台页面 abx-word-config 可增删改，启动/评估时加载，表空时回退内置默认
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `zing_abx_word_config` (
+CREATE TABLE IF NOT EXISTS `config_abx_word` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `word_type` VARCHAR(32)  NOT NULL COMMENT '词类型：broad_spectrum 广谱抗菌药白名单 / non_antibiotic 非抗菌药黑名单',
   `keyword` VARCHAR(128) NOT NULL COMMENT '匹配关键词',
@@ -209,15 +209,15 @@ CREATE TABLE IF NOT EXISTS `zing_abx_word_config` (
   `update_time` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
   PRIMARY KEY (`id`)
 ) COMMENT='抗菌药物识别词库配置';
-CALL zing_add_index('zing_abx_word_config', 'uk_zing_abx_word_type_kw', 1, '`word_type`, `keyword`');
-CALL zing_add_index('zing_abx_word_config', 'idx_zing_abx_word_type_status', 0, '`word_type`, `status`');
+CALL zing_add_index('config_abx_word', 'uk_config_abx_word_type_kw', 1, '`word_type`, `keyword`');
+CALL zing_add_index('config_abx_word', 'idx_config_abx_word_type_status', 0, '`word_type`, `status`');
 
 -- ---------------------------------------------------------------------
 -- 第五维度：医生交班览表 - 医生手工交班记录
 -- 病情变化（condition_change）为 P0 手工录入字段；下一班计划/待办字段 P1 预留
 -- 一个患者一个`已封板全天班次`一条，按 (in_hospital_no, shift_begin_time) 唯一
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `zing_doctor_handover` (
+CREATE TABLE IF NOT EXISTS `patient_doc_handover_record` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `patient_id` VARCHAR(64) COMMENT '患者ID（patient_info.id）',
   `in_hospital_no` VARCHAR(64)  NOT NULL COMMENT '住院号',
@@ -235,15 +235,15 @@ CREATE TABLE IF NOT EXISTS `zing_doctor_handover` (
   `update_time` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`)
 ) COMMENT='医生交班览表-手工交班记录';
-CALL zing_add_index('zing_doctor_handover', 'uk_zdh_patient_shift', 1, '`in_hospital_no`, `shift_begin_time`');
-CALL zing_add_index('zing_doctor_handover', 'idx_zdh_depart', 0, '`depart_code`');
-CALL zing_add_index('zing_doctor_handover', 'idx_zdh_shift', 0, '`shift_begin_time`');
+CALL zing_add_index('patient_doc_handover_record', 'uk_zdh_patient_shift', 1, '`in_hospital_no`, `shift_begin_time`');
+CALL zing_add_index('patient_doc_handover_record', 'idx_zdh_depart', 0, '`depart_code`');
+CALL zing_add_index('patient_doc_handover_record', 'idx_zdh_shift', 0, '`shift_begin_time`');
 
 -- ---------------------------------------------------------------------
 -- APACHE II 评分记录表
 -- 支持多次评分（入科时/24h/48h/自定义），每次评分一条记录
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `apache2_score_record` (
+CREATE TABLE IF NOT EXISTS `patient_doc_apache2_score_record` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `patient_id` VARCHAR(64) COMMENT '患者ID（patient_info.id）',
   `in_hospital_no` VARCHAR(64)  NOT NULL COMMENT '住院号',
@@ -275,15 +275,15 @@ CREATE TABLE IF NOT EXISTS `apache2_score_record` (
   `update_time` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`)
 ) COMMENT='APACHE II评分记录表';
-CALL zing_add_index('apache2_score_record', 'idx_apache2_patient', 0, '`in_hospital_no`');
-CALL zing_add_index('apache2_score_record', 'idx_apache2_depart', 0, '`depart_code`');
-CALL zing_add_index('apache2_score_record', 'idx_apache2_time', 0, '`score_time`');
+CALL zing_add_index('patient_doc_apache2_score_record', 'idx_apache2_patient', 0, '`in_hospital_no`');
+CALL zing_add_index('patient_doc_apache2_score_record', 'idx_apache2_depart', 0, '`depart_code`');
+CALL zing_add_index('patient_doc_apache2_score_record', 'idx_apache2_time', 0, '`score_time`');
 
 -- ---------------------------------------------------------------------
 -- APACHE II 配置表
 -- 监护item_code配置、检验lis_item_code配置、慢性健康关键词配置
 -- ---------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `apache2_config` (
+CREATE TABLE IF NOT EXISTS `config_apache2` (
   `id` BIGINT AUTO_INCREMENT NOT NULL,
   `config_type` VARCHAR(32)  NOT NULL COMMENT '配置类型：observe_item监护item_code/lis_item检验item_code/chronic_keyword慢性健康关键词',
   `config_key` VARCHAR(128) NOT NULL COMMENT '配置键（如：temperature/heart_rate/sodium/potassium/creatinine/hct/wbc）',
@@ -296,4 +296,4 @@ CREATE TABLE IF NOT EXISTS `apache2_config` (
   `update_time` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
   PRIMARY KEY (`id`)
 ) COMMENT='APACHE II配置表';
-CALL zing_add_index('apache2_config', 'idx_apache2_config_type', 0, '`config_type`, `status`');
+CALL zing_add_index('config_apache2', 'idx_config_apache2_type', 0, '`config_type`, `status`');
