@@ -707,7 +707,7 @@ import html2canvas from 'html2canvas'
 import axios from 'axios'
 import request from '../api/request'
 import { getExternalHeaders, isExternalMode } from '../utils/external'
-import { getAuthHeaders } from '../utils/auth'
+import { getAuthHeaders, getUser } from '../utils/auth'
 import { useStaffSignature } from '../utils/staffSignature'
 import { operatorLabel } from '../utils/operator'
 
@@ -715,8 +715,14 @@ const route = useRoute()
 const inHospitalNo = ref(route.query.inHospitalNo || '')
 const patientName = ref(route.query.patientName || '')
 const departCode = ref(route.query.departCode || '')
-const username = ref(route.query.username || '')
-const realname = ref(route.query.realname || '')
+// 身份三级回退，与 MainLayout.userName / SofaScore 同一口径：
+//   外链 URL 参数 → 外链会话缓存（站内跳转后 URL 不再带 realname）→ 直连登录用户。
+// 缺了登录这一级，站内登录进来 realname/username 全空，「评分医师」显示「—」且不会被自动带出。
+const loginUser = getUser()
+const extOperator = sessionStorage.getItem('extOperator')
+const username = ref(route.query.username || (loginUser && loginUser.username) || '')
+const realname = ref(route.query.realname || extOperator
+  || (loginUser && (loginUser.realName || loginUser.username)) || '')
 
 // 是否外链访问：外链下隐藏系统内重复的患者信息条（外层重症系统已展示）
 const isExternal = isExternalMode()

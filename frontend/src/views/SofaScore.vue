@@ -639,6 +639,7 @@ import {
 import { isExternalMode } from '../utils/external'
 import { useStaffSignature } from '../utils/staffSignature'
 import { operatorLabel } from '../utils/operator'
+import { getUser } from '../utils/auth'
 
 const HOSPITAL_LOGO = '/logo.png'  /* 院徽静态资源：frontend/public/logo.png，构建后随 dist 输出 */
 
@@ -647,8 +648,14 @@ const isExternal = isExternalMode()
 
 const inHospitalNo = ref(route.query.inHospitalNo || '')
 const patientId = ref(route.query.patientId || '')
-const username = ref(route.query.username || '')
-const realname = ref(route.query.realname || '')
+// 身份三级回退，与 MainLayout.userName 同一口径：
+//   外链 URL 参数 → 外链会话缓存（站内 router.push 跳转后 URL 不再带 realname）
+//   → 直连登录用户。此前只读 route.query，站内登录进来两级全空，「评分医师」只剩「—」。
+const loginUser = getUser()
+const extOperator = sessionStorage.getItem('extOperator')
+const username = ref(route.query.username || (loginUser && loginUser.username) || '')
+const realname = ref(route.query.realname || extOperator
+  || (loginUser && (loginUser.realName || loginUser.username)) || '')
 
 // 文书 PDF / 文书预览弹窗 / 来源趋势图
 const reportRef = ref(null)
