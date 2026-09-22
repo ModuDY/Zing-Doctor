@@ -112,6 +112,10 @@
           <li><b>签名校验</b>：URL 带 <code>expire=过期时间戳&amp;sign=按密钥生成的签名</code>，安全性高，由后端程序实时生成。</li>
         </ul>
         <p>通用业务参数（建议带）：<code>realname=医生姓名</code> —— 会记录为操作人，页面「评分医生」也据此显示。把示例中的 <code>{host}</code>、<code>{token}</code> 替换为实际部署地址与令牌即可使用。</p>
+        <div class="link-actions">
+          <el-button type="primary" size="small" @click="onGenToken">随机生成新令牌</el-button>
+          <span class="link-token-tip">当前令牌：<b>{{ maskedToken }}</b>　对外地址：<b>{{ currentBase() || '{host}' }}</b></span>
+        </div>
       </div>
 
       <div class="link-toolbar">
@@ -375,9 +379,50 @@ const filteredLinks = computed(() => {
   )
 })
 function buildExample(pg) {
-  let url = `${LINK_BASE}/entry/${pg.code}?extToken=${LINK_TOKEN}&realname=张医生`
+  const base = (currentBase() || LINK_BASE).replace(/\/+$/, '')
+  const tok = currentToken() || LINK_TOKEN
+  let url = `${base}/entry/${pg.code}?extToken=${tok}&realname=张医生`
   ;(pg.params || []).forEach((pa) => { url += `&${pa.k}=${pa.sample}` })
   return url
+}
+function currentBase() {
+  const it = list.value.find((p) => p.paramKey === 'EXTERNAL_LINK_BASE_URL')
+  return it && it.paramValue ? it.paramValue : ''
+}
+function currentToken() {
+  const it = list.value.find((p) => p.paramKey === 'EXTERNAL_LINK_ICU_TOKEN')
+  return it && it.paramValue ? it.paramValue : ''
+}
+const maskedToken = computed(() => {
+  const t = currentToken()
+  if (!t) return '未生成'
+  return t.length <= 8 ? t[0] + '****' : t.slice(0, 4) + '****' + t.slice(-4)
+})
+function randomToken() {
+  const arr = new Uint8Array(24)
+  crypto.getRandomValues(arr)
+  return btoa(String.fromCharCode.apply(null, Array.from(arr))).replace(/[+/=]/g, '').slice(0, 32)
+}
+async function onGenToken() {
+  try {
+    await ElMessageBox.confirm('重新生成后，ICU 侧写死的旧 extToken 将立即失效，需同步更新 ICU 外链模板。确认生成？', '重新生成令牌', {
+      type: 'warning', confirmButtonText: '生成', cancelButtonText: '取消'
+    })
+  } catch { return }
+  const tok = randomToken()
+  const exist = list.value.find((p) => p.paramKey === 'EXTERNAL_LINK_ICU_TOKEN')
+  const body = exist ? { ...exist, paramValue: tok } : {
+    paramName: 'ICU 外链固定令牌', paramKey: 'EXTERNAL_LINK_ICU_TOKEN', paramValue: tok,
+    paramGroup: 'external', paramType: 'text', options: '', defaultValue: '',
+    required: 0, regex: '', sortNo: 2, status: 1, remark: 'ICU 外链固定令牌，随机生成'
+  }
+  try {
+    await request.post('/sys-param/save', body)
+    ElMessage.success('新令牌已生成并保存，请同步到 ICU 外链模板')
+    await loadAll()
+  } catch (e) {
+    ElMessage.error('保存失败：' + (e.message || e))
+  }
 }
 async function copyLink(pg) {
   const url = buildExample(pg)
@@ -775,6 +820,9 @@ onMounted(loadAll)
 .link-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .link-kw { width: 280px; }
 .link-count { font-size: 12px; color: #78716c; }
+.link-actions { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+.link-token-tip { font-size: 12px; color: #78716c; }
+.link-token-tip b { color: #0f766e; font-family: Consolas, Monaco, monospace; }
 .link-list { display: flex; flex-direction: column; gap: 8px; }
 .link-card {
   background: #fff; border: 1px solid #ebeef5; border-radius: 6px; padding: 12px 16px;

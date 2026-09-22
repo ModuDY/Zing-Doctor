@@ -38,6 +38,7 @@ public class ExternalLinkController {
     private final ExternalLinkService externalLinkService;
     private final ExternalLinkProperties properties;
     private final PageConfigMapper pageConfigMapper;
+    private final com.zing.doctor.module.system.service.SysParamService sysParamService;
     private final ExternalAccessLogMapper externalAccessLogMapper;
 
     @GetMapping("/{pageCode}")
@@ -63,7 +64,10 @@ public class ExternalLinkController {
 
         StringBuilder redirect = new StringBuilder();
         // 跳转基础地址优先级：显式配置 EXTERNAL_LINK_BASE_URL（强制指定） > 外链请求自带的 Host（推荐，跟随外部系统访问地址）
-        String baseUrl = properties.getBaseUrl();
+        String baseUrl = sysParamService.value("EXTERNAL_LINK_BASE_URL");
+        if (baseUrl == null || baseUrl.trim().isEmpty()) {
+            baseUrl = properties.getBaseUrl();
+        }
         if (StrUtil.isNotBlank(baseUrl)) {
             redirect.append(baseUrl.replaceAll("/+$", ""));
         } else {

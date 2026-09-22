@@ -32,7 +32,7 @@ CALL zing_add_index('config_prone_item', 'idx_config_prone_item_key', 0, '`confi
 ALTER TABLE `patient_doc_prone_record` MODIFY `admit_date` VARCHAR(20);
 ALTER TABLE `patient_doc_prone_record` MODIFY `record_date` VARCHAR(20);
 
-﻿-- =====================================================================
+-- =====================================================================
 -- 22_ards_prone_config.sql
 -- ARDS 俯卧位通气治疗记录 —— 采集映射配置（参数项 → 数据源项目）
 --

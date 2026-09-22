@@ -4,6 +4,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.zing.doctor.common.BizException;
 import com.zing.doctor.module.antibiotic.mapper.PageConfigMapper;
+import com.zing.doctor.module.system.service.SysParamService;
 import com.zing.doctor.module.antibiotic.entity.PageConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ public class ExternalLinkService {
 
     private final ExternalLinkProperties properties;
     private final PageConfigMapper pageConfigMapper;
+    private final com.zing.doctor.module.system.service.SysParamService sysParamService;
 
     /**
      * 签发一个可直接外链访问的 URL。
@@ -119,7 +121,10 @@ public class ExternalLinkService {
 
     /** ICU 明文模式校验（静态 extToken == icu-token；P0 内网使用，token 固定写死在 ICU 外链模板） */
     private ExternalLinkContext verifyIcuPlain(String pageCode, Map<String, String> rawParams, String extToken) {
-        String expected = properties.getIcuToken();
+        String expected = sysParamService.value("EXTERNAL_LINK_ICU_TOKEN");
+        if (expected == null || expected.trim().isEmpty()) {
+            expected = properties.getIcuToken();
+        }
         if (StrUtil.isBlank(expected) || !SignatureUtil.constantTimeEquals(expected, extToken)) {
             throw new BizException(401, "ICU 外链 token 校验失败");
         }

@@ -197,7 +197,7 @@ def scan_global_comments(src_dir):
     for fn in os.listdir(src_dir):
         if not fn.endswith('.sql'):
             continue
-        raw = open(os.path.join(src_dir, fn), encoding='utf-8').read()
+        raw = open(os.path.join(src_dir, fn), encoding='utf-8-sig').read()
         raw = strip_schema(quotes_to_backticks(raw))
         # 块内 || 拼接的 COMMENT 也还原
         raw = re.sub(r"'\s*\|\|\s*'", '', raw)
@@ -321,8 +321,14 @@ HELPERS_ICU = _helper_header("zing_icu_db_prod", "ICU 只读库") + _helper_body
 def convert(input_path, output_path, global_table_comments=None, global_col_comments=None):
     global_table_comments = global_table_comments or {}
     global_col_comments = global_col_comments or {}
-    with open(input_path, 'r', encoding='utf-8') as f:
+    # utf-8-sig：源文件若带 BOM 会被自动剥掉。
+    # ⚠️ 用 utf-8 读会把 BOM 当成正文字符 \ufeff 写进产物，而本工具的输出是
+    #   「生成的头部 + 转换后的 DDL + 原文剩余」，BOM 因此落在文件**中间**——
+    #   MySQL 遇到中间的 BOM 就不再把后面的 "-- " 当注释，整段被当语句解析 → ERROR 1064。
+    #   （sql/mysql/22_ards_prone_config.sql 就踩过：BOM 在第 35 行，初始化中断。）
+    with open(input_path, 'r', encoding='utf-8-sig') as f:
         raw = f.read().replace('\r\n', '\n')
+        raw = raw.replace('\ufeff', '')
 
     # 0) 先归一化引号/schema，便于 COMMENT 正则匹配（块内外都能识别）
     normalized = strip_schema(raw)
