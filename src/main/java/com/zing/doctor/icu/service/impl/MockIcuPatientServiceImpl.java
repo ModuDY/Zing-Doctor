@@ -8,6 +8,7 @@ import com.zing.doctor.icu.dto.IcuPatientBrief;
 import com.zing.doctor.icu.dto.LabTrend;
 import com.zing.doctor.icu.dto.TrendPoint;
 import com.zing.doctor.icu.service.IcuPatientService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
@@ -20,17 +21,26 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * ICU 数据 Mock 实现（P0 默认）。
+ * ICU 数据 Mock 实现（联调用，非默认）。
  *
- * <p>用于在 ICU 表结构/数据源就绪前打通「外链打开 → 列表 → 决策详情 → 方案推荐」全流程。
- * 生产切换：实现 {@link IcuPatientService} 的 SQL 版本并将
- * application.yml 中 icu-data-provider 改为 sql（届时删除本类或加 @ConditionalOnProperty 排除）。
+ * <p>用于在 ICU 表结构/数据源就绪前打通「外链打开 → 列表 → 决策详情 → 方案推荐」全流程，
+ * 仅用于联调。默认已切换为 SQL 版本，本类只有在显式配置
+ * {@code zing.doctor.icu-data-provider=mock} 时才会生效，且启动时会打 WARN。
  */
+@Slf4j
 @Service
-@ConditionalOnProperty(name = "zing.doctor.icu-data-provider", havingValue = "mock", matchIfMissing = true)
+// 不再 matchIfMissing：Mock 必须被显式指定才会生效。
+// 否则一旦配置源读不到该键（或被人删掉），系统会静默退回假数据，页面照常渲染且无任何报错。
+@ConditionalOnProperty(name = "zing.doctor.icu-data-provider", havingValue = "mock")
 public class MockIcuPatientServiceImpl implements IcuPatientService {
 
     private final List<IcuPatientBrief> mockPatients = buildMock();
+
+    public MockIcuPatientServiceImpl() {
+        log.warn("[ICU数据源] 当前使用 Mock 示例数据（zing.doctor.icu-data-provider=mock）："
+                + "疑似感染列表 / 决策详情 / PKPD / 职工检索返回的都是内置假数据，不是真实 ICU 数据。"
+                + "生产请设为 sql（默认已是 sql，显式写 mock 才会走到这里）。");
+    }
 
     @Override
     public List<IcuPatientBrief> listSuspectInfections() {

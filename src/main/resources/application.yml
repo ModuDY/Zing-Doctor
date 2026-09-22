@@ -72,10 +72,14 @@ zing:
       admin-password: ${ADMIN_PASSWORD:zing@123}
       admin-real-name: ${ADMIN_REAL_NAME:系统管理员}
     # 第一维度：经验性抗感染治疗决策 - ICU 数据提供方式
-    # mock：内置示例数据（P0 默认，无需真实 ICU 库即可跑通流程）
     # sql ：基于 ICU 系统真实表结构只读查询 zing_icu_db_prod（SqlIcuPatientServiceImpl）
-    #       切换后需保证 ICU 只读数据源连接与 zing_icu_db_prod 表结构可用
-    icu-data-provider: ${ICU_DATA_PROVIDER:mock}
+    #       需保证 ICU 只读数据源连接与 zing_icu_db_prod 表结构可用
+    # mock：内置示例数据，仅用于 ICU 库未就绪时打通流程（MockIcuPatientServiceImpl）。
+    #       ⚠️ 不能用于生产：页面照常渲染、接口照常返回 200，但数据全是假的且不报错。
+    #          生效时启动日志会打 WARN，便于一眼看出跑在假数据上。
+    # 注意：Mock 实现类已去掉 matchIfMissing，必须显式写 mock 才会启用；本默认值改为 sql 后，
+    #       漏配环境变量的结果是「连真实 ICU 库」而非「静默给假数据」。
+    icu-data-provider: ${ICU_DATA_PROVIDER:sql}
   # 质控指标中台
   quality:
     # 配置真源：
