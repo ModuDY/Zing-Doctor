@@ -38,6 +38,9 @@ tables:
 
   # ---------- 已实库验证：医生库 ----------
   patient_doc_apache2_score_record: { ds: doctor, name: patient_doc_apache2_score_record, pk: id, timeField: score_time }
+  # 旧逻辑表名别名：早期 patient.yaml 用 apache2_score_record，后改为带前缀的规范名。
+  # 保留别名兼容服务器上尚未同步的旧配置，避免「未登记逻辑表」500。
+  apache2_score_record:            { ds: doctor, name: patient_doc_apache2_score_record, pk: id, timeField: score_time }
 
   # ---------- 待接数据源 ----------
   # 这三张表尚未在实库确认。此处先「登记」而非留空，是为了：
