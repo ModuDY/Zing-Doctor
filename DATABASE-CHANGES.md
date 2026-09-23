@@ -7,7 +7,7 @@
 > 所以**先跑 `install.sh`，再照着下面的清单逐项核对**——只有三条通道都没命中、或日志里明确报了失败，
 > 才需要人工补执行。
 >
-> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（**25/26**/09/10/11/12/13/14/15/16/17/18/19/20/21/22/23/28，
+> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（**25/26**/09/10/11/12/13/14/15/16/17/18/19/20/21/22/23/24/28，
 > 注意 25/26 的 rename 排在最前）；全量初始化与
 > 一次性脚本（如 06_abx_drug_dict.sql）不在其内。漏执行 = 新代码一上来就 500。
 > MySQL/MariaDB 环境由 `install-mariadb-debian.sh` 每次全量重跑 `MAIN_SQL`，不存在「漏增量」问题，但脚本必须两边都有（见下方四步规则）。
@@ -123,6 +123,50 @@ SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'ARCH
 ---
 
 ## 批次记录
+
+### 2026-09-23 · 质控配置外挂目录与写保护总开关
+
+**涉及**（只加一条配置数据，不加表、不加列）
+
+- `sys_param` 新增：`QUALITY_CONFIG_WRITE_OPEN` —— 质控配置写接口总开关，默认 `0`
+- 挂在既有分组 `quality`（质控配置）下，`param_type = switch`，取值 `0` / `1`
+- 执行脚本：达梦 `sql/24_quality_config_guard.sql`、MySQL `sql/mysql/24_quality_config_guard.sql`
+  （`INSERT … SELECT … FROM DUAL WHERE NOT EXISTS`，可重复执行）
+
+**背景**：质控配置（事实层 / 指标 / 口径）改一行就能改全院质控口径，而配置页与只读看板
+共用同一套外链鉴权 —— 拿到外链即可改生产口径，风险等级不匹配，故写接口单独有一层
+`QualityConfigGuard`（IP 白名单 / 写接口 Token，两者都不配则一律 403）。
+
+严格模式对「单人 / 小团队内网部署」很不方便：改一次配置要 SSH 上机器改 `application.yml`
+再重启。本开关即为此设：
+
+- `0`（默认）= 严格模式，仍需 IP 白名单或 `X-Quality-Config-Token`
+- `1` = 跳过一切写权限检查，参数页可直接改配置
+
+**同批上线的行为变更**：`zing.quality.config-dir` 默认值由空改为 `./config/quality`。
+首次启动会把 jar 内的 `quality/**/*.yaml` 播种到该目录，以后直接改这些文件即可生效，
+不必重新打 jar；**外部目录已有文件时绝不覆盖**。部署目录需有写权限。
+
+**不执行的后果**：功能不挂 —— Java 侧读不到该参数时回退 `application.yml` 的
+`zing.quality.config-write-open`（默认 `false`，即严格模式）。但「参数设置 → 质控配置」页
+看不到这个开关，现场无法在页面上切换。
+
+**自动应用**
+
+- 达梦：已加入 `install.sh` 的 `FULL_SQL`、`FULL_SQL_JDBC`、`INCREMENTAL_SQL` **三处清单**
+- MySQL / MariaDB：`sql/mysql/24_quality_config_guard.sql` 已加入 `install-mariadb-debian.sh`
+  的 `MAIN_SQL`
+
+> ⚠️ **顺序关键**（达梦侧）：`FULL_SQL` / `FULL_SQL_JDBC` 里必须排在
+> `27_restore_config_snapshot.sql` **之后**。27 会对 `sys_param` 整表 `DELETE + INSERT`
+> 成 2026-09-22 的快照，而快照导出时还没有这个键，排前面会被静默覆盖掉。
+
+**人工补执行（自动通道未命中时）**：执行对应脚本全文，然后核对：
+
+```sql
+-- 应返回 1
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'QUALITY_CONFIG_WRITE_OPEN';
+```
 
 ### 2026-09-23 · 质控每日批算：新增系统参数 QUALITY_BACKFILL_DAYS
 

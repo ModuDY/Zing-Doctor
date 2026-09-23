@@ -524,6 +524,8 @@ SQL
     # 28 质控每日批算参数。必须排在 25/26 之后：脚本写的是新表名 sys_param，
     #    老库上要等 25/26 把 zing_sys_param 改名过来，排前面会报表不存在
     28_quality_daily_param.sql
+    # 24 质控配置写保护总开关。同样排在 25/26 之后（写的是新表名 sys_param / sys_param_group）
+    24_quality_config_guard.sql
   )
   for f in "${MAIN_SQL[@]}"; do
     [ -f "$SQL_DIR/$f" ] || { warn "缺少 $f，跳过"; continue; }

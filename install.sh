@@ -158,6 +158,11 @@ FULL_SQL=(
     #    而该快照导出于切换每日批算之前，本就不含这个键 —— 覆盖即静默丢失。
     #    漏执行的后果可控（Java 侧回退默认值 3），但现场将无法按院方节奏调整回溯窗口。
     "28_quality_daily_param.sql"
+    # 24 质控配置写保护总开关（QUALITY_CONFIG_WRITE_OPEN）。同样**必须排在 27 之后**：
+    #    它也是 sys_param 里的一条参数，排 27 前面同样会被配置快照整表覆盖掉。
+    #    漏执行的后果可控（Java 侧回退 application.yml 的 config-write-open 默认 false，
+    #    即保持严格模式），但参数设置页看不到这个开关，现场无法在页面上切换。
+    "24_quality_config_guard.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -191,6 +196,8 @@ FULL_SQL_JDBC=(
     "27_restore_config_snapshot.sql"
     # 28 质控每日批算参数（同 FULL_SQL：必须排 27 之后，否则被配置快照覆盖）
     "28_quality_daily_param.sql"
+    # 24 质控配置写保护总开关（同 FULL_SQL：必须排 27 之后，否则被配置快照覆盖）
+    "24_quality_config_guard.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -232,6 +239,8 @@ INCREMENTAL_SQL=(
     "14_param_framework.sql"
     # 28 质控每日批算参数（依赖 14 预置的 quality 分组与 param_type 等扩展列，故排其后；幂等可重复）
     "28_quality_daily_param.sql"
+    # 24 质控配置写保护总开关（同 28：依赖 14 预置的 quality 分组与扩展列，故排其后；幂等可重复）
+    "24_quality_config_guard.sql"
     # 21 建 ARDS 俯卧位 5 张表 + 页面注册 + 参数种子；参数种子写 sys_param（14 建），故排最后
     "21_ards_prone.sql"
     # 22 建 ARDS 采集映射配置表 + patient_doc_prone_record 日期扩列（依赖 21，故排其后）；
