@@ -1299,10 +1299,38 @@ async function loadOverviewData() {
   }
 }
 
+/**
+ * 把外链带来的科室参数归一成 org_code。
+ *
+ * 外链方传的可能是科室名称（如「ICU-4U」）而不是编码（如 20070131），而这两种情况
+ * 在界面上看起来一模一样：deptName() 匹配不到时会原样回退显示，于是「传了名称」
+ * 与「传对了编码」毫无区别，但每个查询都带着一个库里不存在的 depart_code 发出去，
+ * 表现为「全部指标未出数」而不是报错 —— 极难排查。
+ *
+ * 判据：先按编码匹配；匹配不到、且能按名称唯一命中时换成编码。
+ * 空值原样返回（空表示全院口径，不该被改写）；名称命中多条时不猜，
+ * 宁可保持原值让它暴露出来，也不静默选错科室。
+ */
+function normalizeDepartParam(code) {
+  const c = String(code == null ? '' : code).trim()
+  if (!c) return ''
+  const list = departments.value || []
+  if (list.some((d) => String(d.org_code) === c)) return c
+  const byName = list.filter((d) => String(d.depart_name) === c)
+  return byName.length === 1 ? String(byName[0].org_code) : c
+}
+
 async function loadDepartments() {
   try {
     const res = await fetchQualityDepartments()
     departments.value = Array.isArray(res) ? res : []
+    // 字典到位后立刻纠正外链科室参数。必须赶在首次查询之前：否则第一轮请求会带着
+    // 无效编码空跑一次，页面先闪一遍「全部未出数」再被纠正后的数据覆盖。
+    const fixed = normalizeDepartParam(departCode.value)
+    if (fixed !== departCode.value) {
+      console.warn(`[质控] 外链科室参数「${departCode.value}」不是有效编码，已按科室名称匹配为「${fixed}」`)
+      departCode.value = fixed
+    }
   } catch (e) {
     // 科室下拉是锦上添花，取不到不影响看板
     console.warn('科室列表加载失败:', e.message || e)
@@ -2103,8 +2131,9 @@ function factSql(sourceTables) {
   return Array.isArray(sourceTables) ? sourceTables.join('\n') : String(sourceTables)
 }
 
-onMounted(() => {
-  loadDepartments()
+onMounted(async () => {
+  // 先取科室字典并纠正外链科室参数，再发起查询 —— 保证首次请求用的就是有效编码
+  await loadDepartments()
   loadOverview()
   loadRules()
 })
