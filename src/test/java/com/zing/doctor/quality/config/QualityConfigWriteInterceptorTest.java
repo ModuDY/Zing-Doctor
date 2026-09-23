@@ -1,6 +1,7 @@
 package com.zing.doctor.quality.config;
 
 import com.zing.doctor.common.BizException;
+import com.zing.doctor.module.system.service.SysParamService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -96,6 +97,10 @@ class QualityConfigWriteInterceptorTest {
     }
 
     private static QualityConfigWriteInterceptor interceptor(QualityProperties props) {
-        return new QualityConfigWriteInterceptor(new QualityConfigGuard(props));
+        com.zing.doctor.module.system.service.SysParamService sp =
+            org.mockito.Mockito.mock(com.zing.doctor.module.system.service.SysParamService.class);
+        org.mockito.Mockito.when(sp.bool(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
+            .thenAnswer(inv -> (Boolean) inv.getArgument(1));
+        return new QualityConfigWriteInterceptor(new QualityConfigGuard(props, sp));
     }
 }
