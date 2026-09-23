@@ -28,6 +28,14 @@ import java.util.Map;
 @Mapper
 public interface IcuPatientMapper {
 
+    /** 患者工作台：仅查询在科患者基础字段，不关联千万级检验明细。 */
+    @Select("SELECT pi.id AS patient_id, pi.in_hospital_no AS patient_no, pi.name AS name, "
+            + "pi.age AS age, pi.gender AS gender, pi.ward_name AS department, "
+            + "pi.bed_code AS bed_no, pi.in_depart_time AS in_depart_time "
+            + "FROM \"zing_icu_db_prod\".\"patient_info\" pi "
+            + "WHERE pi.is_in_depart = 1 AND pi.del_flag = 0 "
+            + "ORDER BY pi.in_depart_time DESC")
+    List<Map<String, Object>> selectInpatients();
     /**
      * 疑似感染/脓毒症在科患者（含基础信息与多耐药标记）。
      * 筛选条件：在科 + 未删除，且满足下列任一：

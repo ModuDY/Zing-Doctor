@@ -9,12 +9,18 @@ import { isLoggedIn } from '../utils/auth'
  *  - 外链访问统一走后端 /entry/{pageCode}，校验签名后 302 到本路由（并透传 pageCode/expire/sign）。
  */
 const routes = [
-  { path: '/', redirect: '/page/abx-patient-list' },
+  { path: '/', redirect: '/page/patient-workbench' },
   {
     path: '/login',
     name: 'login',
     component: () => import('../views/Login.vue'),
     meta: { title: '登录' }
+  },
+  {
+    path: '/page/patient-workbench',
+    name: 'patientWorkbench',
+    component: () => import('../views/PatientWorkbench.vue'),
+    meta: { title: '患者工作台' }
   },
   {
     path: '/page/abx-patient-list',

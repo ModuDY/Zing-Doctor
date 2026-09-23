@@ -10,6 +10,10 @@
       </div>
 
       <nav class="sidebar-nav">
+        <router-link to="/page/patient-workbench" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">🧑‍⚕️</span>
+          <span class="nav-label">患者工作台</span>
+        </router-link>
         <router-link to="/page/abx-patient-list" class="nav-item" active-class="nav-active">
           <span class="nav-icon">📋</span>
           <span class="nav-label">疑似感染患者</span>

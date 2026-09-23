@@ -8,6 +8,7 @@ import com.zing.doctor.icu.dto.IcuPatientAssessment;
 import com.zing.doctor.icu.dto.IcuPatientBrief;
 import com.zing.doctor.icu.dto.LabTrend;
 import com.zing.doctor.icu.dto.TrendPoint;
+import com.zing.doctor.icu.dto.WorkbenchPatient;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.service.IcuPatientService;
 import com.zing.doctor.module.antibiotic.service.AbxDrugRecognizer;
@@ -80,6 +81,43 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
      */
     private final AbxDrugRecognizer abxDrugRecognizer;
 
+    @Override
+    public List<WorkbenchPatient> listInpatients() {
+        List<Map<String, Object>> rows = icuPatientMapper.selectInpatients();
+        List<WorkbenchPatient> patients = new ArrayList<>();
+        if (rows == null) return patients;
+        LocalDateTime now = LocalDateTime.now();
+        for (Map<String, Object> row : rows) {
+            WorkbenchPatient patient = new WorkbenchPatient();
+            patient.setPatientId(str(row.get("patient_id")));
+            patient.setPatientNo(maskPatientNo(str(row.get("patient_no"))));
+            patient.setName(maskName(str(row.get("name"))));
+            patient.setAge(parseInt(row.get("age")));
+            patient.setGender(str(row.get("gender")));
+            patient.setDepartment(str(row.get("department")));
+            patient.setBedNo(str(row.get("bed_no")));
+            LocalDateTime admittedAt = toLocalDateTime(row.get("in_depart_time"));
+            patient.setInDepartmentTime(admittedAt);
+            patient.setIcuDays(admittedAt == null ? null : Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(admittedAt.toLocalDate(), now.toLocalDate()) + 1));
+            patients.add(patient);
+        }
+        return patients;
+    }
+
+    private String maskName(String name) {
+        if (StrUtil.isBlank(name)) return "未知";
+        if (name.contains("*")) return name;
+        if (name.length() == 1) return "*";
+        StringBuilder masked = new StringBuilder().append(name.charAt(0));
+        for (int i = 1; i < name.length(); i++) masked.append("*");
+        return masked.toString();
+    }
+
+    private String maskPatientNo(String patientNo) {
+        if (StrUtil.isBlank(patientNo)) return "—";
+        if (patientNo.length() <= 4) return "****";
+        return patientNo.substring(0, 3) + "***" + patientNo.substring(patientNo.length() - 2);
+    }
     @Override
     public List<IcuPatientBrief> listSuspectInfections() {
         List<IcuPatientBrief> result = new ArrayList<>();

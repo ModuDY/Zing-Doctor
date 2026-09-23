@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.zing.doctor.common.BizException;
 import com.zing.doctor.icu.dto.IcuPatientAssessment;
 import com.zing.doctor.icu.dto.IcuPatientBrief;
+import com.zing.doctor.icu.dto.WorkbenchPatient;
 import com.zing.doctor.icu.dto.LabTrend;
 import com.zing.doctor.icu.dto.TrendPoint;
 import com.zing.doctor.icu.service.IcuPatientService;
@@ -42,6 +43,26 @@ public class MockIcuPatientServiceImpl implements IcuPatientService {
                 + "生产请设为 sql（默认已是 sql，显式写 mock 才会走到这里）。");
     }
 
+    @Override
+    public List<WorkbenchPatient> listInpatients() {
+        List<WorkbenchPatient> rows = new ArrayList<>();
+        for (IcuPatientBrief source : mockPatients) {
+            WorkbenchPatient patient = new WorkbenchPatient();
+            patient.setPatientId(source.getPatientId());
+            String no = source.getPatientNo();
+            patient.setPatientNo(no == null || no.length() <= 4 ? "****" : no.substring(0, 3) + "***" + no.substring(no.length() - 2));
+            String name = source.getName();
+            patient.setName(name == null || name.isEmpty() ? "未知" : (name.contains("*") ? name : name.substring(0, 1) + "*"));
+            patient.setAge(source.getAge());
+            patient.setGender(source.getGender());
+            patient.setDepartment(source.getDepartment());
+            patient.setBedNo(source.getBedNo());
+            patient.setInDepartmentTime(null);
+            patient.setIcuDays(null);
+            rows.add(patient);
+        }
+        return rows;
+    }
     @Override
     public List<IcuPatientBrief> listSuspectInfections() {
         return mockPatients;

@@ -2,6 +2,7 @@ package com.zing.doctor.icu.service;
 
 import com.zing.doctor.icu.dto.IcuPatientAssessment;
 import com.zing.doctor.icu.dto.IcuPatientBrief;
+import com.zing.doctor.icu.dto.WorkbenchPatient;
 
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,9 @@ import java.util.Map;
  * application.yml 中 {@code zing.doctor.icu-data-provider=sql} 即可，接口保持不变。
  */
 public interface IcuPatientService {
+
+    /** ICU 在科患者工作台（仅基础信息，不聚合检验/医嘱大表） */
+    List<WorkbenchPatient> listInpatients();
 
     /** 疑似感染/脓毒症患者列表（可按感染类型等条件扩展） */
     List<IcuPatientBrief> listSuspectInfections();
