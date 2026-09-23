@@ -1086,6 +1086,7 @@ function toDate(v) {
     return new Date(y, m - 1, 1)
   }
   if (/^\d+$/.test(s)) {
+    if (s.length === 4) return new Date(Number(s), 0, 1)
     const d = new Date(Number(s))
     return isNaN(d.getTime()) ? null : d
   }
@@ -1134,6 +1135,23 @@ const periodStart = computed(() => {
   if (periodType.value === 'YEAR') return yearValue.value
   const m = (Number(quarter.value) - 1) * 3 + 1
   return `${quarterYear.value}-${String(m).padStart(2, '0')}`
+})
+
+/** 根据当前所选周期，实时推算「起 ~ 止」显示文本（与后端 PeriodRange.of 口径一致，左闭右开显示时 end 回退 1 秒）。 */
+const periodRangeText = computed(() => {
+  const ps = periodStart.value
+  let start, end
+  if (periodType.value === 'YEAR') {
+    const y = Number(ps)
+    start = new Date(y, 0, 1); end = new Date(y + 1, 0, 1)
+  } else if (periodType.value === 'QUARTER') {
+    const parts = ps.split('-').map(Number)
+    start = new Date(parts[0], parts[1] - 1, 1); end = new Date(parts[0], parts[1] - 1 + 3, 1)
+  } else {
+    const parts = ps.split('-').map(Number)
+    start = new Date(parts[0], parts[1] - 1, 1); end = new Date(parts[0], parts[1], 1)
+  }
+  return fmtDate(start) + ' ~ ' + fmtDate(new Date(end.getTime() - 1000))
 })
 
 function onPeriodTypeChange() {
@@ -1845,7 +1863,7 @@ async function doRecalc() {
   }
   try {
     await ElMessageBox.confirm(
-      `将重算 ${fmtPeriod(overview.periodStart || periodStart.value)} ~ ${fmtPeriodEnd(overview.periodEnd)} 的指标结果`
+      `将重算 ${periodRangeText.value} 的指标结果`
         + `${departCode.value ? `（仅科室「${deptName(departCode.value)}」）` : '（全院 + 各科室）'}：`
         + `同周期同科室幂等覆盖${departCode.value ? '，全院汇总行不受本次计算影响（它由全院计算更新）' : ''}，是否继续？`,
       '触发计算',
