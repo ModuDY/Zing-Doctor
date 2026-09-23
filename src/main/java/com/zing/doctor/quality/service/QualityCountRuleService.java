@@ -422,7 +422,7 @@ public class QualityCountRuleService {
     /** 一次取齐本周期本科室的全部原子项结果，避免 N 次单查。 */
     private Map<String, QualityMetricResult> loadResults(PeriodRange range, String dept) {
         Map<String, QualityMetricResult> byCode = new HashMap<>();
-        List<QualityMetricResult> results = resultMapper.selectByPeriod(range.getStart(), dept);
+        List<QualityMetricResult> results = resultMapper.selectByPeriod(range.getPeriodType(), range.getStart(), dept);
         if (results == null) {
             return byCode;
         }

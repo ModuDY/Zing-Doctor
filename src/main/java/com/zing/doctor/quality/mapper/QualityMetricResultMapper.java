@@ -45,9 +45,10 @@ public interface QualityMetricResultMapper extends BaseMapper<QualityMetricResul
     String MANUAL_GUARD = " AND (\"value_source\" IS NULL OR NOT (\"value_source\" = 'MANUAL'))";
 
     @Select("SELECT * FROM \"zing_doctor_db_prod\".\"quality_metric_result\" "
-            + "WHERE \"period_start\" = #{periodStart} AND \"depart_code\" = #{departCode} "
+            + "WHERE \"period_type\" = #{periodType} AND \"period_start\" = #{periodStart} AND \"depart_code\" = #{departCode} "
             + "ORDER BY \"domain_code\", \"metric_code\"")
-    List<QualityMetricResult> selectByPeriod(@Param("periodStart") LocalDateTime periodStart,
+    List<QualityMetricResult> selectByPeriod(@Param("periodType") String periodType,
+                                             @Param("periodStart") LocalDateTime periodStart,
                                              @Param("departCode") String departCode);
 
     @Delete("DELETE FROM \"zing_doctor_db_prod\".\"quality_metric_result\" "

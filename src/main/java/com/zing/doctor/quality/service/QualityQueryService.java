@@ -87,7 +87,7 @@ public class QualityQueryService {
         List<QualityIndex> indices = indexMapper.selectAllOrdered();
         Map<String, QualityMetricResult> resultMap = new LinkedHashMap<>();
         try {
-            for (QualityMetricResult r : resultMapper.selectByPeriod(range.getStart(), dept)) {
+            for (QualityMetricResult r : resultMapper.selectByPeriod(range.getPeriodType(), range.getStart(), dept)) {
                 resultMap.put(r.getMetricCode(), r);
             }
         } catch (Exception e) {
@@ -172,7 +172,7 @@ public class QualityQueryService {
 
         QualityMetricResult result = null;
         try {
-            for (QualityMetricResult r : resultMapper.selectByPeriod(range.getStart(), dept)) {
+            for (QualityMetricResult r : resultMapper.selectByPeriod(range.getPeriodType(), range.getStart(), dept)) {
                 if (code.equals(r.getMetricCode())) {
                     result = r;
                     break;
@@ -583,7 +583,7 @@ public class QualityQueryService {
 
     public QualityMetricResult findResult(String code, LocalDateTime periodStart, String departCode) {
         try {
-            for (QualityMetricResult r : resultMapper.selectByPeriod(periodStart, normalizeDepart(departCode))) {
+            for (QualityMetricResult r : resultMapper.selectByPeriod("MONTH", periodStart, normalizeDepart(departCode))) {
                 if (code.equals(r.getMetricCode())) {
                     return r;
                 }
