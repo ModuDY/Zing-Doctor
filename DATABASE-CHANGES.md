@@ -7,7 +7,7 @@
 > 所以**先跑 `install.sh`，再照着下面的清单逐项核对**——只有三条通道都没命中、或日志里明确报了失败，
 > 才需要人工补执行。
 >
-> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（**25/26**/09/10/11/12/13/14/15/16/17/18/19/20/21/22/23，
+> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（**25/26**/09/10/11/12/13/14/15/16/17/18/19/20/21/22/23/28，
 > 注意 25/26 的 rename 排在最前）；全量初始化与
 > 一次性脚本（如 06_abx_drug_dict.sql）不在其内。漏执行 = 新代码一上来就 500。
 > MySQL/MariaDB 环境由 `install-mariadb-debian.sh` 每次全量重跑 `MAIN_SQL`，不存在「漏增量」问题，但脚本必须两边都有（见下方四步规则）。
@@ -27,7 +27,7 @@
 1. 用 DM 管理工具 / disql 连到达梦（SYSDBA 或同权限账号）
 2. 翻到下面「批次记录」，从自己**还没执行**的批次开始，按 ①②③ 顺序执行
 3. 某一块报「已存在 / already exists」→ 说明已执行过，**跳过该块继续**
-4. 全新部署不用来这里，`sql/` 目录下按序号（01 → 26）依次全跑即可（25/26 是 rename，空库无旧表会整段跳过）
+4. 全新部署不用来这里，`sql/` 目录下按序号（01 → 28）依次全跑即可（25/26 是 rename，空库无旧表会整段跳过）
 
 ---
 
@@ -123,6 +123,54 @@ SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'ARCH
 ---
 
 ## 批次记录
+
+### 2026-09-23 · 质控每日批算：新增系统参数 QUALITY_BACKFILL_DAYS
+
+**涉及**（只加一条配置数据，不加表、不加列）
+
+- `sys_param` 新增：`QUALITY_BACKFILL_DAYS` —— 质控每日批算回溯天数，默认 `3`
+- 挂在既有分组 `quality`（质控配置）下，`param_type = number`，校验正则 `^[1-9][0-9]{0,2}$`
+- 执行脚本：`sql/28_quality_daily_param.sql`（`INSERT … SELECT … FROM DUAL WHERE NOT EXISTS`，可重复执行）
+
+**背景**：夜间批算由「每月 1 日把上月一次性定稿」改为「每天 03:30 重算 + 回溯窗口」
+（`QualityDailyTask`，原 `QualityMonthlyTask` 已下线）。每天重算的是
+`[今天 - N 天, 昨天]` 这段窗口覆盖到的**所有月份**，N 即本参数。
+
+改成日频的原因：月度一次性定稿时，月末几天的出院 / 结算记录常由 HIS 拖到次月初才补齐，
+定稿之后补录的数据永远进不了已经算完的月份 —— 这正是「每月最后一天的数据算不准」的来源。
+改为每天重算后，月内数据持续滚动刷新，跨月后仍会继续追平 N 天再自然定稿。
+
+**不执行的后果**：批算**不会停摆** —— 读不到该参数时 Java 侧回退默认值 3。
+但「参数设置 → 质控配置」页看不到这一项，现场也就无法按院方数据节奏调整回溯天数。
+
+**自动应用**
+
+- 达梦：已加入 `install.sh` 的 `FULL_SQL`、`FULL_SQL_JDBC`、`INCREMENTAL_SQL` **三处清单**
+- MySQL / MariaDB：`sql/mysql/28_quality_daily_param.sql` 已加入 `install-mariadb-debian.sh`
+  的 `MAIN_SQL`（排在 25/26 之后：脚本写的是新表名 `sys_param`，老库上要先由 25/26 改名过来）
+
+> ⚠️ **顺序关键**（达梦侧）：`FULL_SQL` / `FULL_SQL_JDBC` 里必须排在 `27_restore_config_snapshot.sql` **之后**。
+> 27 会对 `sys_param` 整表 `DELETE + INSERT` 成 2026-09-22 的快照，而快照导出时还没有这个键，
+> 排它前面会被静默覆盖掉（不报错，就是参数不见了）。`INCREMENTAL_SQL` 里则排在
+> `14_param_framework.sql` 之后 —— 本参数依赖 14 预置的 `quality` 分组与 `param_type` 等扩展列。
+
+**人工补执行（自动通道未命中时）**：执行 `sql/28_quality_daily_param.sql` 全文，然后核对：
+
+```sql
+-- 应返回 1
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_param"
+ WHERE "param_key" = 'QUALITY_BACKFILL_DAYS';
+```
+
+**同一批次上线的代码改动**
+
+- 新增 `QualityDailyTask`：每晚 03:30 重算窗口命中的月份，再刷新「命中年份 ∪ 当前年」的
+  年度汇总宽表；cron 可用 `zing.quality.daily-cron` 覆盖
+- 下线 `QualityMonthlyTask` 与配置项 `zing.quality.monthly-cron`
+- 汇总年份改为并上「当前年」，修复元旦当天本年宽表尚未建立、看板「本年度汇总」为空的问题
+- 重算与汇总均按月份 / 年份单独兜异常，单个周期失败不影响其它周期
+- `QualityMetricResultMapper.selectByPeriod` 补 `period_type` 精确过滤，避免同一时间点存在
+  多种周期类型（MONTH / DAY / CUSTOM）的结果互相串数据
 
 ### 2026-09-22 · 表名对齐 ICU 命名规范（32 张表 rename，含第二批 11 张）
 

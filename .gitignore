@@ -29,6 +29,7 @@ sofa-*-preview*
 A_high_fidelity_UI_mockup_*.png
 _pack_tmp.ps1
 .preview/
+_debug_*.png
 
 # 运行与构建日志（app-out.log / app-err.log / frontend/vite-*.log 等，
 # 每次运行都会变化，不应入库；frontend/public/logo.png 为源码资源，不受影响）

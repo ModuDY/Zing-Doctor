@@ -521,6 +521,9 @@ SQL
     21_ards_prone.sql 22_ards_prone_config.sql 23_ards_prone_sign_work_no.sql
     # 25/26 表名规范化 rename（人工改写的存储过程版；全新 MariaDB 库无旧表 → 全部跳过，幂等）
     25_rename_doctor_tables.sql 26_rename_clinical_tables.sql
+    # 28 质控每日批算参数。必须排在 25/26 之后：脚本写的是新表名 sys_param，
+    #    老库上要等 25/26 把 zing_sys_param 改名过来，排前面会报表不存在
+    28_quality_daily_param.sql
   )
   for f in "${MAIN_SQL[@]}"; do
     [ -f "$SQL_DIR/$f" ] || { warn "缺少 $f，跳过"; continue; }
