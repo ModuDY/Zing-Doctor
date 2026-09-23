@@ -153,6 +153,11 @@ FULL_SQL=(
     #    ⚠️ 只加进 FULL_SQL（全新初始化）；INCREMENTAL_SQL 里绝不能加，否则每次升级都会
     #       把现场配置打回 2026-09-22 的快照。重新部署后想更新快照就重跑 DmExport 覆盖本文件。
     "27_restore_config_snapshot.sql"
+    # 28 质控每日批算参数（QUALITY_BACKFILL_DAYS）。**必须排在 27 之后**：
+    #    27 把 sys_param 整表 DELETE + INSERT 成快照，排它前面会被快照覆盖掉；
+    #    而该快照导出于切换每日批算之前，本就不含这个键 —— 覆盖即静默丢失。
+    #    漏执行的后果可控（Java 侧回退默认值 3），但现场将无法按院方节奏调整回溯窗口。
+    "28_quality_daily_param.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -184,6 +189,8 @@ FULL_SQL_JDBC=(
     "26_rename_clinical_tables.sql"
     # 27 配置快照（同上，仅全新初始化；不进 INCREMENTAL_SQL）
     "27_restore_config_snapshot.sql"
+    # 28 质控每日批算参数（同 FULL_SQL：必须排 27 之后，否则被配置快照覆盖）
+    "28_quality_daily_param.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -223,6 +230,8 @@ INCREMENTAL_SQL=(
     "12_archive.sql"
     "13_auth.sql"
     "14_param_framework.sql"
+    # 28 质控每日批算参数（依赖 14 预置的 quality 分组与 param_type 等扩展列，故排其后；幂等可重复）
+    "28_quality_daily_param.sql"
     # 21 建 ARDS 俯卧位 5 张表 + 页面注册 + 参数种子；参数种子写 sys_param（14 建），故排最后
     "21_ards_prone.sql"
     # 22 建 ARDS 采集映射配置表 + patient_doc_prone_record 日期扩列（依赖 21，故排其后）；

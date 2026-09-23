@@ -128,7 +128,4 @@ public class QualityProperties {
 
     /** 引擎版本，写入计算批次供回溯 */
     private String engineVersion = "quality-engine/1.0.0";
-
-    /** 定时任务：每月质量汇总刷新 cron，默认每月 1 日 03:30 */
-    private String monthlyCron = "0 30 3 1 * ?";
 }

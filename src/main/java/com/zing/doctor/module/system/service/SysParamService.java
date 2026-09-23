@@ -24,6 +24,9 @@ public interface SysParamService {
     /** 上面取值为 FIXED 时使用的固定初始口令 */
     String KEY_AUTO_REGISTER_FIXED_PASSWORD = "AUTO_REGISTER_FIXED_PASSWORD";
 
+    /** 质控每日批算的回溯天数（默认 3 天，见 QualityDailyTask） */
+    String KEY_QUALITY_BACKFILL_DAYS = "QUALITY_BACKFILL_DAYS";
+
     /** 自动注册口令规则的两种取值 */
     String PWD_RULE_WORK_NO = "WORK_NO";
     String PWD_RULE_FIXED = "FIXED";
