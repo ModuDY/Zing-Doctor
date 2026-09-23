@@ -76,6 +76,16 @@ public class QualityProperties {
      *
      * <p>同时配置本项与 {@link #configWriteToken} 时<b>两者都必须通过</b>。
      */
+    /**
+     * 写接口完全放行开关（内网/开发环境用）。
+     *
+     * <p>默认 false，沿用「白名单/令牌至少配一个，否则 403」的严格口径。
+     * 置 true 后<b>跳过全部写权限检查</b>，任何来源都能改配置 —— 仅用于：
+     * 单人/小团队在内网部署懒得维护白名单、开发联调。
+     * <b>上公网/正式生产前必须改回 false</b>。
+     */
+    private boolean configWriteOpen = false;
+
     private String configWriteIpWhitelist;
 
     /**

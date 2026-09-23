@@ -91,7 +91,9 @@ zing:
     config-source: ${QUALITY_CONFIG_SOURCE:db}
     # 外部配置目录（可选）。非空时优先读该目录下的 sources.yaml / facts / metrics，
     # 缺失则回退 classpath；db 真源下仅数据源层（sources.yaml）仍从此处读取。
-    config-dir: ${QUALITY_CONFIG_DIR:}
+    # 质控配置外挂目录：第一次启动自动把 jar 内 quality/*.yaml 复制到此，以后改这里热生效
+    # 留空则只读 jar 内配置（改配置需重新打包）
+    config-dir: ${QUALITY_CONFIG_DIR:./config/quality}
     # ---- 配置写接口保护（POST /api/quality/config/**）----
     # 背景：改一行条件就能改全院质控口径，而配置页与只读看板共用同一套外链鉴权
     #（拿到外链即可改口径），风险等级不匹配，因此写接口单独再加一层。
@@ -103,6 +105,8 @@ zing:
     #   ① 部署目录 ./config/application.yml（install.sh 自动生成，运维可直接改，推荐）
     #   ② 环境变量 QUALITY_CONFIG_WRITE_IP_WHITELIST
     #   ③ 改本行默认值（会进交付包，换院部署时也生效，一般不建议）
+    # 内网/开发环境总开关：true 跳过一切写权限检查，生产前改回 false
+    config-write-open: ${QUALITY_CONFIG_WRITE_OPEN:false}
     config-write-ip-whitelist: ${QUALITY_CONFIG_WRITE_IP_WHITELIST:}
     # 可选：写接口令牌。配置后写请求必须带请求头 X-Quality-Config-Token。
     #       前端可用构建变量 VITE_QUALITY_CONFIG_WRITE_TOKEN 注入。

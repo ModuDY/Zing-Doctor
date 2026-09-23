@@ -80,10 +80,58 @@ public class QualityDslLoader {
             return;
         }
         try {
+            seedExternalConfigIfEmpty();
             reload();
         } catch (Exception e) {
-            // 配置异常不应阻断应用启动：留空配置，接口返回空看板
             log.error("[质控] DSL 加载失败，质控看板将不可用: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 首次启动时把 jar 内的质控配置种子复制到外部 configDir。
+     *
+     * <p>目的：让部署方开箱即用外挂配置 —— 第一次启动后 {@code ./config/quality/}
+     * 下就有一份 sources/facts/metrics yaml，以后直接改这些文件、点页面上的
+     * 「同步字典」热生效，不必重新打 jar。
+     *
+     * <p>只在外部目录不存在或为空时复制；外部目录已有文件时绝不覆盖。
+     */
+    private void seedExternalConfigIfEmpty() {
+        String dir = props.getConfigDir();
+        if (!org.springframework.util.StringUtils.hasText(dir)) {
+            return;
+        }
+        File root = new File(dir);
+        boolean needSeed;
+        if (!root.exists()) {
+            needSeed = true;
+        } else {
+            File[] all = root.listFiles();
+            needSeed = (all == null || all.length == 0);
+        }
+        if (!needSeed) {
+            return;
+        }
+        try {
+            org.springframework.core.io.support.PathMatchingResourcePatternResolver r =
+                new org.springframework.core.io.support.PathMatchingResourcePatternResolver();
+            org.springframework.core.io.Resource[] src = r.getResources("classpath:quality/**/*.yaml");
+            int copied = 0;
+            for (org.springframework.core.io.Resource res : src) {
+                String path = res.getURI().toString();
+                int idx = path.indexOf("/quality/");
+                if (idx < 0) continue;
+                String rel = path.substring(idx + "/quality/".length());
+                File dest = new File(root, rel);
+                if (dest.getParentFile() != null) dest.getParentFile().mkdirs();
+                java.nio.file.Files.copy(res.getInputStream(), dest.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                copied++;
+            }
+            log.info("[质控] 已把 classpath 质控配置种子到外部目录 {}（{} 个文件），后续改此处文件热生效",
+                root.getAbsolutePath(), copied);
+        } catch (Exception e) {
+            log.warn("[质控] 外部配置目录种子失败（不影响启动，继续用 classpath）: {}", e.getMessage());
         }
     }
 

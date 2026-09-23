@@ -1,6 +1,7 @@
 package com.zing.doctor.quality.config;
 
 import com.zing.doctor.common.OperatorContext;
+import com.zing.doctor.module.system.service.SysParamService;
 import com.zing.doctor.external.ExternalLinkContext;
 import com.zing.doctor.external.ExternalLinkInterceptor;
 import com.zing.doctor.external.SignatureUtil;
@@ -48,6 +49,7 @@ public class QualityConfigGuard {
     private static final int OPERATOR_MAX_LEN = 64;
 
     private final QualityProperties properties;
+    private final com.zing.doctor.module.system.service.SysParamService sysParamService;
 
     /**
      * 启动时把写保护状态打到日志。
@@ -78,6 +80,10 @@ public class QualityConfigGuard {
      * @return {@code null} 表示放行；非空为<b>拒绝原因</b>（可直接回给前端展示）
      */
     public String denyReason(String clientIp, String token) {
+        // 内网/开发环境总开关：true 时跳过一切写权限检查，生产前必须关
+        if (sysParamService.bool("QUALITY_CONFIG_WRITE_OPEN", properties.isConfigWriteOpen())) {
+            return null;
+        }
         boolean hasToken = StringUtils.hasText(properties.getConfigWriteToken());
         boolean hasIp = StringUtils.hasText(properties.getConfigWriteIpWhitelist());
 
