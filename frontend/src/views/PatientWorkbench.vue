@@ -10,7 +10,7 @@
     </header>
 
     <el-alert class="notice" type="info" :closable="false" show-icon>
-      首版仅汇总在科患者与工作入口，<strong>不自动判定高危或临床待办</strong>；姓名脱敏，住院号保留前后段供人工核对。
+      危重标签（机械通气 / 血管活性药 / CRRT）与今日待办（SOFA / APACHE II 未评）由系统自动汇总；姓名与住院号按 ICU 内网权限原样显示。
     </el-alert>
 
     <!-- 账号的科室边界：多科室要选、未绑定要说明，避免页面空着让人去猜是不是数据源坏了 -->

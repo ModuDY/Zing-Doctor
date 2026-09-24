@@ -14,8 +14,16 @@
           <span class="nav-icon">🧑‍⚕️</span>
           <span class="nav-label">患者工作台</span>
         </router-link>
-        <router-link to="/page/abx-patient-list" class="nav-item" active-class="nav-active">
+        <router-link to="/page/handover-board" class="nav-item" active-class="nav-active">
           <span class="nav-icon">📋</span>
+          <span class="nav-label">医生交班览表</span>
+        </router-link>
+        <router-link to="/page/discharge-stats" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">🚪</span>
+          <span class="nav-label">患者出科统计</span>
+        </router-link>
+        <router-link to="/page/abx-patient-list" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">🦠</span>
           <span class="nav-label">疑似感染患者</span>
         </router-link>
         <router-link to="/page/abx-decision" class="nav-item" active-class="nav-active">
@@ -30,40 +38,72 @@
           <span class="nav-icon">📊</span>
           <span class="nav-label">使用强度分析</span>
         </router-link>
-        <router-link to="/page/abx-ddd-config" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">⚙️</span>
-          <span class="nav-label">DDD 配置管理</span>
-        </router-link>
         <router-link to="/page/abx-mdro" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">🦠</span>
+          <span class="nav-icon">🧫</span>
           <span class="nav-label">细菌培养监测</span>
         </router-link>
-        <router-link to="/page/abx-mdro-config" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">🔬</span>
-          <span class="nav-label">细菌配置管理</span>
+
+        <div class="nav-divider">重症评分</div>
+        <router-link to="/page/sofa-overview" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">📈</span>
+          <span class="nav-label">SOFA 评分总览</span>
+        </router-link>
+        <router-link to="/page/apache2-overview" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">🩺</span>
+          <span class="nav-label">APACHE II 总览</span>
         </router-link>
         <router-link to="/page/sepsis-bundle" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">💊</span>
+          <span class="nav-icon">⚡</span>
           <span class="nav-label">脓毒症集束化治疗</span>
         </router-link>
-        <router-link to="/page/ards-prone-list" class="nav-item" active-class="nav-active">
+        <router-link to="/page/ards-monitor" class="nav-item" active-class="nav-active">
           <span class="nav-icon">🫁</span>
+          <span class="nav-label">ARDS 监测</span>
+        </router-link>
+        <router-link to="/page/ards-prone-list" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">🤸</span>
           <span class="nav-label">ARDS 俯卧位记录</span>
         </router-link>
 
         <div class="nav-divider">质控中台</div>
         <router-link to="/page/quality-board" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">📈</span>
+          <span class="nav-icon">📊</span>
           <span class="nav-label">质控指标看板</span>
         </router-link>
         <router-link to="/page/quality-monthly" class="nav-item" active-class="nav-active">
           <span class="nav-icon">🗓️</span>
           <span class="nav-label">质控月度汇总</span>
         </router-link>
+        <router-link to="/page/quality-config" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">🛠️</span>
+          <span class="nav-label">质控指标配置</span>
+        </router-link>
+
+        <div class="nav-divider">配置管理</div>
+        <router-link to="/page/abx-ddd-config" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">💉</span>
+          <span class="nav-label">DDD 值配置</span>
+        </router-link>
+        <router-link to="/page/abx-mdro-config" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">🔬</span>
+          <span class="nav-label">细菌分类配置</span>
+        </router-link>
+        <router-link to="/page/abx-word-config" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">📝</span>
+          <span class="nav-label">抗菌词库配置</span>
+        </router-link>
+        <router-link to="/page/sofa-config" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">SOFA 配置</span>
+        </router-link>
+        <router-link to="/page/ards-prone-config" class="nav-item" active-class="nav-active">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">俯卧位映射配置</span>
+        </router-link>
 
         <div class="nav-divider">系统设置</div>
         <router-link to="/page/param-config" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">⚙️</span>
+          <span class="nav-icon">🔧</span>
           <span class="nav-label">参数设置</span>
         </router-link>
       </nav>
@@ -234,6 +274,14 @@ export default {
   padding: 12px 10px;
   /* 菜单项超出可视高度时自身滚动，避免底部入口被裁掉 */
   overflow-y: auto;
+  /* 隐藏滚动条视觉，但保留滚动能力 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.sidebar-nav::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .nav-divider {
