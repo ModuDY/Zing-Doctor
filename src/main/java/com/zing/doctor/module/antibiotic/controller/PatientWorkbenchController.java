@@ -6,6 +6,7 @@ import com.zing.doctor.icu.dto.DepartScope;
 import com.zing.doctor.icu.dto.WorkbenchPatient;
 import com.zing.doctor.icu.service.IcuPatientService;
 import com.zing.doctor.icu.service.UserDepartScopeService;
+import com.zing.doctor.icu.service.WorkbenchEnrichService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,6 +23,7 @@ import java.util.List;
 public class PatientWorkbenchController {
     private final IcuPatientService icuPatientService;
     private final UserDepartScopeService departScopeService;
+    private final WorkbenchEnrichService workbenchEnrichService;
 
     /**
      * 当前账号的科室可见范围 —— 页面据此决定「默认进哪个科室 / 要不要让用户选 / 有没有权限」。
@@ -49,7 +51,12 @@ public class PatientWorkbenchController {
     public Result<List<WorkbenchPatient>> patients(@RequestParam(required = false) String departCode,
                                                    HttpServletRequest request) {
         String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
-        return Result.ok(icuPatientService.listInpatients(allowed));
+        List<WorkbenchPatient> patients = icuPatientService.listInpatients(allowed);
+        // 危重标签（机械通气/血管活性药/CRRT，ICU 库批量）
+        icuPatientService.enrichCrisisFlags(patients, allowed);
+        // 当日待办（SOFA/APACHE 未评，本系统库批量）
+        workbenchEnrichService.enrich(patients);
+        return Result.ok(patients);
     }
 
     /** 当前登录账号；外链免登录时返回 null */

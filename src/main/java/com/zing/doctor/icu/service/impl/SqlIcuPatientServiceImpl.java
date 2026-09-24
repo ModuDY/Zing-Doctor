@@ -108,6 +108,68 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         return patients;
     }
 
+    /**
+     * 危重标签批量回填：机械通气 / 血管活性药 / CRRT。
+     *
+     * <p>复用交班览表已有的批量 SQL（selectHandoverVasopressor / selectHandoverCrrtPatients /
+     * selectLatestVentilatorParams），不新增 SQL、不逐患者查。任何一类查询失败都不拖垮列表，
+     * 仅打 warn 日志并保留默认 false。
+     */
+    @Override
+    public void enrichCrisisFlags(List<WorkbenchPatient> patients, String departCode) {
+        if (patients == null || patients.isEmpty()) {
+            return;
+        }
+        String dept = (departCode == null || departCode.isEmpty()) ? "" : departCode;
+
+        Set<String> vasoPatients = new HashSet<>();
+        try {
+            List<Map<String, Object>> vaso = icuPatientMapper.selectHandoverVasopressor(dept);
+            if (vaso != null) {
+                for (Map<String, Object> r : vaso) {
+                    String pid = str(r.get("patient_id"));
+                    if (!pid.isEmpty()) vasoPatients.add(pid);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("工作台批量查询血管活性药失败", e);
+        }
+
+        Set<String> crrtPatients = new HashSet<>();
+        try {
+            List<String> crrt = icuPatientMapper.selectHandoverCrrtPatients(dept);
+            if (crrt != null) crrtPatients.addAll(crrt);
+        } catch (Exception e) {
+            log.warn("工作台批量查询 CRRT 失败", e);
+        }
+
+        Set<String> ventPatients = new HashSet<>();
+        try {
+            List<String> pids = new ArrayList<>();
+            for (WorkbenchPatient p : patients) {
+                if (p.getPatientId() != null && !p.getPatientId().isEmpty()) pids.add(p.getPatientId());
+            }
+            if (!pids.isEmpty()) {
+                List<Map<String, Object>> vent = icuPatientMapper.selectLatestVentilatorParams(pids);
+                if (vent != null) {
+                    for (Map<String, Object> r : vent) {
+                        String pid = str(r.get("patient_id"));
+                        if (!pid.isEmpty()) ventPatients.add(pid);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("工作台批量查询呼吸机参数失败", e);
+        }
+
+        for (WorkbenchPatient p : patients) {
+            String pid = p.getPatientId();
+            p.setOnVasopressor(vasoPatients.contains(pid));
+            p.setOnCrrt(crrtPatients.contains(pid));
+            p.setVentilated(ventPatients.contains(pid));
+        }
+    }
+
     private String maskName(String name) {
         if (StrUtil.isBlank(name)) return "未知";
         if (name.contains("*")) return name;

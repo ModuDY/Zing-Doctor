@@ -54,4 +54,14 @@ public interface IcuPatientService {
     default List<Map<String, Object>> searchStaff(String keyword) {
         return java.util.Collections.emptyList();
     }
+
+    /**
+     * 给在科患者列表回填危重标签（机械通气 / 血管活性药 / CRRT）。
+     *
+     * <p>批量查询，不逐患者 N+1。SQL 实现里按科室一次性取血管活性药与 CRRT 患者集合，
+     * 再按 patientId 集合批量取呼吸机参数。Mock 实现默认空（不打标签）。
+     */
+    default void enrichCrisisFlags(List<WorkbenchPatient> patients, String departCode) {
+        // no-op
+    }
 }

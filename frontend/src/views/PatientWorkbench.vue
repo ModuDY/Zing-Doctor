@@ -58,7 +58,7 @@
     <div class="wb-card overview">
       <div class="ov-head">
         <span>在科概览</span>
-        <span class="ov-scope">{{ scopeText }}</span>
+        <span class="ov-scope">{{ scopeText }} · 更新于 {{ updatedAt || '—' }}</span>
       </div>
       <div class="stat-grid">
         <div class="stat-card">
@@ -67,19 +67,19 @@
           <div class="stat-foot">当前科室口径下的在科人数</div>
         </div>
         <div class="stat-card">
-          <div class="stat-head"><span class="stat-label">有床位信息</span><span class="stat-icon">🛏️</span></div>
-          <div class="stat-value">{{ stats.beds }}<em> 张</em></div>
-          <div class="stat-foot">床位是交班与查房的主要定位方式</div>
+          <div class="stat-head"><span class="stat-label">危重患者</span><span class="stat-icon">🚨</span></div>
+          <div class="stat-value danger">{{ stats.critical }}<em> 人</em></div>
+          <div class="stat-foot">机械通气 / 血管活性药 / CRRT</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-head"><span class="stat-label">今日待办</span><span class="stat-icon">📌</span></div>
+          <div class="stat-value todo">{{ stats.todoCount }}<em> 项</em></div>
+          <div class="stat-foot">未评 SOFA / APACHE II 等</div>
         </div>
         <div class="stat-card">
           <div class="stat-head"><span class="stat-label">平均在科天数</span><span class="stat-icon">📅</span></div>
           <div class="stat-value">{{ stats.avgDays }}<em> 天</em></div>
           <div class="stat-foot">仅统计有入科时间的患者</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-head"><span class="stat-label">数据更新时间</span><span class="stat-icon">⟳</span></div>
-          <div class="stat-value time-value">{{ updatedAt || '尚未加载' }}</div>
-          <div class="stat-foot">ICU 数据源为实时只读查询</div>
         </div>
       </div>
     </div>
@@ -89,32 +89,70 @@
                 empty-text="当前科室口径下暂无在科患者" @row-click="openPatient">
         <el-table-column label="患者" min-width="200">
           <template #default="{ row }">
-            <div class="patient-name">{{ row.name || '未知' }}</div>
+            <div class="patient-name">
+              {{ row.name || '未知' }}
+              <span v-if="row.lastSofaScore != null"
+                    :class="['sofa-badge', row.lastSofaScore >= 10 ? 'severe' : '']">
+                SOFA {{ row.lastSofaScore }}
+              </span>
+            </div>
             <div class="patient-sub">住院号 {{ row.patientNo || '—' }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="性别 / 年龄" width="120">
+        <el-table-column label="性别 / 年龄" width="110">
           <template #default="{ row }">{{ row.gender || '—' }}<span class="muted"> · </span>{{ row.age == null ? '—' : `${row.age} 岁` }}</template>
         </el-table-column>
-        <el-table-column label="科室 / 病区" min-width="170">
+        <el-table-column label="科室 / 病区" min-width="150">
           <template #default="{ row }">
             <div>{{ deptLabel(row) }}</div>
             <div v-if="row.wardName && row.wardName !== deptLabel(row)" class="patient-sub">{{ row.wardName }}</div>
           </template>
         </el-table-column>
-        <el-table-column prop="bedNo" label="床位" width="100">
+        <el-table-column prop="bedNo" label="床位" width="90">
           <template #default="{ row }"><span class="bed-pill">{{ row.bedNo || '待分配' }}</span></template>
         </el-table-column>
-        <el-table-column label="入科时间" min-width="160">
+        <el-table-column label="危重" width="110">
+          <template #default="{ row }">
+            <span v-if="row.ventilated" class="crit-tag vent">机械通气</span>
+            <span v-if="row.onVasopressor" class="crit-tag vaso">血管活性药</span>
+            <span v-if="row.onCrrt" class="crit-tag crrt">CRRT</span>
+            <span v-if="!row.ventilated && !row.onVasopressor && !row.onCrrt" class="muted">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="待办" width="90" align="center">
+          <template #default="{ row }">
+            <el-tooltip v-if="row.todoCount > 0" :disabled="!row.todos || !row.todos.length" placement="top">
+              <template #content>
+                <div style="max-width:220px">
+                  <div v-for="t in row.todos" :key="t">{{ todoLabel(t) }}</div>
+                </div>
+              </template>
+              <span class="todo-badge">{{ row.todoCount }}</span>
+            </el-tooltip>
+            <span v-else class="muted">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="入科时间" min-width="150">
           <template #default="{ row }">{{ formatTime(row.inDepartmentTime) }}</template>
         </el-table-column>
-        <el-table-column label="在科天数" width="100">
+        <el-table-column label="在科天数" width="90">
           <template #default="{ row }">{{ row.icuDays == null ? '—' : `${row.icuDays} 天` }}</template>
         </el-table-column>
-        <el-table-column label="工作入口" width="190" fixed="right">
+        <el-table-column label="工作入口" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click.stop="goDecision(row)">抗感染决策</el-button>
+            <el-button link type="primary" @click.stop="goDecision(row)">抗感染</el-button>
             <el-button link type="primary" @click.stop="goSofa(row)">SOFA</el-button>
+            <el-dropdown trigger="click" @command="(cmd) => jump(cmd, row)" @click.stop>
+              <el-button link type="primary">更多<el-icon class="el-icon--right"><arrow-down /></el-icon></el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="/page/apache2-score">APACHE II</el-dropdown-item>
+                  <el-dropdown-item command="/page/sepsis-bundle">脓毒症集束化</el-dropdown-item>
+                  <el-dropdown-item command="/page/ards-prone-record">ARDS 俯卧位</el-dropdown-item>
+                  <el-dropdown-item command="/page/abx-pkpd">PK/PD 剂量</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -128,7 +166,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Refresh, Search } from '@element-plus/icons-vue'
+import { Refresh, Search, ArrowDown } from '@element-plus/icons-vue'
 import { externalParam } from '../utils/external'
 import '../styles/quality-theme.css'
 import { fetchInpatients, fetchDepartScope } from '../api/workbench'
@@ -163,8 +201,18 @@ const stats = computed(() => {
   const avg = withDays.length
     ? Math.round(withDays.reduce((sum, p) => sum + p.icuDays, 0) / withDays.length)
     : 0
-  return { total: list.length, beds: list.filter((p) => p.bedNo).length, avgDays: avg }
+  const critical = list.filter((p) => p.ventilated || p.onVasopressor || p.onCrrt).length
+  const todoCount = list.reduce((sum, p) => sum + (p.todoCount || 0), 0)
+  return { total: list.length, critical, todoCount, avgDays: avg }
 })
+
+const TODO_LABELS = {
+  SOFA_NOT_TODAY: '今日尚未评 SOFA',
+  APACHE_NOT_TODAY: '今日尚未评 APACHE II'
+}
+function todoLabel(code) {
+  return TODO_LABELS[code] || code
+}
 
 const filteredPatients = computed(() => {
   const q = keyword.value.trim().toLowerCase()
@@ -335,6 +383,23 @@ h1 { margin: 7px 0 5px; font-size: 27px; letter-spacing: -.5px; }
 .muted { color: #a8a29e; }
 .bed-pill { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #f5f5f4; color: #57534e; font-size: 12px; }
 .empty-foot { padding: 16px; text-align: center; color: #a8a29e; font-size: 12px; }
+
+/* 危重标签 */
+.crit-tag { display: inline-block; margin: 1px 2px 1px 0; padding: 1px 6px; border-radius: 4px; font-size: 11px; line-height: 18px; white-space: nowrap; }
+.crit-tag.vent { background: #dbeafe; color: #1d4ed8; }
+.crit-tag.vaso { background: #fee2e2; color: #b91c1c; }
+.crit-tag.crrt { background: #fef3c7; color: #92400e; }
+
+/* 待办徽章 */
+.todo-badge { display: inline-block; min-width: 20px; padding: 2px 6px; border-radius: 10px; background: #dc2626; color: #fff; font-size: 12px; font-weight: 600; text-align: center; cursor: help; }
+
+/* 患者名旁的 SOFA 分 */
+.sofa-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #f5f5f4; color: #57534e; font-size: 11px; font-weight: 500; }
+.sofa-badge.severe { background: #fee2e2; color: #b91c1c; font-weight: 700; }
+
+/* 统计卡高亮 */
+.stat-value.danger { color: #b91c1c; }
+.stat-value.todo { color: #dc2626; }
 
 @media (max-width: 900px) {
   .wb-page { padding: 20px 14px; }
