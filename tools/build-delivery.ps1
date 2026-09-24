@@ -87,6 +87,13 @@ if (-not $env:JAVA_HOME) {
 
 # ---------- 可选：先构建 ----------
 if ($Build) {
+    # 先跑单元测试再构建，失败即中止打包（Invoke-Native 非 0 会 throw）。
+    # 这不是形式主义：曾经「改了构造签名没同步测试」在本地打包全程无感 ——
+    # package -DskipTests 连测试代码都不编译 —— 直到 CI 上 test-compile 才红。
+    # 那批测试不依赖数据库，几十秒跑完，放在打包前拦一道性价比很高。
+    Write-Host ">>> 自检：跑单元测试（失败即中止打包）" -ForegroundColor Cyan
+    Invoke-Native -Label '单元测试' -Exe $mvn -ExeArgs (@($mvnArgs) + @('-f', "$root\pom.xml", 'test', '-B'))
+
     Write-Host ">>> 构建后端：$mvn package" -ForegroundColor Cyan
     Invoke-Native -Label '后端构建' -Exe $mvn -ExeArgs (@($mvnArgs) + @('-f', "$root\pom.xml", 'package', '-DskipTests', '-q'))
 
