@@ -93,8 +93,9 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
             // 待办聚合与跨模块跳转都靠它；patientNo 才是给页面看的脱敏值。
             patient.setInHospitalNo(str(row.get("in_hospital_no")));
             patient.setPatientId(str(row.get("patient_id")));
-            patient.setPatientNo(maskPatientNo(str(row.get("in_hospital_no"))));
-            patient.setName(maskName(str(row.get("name"))));
+            // 工作台是 ICU 内网医生自己使用，姓名/住院号直接显示原文，不脱敏
+            patient.setPatientNo(str(row.get("in_hospital_no")));
+            patient.setName(str(row.get("name")));
             patient.setAge(parseInt(row.get("age")));
             patient.setGender(str(row.get("gender")));
             patient.setDepartCode(str(row.get("depart_code")));
