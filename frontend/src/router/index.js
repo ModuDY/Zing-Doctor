@@ -208,7 +208,14 @@ const PATIENT_PAGES = new Set([
   '/page/sofa-score',
   '/page/apache2-score',
   '/page/sepsis-bundle',
-  '/page/ards-prone-record'
+  // 俯卧位「列表」跟随：它会拿住院号去填搜索框，等于只看该患者的记录 ——
+  // 使用者要的正是这个。但必须连入科时间一起给：新建记录时后端靠
+  // (住院号 + 入科时间) 定位到哪一次入科，只有住院号会退化成「最近一次入科」，
+  // 同一住院号多次入科（转科 / 再入院）时会挂错人。
+  '/page/ards-prone-list'
+  // 俯卧位「填写页」刻意不在内：它只认 record id，没有 id 会直接提示
+  // 「请从列表页进入」—— 患者归属在列表页点新建、后端建记录那一刻就固化了，
+  // 给它注入任何患者字段都不会被读取。
 ])
 
 /**
@@ -238,6 +245,9 @@ router.beforeEach((to) => {
         ...to.query,
         patientId: currentPatient.patientId,
         inHospitalNo: currentPatient.inHospitalNo,
+        // ARDS 俯卧位用它定位入科次（缺了会退化到「最近一次入科」，可能挂错人）
+        // 后端会自行把传入文本解析到分钟级，带不带秒都能对上
+        inDepartTime: currentPatient.inDepartTime,
         departCode: currentPatient.departCode,
         // APACHE II 单独读 patientName 做页面标题；工作台里的姓名已是脱敏值（如「张*」）
         ...(currentPatient.name ? { patientName: currentPatient.name } : {})

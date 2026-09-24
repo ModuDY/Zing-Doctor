@@ -24,6 +24,10 @@ const STORAGE_KEY = 'zing_current_patient'
 const EMPTY = {
   patientId: '',
   inHospitalNo: '',
+  // 入科时间：ARDS 俯卧位靠它（配合住院号）定位到「哪一次入科」。
+  // 页面与接口认的参数名是 inDepartTime，不是工作台里的 inDepartmentTime，
+  // 存的时候就按前者命名 —— 名字不对会被静默忽略。
+  inDepartTime: '',
   name: '',
   bedNo: '',
   departCode: '',
@@ -55,6 +59,8 @@ export function setCurrentPatient(row) {
   Object.assign(currentPatient, {
     patientId: row?.patientId || '',
     inHospitalNo: row?.inHospitalNo || '',
+    // 工作台字段叫 inDepartmentTime，ARDS 页面与后端认的是 inDepartTime
+    inDepartTime: row?.inDepartmentTime || '',
     // 姓名在工作台里已经是脱敏值（如「张*」），这里不另做处理
     name: row?.name || '',
     bedNo: row?.bedNo || '',
