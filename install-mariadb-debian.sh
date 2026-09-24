@@ -530,6 +530,10 @@ SQL
     #    另外若启用 27_restore_config_snapshot.sql，本脚本必须排在它之后 ——
     #    27 会整表 DELETE + INSERT sys_page_config，而那份快照导出时还没有工作台这个页面
     29_patient_workbench.sql
+    # 30 患者工作台科室边界与管理员名单。排在 25/26 之后（写的是新表名 sys_param /
+    #    sys_param_group）；若启用 27_restore_config_snapshot.sql，也必须排在它之后 ——
+    #    27 会整表 DELETE + INSERT sys_param，而那份快照导出时还没有这个参数
+    30_user_depart_scope.sql
   )
   for f in "${MAIN_SQL[@]}"; do
     [ -f "$SQL_DIR/$f" ] || { warn "缺少 $f，跳过"; continue; }

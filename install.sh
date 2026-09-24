@@ -165,6 +165,11 @@ FULL_SQL=(
     #    漏执行的后果可控（Java 侧回退 application.yml 的 config-write-open 默认 false，
     #    即保持严格模式），但参数设置页看不到这个开关，现场无法在页面上切换。
     "24_quality_config_guard.sql"
+    # 30 患者工作台的科室边界：新建 workbench 参数分组 + WORKBENCH_SUPER_USERS 管理员名单。
+    #    同样必须排在 27 之后：它往 sys_param 插一条数据，排 27 前面会被配置快照整表覆盖。
+    #    漏执行的后果：Java 侧回退 application.yml 的 zing.workbench.super-users
+    #    （默认 admin,zing），科室边界照常生效，但现场无法在页面上增删管理员。
+    "30_user_depart_scope.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -202,6 +207,8 @@ FULL_SQL_JDBC=(
     "29_patient_workbench.sql"
     # 24 质控配置写保护总开关（同 FULL_SQL：必须排 27 之后，否则被配置快照覆盖）
     "24_quality_config_guard.sql"
+    # 30 患者工作台科室边界（同 FULL_SQL：必须排 27 之后，否则被配置快照覆盖）
+    "30_user_depart_scope.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -245,6 +252,9 @@ INCREMENTAL_SQL=(
     "28_quality_daily_param.sql"
     # 24 质控配置写保护总开关（同 28：依赖 14 预置的 quality 分组与扩展列，故排其后；幂等可重复）
     "24_quality_config_guard.sql"
+    # 30 患者工作台科室边界（同 28：依赖 14 预置的 param_type 等扩展列与 sys_param_group，
+    #    故排其后；幂等可重复）
+    "30_user_depart_scope.sql"
     # 29 患者工作台页面注册
     "29_patient_workbench.sql"
     # 21 建 ARDS 俯卧位 5 张表 + 页面注册 + 参数种子；参数种子写 sys_param（14 建），故排最后

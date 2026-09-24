@@ -7,7 +7,7 @@
 > 所以**先跑 `install.sh`，再照着下面的清单逐项核对**——只有三条通道都没命中、或日志里明确报了失败，
 > 才需要人工补执行。
 >
-> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（**25/26**/09/10/11/12/13/14/15/16/17/18/19/20/21/22/23/24/28/29，
+> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（**25/26**/09/10/11/12/13/14/15/16/17/18/19/20/21/22/23/24/28/29/30，
 > 注意 25/26 的 rename 排在最前）；全量初始化与
 > 一次性脚本（如 06_abx_drug_dict.sql）不在其内。漏执行 = 新代码一上来就 500。
 > MySQL/MariaDB 环境由 `install-mariadb-debian.sh` 每次全量重跑 `MAIN_SQL`，不存在「漏增量」问题，但脚本必须两边都有（见下方四步规则）。
@@ -123,6 +123,69 @@ SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'ARCH
 ---
 
 ## 批次记录
+
+### 2026-09-24 · 患者工作台：账号科室边界与管理员名单
+
+**涉及**（新增一个参数分组 + 一条参数，不加表、不加列）
+
+- `sys_param_group` 新增分组：`workbench`（患者工作台，sort_no=50）
+- `sys_param` 新增：`WORKBENCH_SUPER_USERS` —— 工作台管理员名单，默认 `admin,zing`
+- 执行脚本：达梦 `sql/30_user_depart_scope.sql`、MySQL `sql/mysql/30_user_depart_scope.sql`
+  （分组与参数都用 `INSERT … SELECT … WHERE NOT EXISTS`，可重复执行）
+
+**背景**：患者工作台读的是重症系统多个科室的在科患者，但此前对本系统账号没有任何科室
+约束 —— 本库没有 `sys_role` / `sys_user_role`（42 张表全是业务表），也没有相应判定代码，
+等于任何一个能直连登录的人都能看全科患者。本次把这个边界补上。
+
+**三条规则**（实现见 `UserDepartScopeService`）：
+
+| 情况 | 处理 |
+|---|---|
+| 名单内账号 | 豁免科室限制，全院可见可切 |
+| 其余账号 | 按重症侧 `sys_user_depart` 的授权科室收敛；**授权多个科室时让用户自选**，服务端不猜 |
+| 重症侧查不到该账号 | 按**无科室**处理，**绝不退回全院** |
+
+第三条最要紧：宁可让使用者看到明确的「未绑定科室」提示并报过来，也不能让一个未在重症侧
+登记的账号看全科数据（默认拒绝 / fail-closed）。
+
+**为什么用用户名名单而不是角色表**：本库没有角色表，短期也不打算为此引入一整套权限体系；
+名单放在系统参数里，页面可改、有据可查。将来换成按角色判定时，`DepartScope` 结构不用动。
+
+**为什么不只看 `sys_user.org_code`**：那是主科室、单值。实测重症侧 542 个有授权的账号里有
+222 个不止一个科室，只看主科室会漏掉其余授权。真正的多科室授权在 `sys_user_depart`，
+注意它的 `dep_id` 存的是 `sys_depart` 的 **UUID 主键**、不是 `org_code`，必须经 `sys_depart` 转一次。
+
+**安全边界在服务端**：放行逻辑是 `UserDepartScopeService.resolveQueryDepart()`，前端是否传了
+科室、下拉选了什么都不影响判定。普通账号留空不会退回全院、也不会报错后放行，而是直接
+400 / 403 —— 这一层必须保留，因为前端拦不住直接调接口的情况。
+
+**行为变更**：外链免登录保持不变（科室边界仍由来源系统的 URL 参数决定），但科室下拉会
+拿到全部在用科室作为字典，以便把 `20070131` 显示成 `ICU-4U`。
+
+**不执行的后果**：功能不挂 —— Java 侧读不到该参数时会回退 `application.yml` 的
+`zing.workbench.super-users`（默认 `admin,zing`），科室边界照常生效。
+但「参数设置」页看不到这个名单，现场无法在页面上增删管理员。
+
+**自动应用**
+
+- 达梦：已加入 `install.sh` 的 `FULL_SQL`、`FULL_SQL_JDBC`、`INCREMENTAL_SQL` **三处清单**
+- MySQL / MariaDB：`sql/mysql/30_user_depart_scope.sql` 已加入 `install-mariadb-debian.sh` 的 `MAIN_SQL`
+
+> ⚠️ **顺序关键**（达梦侧）：必须排在 `27_restore_config_snapshot.sql` **之后**。
+> 27 会对 `sys_param` 整表 `DELETE + INSERT` 成 2026-09-22 的快照，而快照导出时
+> 还没有这个参数，排前面会被静默覆盖掉 —— 和 24 / 28 是同一个坑。
+
+**人工补执行（自动通道未命中时）**：执行对应脚本全文，然后核对：
+
+```sql
+-- 都应返回 1
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_param_group" WHERE "group_code" = 'workbench';
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'WORKBENCH_SUPER_USERS';
+```
+
+**上线前必须确认**：名单以外的账号能否正常查看，取决于重症侧有没有给它配
+`sys_user_depart` 授权 —— 这一步不在本系统控制范围内。部署后请用一个真实的临床账号
+登录工作台验证：若显示「未绑定科室」，需在重症侧补授权，或把该账号加入名单。
 
 ### 2026-09-24 · 患者工作台页面注册（patient-workbench）
 
