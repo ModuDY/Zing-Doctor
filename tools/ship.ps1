@@ -197,8 +197,15 @@ if (-not $NoPush) {
     $ok = $false
     $i = 1
     while (($i -le 3) -and (-not $ok)) {
+        # git 把推送进度写进 stderr，在 EAP=Stop 下会被当成脚本错误直接抛出 ——
+        # 表现为「推送其实成功了，脚本却报错退出」。临时降级，只用退出码判断成败，
+        # 与 build-delivery.ps1 的 Invoke-Native 是同一个坑、同一种解法。
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
         & git -c http.version=HTTP/1.1 push Zing-Doctor $branch 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) { $ok = $true }
+        $pushExit = $LASTEXITCODE
+        $ErrorActionPreference = $prevEap
+        if ($pushExit -eq 0) { $ok = $true }
         if (-not $ok) {
             Write-Host ('  第 ' + $i + ' 次失败，5 秒后重试…') -ForegroundColor Yellow
             Start-Sleep -Seconds 5
