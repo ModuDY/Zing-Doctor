@@ -44,18 +44,22 @@ public class MockIcuPatientServiceImpl implements IcuPatientService {
     }
 
     @Override
-    public List<WorkbenchPatient> listInpatients() {
+    public List<WorkbenchPatient> listInpatients(String departCode) {
         List<WorkbenchPatient> rows = new ArrayList<>();
         for (IcuPatientBrief source : mockPatients) {
             WorkbenchPatient patient = new WorkbenchPatient();
             patient.setPatientId(source.getPatientId());
             String no = source.getPatientNo();
+            patient.setInHospitalNo(no);
             patient.setPatientNo(no == null || no.length() <= 4 ? "****" : no.substring(0, 3) + "***" + no.substring(no.length() - 2));
             String name = source.getName();
             patient.setName(name == null || name.isEmpty() ? "未知" : (name.contains("*") ? name : name.substring(0, 1) + "*"));
             patient.setAge(source.getAge());
             patient.setGender(source.getGender());
-            patient.setDepartment(source.getDepartment());
+            // mock 数据里只有病区名、没有 sys_depart.org_code，故科室过滤在此退化为不过滤。
+            // 真实环境走 SqlIcuPatientServiceImpl，由 pi.depart_code 提供。
+            patient.setDepartCode(null);
+            patient.setWardName(source.getDepartment());
             patient.setBedNo(source.getBedNo());
             patient.setInDepartmentTime(null);
             patient.setIcuDays(null);

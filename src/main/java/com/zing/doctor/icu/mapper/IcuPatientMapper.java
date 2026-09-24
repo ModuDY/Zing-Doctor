@@ -28,14 +28,64 @@ import java.util.Map;
 @Mapper
 public interface IcuPatientMapper {
 
-    /** 患者工作台：仅查询在科患者基础字段，不关联千万级检验明细。 */
-    @Select("SELECT pi.id AS patient_id, pi.in_hospital_no AS patient_no, pi.name AS name, "
-            + "pi.age AS age, pi.gender AS gender, pi.ward_name AS department, "
-            + "pi.bed_code AS bed_no, pi.in_depart_time AS in_depart_time "
-            + "FROM \"zing_icu_db_prod\".\"patient_info\" pi "
-            + "WHERE pi.is_in_depart = 1 AND pi.del_flag = 0 "
-            + "ORDER BY pi.in_depart_time DESC")
-    List<Map<String, Object>> selectInpatients();
+    /**
+     * 患者工作台：仅查询在科患者基础字段，不关联千万级检验明细。
+     *
+     * <p>两个容易踩的点都在这里处理掉：
+     * <ol>
+     *   <li><b>科室边界</b>：departCode 非空且非 ALL 时按 {@code pi.depart_code} 过滤。
+     *       必须用 depart_code（= sys_depart.org_code），不能用 ward_name ——
+     *       ward_name 是病区名，与外链 / 质控 / DDD 用的 org_code 不是同一套编码，
+     *       拿它做筛选，工作台就和其它模块对不上，待办也只能按全院聚合。</li>
+     *   <li><b>住院号去歧义</b>：同一住院号在 patient_info 里可能有多条记录（多次入科），
+     *       只取 in_depart_time 最新的那条。否则再入院患者的历史记录会混进在科名单，
+     *       后续按住院号聚合待办时也会串到上一次住院。</li>
+     * </ol>
+     */
+    @Select({"<script>",
+            "SELECT t.* FROM (",
+            "  SELECT pi.id AS patient_id, pi.in_hospital_no AS in_hospital_no, pi.name AS name, ",
+            "         pi.age AS age, pi.gender AS gender, pi.depart_code AS depart_code, ",
+            "         pi.ward_name AS ward_name, pi.bed_code AS bed_no, ",
+            "         pi.in_depart_time AS in_depart_time, ",
+            "         ROW_NUMBER() OVER (PARTITION BY pi.in_hospital_no ORDER BY pi.in_depart_time DESC) AS rn ",
+            "    FROM \"zing_icu_db_prod\".\"patient_info\" pi ",
+            "   WHERE pi.is_in_depart = 1 AND pi.del_flag = 0 ",
+            "  <if test=\"departCode != null and departCode != '' and departCode != 'ALL'\">",
+            "     AND pi.depart_code = #{departCode} ",
+            "  </if>",
+            ") t ",
+            "WHERE t.rn = 1 ",
+            "ORDER BY t.in_depart_time DESC",
+            "</script>"})
+    List<Map<String, Object>> selectInpatients(@Param("departCode") String departCode);
+
+    /**
+     * 取一个账号在重症系统里被授权的科室（org_code + 名称），用于工作台的科室边界。
+     *
+     * <p>授权取自 {@code sys_user_depart} —— 这是真正的多科室授权表。实测 542 个有授权
+     * 的账号里有 222 个不止一个科室，只看 {@code sys_user.org_code}（主科室，单值）
+     * 会漏掉其余科室；反过来有些账号没有 sys_user_depart 行、只有 org_code，
+     * 所以两者都取并去重。
+     *
+     * <p>必须过滤 {@code d.status = 1 AND d.del_flag = 0}：sys_depart 里存在
+     * status=0 且 del_flag=1 的废弃科室（如旧的「ICU」= A0102024），不过滤会把人
+     * 授权到一个已经停用的科室上。
+     *
+     * <p>注意 {@code sys_user_depart.dep_id} 存的是 sys_depart 的<b>UUID 主键</b>，
+     * 不是 org_code —— 这两套值不能混用，必须经 sys_depart 转一次。
+     *
+     * @param username 重症系统账号名（本系统直连账号与重症侧按 username 对应）
+     */
+    @Select("SELECT DISTINCT d.org_code AS org_code, d.depart_name AS depart_name "
+            + "FROM \"zing_icu_db_prod\".\"sys_user\" u "
+            + "LEFT JOIN \"zing_icu_db_prod\".\"sys_user_depart\" ud ON ud.user_id = u.id "
+            + "LEFT JOIN \"zing_icu_db_prod\".\"sys_depart\" d "
+            + "       ON d.id = ud.dep_id OR (ud.dep_id IS NULL AND d.org_code = u.org_code) "
+            + "WHERE u.username = #{username} AND u.del_flag = 0 "
+            + "  AND d.org_code IS NOT NULL AND d.del_flag = 0 AND d.status = 1 "
+            + "ORDER BY d.depart_name")
+    List<Map<String, Object>> selectAuthorizedDeparts(@Param("username") String username);
     /**
      * 疑似感染/脓毒症在科患者（含基础信息与多耐药标记）。
      * 筛选条件：在科 + 未删除，且满足下列任一：

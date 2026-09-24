@@ -16,8 +16,13 @@ import java.util.Map;
  */
 public interface IcuPatientService {
 
-    /** ICU 在科患者工作台（仅基础信息，不聚合检验/医嘱大表） */
-    List<WorkbenchPatient> listInpatients();
+    /**
+     * ICU 在科患者工作台（仅基础信息，不聚合检验/医嘱大表）
+     *
+     * @param departCode 科室编码，取 sys_depart.org_code；null / 空 / "ALL" 均表示不限科室。
+     *                   注意不要传 ward_name（病区名）：那与 org_code 不是同一套编码。
+     */
+    List<WorkbenchPatient> listInpatients(String departCode);
 
     /** 疑似感染/脓毒症患者列表（可按感染类型等条件扩展） */
     List<IcuPatientBrief> listSuspectInfections();

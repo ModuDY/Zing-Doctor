@@ -82,19 +82,23 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
     private final AbxDrugRecognizer abxDrugRecognizer;
 
     @Override
-    public List<WorkbenchPatient> listInpatients() {
-        List<Map<String, Object>> rows = icuPatientMapper.selectInpatients();
+    public List<WorkbenchPatient> listInpatients(String departCode) {
+        List<Map<String, Object>> rows = icuPatientMapper.selectInpatients(departCode);
         List<WorkbenchPatient> patients = new ArrayList<>();
         if (rows == null) return patients;
         LocalDateTime now = LocalDateTime.now();
         for (Map<String, Object> row : rows) {
             WorkbenchPatient patient = new WorkbenchPatient();
+            // inHospitalNo 留原文：各业务模块的关联列是 in_hospital_no，
+            // 待办聚合与跨模块跳转都靠它；patientNo 才是给页面看的脱敏值。
+            patient.setInHospitalNo(str(row.get("in_hospital_no")));
             patient.setPatientId(str(row.get("patient_id")));
-            patient.setPatientNo(maskPatientNo(str(row.get("patient_no"))));
+            patient.setPatientNo(maskPatientNo(str(row.get("in_hospital_no"))));
             patient.setName(maskName(str(row.get("name"))));
             patient.setAge(parseInt(row.get("age")));
             patient.setGender(str(row.get("gender")));
-            patient.setDepartment(str(row.get("department")));
+            patient.setDepartCode(str(row.get("depart_code")));
+            patient.setWardName(str(row.get("ward_name")));
             patient.setBedNo(str(row.get("bed_no")));
             LocalDateTime admittedAt = toLocalDateTime(row.get("in_depart_time"));
             patient.setInDepartmentTime(admittedAt);
@@ -292,7 +296,7 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         // 与 inferInfectionType 保持一致的防御：查询结果可能为 null（无诊断记录），
         // 列表中也可能出现 null 元素。此处原先未做保护，遍历到 null 元素时
         // d.get("diag_name") 抛 NPE，并因 getPatientBrief 被 PK/PD 链路独占调用，
-        // 表现为“只有个别患者的 PK/PD 页面 500、其他页面正常”。
+        // 表现为"只有个别患者的 PK/PD 页面 500、其他页面正常"。
         if (diagnoses == null) {
             diagnoses = java.util.Collections.emptyList();
         }
