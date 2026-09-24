@@ -1,26 +1,27 @@
 <template>
   <div class="wb-page qb-theme">
-    <header class="page-heading">
-      <div>
+    <header class="wb-hero">
+      <div class="hero-copy">
         <div class="eyebrow">ICU · CLINICAL WORKSPACE</div>
         <h1>患者工作台</h1>
-        <p>汇总当前在科患者，作为进入各临床工具的统一入口。</p>
+        <p>以患者为中心的 ICU 临床入口，集中查看在科状态、评分待办和常用决策工具。</p>
+        <div class="hero-meta">
+          <span class="meta-pill"><i class="meta-dot active"></i>{{ scopeText }}</span>
+          <span class="meta-pill">数据更新于 {{ updatedAt || '—' }}</span>
+        </div>
       </div>
-      <el-button :icon="Refresh" :loading="loading" @click="loadPatients">刷新</el-button>
-      <el-radio-group v-model="viewMode" size="small" @change="onViewModeChange">
-        <el-radio-button value="table">表格</el-radio-button>
-        <el-radio-button value="cards">床头卡</el-radio-button>
-      </el-radio-group>
+      <div class="hero-actions">
+        <el-button class="refresh-btn" :icon="Refresh" :loading="loading" @click="loadPatients">刷新数据</el-button>
+      </div>
     </header>
 
-    <el-alert class="notice" type="info" :closable="false" show-icon>
-      危重标签（机械通气 / 血管活性药 / CRRT）与今日待办（SOFA / APACHE II 未评）由系统自动汇总；姓名与住院号按 ICU 内网权限原样显示。
+    <el-alert class="wb-notice" type="info" :closable="false" show-icon>
+      危重标签与评分待办由系统自动汇总；点击患者行可进入抗感染决策，更多入口可展开查看。
     </el-alert>
 
-    <!-- 账号的科室边界：多科室要选、未绑定要说明，避免页面空着让人去猜是不是数据源坏了 -->
     <el-alert
       v-if="scope.message"
-      class="notice"
+      class="wb-notice"
       :type="scope.admin ? 'info' : (scope.matched ? 'success' : 'warning')"
       :closable="false"
       show-icon
@@ -28,28 +29,35 @@
     />
     <el-alert
       v-if="needPick"
-      class="notice"
+      class="wb-notice"
       type="warning"
       :closable="false"
       show-icon
       title="该账号有多个科室权限，请先选择科室后再查看患者。"
     />
 
-    <div class="filter-bar wb-card">
+    <section class="wb-card filter-card">
+      <div class="section-heading filter-heading">
+        <div>
+          <div class="section-kicker">PATIENT DIRECTORY</div>
+          <h2>患者检索</h2>
+        </div>
+        <span class="section-hint">支持姓名、住院号、床位和病区搜索</span>
+      </div>
       <div class="filter-fields">
         <div class="filter-field">
-          <span class="filter-label">科室</span>
-          <el-select v-model="departCode" clearable placeholder="全部科室" @change="onDepartChange">
+          <span class="filter-label">科室范围</span>
+          <el-select v-model="departCode" clearable placeholder="全部科室" popper-class="qb-popper" @change="onDepartChange">
             <el-option v-for="d in departments" :key="d.org_code" :label="d.depart_name" :value="d.org_code" />
           </el-select>
         </div>
-        <div class="filter-field grow">
-          <span class="filter-label">搜索</span>
+        <div class="filter-field search-field">
+          <span class="filter-label">快速搜索</span>
           <el-input v-model="keyword" clearable placeholder="姓名 / 住院号 / 床位 / 病区" :prefix-icon="Search" />
         </div>
         <div class="filter-field">
-          <span class="filter-label">排序</span>
-          <el-select v-model="sortBy" placeholder="排序方式">
+          <span class="filter-label">排序方式</span>
+          <el-select v-model="sortBy" placeholder="排序方式" popper-class="qb-popper">
             <el-option label="入科时间：新到旧" value="newest" />
             <el-option label="入科时间：旧到新" value="oldest" />
             <el-option label="在科天数：长到短" value="stay" />
@@ -57,147 +65,170 @@
           </el-select>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div class="wb-card overview">
-      <div class="ov-head">
-        <span>在科概览</span>
-        <span class="ov-scope">{{ scopeText }} · 更新于 {{ updatedAt || '—' }}</span>
+    <section class="wb-card overview-card">
+      <div class="section-heading">
+        <div>
+          <div class="section-kicker">CURRENT CENSUS</div>
+          <h2>在科概览</h2>
+        </div>
+        <div class="overview-tags">
+          <span class="summary-tag"><i class="tag-dot orange"></i>当前筛选 {{ filteredPatients.length }} 人</span>
+          <span class="summary-tag muted-tag">共 {{ patients.length }} 人</span>
+        </div>
       </div>
       <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-head"><span class="stat-label">在科患者</span><span class="stat-icon">👥</span></div>
+        <div class="stat-card stat-card-primary">
+          <div class="stat-head"><span class="stat-label">在科患者</span><span class="stat-icon orange-icon">人</span></div>
           <div class="stat-value">{{ stats.total }}<em> 人</em></div>
           <div class="stat-foot">当前科室口径下的在科人数</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-head"><span class="stat-label">危重患者</span><span class="stat-icon">🚨</span></div>
+        <div class="stat-card stat-card-danger">
+          <div class="stat-head"><span class="stat-label">危重患者</span><span class="stat-icon red-icon">重</span></div>
           <div class="stat-value danger">{{ stats.critical }}<em> 人</em></div>
           <div class="stat-foot">机械通气 / 血管活性药 / CRRT</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-head"><span class="stat-label">今日待办</span><span class="stat-icon">📌</span></div>
+        <div class="stat-card stat-card-warning">
+          <div class="stat-head"><span class="stat-label">今日待办</span><span class="stat-icon amber-icon">待</span></div>
           <div class="stat-value todo">{{ stats.todoCount }}<em> 项</em></div>
           <div class="stat-foot">未评 SOFA / APACHE II 等</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-head"><span class="stat-label">平均在科天数</span><span class="stat-icon">📅</span></div>
+        <div class="stat-card stat-card-neutral">
+          <div class="stat-head"><span class="stat-label">平均在科天数</span><span class="stat-icon gray-icon">天</span></div>
           <div class="stat-value">{{ stats.avgDays }}<em> 天</em></div>
           <div class="stat-foot">仅统计有入科时间的患者</div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div class="wb-card table-card">
-      <el-table v-show="viewMode === 'table'" v-loading="loading" :data="filteredPatients" stripe row-key="patientId"
-                empty-text="当前科室口径下暂无在科患者" @row-click="openPatient">
-        <el-table-column label="患者" min-width="200">
-          <template #default="{ row }">
-            <div class="patient-name">
-              {{ row.name || '未知' }}
-              <span v-if="row.lastSofaScore != null"
-                    :class="['sofa-badge', row.lastSofaScore >= 10 ? 'severe' : '']">
-                SOFA {{ row.lastSofaScore }}
-              </span>
-            </div>
-            <div class="patient-sub">住院号 {{ row.patientNo || '—' }}</div>
-          </template>
-        </el-table-column>
-        <el-table-column label="性别 / 年龄" width="110">
-          <template #default="{ row }">{{ row.gender || '—' }}<span class="muted"> · </span>{{ row.age == null ? '—' : `${row.age} 岁` }}</template>
-        </el-table-column>
-        <el-table-column label="科室 / 病区" min-width="150">
-          <template #default="{ row }">
-            <div>{{ deptLabel(row) }}</div>
-            <div v-if="row.wardName && row.wardName !== deptLabel(row)" class="patient-sub">{{ row.wardName }}</div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="bedNo" label="床位" width="90">
-          <template #default="{ row }"><span class="bed-pill">{{ row.bedNo || '待分配' }}</span></template>
-        </el-table-column>
-        <el-table-column label="危重" width="110">
-          <template #default="{ row }">
-            <span v-if="row.ventilated" class="crit-tag vent">机械通气</span>
-            <span v-if="row.onVasopressor" class="crit-tag vaso">血管活性药</span>
-            <span v-if="row.onCrrt" class="crit-tag crrt">CRRT</span>
-            <span v-if="!row.ventilated && !row.onVasopressor && !row.onCrrt" class="muted">—</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="待办" width="90" align="center">
-          <template #default="{ row }">
-            <el-tooltip v-if="row.todoCount > 0" :disabled="!row.todos || !row.todos.length" placement="top">
-              <template #content>
-                <div style="max-width:220px">
-                  <div v-for="t in row.todos" :key="t">{{ todoLabel(t) }}</div>
-                </div>
-              </template>
-              <span class="todo-badge">{{ row.todoCount }}</span>
-            </el-tooltip>
-            <span v-else class="muted">—</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="入科时间" min-width="150">
-          <template #default="{ row }">{{ formatTime(row.inDepartmentTime) }}</template>
-        </el-table-column>
-        <el-table-column label="在科天数" width="90">
-          <template #default="{ row }">{{ row.icuDays == null ? '—' : `${row.icuDays} 天` }}</template>
-        </el-table-column>
-        <el-table-column label="工作入口" width="240" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click.stop="goDecision(row)">抗感染</el-button>
-            <el-button link type="primary" @click.stop="goSofa(row)">SOFA</el-button>
-            <el-dropdown trigger="click" @command="(cmd) => jump(cmd, row)" popper-class="workbench-more-popper">
-              <el-button link type="primary" @click.stop>更多<el-icon class="el-icon--right"><arrow-down /></el-icon></el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="/page/apache2-score">APACHE II</el-dropdown-item>
-                  <el-dropdown-item command="/page/sepsis-bundle">脓毒症集束化</el-dropdown-item>
-                  <el-dropdown-item command="/page/ards-prone-record">ARDS 俯卧位</el-dropdown-item>
-                  <el-dropdown-item command="/page/abx-pkpd">PK/PD 剂量</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </template>
-        </el-table-column>
-      </el-table>
-      <!-- 床头卡视图：每个患者一张卡片 -->
-      <div v-if="viewMode === 'cards' && !loading" class="bed-card-grid">
-        <div v-for="row in filteredPatients" :key="row.patientId" class="bed-card" @click="openPatient(row)">
-          <div class="bed-card-head">
-            <span class="bed-no">{{ row.bedNo || '—' }}床</span>
-            <span v-if="row.ventilated" class="bed-tag tag-vent">机械通气</span>
-            <span v-if="row.onVasopressor" class="bed-tag tag-vaso">血管活性药</span>
-            <span v-if="row.onCrrt" class="bed-tag tag-crrt">CRRT</span>
+    <section class="wb-card patient-list-card">
+      <div class="list-heading">
+        <div class="section-heading list-title">
+          <div>
+            <div class="section-kicker">PATIENT LIST</div>
+            <h2>患者列表 <span class="heading-count">{{ filteredPatients.length }}</span></h2>
           </div>
-          <div class="bed-card-name">{{ row.name }}</div>
-          <div class="bed-card-sub">{{ row.inHospitalNo }} · {{ row.genderAge || '' }}</div>
-          <div class="bed-card-todo" v-if="row.todoCount">
-            <span class="todo-dot"></span> {{ row.todoCount }} 项待办
-          </div>
-          <div class="bed-card-actions" @click.stop>
-            <el-button link type="primary" size="small" @click="goDecision(row)">抗感染</el-button>
-            <el-button link type="primary" size="small" @click="goSofa(row)">SOFA</el-button>
-            <el-dropdown trigger="click" @command="(cmd) => jump(cmd, row)" popper-class="workbench-more-popper">
-              <el-button link type="primary" size="small" @click.stop>更多<el-icon class="el-icon--right"><arrow-down /></el-icon></el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="/page/apache2-score">APACHE II</el-dropdown-item>
-                  <el-dropdown-item command="/page/sepsis-bundle">脓毒症集束化</el-dropdown-item>
-                  <el-dropdown-item command="/page/ards-prone-record">ARDS 俯卧位</el-dropdown-item>
-                  <el-dropdown-item command="/page/abx-pkpd">PK/PD 剂量</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </div>
+          <span class="section-hint">点击患者行进入抗感染决策</span>
         </div>
-        <div v-if="filteredPatients.length === 0" class="empty-foot">没有匹配的患者，试试清空搜索条件。</div>
+        <el-radio-group v-model="viewMode" class="view-switch" size="small" @change="onViewModeChange">
+          <el-radio-button value="table">列表视图</el-radio-button>
+          <el-radio-button value="cards">床头卡视图</el-radio-button>
+        </el-radio-group>
       </div>
-      <div v-if="!loading && patients.length === 0" class="empty-foot">{{ emptyText }}</div>
-      <div v-else-if="!loading && filteredPatients.length === 0" class="empty-foot">没有匹配的患者，试试清空搜索条件。</div>
-    </div>
+
+      <div class="list-body">
+        <el-table
+          v-show="viewMode === 'table'"
+          v-loading="loading"
+          :data="filteredPatients"
+          stripe
+          row-key="patientId"
+          empty-text="当前科室口径下暂无在科患者"
+          @row-click="openPatient"
+        >
+          <el-table-column label="患者信息" min-width="218">
+            <template #default="{ row }">
+              <div class="patient-name-line">
+                <span class="patient-name">{{ row.name || '未知' }}</span>
+                <span v-if="row.lastSofaScore != null" :class="['sofa-badge', row.lastSofaScore >= 10 ? 'severe' : '']">SOFA {{ row.lastSofaScore }}</span>
+              </div>
+              <div class="patient-sub">住院号 {{ row.patientNo || '—' }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="基本信息" width="128">
+            <template #default="{ row }"><span>{{ row.gender || '—' }}</span><span class="table-divider">·</span><span>{{ row.age == null ? '—' : `${row.age} 岁` }}</span></template>
+          </el-table-column>
+          <el-table-column label="所在位置" min-width="150">
+            <template #default="{ row }">
+              <div class="location-main"><span class="bed-pill">{{ row.bedNo || '待分配' }}</span><span>{{ deptLabel(row) }}</span></div>
+              <div class="patient-sub">{{ row.wardName || '未分配病区' }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="危重状态" min-width="145">
+            <template #default="{ row }">
+              <div class="status-tags">
+                <span v-if="row.ventilated" class="crit-tag vent">机械通气</span>
+                <span v-if="row.onVasopressor" class="crit-tag vaso">血管活性药</span>
+                <span v-if="row.onCrrt" class="crit-tag crrt">CRRT</span>
+                <span v-if="!row.ventilated && !row.onVasopressor && !row.onCrrt" class="muted">无标记</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="待办" width="80" align="center">
+            <template #default="{ row }">
+              <el-tooltip v-if="row.todoCount > 0" :disabled="!row.todos || !row.todos.length" placement="top">
+                <template #content><div class="todo-tooltip"><div v-for="t in row.todos" :key="t">{{ todoLabel(t) }}</div></div></template>
+                <span class="todo-badge">{{ row.todoCount }}</span>
+              </el-tooltip>
+              <span v-else class="muted">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="在科情况" min-width="142">
+            <template #default="{ row }"><div>{{ row.icuDays == null ? '—' : `${row.icuDays} 天` }}</div><div class="patient-sub">{{ formatTime(row.inDepartmentTime) }}</div></template>
+          </el-table-column>
+          <el-table-column label="工作入口" width="238" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" @click.stop="goDecision(row)">抗感染</el-button>
+              <el-button link type="primary" @click.stop="goSofa(row)">SOFA</el-button>
+              <el-dropdown trigger="click" popper-class="workbench-more-popper" @command="(cmd) => jump(cmd, row)">
+                <el-button link type="primary" @click.stop>更多<el-icon class="el-icon--right"><arrow-down /></el-icon></el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="/page/apache2-score">APACHE II</el-dropdown-item>
+                    <el-dropdown-item command="/page/sepsis-bundle">脓毒症集束化</el-dropdown-item>
+                    <el-dropdown-item command="/page/ards-prone-record">ARDS 俯卧位</el-dropdown-item>
+                    <el-dropdown-item command="/page/abx-pkpd">PK/PD 剂量</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div v-if="viewMode === 'cards' && !loading" class="bed-card-grid">
+          <div v-for="row in filteredPatients" :key="row.patientId" class="bed-card" @click="openPatient(row)">
+            <div class="bed-card-topline"><span class="bed-no">{{ row.bedNo || '—' }}床</span><span class="bed-dept">{{ deptLabel(row) }}</span></div>
+            <div class="bed-card-patient">
+              <div class="bed-card-name">{{ row.name || '未知' }}</div>
+              <div class="bed-card-sub">{{ row.patientNo || '—' }} · {{ row.gender || '—' }} · {{ row.age == null ? '—' : `${row.age} 岁` }}</div>
+            </div>
+            <div class="bed-card-status">
+              <span v-if="row.ventilated" class="crit-tag vent">机械通气</span>
+              <span v-if="row.onVasopressor" class="crit-tag vaso">血管活性药</span>
+              <span v-if="row.onCrrt" class="crit-tag crrt">CRRT</span>
+              <span v-if="!row.ventilated && !row.onVasopressor && !row.onCrrt" class="muted">暂无危重标记</span>
+            </div>
+            <div class="bed-card-metrics">
+              <div><span>SOFA</span><strong :class="{ 'score-danger': row.lastSofaScore >= 10 }">{{ row.lastSofaScore == null ? '—' : row.lastSofaScore }}</strong></div>
+              <div><span>待办</span><strong :class="{ 'todo-number': row.todoCount > 0 }">{{ row.todoCount || 0 }}</strong></div>
+              <div><span>在科</span><strong>{{ row.icuDays == null ? '—' : `${row.icuDays}天` }}</strong></div>
+            </div>
+            <div class="bed-card-actions" @click.stop>
+              <el-button link type="primary" size="small" @click="goDecision(row)">抗感染</el-button>
+              <el-button link type="primary" size="small" @click="goSofa(row)">SOFA</el-button>
+              <el-dropdown trigger="click" popper-class="workbench-more-popper" @command="(cmd) => jump(cmd, row)">
+                <el-button link type="primary" size="small" @click.stop>更多<el-icon class="el-icon--right"><arrow-down /></el-icon></el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="/page/apache2-score">APACHE II</el-dropdown-item>
+                    <el-dropdown-item command="/page/sepsis-bundle">脓毒症集束化</el-dropdown-item>
+                    <el-dropdown-item command="/page/ards-prone-record">ARDS 俯卧位</el-dropdown-item>
+                    <el-dropdown-item command="/page/abx-pkpd">PK/PD 剂量</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
+          </div>
+          <div v-if="filteredPatients.length === 0" class="empty-foot">没有匹配的患者，试试清空搜索条件。</div>
+        </div>
+
+        <div v-if="!loading && patients.length === 0" class="empty-foot">{{ emptyText }}</div>
+        <div v-else-if="!loading && filteredPatients.length === 0 && viewMode === 'table'" class="empty-foot">没有匹配的患者，试试清空搜索条件。</div>
+      </div>
+    </section>
   </div>
 </template>
-
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
@@ -402,134 +433,149 @@ function onDepartChange() {
   loadPatients()
 }
 </script>
-
 <style scoped>
-.wb-page { min-height: 100vh; max-width: 1440px; margin: 0 auto; padding: 30px 34px 48px; background: #faf8f5; color: #292524; }
-.page-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
-.eyebrow { color: #c2410c; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; }
-h1 { margin: 7px 0 5px; font-size: 27px; letter-spacing: -.5px; }
-.page-heading p { margin: 0; color: #78716c; font-size: 14px; }
-.notice { margin-bottom: 18px; }
-
-.wb-card { border: 1px solid #f0e0d0; border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgba(120, 53, 15, .04); }
-.filter-bar { padding: 16px 18px; margin-bottom: 14px; }
-.filter-fields { display: flex; gap: 14px; flex-wrap: wrap; }
-.filter-field { display: flex; align-items: center; gap: 8px; }
-.filter-field.grow { flex: 1 1 320px; }
-.filter-field.grow :deep(.el-input) { width: 100%; }
-.filter-label { color: #78716c; font-size: 12px; white-space: nowrap; }
-.filter-field :deep(.el-select) { width: 178px; }
-
-.overview { padding: 18px 20px 6px; margin-bottom: 14px; }
-.ov-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; color: #1c1917; font-size: 15px; font-weight: 600; }
-.ov-scope { color: #a8a29e; font-size: 12px; font-weight: 400; }
-.stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.stat-card { padding: 14px 16px; border: 1px solid #f5e6d8; border-radius: 10px; background: #fffdfa; }
-.stat-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.stat-label { color: #78716c; font-size: 12px; }
-.stat-icon { font-size: 16px; opacity: .75; }
-.stat-value { color: #1c1917; font-size: 24px; font-weight: 600; line-height: 1.2; }
-.stat-value em { color: #a8a29e; font-size: 12px; font-style: normal; font-weight: 400; }
-.stat-foot { margin-top: 6px; color: #a8a29e; font-size: 11px; }
-.time-value { font-size: 16px !important; }
-
-.table-card { padding: 6px 8px 12px; }
-.patient-name { color: #292524; font-weight: 600; }
-.patient-sub { margin-top: 3px; color: #a8a29e; font-size: 12px; }
-.muted { color: #a8a29e; }
-.bed-pill { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #f5f5f4; color: #57534e; font-size: 12px; }
-.empty-foot { padding: 16px; text-align: center; color: #a8a29e; font-size: 12px; }
-
-/* 危重标签 */
-.crit-tag { display: inline-block; margin: 1px 2px 1px 0; padding: 1px 6px; border-radius: 4px; font-size: 11px; line-height: 18px; white-space: nowrap; }
-.crit-tag.vent { background: #dbeafe; color: #1d4ed8; }
-.crit-tag.vaso { background: #fee2e2; color: #b91c1c; }
-.crit-tag.crrt { background: #fef3c7; color: #92400e; }
-
-/* 待办徽章 */
-.todo-badge { display: inline-block; min-width: 20px; padding: 2px 6px; border-radius: 10px; background: #dc2626; color: #fff; font-size: 12px; font-weight: 600; text-align: center; cursor: help; }
-
-/* 患者名旁的 SOFA 分 */
-.sofa-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #f5f5f4; color: #57534e; font-size: 11px; font-weight: 500; }
-.sofa-badge.severe { background: #fee2e2; color: #b91c1c; font-weight: 700; }
-
-/* 统计卡高亮 */
-.stat-value.danger { color: #b91c1c; }
-.stat-value.todo { color: #dc2626; }
-
-@media (max-width: 900px) {
-  .wb-page { padding: 20px 14px; }
-  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .filter-field :deep(.el-select) { width: 100%; }
-  .filter-field { width: 100%; }
+/* 患者工作台：沿用质控模块的暖橙 / stone 体系，但把信息层级调整为临床工作流。 */
+.wb-page {
+  min-height: 100vh;
+  padding: 24px;
+  background: #fafaf9;
+  color: #292524;
 }
-/* 床头卡视图 */
-.bed-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-  padding: 4px 0;
-}
-.bed-card {
-  border: 1px solid #e8e8e8;
-  border-radius: 8px;
-  padding: 12px;
-  cursor: pointer;
+.wb-card {
   background: #fff;
-  transition: box-shadow .2s, border-color .2s;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(28, 25, 23, .04);
 }
-.bed-card:hover {
-  border-color: #409eff;
-  box-shadow: 0 2px 8px rgba(64, 158, 255, .15);
-}
-.bed-card-head {
+.wb-hero {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  max-width: 1440px;
+  margin: 0 auto 18px;
 }
-.bed-no {
-  font-size: 18px;
-  font-weight: 700;
-  color: #303133;
-}
-.bed-tag {
+.hero-copy { min-width: 0; }
+.eyebrow, .section-kicker {
+  color: #c2410c;
   font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 3px;
+  font-weight: 700;
+  letter-spacing: 1.45px;
 }
-.tag-vent { background: #ecf5ff; color: #409eff; }
-.tag-vaso { background: #fef0f0; color: #f56c6c; }
-.tag-crrt { background: #fdf6ec; color: #e6a23c; }
-.bed-card-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
-  margin-bottom: 2px;
+.hero-copy h1 {
+  margin: 7px 0 6px;
+  color: #1c1917;
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -.6px;
 }
-.bed-card-sub {
-  font-size: 12px;
-  color: #909399;
-  margin-bottom: 6px;
-}
-.bed-card-todo {
-  font-size: 12px;
-  color: #e6a23c;
-  margin-bottom: 6px;
-}
-.todo-dot {
-  display: inline-block;
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: #e6a23c;
-  margin-right: 4px;
-}
-.bed-card-actions {
-  border-top: 1px solid #f0f0f0;
-  padding-top: 6px;
-  display: flex;
-  gap: 4px;
+.hero-copy p { margin: 0; color: #78716c; font-size: 14px; }
+.hero-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.meta-pill, .summary-tag {
+  display: inline-flex;
   align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: #f5f5f4;
+  color: #57534e;
+  font-size: 12px;
 }
+.meta-dot, .tag-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.meta-dot.active, .tag-dot.orange { background: #ea580c; }
+.hero-actions { padding-top: 3px; flex-shrink: 0; }
+.refresh-btn { border-color: #e7e5e4; color: #57534e; background: #fff; }
+.refresh-btn:hover { color: #c2410c; border-color: #fdba74; background: #fff7ed; }
+.wb-notice { max-width: 1440px; margin: 0 auto 12px; }
+.filter-card, .overview-card, .patient-list-card { max-width: 1440px; margin: 0 auto 18px; }
+.filter-card { padding: 18px 20px 20px; }
+.section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.section-heading h2 { margin: 4px 0 0; color: #1c1917; font-size: 17px; line-height: 1.3; }
+.section-hint { color: #a8a29e; font-size: 12px; white-space: nowrap; }
+.filter-heading { margin-bottom: 16px; }
+.filter-fields { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+.filter-field { display: flex; flex-direction: column; gap: 7px; min-width: 178px; }
+.filter-field.search-field { flex: 1 1 320px; min-width: 260px; }
+.filter-label { color: #78716c; font-size: 12px; }
+.filter-field :deep(.el-input), .filter-field :deep(.el-select) { width: 100%; }
+.overview-card { padding: 20px 22px 22px; }
+.overview-tags { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.summary-tag { color: #c2410c; background: #fff7ed; }
+.summary-tag.muted-tag { color: #78716c; background: #f5f5f4; }
+.stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+.stat-card {
+  position: relative;
+  min-height: 116px;
+  padding: 16px 17px 14px;
+  overflow: hidden;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff 0%, #fafaf9 100%);
+  transition: transform .2s, box-shadow .2s, border-color .2s;
+}
+.stat-card::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: #d6d3d1; }
+.stat-card:hover { border-color: #d6d3d1; box-shadow: 0 4px 14px rgba(28, 25, 23, .06); transform: translateY(-1px); }
+.stat-card-primary::before { background: #ea580c; }
+.stat-card-danger::before { background: #dc2626; }
+.stat-card-warning::before { background: #d97706; }
+.stat-head { display: flex; align-items: center; justify-content: space-between; }
+.stat-label { color: #78716c; font-size: 13px; font-weight: 500; }
+.stat-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; font-size: 12px; font-weight: 700; }
+.orange-icon { color: #c2410c; background: #ffedd5; }
+.red-icon { color: #b91c1c; background: #fee2e2; }
+.amber-icon { color: #b45309; background: #fef3c7; }
+.gray-icon { color: #57534e; background: #f5f5f4; }
+.stat-value { margin-top: 7px; color: #1c1917; font-size: 28px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.stat-value em { margin-left: 3px; color: #a8a29e; font-size: 12px; font-style: normal; font-weight: 400; }
+.stat-value.danger { color: #b91c1c; }
+.stat-value.todo { color: #b45309; }
+.stat-foot { margin-top: 7px; color: #a8a29e; font-size: 11px; }
+.patient-list-card { overflow: hidden; }
+.list-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 19px 22px 15px; border-bottom: 1px solid #f5f5f4; }
+.list-title { align-items: flex-end; }
+.heading-count { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 22px; margin-left: 5px; padding: 0 7px; border-radius: 999px; color: #c2410c; background: #fff7ed; font-size: 12px; font-weight: 600; vertical-align: 2px; }
+.view-switch :deep(.el-radio-button__inner) { border-color: #e7e5e4; color: #78716c; box-shadow: none; }
+.view-switch :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) { color: #c2410c; background: #fff7ed; border-color: #fdba74; box-shadow: -1px 0 0 0 #fdba74; }
+.list-body { padding: 0 8px 12px; }
+.list-body :deep(.el-table) { --el-table-row-hover-bg-color: #fffaf5; --el-table-header-bg-color: #fafaf9; --el-table-border-color: #e7e5e4; color: #44403c; }
+.list-body :deep(.el-table th.el-table__cell) { height: 48px; color: #57534e; font-size: 12px; font-weight: 600; }
+.list-body :deep(.el-table td.el-table__cell) { padding: 12px 0; }
+.list-body :deep(.el-table__row) { cursor: pointer; }
+.patient-name-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.patient-name { color: #292524; font-weight: 600; }
+.patient-sub { margin-top: 4px; color: #a8a29e; font-size: 12px; }
+.table-divider { margin: 0 6px; color: #d6d3d1; }
+.location-main { display: flex; align-items: center; gap: 7px; }
+.bed-pill { display: inline-flex; align-items: center; min-height: 23px; padding: 2px 8px; border-radius: 6px; color: #57534e; background: #f5f5f4; font-size: 12px; white-space: nowrap; }
+.status-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+.crit-tag { display: inline-flex; align-items: center; min-height: 20px; margin: 1px 2px 1px 0; padding: 1px 7px; border-radius: 999px; font-size: 11px; line-height: 18px; white-space: nowrap; }
+.crit-tag.vent { color: #1d4ed8; background: #dbeafe; }
+.crit-tag.vaso { color: #b91c1c; background: #fee2e2; }
+.crit-tag.crrt { color: #92400e; background: #fef3c7; }
+.sofa-badge { display: inline-flex; padding: 2px 6px; border-radius: 999px; color: #78716c; background: #f5f5f4; font-size: 11px; font-weight: 500; }
+.sofa-badge.severe { color: #b91c1c; background: #fee2e2; font-weight: 700; }
+.todo-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 23px; height: 23px; padding: 0 7px; border-radius: 999px; color: #fff; background: #dc2626; font-size: 12px; font-weight: 700; }
+.todo-tooltip { min-width: 150px; line-height: 1.8; }
+.muted { color: #a8a29e; }
+.empty-foot { padding: 38px 16px; text-align: center; color: #a8a29e; font-size: 12px; }
+.bed-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; padding: 16px 8px 8px; }
+.bed-card { position: relative; overflow: hidden; min-height: 218px; padding: 16px; border: 1px solid #e7e5e4; border-radius: 12px; background: linear-gradient(180deg, #fff 0%, #fafaf9 100%); cursor: pointer; transition: transform .2s, box-shadow .2s, border-color .2s; }
+.bed-card::before { content: ''; position: absolute; inset: 0 0 auto; height: 3px; background: #ea580c; opacity: .75; }
+.bed-card:hover { border-color: #fdba74; box-shadow: 0 5px 16px rgba(120, 53, 15, .08); transform: translateY(-2px); }
+.bed-card-topline, .bed-card-metrics, .bed-card-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bed-card-topline { margin-bottom: 16px; }
+.bed-no { color: #1c1917; font-size: 18px; font-weight: 700; }
+.bed-dept { max-width: 130px; overflow: hidden; color: #a8a29e; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.bed-card-name { color: #292524; font-size: 18px; font-weight: 700; }
+.bed-card-sub { margin-top: 5px; color: #78716c; font-size: 12px; }
+.bed-card-status { display: flex; flex-wrap: wrap; min-height: 28px; margin: 16px 0 14px; align-items: center; }
+.bed-card-metrics { padding: 11px 0; border-top: 1px solid #eeedec; border-bottom: 1px solid #eeedec; }
+.bed-card-metrics > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.bed-card-metrics span { color: #a8a29e; font-size: 11px; }
+.bed-card-metrics strong { color: #44403c; font-size: 15px; font-weight: 700; }
+.bed-card-metrics .score-danger { color: #b91c1c; }
+.bed-card-metrics .todo-number { color: #b45309; }
+.bed-card-actions { justify-content: flex-start; padding-top: 10px; }
+@media (max-width: 980px) { .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .list-heading { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 680px) { .wb-page { padding: 16px 12px 30px; } .wb-hero { flex-direction: column; } .hero-actions { padding-top: 0; } .filter-card, .overview-card { padding: 16px; } .filter-field, .filter-field.search-field { width: 100%; min-width: 0; } .stat-grid { grid-template-columns: 1fr; } .section-heading { align-items: flex-start; flex-direction: column; } .section-hint { white-space: normal; } .overview-tags { justify-content: flex-start; } .list-heading { padding: 16px; } .list-body { padding: 0 2px 8px; overflow-x: auto; } .list-body :deep(.el-table) { min-width: 920px; } .bed-card-grid { grid-template-columns: 1fr; padding-left: 2px; padding-right: 2px; } }
 </style>
