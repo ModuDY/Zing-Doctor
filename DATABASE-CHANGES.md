@@ -7,7 +7,7 @@
 > 所以**先跑 `install.sh`，再照着下面的清单逐项核对**——只有三条通道都没命中、或日志里明确报了失败，
 > 才需要人工补执行。
 >
-> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（**25/26**/09/10/11/12/13/14/15/16/17/18/19/20/21/22/23/24/28，
+> 自动增量只覆盖 `INCREMENTAL_SQL` 里列出的脚本（**25/26**/09/10/11/12/13/14/15/16/17/18/19/20/21/22/23/24/28/29，
 > 注意 25/26 的 rename 排在最前）；全量初始化与
 > 一次性脚本（如 06_abx_drug_dict.sql）不在其内。漏执行 = 新代码一上来就 500。
 > MySQL/MariaDB 环境由 `install-mariadb-debian.sh` 每次全量重跑 `MAIN_SQL`，不存在「漏增量」问题，但脚本必须两边都有（见下方四步规则）。
@@ -123,6 +123,41 @@ SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'ARCH
 ---
 
 ## 批次记录
+
+### 2026-09-24 · 患者工作台页面注册（patient-workbench）
+
+**涉及**（只加一条页面注册数据，不加表、不加列）
+
+- `sys_page_config` 新增一行：`patient-workbench` → `/page/patient-workbench`
+- 执行脚本：达梦 `sql/29_patient_workbench.sql`、MySQL `sql/mysql/29_patient_workbench.sql`
+  （均按 `page_code` 先删后插，幂等可重复执行）
+
+**背景**：ICU 患者工作台首版随 `d54630d` 上线（前端路由 `/page/patient-workbench`，
+直连登录后 `/` 重定向到此页），但当时**没有登记外链 pageCode** ——
+页面确实存在，却在 `sys_page_config` 里查不到，ICU 侧配
+`/entry/patient-workbench` 会被后端判为「页面未注册」而打不开。本脚本补上这条注册。
+
+**不执行的后果**：**直连登录不受影响**（侧边栏菜单能进，首页也指向它）；
+受影响的是**外链进不来** —— ICU 模板里的 `/entry/patient-workbench` 会被拒绝。
+因此很容易被漏掉：直连用着正常，就不会有人发现外链是坏的。
+
+**自动应用**
+
+- 达梦：已加入 `install.sh` 的 `FULL_SQL`、`FULL_SQL_JDBC`、`INCREMENTAL_SQL` **三处清单**
+- MySQL / MariaDB：`sql/mysql/29_patient_workbench.sql` 已加入 `install-mariadb-debian.sh`
+  的 `MAIN_SQL`
+
+> ⚠️ **顺序关键**：两条通道里本脚本都必须排在 `27_restore_config_snapshot.sql` **之后**。
+> 27 会对 `sys_page_config` 整表 `DELETE + INSERT` 成 2026-09-22 的快照，而快照导出时
+> 工作台页面还不存在，排前面会被静默抹掉（不报错，就是页面消失了）。与 24、28 同因。
+
+**人工补执行（自动通道未命中时）**：执行对应脚本全文，然后核对：
+
+```sql
+-- 应返回 1
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_page_config"
+ WHERE "page_code" = 'patient-workbench';
+```
 
 ### 2026-09-23 · 质控配置外挂目录与写保护总开关
 
