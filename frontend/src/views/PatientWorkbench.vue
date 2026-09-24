@@ -142,8 +142,8 @@
           <template #default="{ row }">
             <el-button link type="primary" @click.stop="goDecision(row)">抗感染</el-button>
             <el-button link type="primary" @click.stop="goSofa(row)">SOFA</el-button>
-            <el-dropdown trigger="click" @command="(cmd) => jump(cmd, row)" @click.stop>
-              <el-button link type="primary">更多<el-icon class="el-icon--right"><arrow-down /></el-icon></el-button>
+            <el-dropdown trigger="click" @command="(cmd) => jump(cmd, row)" popper-class="workbench-more-popper">
+              <el-button link type="primary" @click.stop>更多<el-icon class="el-icon--right"><arrow-down /></el-icon></el-button>
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="/page/apache2-score">APACHE II</el-dropdown-item>
