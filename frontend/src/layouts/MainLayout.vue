@@ -9,6 +9,13 @@
         </div>
       </div>
 
+      <div v-if="loggedIn" class="sidebar-dept">
+        <span class="dept-label">科室</span>
+        <el-select v-model="selectedDepart" size="small" placeholder="选择科室" @change="onDepartChange" style="width:100%">
+          <el-option v-for="d in departs" :key="d.org_code" :label="d.depart_name" :value="d.org_code" />
+        </el-select>
+      </div>
+
       <nav class="sidebar-nav">
         <router-link to="/page/patient-workbench" class="nav-item" active-class="nav-active">
           <span class="nav-icon">🧑‍⚕️</span>
@@ -143,9 +150,17 @@ import { ElMessageBox } from 'element-plus'
 import { logout as logoutApi } from '../api/auth'
 import { getUser, isLoggedIn, clearSession } from '../utils/auth'
 import { currentPatient, clearCurrentPatient, currentPatientLabel } from '../utils/patientContext'
+import { currentDepart, setCurrentDepart } from '../utils/departContext'
+import request from '../api/request'
 
 export default {
   name: 'MainLayout',
+  data() {
+    return {
+      departs: [],
+      selectedDepart: currentDepart.departCode || ''
+    }
+  },
   computed: {
     /** 全局患者上下文（响应式单例）：工作台选中一人后，切菜单也不会丢 */
     patient() {
@@ -173,7 +188,36 @@ export default {
       return n ? n.charAt(0) : '医'
     }
   },
+  async mounted() {
+    // 已登录用户加载授权科室列表；外链访问不加载（URL 已指定科室）
+    if (!this.loggedIn) return
+    try {
+      const scope = await request.get('/workbench/scope')
+      if (scope && Array.isArray(scope.departs)) {
+        this.departs = scope.departs
+        if (!this.selectedDepart && this.departs.length > 0) {
+          this.selectedDepart = this.departs[0].org_code
+          this.onDepartChange(this.selectedDepart)
+        }
+      }
+    } catch (e) {
+      console.warn('加载科室列表失败', e)
+    }
+  },
   methods: {
+    onDepartChange(code) {
+      const dep = this.departs.find(d => d.org_code === code)
+      const prev = currentDepart.departCode
+      setCurrentDepart(dep || { org_code: code, depart_name: code })
+      // 科室真的变了才丢掉当前患者：患者只属于一个科室，带着旧科室的患者再进
+      // SOFA / APACHE 那些页面，看到的是错的人 —— 而且不报错，看着还像对的。
+      // 判断「真的变了」是必须的：本函数初始化时也会被调用一次，
+      // 那时 currentDepart 尚无值，若一律清除，刷新一次页面就会把从工作台
+      // 带过来的患者清掉。与工作台里的科室下拉保持同一套行为。
+      if (prev && prev !== code) {
+        clearCurrentPatient()
+      }
+    },
     handleClearPatient() {
       clearCurrentPatient()
     },
@@ -269,6 +313,16 @@ export default {
   line-height: 1.3;
 }
 
+.sidebar-dept {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.dept-label {
+  display: block;
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 4px;
+}
 .sidebar-nav {
   flex: 1;
   padding: 12px 10px;

@@ -128,7 +128,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
@@ -136,6 +136,7 @@ import request from '../api/request'
 import { appendExternalContext } from '../utils/external'
 import { operatorLabel } from '../utils/operator'
 import * as echarts from '../utils/echarts'
+import { currentDepart } from '../utils/departContext'
 
 const route = useRoute()
 const router = useRouter()
@@ -146,7 +147,8 @@ const pickQuery = (v) => {
   const s = String(v == null ? '' : v).trim()
   return s && !RAW_PLACEHOLDER.test(s) ? s : ''
 }
-const departCode = ref(pickQuery(route.query.departCode))
+const externalDepartCode = pickQuery(route.query.departCode)
+const departCode = ref(externalDepartCode || currentDepart.departCode)
 const departName = ref(pickQuery(route.query.departName))
 const departCodeInvalid = computed(() => !departCode.value)
 const departCodeInvalidText = computed(() => {
@@ -183,6 +185,14 @@ onMounted(() => {
   window.addEventListener('resize', handleResize)
   if (!departCodeInvalid.value) {
     loadData()
+  }
+})
+
+// 非外链场景下，侧边栏切换科室时自动重新加载
+watch(() => currentDepart.departCode, (code) => {
+  if (!externalDepartCode && code) {
+    departCode.value = code
+    if (!departCodeInvalid.value) loadData()
   }
 })
 

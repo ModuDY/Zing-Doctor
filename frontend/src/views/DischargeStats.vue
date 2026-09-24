@@ -74,19 +74,22 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Download, Warning } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
 import request from '../api/request'
+import { currentDepart } from '../utils/departContext'
 
 const loading = ref(false)
 const patients = ref([])
 const departments = ref([])
 
-// 从外链URL参数获取 departCode（权限控制：只能查当前科室）
+// 外链场景：URL 带 departCode，固定用 URL 的（第三方指定科室，不被全局切换覆盖）
+// 已登录从菜单进入：读全局 currentDepart，侧边栏切换科室时自动重新加载
 const route = new URLSearchParams(window.location.search)
-const departCode = ref(route.get('departCode') || '')
+const externalDepartCode = route.get('departCode') || ''
+const departCode = ref(externalDepartCode || currentDepart.departCode)
 const departName = ref(departCode.value)  // 默认显示编码，加载科室列表后替换为名称
 
 // 默认当月
@@ -182,10 +185,17 @@ async function loadDepartments() {
   }
 }
 
-onMounted(async () => {
-  if (departCode.value) {
-    await loadDepartments()
-    loadData()
+async function init() {
+  if (!departCode.value) return
+  await loadDepartments()
+  loadData()
+}
+onMounted(init)
+// 非外链场景下，侧边栏切换科室时自动重新加载
+watch(() => currentDepart.departCode, (code) => {
+  if (!externalDepartCode && code) {
+    departCode.value = code
+    init()
   }
 })
 </script>

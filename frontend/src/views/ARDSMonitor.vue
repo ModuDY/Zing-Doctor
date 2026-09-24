@@ -155,10 +155,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import * as echarts from '../utils/echarts'
 import request from '../api/request'
+import { currentDepart } from '../utils/departContext'
 
 const loading = ref(false)
 const patients = ref([])
@@ -166,6 +167,7 @@ const summary = ref({})
 const gradeFilter = ref('')
 const expandRowKeys = ref([])
 const departCode = ref('')
+let externalDepartCode = ''
 const departName = ref('')
 
 // 时间范围默认当月
@@ -193,14 +195,23 @@ function setOiChartRef(pid, el) {
 }
 
 // 外链参数
-onMounted(() => {
-  const params = new URLSearchParams(window.location.search)
-  departCode.value = params.get('departCode') || ''
-  if (departCode.value) {
-    loadDepartments()
-    loadData()
-  }
-})
+  onMounted(() => {
+    const params = new URLSearchParams(window.location.search)
+    externalDepartCode = params.get('departCode') || ''
+    departCode.value = externalDepartCode || currentDepart.departCode
+    if (departCode.value) {
+      loadDepartments()
+      loadData()
+    }
+  })
+  // 非外链场景下，侧边栏切换科室时自动重新加载
+  watch(() => currentDepart.departCode, (code) => {
+    if (!externalDepartCode && code) {
+      departCode.value = code
+      loadDepartments()
+      loadData()
+    }
+  })
 
 async function loadDepartments() {
   try {
