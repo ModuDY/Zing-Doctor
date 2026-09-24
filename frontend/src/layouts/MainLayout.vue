@@ -9,7 +9,7 @@
         </div>
       </div>
 
-      <div v-if="loggedIn" class="sidebar-dept">
+      <div v-if="loggedIn && !isExternalLink" class="sidebar-dept">
         <span class="dept-label">科室</span>
         <el-select v-model="selectedDepart" size="small" placeholder="选择科室" @change="onDepartChange" style="width:100%">
           <el-option v-for="d in departs" :key="d.org_code" :label="d.depart_name" :value="d.org_code" />
@@ -172,6 +172,11 @@ export default {
     loggedIn() {
       return isLoggedIn()
     },
+    /** 外链访问（URL 带 extToken 或 departCode）：科室由第三方系统指定，不显示全局切换下拉 */
+    isExternalLink() {
+      const q = new URLSearchParams(window.location.search)
+      return !!(q.get('extToken') || q.get('departCode'))
+    },
     userName() {
       // 优先展示第三方/外链传入的姓名；没有时退回登录账号，兼顾两种访问方式
       const u = getUser()
@@ -190,7 +195,7 @@ export default {
   },
   async mounted() {
     // 已登录用户加载授权科室列表；外链访问不加载（URL 已指定科室）
-    if (!this.loggedIn) return
+    if (!this.loggedIn || this.isExternalLink) return
     try {
       const scope = await request.get('/workbench/scope')
       if (scope && Array.isArray(scope.departs)) {
