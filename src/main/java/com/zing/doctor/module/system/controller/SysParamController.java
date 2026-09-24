@@ -31,6 +31,17 @@ public class SysParamController {
         }
     }
 
+    /** 按 key 读单个参数值；不存在或已停用返回 null（前端按默认值处理） */
+    @GetMapping("/get")
+    public Result<String> get(@RequestParam String key) {
+        try {
+            return Result.ok(sysParamService.value(key));
+        } catch (Exception e) {
+            log.error("系统参数查询失败: key={}", key, e);
+            return Result.fail("查询失败: " + e.getMessage());
+        }
+    }
+
     /** 保存（id 为空新增，否则更新） */
     @PostMapping("/save")
     public Result<Boolean> save(@RequestBody SysParam param) {

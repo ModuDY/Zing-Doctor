@@ -7,6 +7,10 @@
         <p>汇总当前在科患者，作为进入各临床工具的统一入口。</p>
       </div>
       <el-button :icon="Refresh" :loading="loading" @click="loadPatients">刷新</el-button>
+      <el-radio-group v-model="viewMode" size="small" @change="onViewModeChange">
+        <el-radio-button value="table">表格</el-radio-button>
+        <el-radio-button value="cards">床头卡</el-radio-button>
+      </el-radio-group>
     </header>
 
     <el-alert class="notice" type="info" :closable="false" show-icon>
@@ -85,7 +89,7 @@
     </div>
 
     <div class="wb-card table-card">
-      <el-table v-loading="loading" :data="filteredPatients" stripe row-key="patientId"
+      <el-table v-show="viewMode === 'table'" v-loading="loading" :data="filteredPatients" stripe row-key="patientId"
                 empty-text="当前科室口径下暂无在科患者" @row-click="openPatient">
         <el-table-column label="患者" min-width="200">
           <template #default="{ row }">
@@ -156,6 +160,38 @@
           </template>
         </el-table-column>
       </el-table>
+      <!-- 床头卡视图：每个患者一张卡片 -->
+      <div v-if="viewMode === 'cards' && !loading" class="bed-card-grid">
+        <div v-for="row in filteredPatients" :key="row.patientId" class="bed-card" @click="openPatient(row)">
+          <div class="bed-card-head">
+            <span class="bed-no">{{ row.bedNo || '—' }}床</span>
+            <span v-if="row.ventilated" class="bed-tag tag-vent">机械通气</span>
+            <span v-if="row.onVasopressor" class="bed-tag tag-vaso">血管活性药</span>
+            <span v-if="row.onCrrt" class="bed-tag tag-crrt">CRRT</span>
+          </div>
+          <div class="bed-card-name">{{ row.name }}</div>
+          <div class="bed-card-sub">{{ row.inHospitalNo }} · {{ row.genderAge || '' }}</div>
+          <div class="bed-card-todo" v-if="row.todoCount">
+            <span class="todo-dot"></span> {{ row.todoCount }} 项待办
+          </div>
+          <div class="bed-card-actions" @click.stop>
+            <el-button link type="primary" size="small" @click="goDecision(row)">抗感染</el-button>
+            <el-button link type="primary" size="small" @click="goSofa(row)">SOFA</el-button>
+            <el-dropdown trigger="click" @command="(cmd) => jump(cmd, row)" popper-class="workbench-more-popper">
+              <el-button link type="primary" size="small" @click.stop>更多<el-icon class="el-icon--right"><arrow-down /></el-icon></el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="/page/apache2-score">APACHE II</el-dropdown-item>
+                  <el-dropdown-item command="/page/sepsis-bundle">脓毒症集束化</el-dropdown-item>
+                  <el-dropdown-item command="/page/ards-prone-record">ARDS 俯卧位</el-dropdown-item>
+                  <el-dropdown-item command="/page/abx-pkpd">PK/PD 剂量</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+        </div>
+        <div v-if="filteredPatients.length === 0" class="empty-foot">没有匹配的患者，试试清空搜索条件。</div>
+      </div>
       <div v-if="!loading && patients.length === 0" class="empty-foot">{{ emptyText }}</div>
       <div v-else-if="!loading && filteredPatients.length === 0" class="empty-foot">没有匹配的患者，试试清空搜索条件。</div>
     </div>
@@ -170,6 +206,7 @@ import { Refresh, Search, ArrowDown } from '@element-plus/icons-vue'
 import { externalParam } from '../utils/external'
 import '../styles/quality-theme.css'
 import { fetchInpatients, fetchDepartScope } from '../api/workbench'
+import request from '../api/request'
 import { normalizeDepartParam, deptNameOf } from '../utils/depart'
 import { setCurrentPatient, clearCurrentPatient } from '../utils/patientContext'
 
@@ -187,6 +224,8 @@ const departCode = ref(externalParam('departCode'))
 const needPick = ref(false)
 const scope = ref({ admin: false, matched: false, departs: [], message: '' })
 const keyword = ref('')
+// 视图模式：table 表格 / cards 床头卡；默认读参数设置 WORKBENCH_VIEW_MODE
+const viewMode = ref('table')
 const sortBy = ref('newest')
 const updatedAt = ref('')
 
@@ -312,7 +351,24 @@ async function loadPatients() {
   }
 }
 
+// 读参数设置里的默认视图模式（WORKBENCH_VIEW_MODE=table/cards）；sessionStorage 有临时覆盖时优先
+async function initViewMode() {
+  const saved = sessionStorage.getItem("zing_workbench_view")
+  if (saved === "table" || saved === "cards") {
+    viewMode.value = saved
+    return
+  }
+  try {
+    const mode = await request.get("/sys-param/get", { params: { key: "WORKBENCH_VIEW_MODE" } })
+    if (mode === "cards" || mode === "table") viewMode.value = mode
+  } catch (e) { /* 参数未配置时用默认 table */ }
+}
+function onViewModeChange(mode) {
+  sessionStorage.setItem("zing_workbench_view", mode)
+}
+
 onMounted(async () => {
+  await initViewMode()
   await initScope()
   loadPatients()
 })
@@ -406,5 +462,74 @@ h1 { margin: 7px 0 5px; font-size: 27px; letter-spacing: -.5px; }
   .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .filter-field :deep(.el-select) { width: 100%; }
   .filter-field { width: 100%; }
+}
+/* 床头卡视图 */
+.bed-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  padding: 4px 0;
+}
+.bed-card {
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  background: #fff;
+  transition: box-shadow .2s, border-color .2s;
+}
+.bed-card:hover {
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, .15);
+}
+.bed-card-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.bed-no {
+  font-size: 18px;
+  font-weight: 700;
+  color: #303133;
+}
+.bed-tag {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.tag-vent { background: #ecf5ff; color: #409eff; }
+.tag-vaso { background: #fef0f0; color: #f56c6c; }
+.tag-crrt { background: #fdf6ec; color: #e6a23c; }
+.bed-card-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 2px;
+}
+.bed-card-sub {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 6px;
+}
+.bed-card-todo {
+  font-size: 12px;
+  color: #e6a23c;
+  margin-bottom: 6px;
+}
+.todo-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #e6a23c;
+  margin-right: 4px;
+}
+.bed-card-actions {
+  border-top: 1px solid #f0f0f0;
+  padding-top: 6px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }
 </style>
