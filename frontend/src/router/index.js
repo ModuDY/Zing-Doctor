@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { captureExternalContext, hasExternalContext } from '../utils/external'
 import { isLoggedIn } from '../utils/auth'
+import { currentPatient, hasCurrentPatient } from '../utils/patientContext'
 
 /**
  * 路由规范：
@@ -192,6 +193,25 @@ const router = createRouter({
 })
 
 /**
+ * 会把「当前患者」带过去的页面：一次只看一个患者的那几个。
+ *
+ * <p>列表页（ARDS 俯卧位列表、SOFA / APACHE 概览、疑似感染患者列表、质控看板）刻意
+ * 不在其内 —— 给它们注入住院号会把列表过滤成只剩一个人，那不是使用者想要的；
+ * 想在列表里看某个人，用页面自己的搜索框即可。
+ *
+ * <p>patientId 与 inHospitalNo 必须同时带：药企链路（决策 / PK/PD / SOFA）读
+ * patientId，APACHE II 与脓毒症只读 inHospitalNo（住院号），少带一个另一半页面照样空着。
+ */
+const PATIENT_PAGES = new Set([
+  '/page/abx-decision',
+  '/page/abx-pkpd',
+  '/page/sofa-score',
+  '/page/apache2-score',
+  '/page/sepsis-bundle',
+  '/page/ards-prone-record'
+])
+
+/**
  * 访问控制：两条合法通道，任一满足即放行。
  *   1) 第三方系统外链进入（URL 带 extToken 或 expire+sign）—— 免登录，逻辑保持原有；
  *   2) 已在本系统登录（本地存有 JWT）。
@@ -206,6 +226,26 @@ router.beforeEach((to) => {
     // 已登录时不该再看登录页
     return isLoggedIn() ? { path: '/' } : true
   }
+
+  // 已选中患者时把它带进单患者页面。侧边栏菜单是纯 <router-link>，切换时不带任何
+  // 参数，不补的话这些页面读不到患者 —— 这就是「切到别的菜单患者就丢了」的原因。
+  // 页面自己带了患者参数时不覆盖（例如从其它列表点进来另一个人）。
+  if (hasCurrentPatient() && PATIENT_PAGES.has(to.path)
+      && !to.query.patientId && !to.query.inHospitalNo) {
+    return {
+      path: to.path,
+      query: {
+        ...to.query,
+        patientId: currentPatient.patientId,
+        inHospitalNo: currentPatient.inHospitalNo,
+        departCode: currentPatient.departCode,
+        // APACHE II 单独读 patientName 做页面标题；工作台里的姓名已是脱敏值（如「张*」）
+        ...(currentPatient.name ? { patientName: currentPatient.name } : {})
+      },
+      replace: true
+    }
+  }
+
   if (hasExternalContext() || isLoggedIn()) {
     return true
   }

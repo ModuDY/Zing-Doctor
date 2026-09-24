@@ -69,6 +69,16 @@
       </nav>
 
       <div class="sidebar-footer">
+        <!-- 当前患者：选中后切到任何单患者页面都还是这个人；不想被它影响就清除。
+             必须让它看得见 —— 否则「这个页面为什么只有这一个病人」无从解释。 -->
+        <div v-if="patient.patientId" class="footer-patient">
+          <div class="patient-head">
+            <span class="patient-title">当前患者</span>
+            <button class="patient-clear" title="清除当前患者" @click="handleClearPatient">清除</button>
+          </div>
+          <div class="patient-name">{{ patientLabel }}</div>
+          <div class="patient-sub">{{ patient.departName || '未分配科室' }} · {{ patient.inHospitalNo }}</div>
+        </div>
         <div class="footer-user">
           <div class="user-avatar">{{ userInitial }}</div>
           <div class="user-info">
@@ -92,10 +102,18 @@
 import { ElMessageBox } from 'element-plus'
 import { logout as logoutApi } from '../api/auth'
 import { getUser, isLoggedIn, clearSession } from '../utils/auth'
+import { currentPatient, clearCurrentPatient, currentPatientLabel } from '../utils/patientContext'
 
 export default {
   name: 'MainLayout',
   computed: {
+    /** 全局患者上下文（响应式单例）：工作台选中一人后，切菜单也不会丢 */
+    patient() {
+      return currentPatient
+    },
+    patientLabel() {
+      return currentPatientLabel()
+    },
     loggedIn() {
       return isLoggedIn()
     },
@@ -116,6 +134,9 @@ export default {
     }
   },
   methods: {
+    handleClearPatient() {
+      clearCurrentPatient()
+    },
     async handleLogout() {
       try {
         await ElMessageBox.confirm('确定要退出登录吗？', '退出登录', {
@@ -140,6 +161,21 @@ export default {
 </script>
 
 <style scoped>
+/* 当前患者卡片：与外壳同一套 warm-stone 白卡，醒目但不抢主色。
+   放在侧边栏底部而非顶部 —— 它是「当前处于谁身上」的状态提示，不是导航入口。 */
+.footer-patient {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #ece7e0;
+  border-radius: 10px;
+}
+.patient-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.patient-title { font-size: 11px; color: #a8a29e; }
+.patient-clear { border: none; background: transparent; color: #c2410c; font-size: 11px; cursor: pointer; padding: 0; }
+.patient-name { font-size: 13px; font-weight: 600; color: #292524; }
+.patient-sub { margin-top: 2px; font-size: 11px; color: #78716c; }
+
 /* 侧边栏：设计稿 warm-stone 浅色版（白卡 + 暖灰底 + 1px 描边），去掉旧的深蓝渐变。
    刻意不绑主色：外壳同时承载抗菌药（青）与质控（橙）两套主题，
    激活态用中性暖灰强调，两边都不打架。入口数量与层级一律不动。 */

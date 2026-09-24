@@ -35,7 +35,7 @@
       <div class="filter-fields">
         <div class="filter-field">
           <span class="filter-label">科室</span>
-          <el-select v-model="departCode" clearable placeholder="全部科室" @change="loadPatients">
+          <el-select v-model="departCode" clearable placeholder="全部科室" @change="onDepartChange">
             <el-option v-for="d in departments" :key="d.org_code" :label="d.depart_name" :value="d.org_code" />
           </el-select>
         </div>
@@ -133,6 +133,7 @@ import { externalParam } from '../utils/external'
 import '../styles/quality-theme.css'
 import { fetchInpatients, fetchDepartScope } from '../api/workbench'
 import { normalizeDepartParam, deptNameOf } from '../utils/depart'
+import { setCurrentPatient, clearCurrentPatient } from '../utils/patientContext'
 
 const router = useRouter()
 const loading = ref(false)
@@ -278,7 +279,23 @@ function goSofa(row) { jump('/page/sofa-score', row) }
  * 用 id 比用住院号稳 —— 住院号可能对应多次入科，id 不会。
  */
 function jump(path, row) {
+  // 先写进全局上下文再跳：只带 URL 参数的话，从侧边栏切到别的菜单时参数全没了，
+  // 那个页面读不到患者就空着 —— 正是「进其他页面就丢掉了」的原因。
+  // 注入逻辑见 router/index.js 的 PATIENT_PAGES。
+  setCurrentPatient(row)
   router.push({ path, query: { patientId: row.patientId } })
+}
+
+/**
+ * 换了科室就放弃当前患者。
+ *
+ * 患者只属于一个科室，带着 A 科室的患者切到 B 科室，
+ * 再进 SOFA / APACHE 那些页面看到的还是 A 科室那个人 —— 比丢掉更糟，
+ * 因为它不报错，看着也像对的。
+ */
+function onDepartChange() {
+  clearCurrentPatient()
+  loadPatients()
 }
 </script>
 
