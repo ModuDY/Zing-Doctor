@@ -158,6 +158,8 @@ FULL_SQL=(
     #    而该快照导出于切换每日批算之前，本就不含这个键 —— 覆盖即静默丢失。
     #    漏执行的后果可控（Java 侧回退默认值 3），但现场将无法按院方节奏调整回溯窗口。
     "28_quality_daily_param.sql"
+    # 29 患者工作台页面注册（全新库初始化）
+    "29_patient_workbench.sql"
     # 24 质控配置写保护总开关（QUALITY_CONFIG_WRITE_OPEN）。同样**必须排在 27 之后**：
     #    它也是 sys_param 里的一条参数，排 27 前面同样会被配置快照整表覆盖掉。
     #    漏执行的后果可控（Java 侧回退 application.yml 的 config-write-open 默认 false，
@@ -196,6 +198,8 @@ FULL_SQL_JDBC=(
     "27_restore_config_snapshot.sql"
     # 28 质控每日批算参数（同 FULL_SQL：必须排 27 之后，否则被配置快照覆盖）
     "28_quality_daily_param.sql"
+    # 29 患者工作台页面注册（全新库初始化）
+    "29_patient_workbench.sql"
     # 24 质控配置写保护总开关（同 FULL_SQL：必须排 27 之后，否则被配置快照覆盖）
     "24_quality_config_guard.sql"
 )
@@ -241,6 +245,8 @@ INCREMENTAL_SQL=(
     "28_quality_daily_param.sql"
     # 24 质控配置写保护总开关（同 28：依赖 14 预置的 quality 分组与扩展列，故排其后；幂等可重复）
     "24_quality_config_guard.sql"
+    # 29 患者工作台页面注册
+    "29_patient_workbench.sql"
     # 21 建 ARDS 俯卧位 5 张表 + 页面注册 + 参数种子；参数种子写 sys_param（14 建），故排最后
     "21_ards_prone.sql"
     # 22 建 ARDS 采集映射配置表 + patient_doc_prone_record 日期扩列（依赖 21，故排其后）；
