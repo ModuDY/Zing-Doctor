@@ -46,9 +46,15 @@ END;
 DECLARE
     v_count INT;
 BEGIN
+    -- ALL_SEQUENCES 的属主列是 SEQUENCE_OWNER，不是 OWNER —— OWNER 是 ALL_TABLES /
+    -- ALL_INDEXES 的列名。写成 OWNER 时达梦会把它当 PL/SQL 变量解析，直接抛
+    -- 「无效的变量名[OWNER]」，整个脚本在这里中断，后面的索引与注释都不会执行。
+    -- 名称一律 UPPER 后与大写常量比较：本脚本用双引号建对象，大小写按写法保留，
+    -- 拿混合大小写字符串直接比，在大小写不敏感的库上会永远查不到，导致每次重跑
+    -- 都去 CREATE 一遍而报对象已存在。
     SELECT COUNT(*) INTO v_count FROM ALL_SEQUENCES
-     WHERE UPPER(OWNER) = 'ZING_DOCTOR_DB_PROD'
-       AND SEQUENCE_NAME = 'SEQ_patient_doc_abx_reassessment';
+     WHERE UPPER(SEQUENCE_OWNER) = 'ZING_DOCTOR_DB_PROD'
+       AND UPPER(SEQUENCE_NAME)  = 'SEQ_PATIENT_DOC_ABX_REASSESSMENT';
     IF v_count = 0 THEN
         EXECUTE IMMEDIATE 'CREATE SEQUENCE "zing_doctor_db_prod"."SEQ_patient_doc_abx_reassessment" START WITH 1 INCREMENT BY 1';
     END IF;
