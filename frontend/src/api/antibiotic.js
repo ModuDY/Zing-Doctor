@@ -52,11 +52,6 @@ export function fetchReassessments(patientId) {
   return request.get(`/antibiotic/patients/${patientId}/reassessments`, { silentError: true })
 }
 
-/** 当前科室待复评任务（工作台批量待办使用） */
-export function fetchPendingReassessments(departCode) {
-  return request.get('/antibiotic/reassessments/pending', { params: { departCode } })
-}
-
 /** 完成复评 */
 export function completeReassessment(data) {
   return request.post('/antibiotic/reassessment/complete', data)

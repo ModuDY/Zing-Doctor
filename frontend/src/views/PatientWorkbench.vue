@@ -137,6 +137,11 @@
           <div class="stat-value todo">{{ stats.todoCount }}<em> 项</em></div>
           <div class="stat-foot">未评 SOFA / APACHE II 等</div>
         </div>
+        <div class="stat-card stat-card-reassessment">
+          <div class="stat-head"><span class="stat-label">抗感染复评</span><span class="stat-icon amber-icon">复</span></div>
+          <div class="stat-value todo">{{ stats.reassessmentUnknownCount ? '—' : stats.reassessmentCount }}<em v-if="!stats.reassessmentUnknownCount"> 项</em></div>
+          <div class="stat-foot">{{ stats.reassessmentUnknownCount ? `有 ${stats.reassessmentUnknownCount} 人状态未知` : '待复评任务（已确认）' }}</div>
+        </div>
         <div class="stat-card stat-card-neutral">
           <div class="stat-head"><span class="stat-label">危重患者</span><span class="stat-icon gray-icon">重</span></div>
           <div class="stat-value">{{ stats.critical }}<em> 人</em></div>
@@ -247,6 +252,19 @@
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
+          <el-table-column label="抗感染复评" min-width="154">
+            <template #default="{ row }">
+              <span v-if="isReassessmentUnknown(row)" class="reassessment-unknown">复评状态未知</span>
+              <template v-else-if="hasPendingReassessment(row)">
+                <div :class="['reassessment-line', { overdue: isReassessmentOverdue(row) }]">
+                  <span class="reassessment-badge">{{ isReassessmentOverdue(row) ? '已逾期' : '待复评' }}</span>
+                  <span v-if="Number(row.reassessmentCount) > 1">{{ row.reassessmentCount }} 项</span>
+                </div>
+                <div class="patient-sub">{{ reassessmentDueLabel(row) }}</div>
+              </template>
+              <span v-else class="muted">暂无待复评</span>
+            </template>
+          </el-table-column>
           <el-table-column label="在科情况" min-width="142">
             <template #default="{ row }"><div>{{ row.icuDays == null ? '—' : `${row.icuDays} 天` }}</div><div class="patient-sub">{{ formatTime(row.inDepartmentTime) }}</div></template>
           </el-table-column>
@@ -285,6 +303,7 @@
             <div class="bed-card-metrics">
               <div><span>SOFA</span><strong :class="{ 'score-danger': row.lastSofaScore >= 10 }">{{ row.lastSofaScore == null ? '—' : row.lastSofaScore }}</strong></div>
               <div><span>待办</span><strong :class="{ 'todo-number': row.todoCount > 0 }">{{ row.todoCount || 0 }}</strong></div>
+              <div><span>复评</span><strong :class="{ 'todo-number': hasPendingReassessment(row), 'reassessment-unknown-number': isReassessmentUnknown(row) }">{{ isReassessmentUnknown(row) ? '未知' : (row.reassessmentCount || 0) }}</strong></div>
               <div><span>在科</span><strong>{{ row.icuDays == null ? '—' : `${row.icuDays}天` }}</strong></div>
             </div>
             <div class="bed-card-infection">
@@ -420,6 +439,10 @@ const dataHealth = computed(() => {
   if (unknownCount > 0) {
     return { type: 'warning', text: `感染数据部分不可用：${unknownCount} 人，请勿将“暂不可用”当作“无感染”。` }
   }
+  const reassessmentUnknownCount = patients.value.filter(isReassessmentUnknown).length
+  if (reassessmentUnknownCount > 0) {
+    return { type: 'warning', text: `复评数据暂不可用：${reassessmentUnknownCount} 人，当前不能将其视为“暂无待复评”。` }
+  }
   return patients.value.length ? { type: 'success', text: 'ICU 数据正常' } : null
 })
 
@@ -431,10 +454,31 @@ const stats = computed(() => {
     : 0
   const critical = list.filter((p) => p.ventilated || p.onVasopressor || p.onCrrt).length
   const todoCount = list.reduce((sum, p) => sum + (p.todoCount || 0), 0)
+  const reassessmentUnknownCount = list.filter(isReassessmentUnknown).length
+  const reassessmentCount = list.reduce((sum, p) => sum + (isReassessmentUnknown(p) ? 0 : Number(p.reassessmentCount || 0)), 0)
   const infectionCount = list.filter((p) => p.suspectedInfection).length
   const highRiskCount = list.filter(isCriticalPatient).length
-  return { total: list.length, critical, todoCount, avgDays: avg, infectionCount, highRiskCount }
+  return { total: list.length, critical, todoCount, reassessmentCount, reassessmentUnknownCount, avgDays: avg, infectionCount, highRiskCount }
 })
+
+function isReassessmentUnknown(p) {
+  return String(p?.reassessmentDataStatus || 'UNKNOWN').toUpperCase() === 'UNKNOWN'
+}
+
+function hasPendingReassessment(p) {
+  return !isReassessmentUnknown(p) && Number(p?.reassessmentCount || 0) > 0
+}
+
+function isReassessmentOverdue(p) {
+  if (!hasPendingReassessment(p) || !p.reassessmentDueTime) return false
+  const due = new Date(String(p.reassessmentDueTime).replace(' ', 'T')).getTime()
+  return Number.isFinite(due) && due < Date.now()
+}
+
+function reassessmentDueLabel(p) {
+  if (!p.reassessmentDueTime) return '计划时间未知'
+  return `计划 ${formatTime(p.reassessmentDueTime)}`
+}
 
 /**
  * 高危患者：比「危重」更宽，纳入感染维度。
@@ -512,7 +556,10 @@ const viewPatients = computed(() => {
 const listEmptyText = computed(() => {
   if (patientView.value === 'infection') return '当前科室没有疑似感染患者'
   if (patientView.value === 'critical') return '当前科室没有高危患者'
-  if (patientView.value === 'todo') return '当前科室今日没有待办'
+  if (patientView.value === 'todo') {
+    const unknown = patients.value.filter(isReassessmentUnknown).length
+    return unknown ? `当前科室没有已确认的今日待办；${unknown} 人复评状态未知` : '当前科室今日没有待办'
+  }
   return '当前科室口径下暂无在科患者'
 })
 
@@ -894,6 +941,12 @@ function onDepartChange() {
 .sofa-badge { display: inline-flex; padding: 2px 6px; border-radius: 999px; color: #78716c; background: #f5f5f4; font-size: 11px; font-weight: 500; }
 .sofa-badge.severe { color: #b91c1c; background: #fee2e2; font-weight: 700; }
 .todo-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 23px; height: 23px; padding: 0 7px; border-radius: 999px; color: #fff; background: #dc2626; font-size: 12px; font-weight: 700; cursor: pointer; }
+.reassessment-line { display: flex; align-items: center; gap: 6px; color: #92400e; font-size: 12px; font-weight: 600; }
+.reassessment-line.overdue { color: #b91c1c; }
+.reassessment-badge { display: inline-flex; align-items: center; padding: 3px 7px; border-radius: 999px; background: #fff7ed; color: #c2410c; }
+.reassessment-line.overdue .reassessment-badge { background: #fef2f2; color: #b91c1c; }
+.reassessment-unknown { color: #b45309; font-size: 12px; font-weight: 600; }
+.reassessment-unknown-number { color: #b45309 !important; }
 .todo-popover { display: flex; flex-direction: column; gap: 6px; }
 .todo-popover-title { color: #78716c; font-size: 12px; font-weight: 600; }
 .todo-link { padding: 5px 6px; border: 0; border-radius: 5px; color: #c2410c; background: #fff7ed; text-align: left; cursor: pointer; font-size: 12px; }
