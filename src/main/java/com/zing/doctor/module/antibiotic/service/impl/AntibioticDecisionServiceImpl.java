@@ -15,12 +15,15 @@ import com.zing.doctor.module.antibiotic.mapper.AdviceLogMapper;
 import com.zing.doctor.module.antibiotic.mapper.DecisionRecordMapper;
 import com.zing.doctor.module.antibiotic.service.AntibioticDecisionService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -30,6 +33,7 @@ import java.util.stream.Collectors;
  * 依据 SSC 2021 与国内指南/共识。规则后续迁移到数据库规则表，支持医院本地化配置。
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AntibioticDecisionServiceImpl implements AntibioticDecisionService {
 
@@ -39,7 +43,62 @@ public class AntibioticDecisionServiceImpl implements AntibioticDecisionService 
 
     @Override
     public List<IcuPatientBrief> listSuspectPatients(String departCode) {
-        return icuPatientService.listSuspectInfections(departCode);
+        List<IcuPatientBrief> patients = icuPatientService.listSuspectInfections(departCode);
+        enrichDecisionStatus(patients);
+        return patients;
+    }
+
+    /**
+     * 回填最近一次抗感染决策状态（一次查完，不逐患者查）。
+     *
+     * <p>列表上的"今日待决策"与决策状态列都靠它：医生扫列表时要能一眼看出
+     * 哪些患者今天还没被评估过，否则只能逐个点进去才知道。
+     *
+     * <p>查询失败只记日志不抛出：这是本系统库的附属信息，取不到时列表仍应显示患者，
+     * 只是决策状态为空——不能因为决策记录表出状况就让整个感染列表打不开。
+     */
+    private void enrichDecisionStatus(List<IcuPatientBrief> patients) {
+        if (patients == null || patients.isEmpty()) {
+            return;
+        }
+        List<String> patientIds = new ArrayList<>();
+        for (IcuPatientBrief p : patients) {
+            if (StrUtil.isNotBlank(p.getPatientId())) {
+                patientIds.add(p.getPatientId());
+            }
+        }
+        if (patientIds.isEmpty()) {
+            return;
+        }
+        List<DecisionRecord> records;
+        try {
+            records = decisionRecordMapper.selectList(new LambdaQueryWrapper<DecisionRecord>()
+                    .in(DecisionRecord::getPatientId, patientIds)
+                    .orderByDesc(DecisionRecord::getCreateTime));
+        } catch (Exception e) {
+            log.warn("批量查询抗感染决策状态失败，列表决策状态留空", e);
+            return;
+        }
+        if (records == null || records.isEmpty()) {
+            return;
+        }
+        // 已按时间倒序：每个患者取遇到的第一条即其最近一次决策
+        Map<String, DecisionRecord> latest = new HashMap<>();
+        for (DecisionRecord r : records) {
+            if (r == null || StrUtil.isBlank(r.getPatientId())) {
+                continue;
+            }
+            latest.putIfAbsent(r.getPatientId(), r);
+        }
+        for (IcuPatientBrief p : patients) {
+            DecisionRecord r = latest.get(p.getPatientId());
+            if (r == null) {
+                continue;
+            }
+            p.setDecisionStatus(r.getDecisionStatus());
+            p.setDecisionTime(r.getCreateTime());
+            p.setDecisionDoctor(r.getDoctorName());
+        }
     }
 
     @Override

@@ -260,7 +260,7 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
                     diagMap.getOrDefault(p.getPatientId(), Collections.emptyList());
 
             // 感染类型与休克类型共用同一次诊断查询（原先各查一次，还各带一次兜底查询）
-            p.setInfectionType(inferInfectionType(diagnoses, byShock));
+            inferInfectionType(p, diagnoses, byShock);
             applyShockType(p, diagnoses, byShock);
             fillLabs(p, labMap.getOrDefault(p.getPatientNo(), Collections.emptyList()));
             p.setTemperature(parseDecimalValue(tempMap.get(p.getPatientId())));
@@ -348,13 +348,22 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         }
     }
 
-    /** 抗菌药开始时间（取当前在用的最早一条，用于判断经验性用药窗口） */
+    /**
+     * 抗菌药开始时间 + 药名（取当前在用的最早一条作为开始时间）。
+     *
+     * <p>药名原本只有决策页有，列表上看不到"这个患者现在用什么药"，
+     * 而列表恰恰是医生扫一遍决定先看谁的地方。
+     */
     private void fillAbxStartTime(IcuPatientBrief p, List<Map<String, Object>> rows) {
         LocalDateTime earliest = null;
+        List<String> names = new ArrayList<>();
         for (Map<String, Object> r : rows) {
             String name = str(r.get("name"));
             if (!matchesAbx(name) || isSolvent(name)) {
                 continue;
+            }
+            if (!names.contains(name)) {
+                names.add(name);
             }
             LocalDateTime t = toLocalDateTime(r.get("start_time"));
             if (t != null && (earliest == null || t.isBefore(earliest))) {
@@ -362,6 +371,7 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
             }
         }
         p.setAbxStartTime(earliest);
+        p.setCurrentAbx(names);
     }
 
     /** value 非空且 ≥ threshold */
@@ -379,7 +389,7 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         // 诊断一次取回，感染类型与休克类型共用；休克标记兜底也用主表字段，不再为此回查患者表
         List<Map<String, Object>> diagnoses = icuPatientMapper.selectDiagnoses(patientId);
         boolean shockFlag = intToBool(basic.get("septic_shock"));
-        patient.setInfectionType(inferInfectionType(diagnoses, shockFlag));
+        inferInfectionType(patient, diagnoses, shockFlag);
         applyShockType(patient, diagnoses, shockFlag);
         enrichLabsAndRisk(patient);
 
@@ -412,7 +422,7 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         IcuPatientBrief p = buildBrief(row);
         List<Map<String, Object>> diagnoses = icuPatientMapper.selectDiagnoses(patientId);
         boolean shockFlag = intToBool(row.get("septic_shock"));
-        p.setInfectionType(inferInfectionType(diagnoses, shockFlag));
+        inferInfectionType(p, diagnoses, shockFlag);
         applyShockType(p, diagnoses, shockFlag);
         return p;
     }
@@ -445,6 +455,7 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         p.setGender(str(row.get("gender")));
         p.setDepartment(str(row.get("department")));
         p.setBedNo(str(row.get("bed_no")));
+        p.setInDepartTime(toLocalDateTime(row.get("in_depart_time")));
         // 体重（第二维度 PK/PD 剂量计算用）
         p.setWeight(parseDecimal(row.get("weight")));
         // 身高（第二维度 BMI/IBW/AdjBW 计算用）
@@ -481,7 +492,7 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
      *
      * @param shockFlag patient_info.is_sepsis_shock 标记，用于无感染诊断时的兜底归类
      */
-    private String inferInfectionType(List<Map<String, Object>> diagnoses, boolean shockFlag) {
+    private void inferInfectionType(IcuPatientBrief p, List<Map<String, Object>> diagnoses, boolean shockFlag) {
         if (diagnoses == null) {
             diagnoses = java.util.Collections.emptyList();
         }
@@ -494,32 +505,58 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
                 continue;
             }
             if (containsAny(name, "脓毒", "感染性休克")) {
-                return "脓毒症/感染性休克";
+                setInfection(p, "脓毒症/感染性休克", name, d.get("diag_time"));
+                return;
             }
             if (name.contains("肺炎")) {
                 if (containsAny(name, "医院获得", "呼吸机", "医院", "院内")) {
-                    return "医院获得性肺炎（HAP/VAP）";
+                    setInfection(p, "医院获得性肺炎（HAP/VAP）", name, d.get("diag_time"));
+                } else {
+                    setInfection(p, "社区获得性肺炎（CAP）", name, d.get("diag_time"));
                 }
-                return "社区获得性肺炎（CAP）";
+                return;
             }
             if (containsAny(name, "腹腔", "腹膜炎", "胆道")) {
-                return "腹腔感染";
+                setInfection(p, "腹腔感染", name, d.get("diag_time"));
+                return;
             }
             if (containsAny(name, "血流", "菌血症", "败血症")) {
-                return "血流感染";
+                setInfection(p, "血流感染", name, d.get("diag_time"));
+                return;
             }
             if (containsAny(name, "尿路", "泌尿", "肾盂")) {
-                return "尿路感染";
+                setInfection(p, "尿路感染", name, d.get("diag_time"));
+                return;
             }
             if (containsAny(name, "真菌", "念珠菌", "曲霉")) {
-                return "侵袭性真菌感染";
+                setInfection(p, "侵袭性真菌感染", name, d.get("diag_time"));
+                return;
             }
             if (name.contains("感染")) {
-                return name.length() > 30 ? "感染（部位待明确）" : name;
+                setInfection(p, name.length() > 30 ? "感染（部位待明确）" : name, name, d.get("diag_time"));
+                return;
             }
         }
         // 无明确感染诊断：若休克标记，归类为脓毒症
-        return shockFlag ? "脓毒症/感染性休克" : "感染（部位待明确）";
+        if (shockFlag) {
+            p.setInfectionType("脓毒症/感染性休克");
+            p.setInfectionEvidence("无感染相关诊断，依据患者主表脓毒性休克标记归类");
+            return;
+        }
+        p.setInfectionType("感染（部位待明确）");
+        p.setInfectionEvidence("无明确感染部位诊断；入列依据为 PCT 升高等感染相关检验");
+    }
+
+    /** 记录感染类型及其判定依据（命中的诊断原文 + 诊断时间） */
+    private void setInfection(IcuPatientBrief p, String type, String diagName, Object diagTime) {
+        p.setInfectionType(type);
+        String when = str(diagTime);
+        if (when.length() > 16) {
+            when = when.substring(0, 16);
+        }
+        p.setInfectionEvidence(StrUtil.isBlank(when)
+                ? "诊断：" + diagName
+                : "诊断：" + diagName + "（" + when + "）");
     }
 
     /**
