@@ -1,6 +1,7 @@
 package com.zing.doctor.common;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.PropertySource;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -17,6 +18,7 @@ import java.util.Map;
  * 未注入时明确返回 unknown，不伪造版本。</p>
  */
 @RestController
+@PropertySource(value = "classpath:build-info.properties", ignoreResourceNotFound = true)
 public class BuildInfoController {
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -27,13 +29,13 @@ public class BuildInfoController {
     @Value("${zing.doctor.icu-data-provider:sql}")
     private String icuDataProvider;
 
-    @Value("${zing.build.version:1.0.0}")
+    @Value("${BUILD_VERSION:${zing.build.version:unknown}}")
     private String buildVersion;
 
-    @Value("${GIT_COMMIT:unknown}")
+    @Value("${GIT_COMMIT:${zing.build.git-commit:unknown}}")
     private String gitCommit;
 
-    @Value("${BUILD_TIME:unknown}")
+    @Value("${BUILD_TIME:${zing.build.time:unknown}}")
     private String buildTime;
 
     @GetMapping("/api/system/build-info")

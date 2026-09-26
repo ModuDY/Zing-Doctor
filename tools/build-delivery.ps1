@@ -85,6 +85,34 @@ if (-not $env:JAVA_HOME) {
     if ($javaCmd) { $env:JAVA_HOME = Split-Path -Parent (Split-Path -Parent $javaCmd.Source) }
 }
 
+# ---------- 构建信息：写入 jar，供交付自检页核对 ----------
+# 版本取自 pom.xml，提交号取自当前 Git HEAD。取不到时保留 unknown，不伪造信息。
+$buildVersion = 'unknown'
+try {
+    [xml]$pom = Get-Content -Raw (Join-Path $root 'pom.xml')
+    if (-not [string]::IsNullOrWhiteSpace([string]$pom.project.version)) {
+        $buildVersion = ([string]$pom.project.version).Trim()
+    }
+} catch {
+    Write-Host '>>> 无法读取 pom.xml 版本，构建信息版本保留 unknown' -ForegroundColor Yellow
+}
+$gitCommit = 'unknown'
+$prevEap = $ErrorActionPreference
+try {
+    $ErrorActionPreference = 'Continue'
+    $gitOutput = & git -C $root rev-parse --short HEAD 2>$null
+    if ($LASTEXITCODE -eq 0 -and $gitOutput) {
+        $candidate = ([string]($gitOutput | Select-Object -First 1)).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) { $gitCommit = $candidate }
+    }
+} catch {
+    # Git metadata is optional for source archives; unknown is explicit and honest.
+} finally {
+    $ErrorActionPreference = $prevEap
+}
+$buildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
+$buildInfoArgs = @("-Dbuild.version=$buildVersion", "-Dbuild.git.commit=$gitCommit", "-Dbuild.time=$buildTime")
+Write-Host (">>> 构建信息：version=$buildVersion, gitCommit=$gitCommit, buildTime=$buildTime") -ForegroundColor Cyan
 # ---------- 可选：先构建 ----------
 if ($Build) {
     # 先跑单元测试再构建，失败即中止打包（Invoke-Native 非 0 会 throw）。
@@ -95,7 +123,7 @@ if ($Build) {
     Invoke-Native -Label '单元测试' -Exe $mvn -ExeArgs (@($mvnArgs) + @('-f', "$root\pom.xml", 'test', '-B'))
 
     Write-Host ">>> 构建后端：$mvn package" -ForegroundColor Cyan
-    Invoke-Native -Label '后端构建' -Exe $mvn -ExeArgs (@($mvnArgs) + @('-f', "$root\pom.xml", 'package', '-DskipTests', '-q'))
+    Invoke-Native -Label '后端构建' -Exe $mvn -ExeArgs (@($mvnArgs) + $buildInfoArgs + @('-f', "$root\pom.xml", 'package', '-DskipTests', '-q'))
 
     Write-Host '>>> 构建前端 vite build' -ForegroundColor Cyan
     if (-not $node) { throw '未找到 node，请先安装或手动构建前端' }
@@ -185,7 +213,11 @@ if (Test-Path $myDir) {
         '29_patient_workbench.sql', '30_user_depart_scope.sql',
         # 31/32 抗感染「待决策」口径参数与页面合并；33 复评任务与留痕
         '31_abx_pending_rule.sql', '32_abx_page_merge.sql',
-        '33_antibiotic_reassessment.sql')
+        '33_antibiotic_reassessment.sql',
+        # 34 交付自检页注册（system-check）。漏登记的后果跟前面那批一样隐蔽：用
+        # install-all.sql 一次性初始化的库缺这条注册，外链 /entry/system-check 会被判
+        # 「页面未注册」，而走 install.sh / install-mariadb-debian.sh 的库却正常
+        '34_system_check_page.sql')
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine('-- ============================================================')
     [void]$sb.AppendLine('-- zing-doctor MySQL/MariaDB 一次性初始化脚本（打包时自动合成，勿手工编辑）')

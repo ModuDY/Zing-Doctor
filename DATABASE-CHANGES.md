@@ -1027,3 +1027,35 @@ SELECT COUNT(*) FROM `patient_doc_abx_reassessment`;
 ```
 
 访问 `/api/health`：`status=UP` 且 `reassessmentSchema=READY`；访问 `/api/system/build-info` 确认当前包版本与构建信息。
+---
+
+### 2026-09-26 · 交付自检页面注册
+
+**涉及**
+
+- `sys_page_config` 新增启用页面 `system-check`，前端路径为 `/page/system-check`。
+- 外链入口 `/entry/system-check` 现在可以通过页面注册校验，不再被判定为“页面未注册”。
+- `/api/system/build-info` 的版本、Git 提交号和构建时间由 Maven 资源过滤注入；使用 `tools/build-delivery.ps1 -Build` 打包时会自动读取当前 POM 版本和 Git 提交号。
+- 无法获取 Git 信息时保留 `unknown`，不伪造提交号；运行环境变量 `BUILD_VERSION`、`GIT_COMMIT`、`BUILD_TIME` 可覆盖包内默认值。
+
+**升级脚本**
+
+- 达梦：`sql/34_system_check_page.sql`
+- MySQL/MariaDB：`sql/mysql/34_system_check_page.sql`
+- `install.sh` 与 `install-mariadb-debian.sh` 已纳入 34 号脚本。
+
+**升级后自检**
+
+```sql
+-- 达梦
+SELECT "page_code", "frontend_path", "status"
+  FROM "zing_doctor_db_prod"."sys_page_config"
+ WHERE "page_code" = 'system-check';
+
+-- MySQL / MariaDB
+SELECT `page_code`, `frontend_path`, `status`
+  FROM `sys_page_config`
+ WHERE `page_code` = 'system-check';
+```
+
+应返回一条启用记录，`frontend_path` 为 `/page/system-check`。再访问 `/api/system/build-info`，确认 `version`、`gitCommit`、`buildTime` 已被当前交付包填充。

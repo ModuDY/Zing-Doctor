@@ -23,6 +23,10 @@
         <mybatis-plus.version>3.5.5</mybatis-plus.version>
         <dynamic-datasource.version>3.6.1</dynamic-datasource.version>
         <hutool.version>5.8.27</hutool.version>
+        <!-- Build metadata may be overridden with -Dbuild.version/-Dbuild.git.commit/-Dbuild.time. -->
+        <build.version>${project.version}</build.version>
+        <build.git.commit>unknown</build.git.commit>
+        <build.time>unknown</build.time>
     </properties>
 
     <dependencies>
@@ -103,6 +107,23 @@
     </dependencies>
 
     <build>
+        <resources>
+            <!-- Only build-info.properties is filtered; Spring application YAML stays untouched. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>build-info.properties</exclude>
+                </excludes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>build-info.properties</include>
+                </includes>
+            </resource>
+        </resources>
         <finalName>zing-doctor</finalName>
         <plugins>
             <plugin>

@@ -179,6 +179,7 @@ FULL_SQL=(
     "32_abx_page_merge.sql"
     # 33 抗感染 48～72 小时复评任务与留痕（独立业务表，不覆盖既有决策历史）。
     "33_antibiotic_reassessment.sql"
+    "34_system_check_page.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -223,6 +224,7 @@ FULL_SQL_JDBC=(
     # 32 页面注册展示名更新（同 FULL_SQL：必须排 27 之后）
     "32_abx_page_merge.sql"
     "33_antibiotic_reassessment.sql"
+    "34_system_check_page.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -285,6 +287,7 @@ INCREMENTAL_SQL=(
     "32_abx_page_merge.sql"
     # 33 抗感染 48～72 小时复评任务与留痕（幂等建表/序列/索引）
     "33_antibiotic_reassessment.sql"
+    "34_system_check_page.sql"
 )
 
 # ---------- JDBC 初始化工具 classpath ----------
