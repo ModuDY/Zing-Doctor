@@ -170,6 +170,10 @@ FULL_SQL=(
     #    漏执行的后果：Java 侧回退 application.yml 的 zing.workbench.super-users
     #    （默认 admin,zing），科室边界照常生效，但现场无法在页面上增删管理员。
     "30_user_depart_scope.sql"
+    # 31 抗感染「待决策判定规则」：新建 antibiotic 参数分组 + ABX_PENDING_DECISION_RULE。
+    #    同样必须排在 27 之后（写 sys_param）。漏执行表现：列表「待决策」固定按
+    #    「当日无决策记录」统计，切换不到「入科超 24 小时且从未决策」。
+    "31_abx_pending_rule.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -209,6 +213,8 @@ FULL_SQL_JDBC=(
     "24_quality_config_guard.sql"
     # 30 患者工作台科室边界（同 FULL_SQL：必须排 27 之后，否则被配置快照覆盖）
     "30_user_depart_scope.sql"
+    # 31 抗感染「待决策判定规则」（同 FULL_SQL：必须排 27 之后）
+    "31_abx_pending_rule.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -265,6 +271,8 @@ INCREMENTAL_SQL=(
     # 23 给 patient_doc_prone_record 补三个签名人工号列（依赖 21）；
     #    漏执行表现：文书签名区只打印姓名、不显示电子签名图，且保存记录报「无效的列名[doctor_work_no]」
     "23_ards_prone_sign_work_no.sql"
+    # 31 抗感染「待决策判定规则」（依赖 14 预置的参数分组表与 param_type 等扩展列，故排其后；幂等可重复）
+    "31_abx_pending_rule.sql"
 )
 
 # ---------- JDBC 初始化工具 classpath ----------

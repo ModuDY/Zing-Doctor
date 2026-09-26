@@ -66,9 +66,8 @@
         <el-option label="真菌风险" value="fungal" />
       </el-select>
       <el-select v-model="filters.decision" clearable size="small" placeholder="决策状态" style="width: 130px">
-        <el-option label="今日待决策" value="pending" />
-        <el-option label="从未决策" value="none" />
-        <el-option label="今日已决策" value="today" />
+        <el-option :label="pendingLabel" value="pending" />
+        <el-option label="已决策" value="done" />
       </el-select>
       <el-input
         v-model="filters.keyword"
@@ -230,7 +229,7 @@
 </template>
 
 <script>
-import { fetchPatients } from '../api/antibiotic'
+import { fetchPatients, fetchPendingRule } from '../api/antibiotic'
 import { fetchDepartScope } from '../api/workbench'
 import { setCurrentPatient } from '../utils/patientContext'
 import { currentDepart, resolvePageDepartCode, setCurrentDepart } from '../utils/departContext'
@@ -250,6 +249,8 @@ export default {
       departOptions: [],
       // 科室是否由外链 URL 指定：是的话全局科室下拉不应该覆盖它
       fromUrl: false,
+      // 「待决策」口径，来自参数 ABX_PENDING_DECISION_RULE（取不到按后端默认）
+      pendingRule: 'TODAY_NO_DECISION',
       filters: { risk: '', infectionType: '', tags: [], decision: '', keyword: '' },
       page: { num: 1, size: 20 },
       detailVisible: false,
@@ -257,6 +258,10 @@ export default {
     }
   },
   computed: {
+    /** 统计卡与筛选的「待决策」文案跟着参数口径走，别让文案和实际口径对不上 */
+    pendingLabel() {
+      return this.pendingRule === 'ADMIT_24H_NEVER' ? '待评估（入科>24h）' : '今日待决策'
+    },
     /** 全局科室上下文（侧边栏下拉切换时会变，用于联动本页） */
     contextDepartCode() {
       return currentDepart.departCode || ''
@@ -281,9 +286,8 @@ export default {
         if (tags.includes('mdr') && !p.mdrRisk) return false
         if (tags.includes('mrsa') && !p.mrsaRisk) return false
         if (tags.includes('fungal') && !p.fungalRisk) return false
-        if (this.filters.decision === 'none' && p.decisionStatus) return false
-        if (this.filters.decision === 'pending' && this.isToday(p.decisionTime)) return false
-        if (this.filters.decision === 'today' && !this.isToday(p.decisionTime)) return false
+        if (this.filters.decision === 'pending' && !this.pendingOf(p)) return false
+        if (this.filters.decision === 'done' && this.pendingOf(p)) return false
         if (kw) {
           const hay = `${p.name || ''} ${p.patientNo || ''} ${p.bedNo || ''}`.toLowerCase()
           if (!hay.includes(kw)) return false
@@ -313,8 +317,7 @@ export default {
         { key: 'high', label: '高风险', value: list.filter(p => p.riskLevel === '高风险').length, color: 'var(--el-color-danger)' },
         { key: 'shock', label: '脓毒性休克', value: list.filter(p => p.septicShock).length, color: 'var(--el-color-danger)' },
         { key: 'mdr', label: 'MDR 阳性', value: list.filter(p => p.mdrRisk).length, color: 'var(--el-color-warning)' },
-        { key: 'pending', label: '今日待决策', value: list.filter(p => !this.isToday(p.decisionTime)).length, color: 'var(--el-color-warning)' }
-
+        { key: 'pending', label: this.pendingLabel, value: list.filter(p => this.pendingOf(p)).length, color: 'var(--el-color-warning)' }
       ]
     },
     detailTitle() {
@@ -342,7 +345,9 @@ export default {
     // 先取科室范围再查列表：普通账号没选科室时，列表接口会直接拒绝（不退回全院）
     await this.loadScope()
     this.load()
+    this.loadRule()
   },
+
   methods: {
     fmtDate,
     fmtDateTime,
@@ -359,6 +364,22 @@ export default {
         // 科室范围取不到不影响列表本身：后端仍会按账号授权校验
         this.departOptions = []
       }
+    },
+    /** 待决策口径：取不到就按后端默认「当日无决策记录」 */
+    async loadRule() {
+      try {
+        const v = await fetchPendingRule()
+        this.pendingRule = String(v || '').toUpperCase().includes('24H')
+          ? 'ADMIT_24H_NEVER'
+          : 'TODAY_NO_DECISION'
+      } catch (e) {
+        this.pendingRule = 'TODAY_NO_DECISION'
+      }
+    },
+    /** 后端没带 pendingDecision（旧版本）时按默认口径兜底，避免整列空白 */
+    pendingOf(p) {
+      if (p.pendingDecision != null) return !!p.pendingDecision
+      return !this.isToday(p.decisionTime)
     },
     async load() {
       this.loading = true
@@ -426,7 +447,8 @@ export default {
     goPkpd(row) {
       this.remember(row)
       this.detailVisible = false
-      this.$router.push(`/page/abx-pkpd?patientId=${row.patientId}`)
+      // PK/PD 页 watch 的是 inHospitalNo，两个都带上，切换患者时页面才会跟着刷新
+      this.$router.push(`/page/abx-pkpd?patientId=${row.patientId}&inHospitalNo=${row.patientNo || ''}`)
     },
     num(v) {
       return v == null || v === '' ? '—' : v

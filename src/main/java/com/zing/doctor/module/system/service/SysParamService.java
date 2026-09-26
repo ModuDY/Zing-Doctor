@@ -27,6 +27,15 @@ public interface SysParamService {
     /** 质控每日批算的回溯天数（默认 3 天，见 QualityDailyTask） */
     String KEY_QUALITY_BACKFILL_DAYS = "QUALITY_BACKFILL_DAYS";
 
+    /** 疑似感染列表「待决策」判定规则（见 AntibioticDecisionServiceImpl） */
+    String KEY_ABX_PENDING_RULE = "ABX_PENDING_DECISION_RULE";
+
+    /** 待决策规则取值一：当天没有决策记录即计入（含从未决策） */
+    String ABX_PENDING_TODAY = "TODAY_NO_DECISION";
+
+    /** 待决策规则取值二：入科满 24 小时且从未做过抗感染决策才计入 */
+    String ABX_PENDING_ADMIT_24H = "ADMIT_24H_NEVER";
+
     /** 自动注册口令规则的两种取值 */
     String PWD_RULE_WORK_NO = "WORK_NO";
     String PWD_RULE_FIXED = "FIXED";

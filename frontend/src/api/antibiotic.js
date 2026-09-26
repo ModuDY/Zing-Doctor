@@ -1,6 +1,14 @@
 import request from './request'
 
 /**
+ * 疑似感染列表「待决策」判定规则（参数设置页可切换口径）。
+ * 页面据此改统计卡与筛选项的文案，避免配了 ADMIT_24H_NEVER 还写着「今日待决策」。
+ */
+export function fetchPendingRule() {
+  return request.get('/sys-param/get', { params: { key: 'ABX_PENDING_DECISION_RULE' } })
+}
+
+/**
  * 疑似感染患者列表。
  * departCode 是科室边界：服务端会按当前账号的科室授权校验，
  * 普通账号不传或传越权科室会直接报错（不退回全院）。

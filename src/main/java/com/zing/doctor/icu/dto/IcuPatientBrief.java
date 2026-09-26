@@ -67,6 +67,14 @@ public class IcuPatientBrief implements Serializable {
     /** 最近一次决策医生 */
     private String decisionDoctor;
 
+    /**
+     * 是否"待决策"（口径由参数 ABX_PENDING_DECISION_RULE 决定）。
+     *
+     * <p>放在 DTO 里而不是前端算：口径要全院统一，前端各算各的会出现
+     * 「同一份列表，两个医生看到的人数不一样」。
+     */
+    private Boolean pendingDecision;
+
     /** 是否脓毒性休克（保留布尔兼容，true=任何休克类型） */
     private Boolean septicShock;
 

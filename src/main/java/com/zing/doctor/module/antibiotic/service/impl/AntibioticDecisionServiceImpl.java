@@ -14,15 +14,19 @@ import com.zing.doctor.module.antibiotic.entity.DecisionRecord;
 import com.zing.doctor.module.antibiotic.mapper.AdviceLogMapper;
 import com.zing.doctor.module.antibiotic.mapper.DecisionRecordMapper;
 import com.zing.doctor.module.antibiotic.service.AntibioticDecisionService;
+import com.zing.doctor.module.system.service.SysParamService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -40,12 +44,62 @@ public class AntibioticDecisionServiceImpl implements AntibioticDecisionService 
     private final IcuPatientService icuPatientService;
     private final DecisionRecordMapper decisionRecordMapper;
     private final AdviceLogMapper adviceLogMapper;
+    private final SysParamService sysParamService;
 
     @Override
     public List<IcuPatientBrief> listSuspectPatients(String departCode) {
         List<IcuPatientBrief> patients = icuPatientService.listSuspectInfections(departCode);
         enrichDecisionStatus(patients);
+        markPending(patients);
         return patients;
+    }
+
+    /**
+     * 标记"待决策"患者（列表顶部计数与筛选都看这个字段）。
+     *
+     * <p>口径由参数 {@code ABX_PENDING_DECISION_RULE} 决定，因为两种口径对应两种排班习惯：
+     * <ul>
+     *   <li>{@code TODAY_NO_DECISION}（默认）：当天没有决策记录就算待决策，含从未决策的。
+     *       适合每天晨间把全科过一遍的科室。</li>
+     *   <li>{@code ADMIT_24H_NEVER}：入科满 24 小时且从没做过抗感染决策才算。
+     *       适合"新入科先观察、在科一天以上必须评估"的科室——
+     *       否则凌晨入科的患者一进列表就挂在待决策里，夜间没人看只会徒增噪音。</li>
+     * </ul>
+     *
+     * <p>放在服务端算而不是前端：口径要全院统一，前端各算各的会出现
+     * 「同一个列表，两个医生看到的人数不一样」。
+     */
+    private void markPending(List<IcuPatientBrief> patients) {
+        if (patients == null || patients.isEmpty()) {
+            return;
+        }
+        String rule = pendingRule();
+        for (IcuPatientBrief p : patients) {
+            p.setPendingDecision(isPending(p, rule));
+        }
+    }
+
+    private String pendingRule() {
+        String raw = sysParamService.value(SysParamService.KEY_ABX_PENDING_RULE);
+        if (!StringUtils.hasText(raw)) {
+            return SysParamService.ABX_PENDING_TODAY;
+        }
+        return raw.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private boolean isPending(IcuPatientBrief p, String rule) {
+        if (SysParamService.ABX_PENDING_ADMIT_24H.equals(rule)) {
+            if (p.getDecisionStatus() != null) {
+                return false;
+            }
+            // 入科时间拿不到时不计入：没有依据判断他是不是已经住了一天以上，
+            // 宁可漏提醒，也不要把整科患者全挂成待决策
+            return p.getInDepartTime() != null
+                    && p.getInDepartTime().isBefore(LocalDateTime.now().minusHours(24));
+        }
+        // 默认口径：当天没有决策记录即待决策（含从未决策）
+        LocalDateTime t = p.getDecisionTime();
+        return t == null || !t.toLocalDate().equals(LocalDate.now());
     }
 
     /**
