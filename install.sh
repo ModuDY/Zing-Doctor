@@ -174,6 +174,9 @@ FULL_SQL=(
     #    同样必须排在 27 之后（写 sys_param）。漏执行表现：列表「待决策」固定按
     #    「当日无决策记录」统计，切换不到「入科超 24 小时且从未决策」。
     "31_abx_pending_rule.sql"
+    # 32 疑似感染列表并入患者工作台：更新页面注册展示名（保留 old path，仅改名称与说明）。
+    #    同样必须排在 27 之后，否则被配置快照覆盖回旧名称。漏执行不影响功能，只是名称没变。
+    "32_abx_page_merge.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -215,6 +218,8 @@ FULL_SQL_JDBC=(
     "30_user_depart_scope.sql"
     # 31 抗感染「待决策判定规则」（同 FULL_SQL：必须排 27 之后）
     "31_abx_pending_rule.sql"
+    # 32 页面注册展示名更新（同 FULL_SQL：必须排 27 之后）
+    "32_abx_page_merge.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -273,6 +278,8 @@ INCREMENTAL_SQL=(
     "23_ards_prone_sign_work_no.sql"
     # 31 抗感染「待决策判定规则」（依赖 14 预置的参数分组表与 param_type 等扩展列，故排其后；幂等可重复）
     "31_abx_pending_rule.sql"
+    # 32 疑似感染列表并入工作台后的页面注册展示名（幂等 UPDATE，未注册时影响 0 行）
+    "32_abx_page_merge.sql"
 )
 
 # ---------- JDBC 初始化工具 classpath ----------

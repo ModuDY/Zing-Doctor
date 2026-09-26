@@ -37,6 +37,20 @@
     />
 
     <section class="wb-card filter-card">
+      <!-- 视图切换：同一份「在科患者」数据的不同临床视角。
+           原先「疑似感染患者列表」是独立页面，医生要在两个页面之间反复找同一个人；
+           合并后它降级为这里的一个视图，患者是同一批、患者上下文也是同一个。 -->
+      <div class="patient-views">
+        <button
+          v-for="v in PATIENT_VIEWS"
+          :key="v.key"
+          type="button"
+          :class="['view-tab', { active: patientView === v.key }]"
+          @click="switchView(v.key)">
+          <span class="view-name">{{ v.label }}</span>
+          <span class="view-count">{{ viewCount(v.key) }}</span>
+        </button>
+      </div>
       <div class="section-heading filter-heading">
         <div>
           <div class="section-kicker">PATIENT DIRECTORY</div>
@@ -79,20 +93,30 @@
         </div>
       </div>
       <div class="stat-grid">
-        <div class="stat-card stat-card-primary">
+        <div class="stat-card stat-card-primary" :class="{ 'is-active': patientView === 'all' }" @click="switchView('all')">
           <div class="stat-head"><span class="stat-label">在科患者</span><span class="stat-icon orange-icon">人</span></div>
           <div class="stat-value">{{ stats.total }}<em> 人</em></div>
           <div class="stat-foot">当前科室口径下的在科人数</div>
         </div>
-        <div class="stat-card stat-card-danger">
-          <div class="stat-head"><span class="stat-label">危重患者</span><span class="stat-icon red-icon">重</span></div>
-          <div class="stat-value danger">{{ stats.critical }}<em> 人</em></div>
-          <div class="stat-foot">机械通气 / 血管活性药 / CRRT</div>
+        <div class="stat-card stat-card-infection" :class="{ 'is-active': patientView === 'infection' }" @click="switchView('infection')">
+          <div class="stat-head"><span class="stat-label">感染风险</span><span class="stat-icon teal-icon">染</span></div>
+          <div class="stat-value infection">{{ stats.infectionCount }}<em> 人</em></div>
+          <div class="stat-foot">疑似感染 / 待抗感染决策</div>
         </div>
-        <div class="stat-card stat-card-warning">
+        <div class="stat-card stat-card-danger" :class="{ 'is-active': patientView === 'critical' }" @click="switchView('critical')">
+          <div class="stat-head"><span class="stat-label">高危患者</span><span class="stat-icon red-icon">危</span></div>
+          <div class="stat-value danger">{{ stats.highRiskCount }}<em> 人</em></div>
+          <div class="stat-foot">SOFA≥10 / 通气 / 升压药 / CRRT / 休克 / 耐药</div>
+        </div>
+        <div class="stat-card stat-card-warning" :class="{ 'is-active': patientView === 'todo' }" @click="switchView('todo')">
           <div class="stat-head"><span class="stat-label">今日待办</span><span class="stat-icon amber-icon">待</span></div>
           <div class="stat-value todo">{{ stats.todoCount }}<em> 项</em></div>
           <div class="stat-foot">未评 SOFA / APACHE II 等</div>
+        </div>
+        <div class="stat-card stat-card-neutral">
+          <div class="stat-head"><span class="stat-label">危重患者</span><span class="stat-icon gray-icon">重</span></div>
+          <div class="stat-value">{{ stats.critical }}<em> 人</em></div>
+          <div class="stat-foot">机械通气 / 血管活性药 / CRRT</div>
         </div>
         <div class="stat-card stat-card-neutral">
           <div class="stat-head"><span class="stat-label">平均在科天数</span><span class="stat-icon gray-icon">天</span></div>
@@ -124,7 +148,7 @@
           :data="filteredPatients"
           stripe
           row-key="patientId"
-          empty-text="当前科室口径下暂无在科患者"
+          :empty-text="listEmptyText"
           @row-click="openPatient"
         >
           <el-table-column label="患者信息" min-width="218">
@@ -153,6 +177,27 @@
                 <span v-if="row.onCrrt" class="crit-tag crrt">CRRT</span>
                 <span v-if="!row.ventilated && !row.onVasopressor && !row.onCrrt" class="muted">无标记</span>
               </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="感染状态" min-width="186">
+            <template #default="{ row }">
+              <!-- 「查不到」与「没有」必须分开显示：把 ICU 库查询失败显示成「未发现感染证据」，
+                   医生会据此认为患者安全 —— 而这个页面是全量患者的主视图。 -->
+              <span v-if="row.infectionDataStatus === 'UNKNOWN'" class="infection-unavailable">感染信息暂不可用</span>
+              <template v-else-if="row.suspectedInfection">
+                <div class="infection-line">
+                  <span :class="['risk-tag', riskClass(row.infectionRiskLevel)]">{{ row.infectionRiskLevel || '疑似感染' }}</span>
+                  <span class="infection-type" :title="row.infectionEvidence">{{ row.infectionType || '感染部位待明确' }}</span>
+                </div>
+                <div class="status-tags">
+                  <span v-if="row.septicShock" class="crit-tag septic">休克</span>
+                  <span v-if="row.mdrRisk" class="crit-tag mdr">MDR</span>
+                  <span v-if="row.mrsaRisk" class="crit-tag mrsa">MRSA</span>
+                  <span v-if="row.fungalRisk" class="crit-tag fungal">真菌</span>
+                  <span v-if="row.pct != null" class="pct-text">PCT {{ row.pct }}</span>
+                </div>
+              </template>
+              <span v-else class="muted">未发现疑似感染证据</span>
             </template>
           </el-table-column>
           <el-table-column label="待办" width="80" align="center">
@@ -204,6 +249,14 @@
               <div><span>待办</span><strong :class="{ 'todo-number': row.todoCount > 0 }">{{ row.todoCount || 0 }}</strong></div>
               <div><span>在科</span><strong>{{ row.icuDays == null ? '—' : `${row.icuDays}天` }}</strong></div>
             </div>
+            <div class="bed-card-infection">
+              <span v-if="row.infectionDataStatus === 'UNKNOWN'" class="infection-unavailable">感染信息暂不可用</span>
+              <template v-else-if="row.suspectedInfection">
+                <span :class="['risk-tag', riskClass(row.infectionRiskLevel)]">{{ row.infectionRiskLevel || '疑似感染' }}</span>
+                <span class="infection-type">{{ row.infectionType || '感染部位待明确' }}</span>
+              </template>
+              <span v-else class="muted">未发现疑似感染证据</span>
+            </div>
             <div class="bed-card-actions" @click.stop>
               <el-button link type="primary" size="small" @click="goDecision(row)">抗感染</el-button>
               <el-button link type="primary" size="small" @click="goSofa(row)">SOFA</el-button>
@@ -230,8 +283,8 @@
   </div>
 </template>
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh, Search, ArrowDown } from '@element-plus/icons-vue'
 import { externalParam } from '../utils/external'
@@ -242,6 +295,26 @@ import { normalizeDepartParam, deptNameOf } from '../utils/depart'
 import { setCurrentPatient, clearCurrentPatient } from '../utils/patientContext'
 
 const router = useRouter()
+const route = useRoute()
+
+/**
+ * 患者视图：同一份「在科患者」数据的不同临床视角。
+ * 「感染风险」就是原先独立的「疑似感染患者列表」，合并后患者是同一批、上下文也是同一个，
+ * 不再出现「在两个页面之间找同一个人」。
+ */
+const PATIENT_VIEWS = [
+  { key: 'all', label: '全部患者' },
+  { key: 'infection', label: '感染风险' },
+  { key: 'critical', label: '高危患者' },
+  { key: 'todo', label: '我的待办' }
+]
+
+/** 视图可用 URL 指定（旧链接 /page/abx-patient-list 会重定向到 ?view=infection） */
+function normalizeView(v) {
+  return PATIENT_VIEWS.some((x) => x.key === v) ? v : 'all'
+}
+const patientView = ref(normalizeView(route.query.view))
+
 const loading = ref(false)
 const patients = ref([])
 const departments = ref([])
@@ -273,8 +346,45 @@ const stats = computed(() => {
     : 0
   const critical = list.filter((p) => p.ventilated || p.onVasopressor || p.onCrrt).length
   const todoCount = list.reduce((sum, p) => sum + (p.todoCount || 0), 0)
-  return { total: list.length, critical, todoCount, avgDays: avg }
+  const infectionCount = list.filter((p) => p.suspectedInfection).length
+  const highRiskCount = list.filter(isCriticalPatient).length
+  return { total: list.length, critical, todoCount, avgDays: avg, infectionCount, highRiskCount }
 })
+
+/**
+ * 高危患者：比「危重」更宽，纳入感染维度。
+ *
+ * <p>医生实际的工作顺序是先看最危险的人，而"最危险"不等于"上了呼吸机"——
+ * 脓毒性休克、耐药菌、SOFA≥10 同样是高危。原「危重」口径只覆盖通气/升压药/CRRT。
+ */
+function isCriticalPatient(p) {
+  return Boolean(p.ventilated || p.onVasopressor || p.onCrrt || p.septicShock
+    || p.mdrRisk || p.fungalRisk
+    || (p.lastSofaScore != null && p.lastSofaScore >= 10))
+}
+
+/** 各视图人数（标签上的角标） */
+function viewCount(key) {
+  if (key === 'infection') return patients.value.filter((p) => p.suspectedInfection).length
+  if (key === 'critical') return patients.value.filter(isCriticalPatient).length
+  if (key === 'todo') return patients.value.filter((p) => (p.todoCount || 0) > 0).length
+  return patients.value.length
+}
+
+/**
+ * 切视图：写回 URL query，这样刷新 / 分享链接后还停在同一个视图。
+ * 保留其余 query（外链的 extToken、departCode 等都在里面，丢了就断链）。
+ */
+function switchView(key) {
+  patientView.value = normalizeView(key)
+  router.replace({ path: route.path, query: { ...route.query, view: patientView.value } })
+}
+
+function riskClass(level) {
+  if (level === '高风险') return 'risk-high'
+  if (level === '中风险') return 'risk-mid'
+  return 'risk-low'
+}
 
 const TODO_LABELS = {
   SOFA_NOT_TODAY: '今日尚未评 SOFA',
@@ -284,10 +394,28 @@ function todoLabel(code) {
   return TODO_LABELS[code] || code
 }
 
+/** 当前视图内的患者：视图决定"看哪一批人"，搜索与排序在这批人内部生效 */
+const viewPatients = computed(() => {
+  const list = patients.value
+  if (patientView.value === 'infection') return list.filter((p) => p.suspectedInfection)
+  if (patientView.value === 'critical') return list.filter(isCriticalPatient)
+  if (patientView.value === 'todo') return list.filter((p) => (p.todoCount || 0) > 0)
+  return list
+})
+
+/** 列表为空时的说明，按视图区分：空的原因不一样，提示也不该一样 */
+const listEmptyText = computed(() => {
+  if (patientView.value === 'infection') return '当前科室没有疑似感染患者'
+  if (patientView.value === 'critical') return '当前科室没有高危患者'
+  if (patientView.value === 'todo') return '当前科室今日没有待办'
+  return '当前科室口径下暂无在科患者'
+})
+
 const filteredPatients = computed(() => {
   const q = keyword.value.trim().toLowerCase()
-  const list = patients.value.filter((p) => !q
-    || [p.name, p.patientNo, p.bedNo, p.wardName, deptLabel(p)].some((v) => String(v || '').toLowerCase().includes(q)))
+  // 搜索顺带匹配感染类型：医生常按「肺炎」「血流」这类词找人
+  const list = viewPatients.value.filter((p) => !q
+    || [p.name, p.patientNo, p.bedNo, p.wardName, deptLabel(p), p.infectionType].some((v) => String(v || '').toLowerCase().includes(q)))
   return list.slice().sort((a, b) => {
     if (sortBy.value === 'oldest') return timeOf(a) - timeOf(b)
     if (sortBy.value === 'stay') return (b.icuDays || 0) - (a.icuDays || 0)
@@ -402,6 +530,12 @@ onMounted(async () => {
   await initViewMode()
   await initScope()
   loadPatients()
+})
+
+// 同一路径只换 query 时组件不会重新挂载（从菜单点「感染风险」进来就是这种情况），
+// 所以视图变化要单独监听，否则点了菜单页面纹丝不动。
+watch(() => route.query.view, (v) => {
+  patientView.value = normalizeView(v)
 })
 
 function openPatient(row) { goDecision(row) }
@@ -552,6 +686,83 @@ function onDepartChange() {
 .crit-tag.vent { color: #1d4ed8; background: #dbeafe; }
 .crit-tag.vaso { color: #b91c1c; background: #fee2e2; }
 .crit-tag.crrt { color: #92400e; background: #fef3c7; }
+
+/* ---- 视图切换（全部 / 感染风险 / 高危 / 待办）---- */
+.patient-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px dashed #e7e5e4;
+}
+.view-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid #e7e5e4;
+  border-radius: 999px;
+  background: #fff;
+  color: #57534e;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .18s;
+}
+.view-tab:hover { border-color: #fdba74; color: #c2410c; }
+.view-tab.active { border-color: #ea580c; background: #fff7ed; color: #c2410c; font-weight: 600; }
+.view-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #f5f5f4;
+  color: #78716c;
+  font-size: 12px;
+}
+.view-tab.active .view-count { background: #fed7aa; color: #9a3412; }
+
+/* ---- 统计卡：可点即筛选 ---- */
+.stat-card { cursor: pointer; }
+.stat-card.is-active { border-color: #ea580c; box-shadow: 0 0 0 3px #ffedd5; }
+.stat-card-infection::before { background: #0f766e; }
+.stat-card-infection.is-active { border-color: #0f766e; box-shadow: 0 0 0 3px #ccfbf1; }
+.teal-icon { color: #0f766e; background: #ccfbf1; }
+.stat-value.infection { color: #0f766e; }
+
+/* ---- 感染状态列 ---- */
+.infection-line { display: flex; align-items: center; gap: 6px; }
+.risk-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.risk-tag.risk-high { color: #b91c1c; background: #fee2e2; font-weight: 600; }
+.risk-tag.risk-mid { color: #b45309; background: #fef3c7; }
+.risk-tag.risk-low { color: #475569; background: #f1f5f9; }
+.infection-type {
+  max-width: 104px;
+  overflow: hidden;
+  color: #44403c;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 「查不到」用琥珀色：不是正常状态，但也不是"没有" */
+.infection-unavailable { color: #b45309; font-size: 12px; }
+.crit-tag.septic { color: #b91c1c; background: #fee2e2; font-weight: 600; }
+.crit-tag.mdr { color: #7c2d12; background: #ffedd5; }
+.crit-tag.mrsa { color: #a16207; background: #fef9c3; }
+.crit-tag.fungal { color: #6d28d9; background: #ede9fe; }
+.pct-text { color: #78716c; font-size: 11px; }
+.bed-card-infection { display: flex; align-items: center; gap: 6px; padding-top: 6px; font-size: 12px; }
 .sofa-badge { display: inline-flex; padding: 2px 6px; border-radius: 999px; color: #78716c; background: #f5f5f4; font-size: 11px; font-weight: 500; }
 .sofa-badge.severe { color: #b91c1c; background: #fee2e2; font-weight: 700; }
 .todo-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 23px; height: 23px; padding: 0 7px; border-radius: 999px; color: #fff; background: #dc2626; font-size: 12px; font-weight: 700; }

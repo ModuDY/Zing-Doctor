@@ -26,8 +26,12 @@ const routes = [
   {
     path: '/page/abx-patient-list',
     name: 'patientList',
-    component: () => import('../views/PatientList.vue'),
-    meta: { title: '疑似感染患者列表' }
+    // 已并入患者工作台的「感染风险」视图，不再有独立页面。
+    // 老书签、菜单旧链接、ICU 外链（/entry/abx-patient-list 会 302 到这里）一律重定向过去；
+    // query 必须原样透传 —— 外链的 pageCode/extToken/expire/sign/departCode 全在 query 里，
+    // 丢掉任何一个外链就断了，且症状是"打不开"而不是"打开后报错"，很难排查。
+    redirect: (to) => ({ path: '/page/patient-workbench', query: { ...to.query, view: 'infection' } }),
+    meta: { title: '疑似感染患者列表（已并入患者工作台）' }
   },
   {
     path: '/page/abx-decision',

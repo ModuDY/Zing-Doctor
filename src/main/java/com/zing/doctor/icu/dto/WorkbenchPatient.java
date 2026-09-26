@@ -56,4 +56,63 @@ public class WorkbenchPatient {
     private List<String> todos = java.util.Collections.emptyList();
     /** 待办数（=todos.size()，前端直接用） */
     private Integer todoCount = 0;
+
+    // ---- 感染维度（批量回填到全量在科患者，左连接语义：没有就是没有）----
+
+    /**
+     * 是否疑似感染（与「感染风险」视图同一集合，判定口径见 InfectionRules）。
+     */
+    private Boolean suspectedInfection = false;
+
+    /**
+     * 感染数据的获取状态，取值：
+     * <ul>
+     *   <li>{@code FOUND} —— 已查过 ICU 库，字段为空就是"确实没有"；</li>
+     *   <li>{@code UNKNOWN} —— 查询失败（ICU 库不可用 / 表缺失），字段为空是"不知道"。</li>
+     * </ul>
+     *
+     * <p><b>这两者绝不能混为一谈</b>：把"查不到"显示成"未发现感染证据"，
+     * 医生会据此认为患者安全。工作台是全量患者的主视图，一旦这样显示，
+     * 错的是全科而不只是感染那一列。
+     */
+    private String infectionDataStatus = "FOUND";
+
+    /** 感染类型/部位（如 医院获得性肺炎（HAP/VAP）），非疑似感染时为 null */
+    private String infectionType;
+
+    /** 感染类型的判定依据（命中的诊断原文与时间），供页面解释"凭什么这么判" */
+    private String infectionEvidence;
+
+    /** 脓毒性/感染性休克 */
+    private Boolean septicShock = false;
+
+    /** 休克类型：septic / infectious / none */
+    private String shockType = "none";
+
+    /** MRSA 风险（培养或药敏提示） */
+    private Boolean mrsaRisk = false;
+
+    /** MDR 风险（耐碳青霉烯 / ESBL / 泛耐药等） */
+    private Boolean mdrRisk = false;
+
+    /** 真菌风险（念珠菌 / 曲霉等） */
+    private Boolean fungalRisk = false;
+
+    /** 降钙素原 PCT（ng/mL），无结果为 null */
+    private java.math.BigDecimal pct;
+
+    /** 白细胞计数（10^9/L），无结果为 null */
+    private java.math.BigDecimal wbc;
+
+    /** 最近体温（℃），无记录为 null */
+    private java.math.BigDecimal temperature;
+
+    /** 当前在用抗菌药的开始时间（最早一条） */
+    private LocalDateTime abxStartTime;
+
+    /** 当前在用抗菌药名称（已排除溶媒） */
+    private List<String> currentAbx = java.util.Collections.emptyList();
+
+    /** 感染风险等级：高风险 / 中风险 / 低风险；非疑似感染时为 null */
+    private String infectionRiskLevel;
 }

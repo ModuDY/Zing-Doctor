@@ -11,6 +11,7 @@ import com.zing.doctor.icu.dto.TrendPoint;
 import com.zing.doctor.icu.dto.WorkbenchPatient;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.service.IcuPatientService;
+import com.zing.doctor.icu.support.InfectionRules;
 import com.zing.doctor.module.antibiotic.service.AbxDrugRecognizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,23 +56,6 @@ import java.util.Set;
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "zing.doctor.icu-data-provider", havingValue = "sql")
 public class SqlIcuPatientServiceImpl implements IcuPatientService {
-
-    /** 抗菌药物关键词（医嘱名称匹配，用于识别当前抗菌用药） */
-    private static final List<String> ABX_KEYWORDS = Arrays.asList(
-            "哌拉西林", "头孢", "美罗培南", "亚胺培南", "厄他培南", "比阿培南",
-            "万古霉素", "利奈唑胺", "替考拉宁", "达托霉素",
-            "左氧氟沙星", "莫西沙星", "环丙沙星", "奈诺沙星", "阿奇霉素", "克拉霉素",
-            "阿莫西林", "氨苄西林", "阿米卡星", "庆大霉素", "妥布霉素",
-            "替加环素", "多黏菌素", "多粘菌素", "磷霉素", "氨曲南",
-            "卡泊芬净", "米卡芬净", "阿尼芬净", "氟康唑", "伏立康唑", "泊沙康唑",
-            "两性霉素", "伊曲康唑", "甲硝唑", "奥硝唑", "替硝唑",
-            "舒巴坦", "他唑巴坦", "克拉维酸", "复方新诺明", "磺胺",
-            "四环素", "多西环素", "米诺环素", "利福平", "青霉素");
-
-    /** 溶媒关键词（patient_advice 同一 group 下溶媒和溶质分开存储，排除溶媒只取溶质） */
-    private static final List<String> SOLVENT_KEYWORDS = Arrays.asList(
-            "氯化钠", "葡萄糖", "乳酸钠林格", "灭菌注射用水", "木糖醇",
-            "转化糖", "果糖", "复方氯化钠", "甘油果糖");
 
     private final IcuPatientMapper icuPatientMapper;
 
@@ -268,7 +252,7 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
             enhanceRiskFromCultures(p, microMap.getOrDefault(p.getPatientNo(), Collections.emptyList()));
 
             // 仅靠"有 PCT 结果"入列的：数值必须达到 0.5 ng/mL 才算疑似感染
-            if (!byShock && !byDiagnosis && !geThreshold(p.getPct(), PCT_SUSPECT_THRESHOLD)) {
+            if (!byShock && !byDiagnosis && !InfectionRules.pctSuggestsInfection(p.getPct())) {
                 continue;
             }
             p.setRiskLevel(evaluateRisk(p));
@@ -276,12 +260,6 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         }
         return result;
     }
-
-    /** 疑似感染的 PCT 阈值（ng/mL）：与入列注释口径一致，低于此值不算感染证据 */
-    private static final BigDecimal PCT_SUSPECT_THRESHOLD = new BigDecimal("0.5");
-
-    /** PCT 高风险阈值（ng/mL） */
-    private static final BigDecimal PCT_HIGH_THRESHOLD = new BigDecimal("2");
 
     /** 按指定列把查询结果分组（批量查询 → 按患者取用） */
     private Map<String, List<Map<String, Object>>> groupRows(List<Map<String, Object>> rows, String keyColumn) {
@@ -372,11 +350,6 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         }
         p.setAbxStartTime(earliest);
         p.setCurrentAbx(names);
-    }
-
-    /** value 非空且 ≥ threshold */
-    private boolean geThreshold(BigDecimal value, BigDecimal threshold) {
-        return value != null && value.compareTo(threshold) >= 0;
     }
 
     @Override
@@ -493,119 +466,20 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
      * @param shockFlag patient_info.is_sepsis_shock 标记，用于无感染诊断时的兜底归类
      */
     private void inferInfectionType(IcuPatientBrief p, List<Map<String, Object>> diagnoses, boolean shockFlag) {
-        if (diagnoses == null) {
-            diagnoses = java.util.Collections.emptyList();
-        }
-        for (Map<String, Object> d : diagnoses) {
-            if (d == null) {
-                continue;
-            }
-            String name = str(d.get("diag_name"));
-            if (StrUtil.isBlank(name)) {
-                continue;
-            }
-            if (containsAny(name, "脓毒", "感染性休克")) {
-                setInfection(p, "脓毒症/感染性休克", name, d.get("diag_time"));
-                return;
-            }
-            if (name.contains("肺炎")) {
-                if (containsAny(name, "医院获得", "呼吸机", "医院", "院内")) {
-                    setInfection(p, "医院获得性肺炎（HAP/VAP）", name, d.get("diag_time"));
-                } else {
-                    setInfection(p, "社区获得性肺炎（CAP）", name, d.get("diag_time"));
-                }
-                return;
-            }
-            if (containsAny(name, "腹腔", "腹膜炎", "胆道")) {
-                setInfection(p, "腹腔感染", name, d.get("diag_time"));
-                return;
-            }
-            if (containsAny(name, "血流", "菌血症", "败血症")) {
-                setInfection(p, "血流感染", name, d.get("diag_time"));
-                return;
-            }
-            if (containsAny(name, "尿路", "泌尿", "肾盂")) {
-                setInfection(p, "尿路感染", name, d.get("diag_time"));
-                return;
-            }
-            if (containsAny(name, "真菌", "念珠菌", "曲霉")) {
-                setInfection(p, "侵袭性真菌感染", name, d.get("diag_time"));
-                return;
-            }
-            if (name.contains("感染")) {
-                setInfection(p, name.length() > 30 ? "感染（部位待明确）" : name, name, d.get("diag_time"));
-                return;
-            }
-        }
-        // 无明确感染诊断：若休克标记，归类为脓毒症
-        if (shockFlag) {
-            p.setInfectionType("脓毒症/感染性休克");
-            p.setInfectionEvidence("无感染相关诊断，依据患者主表脓毒性休克标记归类");
-            return;
-        }
-        p.setInfectionType("感染（部位待明确）");
-        p.setInfectionEvidence("无明确感染部位诊断；入列依据为 PCT 升高等感染相关检验");
-    }
-
-    /** 记录感染类型及其判定依据（命中的诊断原文 + 诊断时间） */
-    private void setInfection(IcuPatientBrief p, String type, String diagName, Object diagTime) {
-        p.setInfectionType(type);
-        String when = str(diagTime);
-        if (when.length() > 16) {
-            when = when.substring(0, 16);
-        }
-        p.setInfectionEvidence(StrUtil.isBlank(when)
-                ? "诊断：" + diagName
-                : "诊断：" + diagName + "（" + when + "）");
+        InfectionRules.InfectionResult r = InfectionRules.inferInfection(diagnoses, shockFlag);
+        p.setInfectionType(r.getType());
+        p.setInfectionEvidence(r.getEvidence());
     }
 
     /**
-     * 判定休克类型。
-     * patient_info_diagnosis.diag_name 匹配：
-     *  - 含"脓毒性休克" → septic（脓毒性休克）
-     *  - 含"感染性休克" → infectious（感染性休克）
-     *  - 都不匹配 → 看 patient_info.is_sepsis_shock 标记 → 仍为 septic
-     *  - 都没有 → none（非休克）
-     *
-     * <p><b>为什么必须看主表标记兜底</b>：之前只在诊断文字里找"脓毒性休克/感染性休克"，
-     * 诊断没写这两个词、但主表打了 is_sepsis_shock=1 的患者会被判成非休克，
-     * 进而风险等级掉到中/低、决策页推荐也走不到脓毒性休克分支。
-     * 标记位本身就是"脓毒性休克"的临床结论，不能因为诊断措辞不同就丢掉。
-     *
-     * <p>防御：查询结果可能为 null（无诊断记录），列表中也可能出现 null 元素。
-     * 此处原先未做保护，遍历到 null 元素时 d.get("diag_name") 抛 NPE，
-     * 表现为"只有个别患者的 PK/PD 页面 500、其他页面正常"。
+     * 判定休克类型（诊断文字优先，patient_info.is_sepsis_shock 标记兜底）。
+     * 规则实现见 {@link InfectionRules#shock}：判定只能有一份，
+     * 这里只做 DTO 赋值，否则工作台与列表会给出不同的休克结论。
      */
     private void applyShockType(IcuPatientBrief p, List<Map<String, Object>> diagnoses, boolean shockFlag) {
-        if (diagnoses == null) {
-            diagnoses = java.util.Collections.emptyList();
-        }
-        for (Map<String, Object> d : diagnoses) {
-            if (d == null) {
-                continue;
-            }
-            String name = str(d.get("diag_name"));
-            if (StrUtil.isBlank(name)) {
-                continue;
-            }
-            if (name.contains("脓毒性休克")) {
-                p.setShockType("septic");
-                p.setSepticShock(true);
-                return;
-            }
-            if (name.contains("感染性休克")) {
-                p.setShockType("infectious");
-                p.setSepticShock(true);
-                return;
-            }
-        }
-        if (shockFlag) {
-            p.setShockType("septic");
-            p.setSepticShock(true);
-            return;
-        }
-        p.setShockType("none");
-        p.setSepticShock(false);
+        InfectionRules.ShockResult r = InfectionRules.shock(diagnoses, shockFlag);
+        p.setSepticShock(r.isSeptic());
+        p.setShockType(r.getType());
     }
 
     /** 补充检验指标（PCT/WBC）、体温、抗菌药开始时间、微生物风险增强与风险分层 */
@@ -650,22 +524,7 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
     }
 
     private String matchLabKey(String itemName) {
-        String s = itemName == null ? "" : itemName.trim();
-        // 先排除易混淆项目：乳酸脱氢酶（非血乳酸）、尿素/肌酐（比值）、尿常规/白细胞分类计数（非血常规白细胞总数）
-        if (s.contains("脱氢酶") || s.contains("尿素/肌酐")) {
-            return null;
-        }
-        if (s.contains("降钙素原")) return "PCT";
-        if (s.contains("白细胞") && !s.contains("尿") && !s.contains("分类")) return "WBC";
-        if (s.contains("C反应蛋白") || s.contains("超敏C")) return "CRP";
-        if (s.contains("乳酸")) return "乳酸";
-        if (s.contains("肌酐")) return "肌酐";
-        String upper = s.toUpperCase();
-        if (upper.equals("PCT")) return "PCT";
-        if (upper.equals("WBC")) return "WBC";
-        if (upper.equals("CRP")) return "CRP";
-        if (upper.contains("CREA") || upper.contains("CR") && upper.length() <= 4) return "肌酐";
-        return null;
+        return InfectionRules.matchLabKey(itemName);
     }
 
     /** 关键检验指标趋势（按指标分组、时间升序，供前端趋势图）。非数值结果（如 <0.5 / 阴性）跳过。 */
@@ -821,17 +680,9 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         return out;
     }
 
-    /** 判断是否为溶媒（同一 group 下溶媒与溶质分开存储，只取溶质） */
+    /** 判断是否为溶媒（同一 group 下溶媒与溶质分开存储，只取溶质）；规则见 InfectionRules */
     private boolean isSolvent(String name) {
-        if (StrUtil.isBlank(name)) {
-            return false;
-        }
-        for (String kw : SOLVENT_KEYWORDS) {
-            if (name.contains(kw)) {
-                return true;
-            }
-        }
-        return false;
+        return InfectionRules.isSolvent(name);
     }
 
     /**
@@ -858,13 +709,9 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         return earliest;
     }
 
+    /** 是否为抗菌药医嘱；关键词表见 InfectionRules */
     private boolean matchesAbx(String name) {
-        for (String kw : ABX_KEYWORDS) {
-            if (name.contains(kw)) {
-                return true;
-            }
-        }
-        return false;
+        return InfectionRules.matchesAbx(name);
     }
 
     /**
@@ -882,26 +729,9 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
      * </ul>
      */
     private String evaluateRisk(IcuPatientBrief p) {
-        if (Boolean.TRUE.equals(p.getSepticShock())) {
-            return "高风险";
-        }
-        if (geThreshold(p.getPct(), PCT_HIGH_THRESHOLD)) {
-            return "高风险";
-        }
-        boolean mdr = Boolean.TRUE.equals(p.getMdrRisk());
-        boolean mrsa = Boolean.TRUE.equals(p.getMrsaRisk());
-        boolean fungal = Boolean.TRUE.equals(p.getFungalRisk());
-        if (mdr && (mrsa || fungal)) {
-            return "高风险";
-        }
-        if (geThreshold(p.getPct(), PCT_SUSPECT_THRESHOLD) || mdr || mrsa || fungal) {
-            return "中风险";
-        }
-        String type = p.getInfectionType() == null ? "" : p.getInfectionType();
-        if (type.contains("HAP") || type.contains("VAP") || type.contains("血流")) {
-            return "中风险";
-        }
-        return "低风险";
+        return InfectionRules.evaluateRisk(p.getPct(), Boolean.TRUE.equals(p.getSepticShock()),
+                Boolean.TRUE.equals(p.getMdrRisk()), Boolean.TRUE.equals(p.getMrsaRisk()),
+                Boolean.TRUE.equals(p.getFungalRisk()), p.getInfectionType());
     }
 
     private List<String> parseAllergies(String allergyContent) {
@@ -966,20 +796,15 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
 
     /** 培养结果增强风险判断：菌名/药敏中含耐药关键词 → MRSA/MDR/真菌 */
     private void enhanceRiskFromCultures(IcuPatientBrief p, List<Map<String, Object>> microRows) {
-        for (Map<String, Object> r : microRows) {
-            String itemName = str(r.get("item_name"));
-            String result = str(r.get("result"));
-            String combined = itemName + " " + result;
-            if (containsIgnoreCase(combined, "MRSA", "耐甲氧西林", "甲氧西林耐药")) {
-                p.setMrsaRisk(true);
-            }
-            if (containsIgnoreCase(combined, "ESBL", "CRE", "CRKP", "CRAB", "耐碳青霉烯",
-                    "碳青霉烯耐药", "鲍曼", "铜绿假单胞", "泛耐药", "MDR")) {
-                p.setMdrRisk(true);
-            }
-            if (containsIgnoreCase(combined, "念珠菌", "曲霉", "隐球菌", "真菌")) {
-                p.setFungalRisk(true);
-            }
+        InfectionRules.CultureRisk risk = InfectionRules.cultureRisk(microRows);
+        if (risk.isMrsa()) {
+            p.setMrsaRisk(true);
+        }
+        if (risk.isMdr()) {
+            p.setMdrRisk(true);
+        }
+        if (risk.isFungal()) {
+            p.setFungalRisk(true);
         }
     }
 
@@ -1083,40 +908,12 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
      * 0.5 门槛的判断是保守的，不会把低值误判成感染证据）。
      */
     private BigDecimal parseDecimalValue(Object o) {
-        BigDecimal direct = parseDecimal(o);
-        if (direct != null) {
-            return direct;
-        }
-        String s = str(o);
-        if (StrUtil.isBlank(s)) {
-            return null;
-        }
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("-?\\d+(\\.\\d+)?").matcher(s);
-        if (m.find()) {
-            try {
-                return new BigDecimal(m.group());
-            } catch (Exception ignore) {
-                return null;
-            }
-        }
-        return null;
+        return InfectionRules.parseDecimalValue(o);
     }
 
     private boolean intToBool(Object o) {
         String s = str(o);
         return "1".equals(s) || "true".equalsIgnoreCase(s) || "是".equals(s);
-    }
-
-    private boolean containsAny(String s, String... keys) {
-        if (StrUtil.isBlank(s)) {
-            return false;
-        }
-        for (String k : keys) {
-            if (s.contains(k)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private boolean containsAnyChar(String s, char... chars) {

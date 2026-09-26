@@ -56,6 +56,8 @@ public class PatientWorkbenchController {
         icuPatientService.enrichCrisisFlags(patients, allowed);
         // 当日待办（SOFA/APACHE 未评，本系统库批量）
         workbenchEnrichService.enrich(patients);
+        // 感染维度（ICU 库批量；只对疑似患者取 PCT/培养/抗菌药明细，其余标记"已查过、没有"）
+        workbenchEnrichService.enrichInfection(patients, allowed);
         return Result.ok(patients);
     }
 

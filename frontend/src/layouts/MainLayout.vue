@@ -29,9 +29,13 @@
           <span class="nav-icon">🚪</span>
           <span class="nav-label">患者出科统计</span>
         </router-link>
+        <!-- 疑似感染患者列表已并入患者工作台，这里保留旧路径让习惯旧菜单的医生仍能点到：
+             路由会重定向到 /page/patient-workbench?view=infection（感染风险视图）。
+             仍然走旧 path 而不是直接写新地址，是为了让侧边栏高亮落在「患者工作台」上，
+             避免同一时刻两个菜单项都亮。 -->
         <router-link to="/page/abx-patient-list" class="nav-item" active-class="nav-active">
           <span class="nav-icon">🦠</span>
-          <span class="nav-label">疑似感染患者</span>
+          <span class="nav-label">感染风险患者</span>
         </router-link>
         <router-link to="/page/abx-decision" class="nav-item" active-class="nav-active">
           <span class="nav-icon">💊</span>

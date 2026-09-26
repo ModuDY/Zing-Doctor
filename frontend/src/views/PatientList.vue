@@ -1,3 +1,10 @@
+<!--
+  已并入「患者工作台」的感染风险视图（见 PatientWorkbench.vue 的视图切换与感染状态列）。
+
+  保留本文件仅作回退参考：路由 /page/abx-patient-list 现在直接重定向到
+  /page/patient-workbench?view=infection，不再加载这个组件，构建产物里也不含它。
+  真要回退，把 router/index.js 里该路由的 redirect 换回 component 指向本文件即可。
+-->
 <template>
   <div class="abx-theme abx-page">
     <!-- ===================== 标题行 ===================== -->
