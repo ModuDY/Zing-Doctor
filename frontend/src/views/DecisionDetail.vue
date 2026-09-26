@@ -7,6 +7,7 @@
     </div>
 
     <div v-else v-loading="loading" class="page-body">
+      <el-alert v-if="loadError" type="error" :closable="false" show-icon :title="loadError" class="page-error" />
       <!-- 患者信息横条：风险/休克靠前，避免窄屏换行错位 -->
       <div class="card patient-bar">
         <div class="p-cell"><label>姓名</label><b>{{ view.patient?.name || '—' }}</b></div>
@@ -90,6 +91,108 @@
         <div v-else class="culture-empty">无明确微生物培养 / 多耐药记录</div>
       </div>
 
+      <!-- 抗感染 48～72 小时复评：与原始经验性决策分开留痕，避免覆盖历史方案 -->
+      <div class="card reassessment-card">
+        <div class="block-title reassessment-title">
+          <span class="dot dot-orange"></span>抗感染 48～72 小时复评
+          <template v-if="latestReassessment">
+            <el-tag :type="reassessmentTagType(latestReassessment.reviewStatus)" size="small" effect="plain">
+              {{ reassessmentStatusText(latestReassessment.reviewStatus) }}
+            </el-tag>
+            <span v-if="latestReassessment.reviewDueTime" class="due-text">
+              计划 {{ formatTime(latestReassessment.reviewDueTime) }}
+            </span>
+            <el-tag v-if="isOverdue(latestReassessment)" type="danger" size="small">已逾期</el-tag>
+          </template>
+        </div>
+        <el-alert v-if="reassessmentLoadError" type="warning" :closable="false" show-icon
+                  :title="reassessmentLoadError" />
+        <el-empty v-else-if="!reassessments.length" description="当前没有待复评任务；采纳新的抗感染决策后会自动生成" :image-size="54" />
+        <template v-else>
+          <div v-if="latestReassessment && latestReassessment.reviewStatus === 'PENDING'" class="reassessment-form">
+            <div class="reassessment-summary">
+              <div><span>关联决策</span><strong>{{ formatTime(latestReassessment.createTime) }}</strong></div>
+              <div><span>任务状态</span><strong>{{ isOverdue(latestReassessment) ? '已超过计划时间' : '待复评' }}</strong></div>
+              <div><span>原始方案</span><strong>{{ latestDecisionPlan || '—' }}</strong></div>
+            </div>
+            <el-form label-position="top">
+              <div class="reassessment-grid">
+                <el-form-item label="培养 / 药敏复核摘要">
+                  <el-input v-model="reassessmentForm.cultureSummary" type="textarea" :rows="3"
+                            placeholder="填写最新培养、药敏及耐药菌结果；没有新结果请明确写‘暂无’" />
+                </el-form-item>
+                <el-form-item label="临床疗效评价">
+                  <el-input v-model="reassessmentForm.clinicalResponse" type="textarea" :rows="3"
+                            placeholder="如：体温下降、感染指标改善 / 无改善 / 恶化" />
+                </el-form-item>
+                <el-form-item label="PCT 趋势">
+                  <el-input v-model="reassessmentForm.pctTrend" type="textarea" :rows="3"
+                            placeholder="如：0.82 → 0.31 ng/mL，呈下降趋势；无连续结果请说明" />
+                </el-form-item>
+                <el-form-item label="复评动作" required>
+                  <el-select v-model="reassessmentForm.decisionAction" placeholder="请选择复评动作" style="width: 100%">
+                    <el-option label="继续当前方案" value="CONTINUE" />
+                    <el-option label="降阶梯" value="DE_ESCALATE" />
+                    <el-option label="升阶梯" value="ESCALATE" />
+                    <el-option label="换药" value="SWITCH" />
+                    <el-option label="停药" value="STOP" />
+                    <el-option label="其他" value="OTHER" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="医生复评结论" class="reassessment-wide">
+                  <el-input v-model="reassessmentForm.doctorDecision" type="textarea" :rows="3"
+                            placeholder="写明本次调整或继续治疗的临床依据" />
+                </el-form-item>
+                <el-form-item label="复评医生" required>
+                  <el-select
+                    v-model="reassessmentForm.doctorId"
+                    filterable
+                    remote
+                    reserve-keyword
+                    clearable
+                    popper-class="abx-popper"
+                    :remote-method="searchStaffRemote"
+                    :loading="staffLoading"
+                    placeholder="输入姓名/拼音首字母/工号搜索"
+                    style="width: 100%"
+                    @change="handleReassessmentStaffSelect"
+                    @visible-change="v => { if (v && !staffOptions.length) searchStaffRemote('') }">
+                    <el-option v-for="item in staffOptions" :key="item.value" :label="item.label" :value="item.value">
+                      <span style="float: left">{{ item.label }}</span>
+                      <span style="float: right; color: #a8a29e; font-size: 12px">{{ item.workNo }} · {{ item.depart }}</span>
+                    </el-option>
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="备注">
+                  <el-input v-model="reassessmentForm.remark" type="textarea" :rows="3"
+                            placeholder="可填写随访安排、限制因素或跳过复评原因" />
+                </el-form-item>
+              </div>
+              <div class="reassessment-actions">
+                <el-button type="primary" :loading="reassessmentSaving" @click="completeReassessmentForm">保存复评</el-button>
+                <el-button :loading="reassessmentSaving" @click="skipReassessmentForm">跳过复评</el-button>
+              </div>
+            </el-form>
+          </div>
+          <el-table :data="reassessments" size="small" stripe max-height="240">
+            <el-table-column label="计划时间" width="150">
+              <template #default="{ row }">{{ formatTime(row.reviewDueTime) }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="90">
+              <template #default="{ row }">
+                <el-tag :type="reassessmentTagType(row.reviewStatus)" size="small">{{ reassessmentStatusText(row.reviewStatus) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="动作" width="110">
+              <template #default="{ row }">{{ reassessmentActionText(row.decisionAction) }}</template>
+            </el-table-column>
+            <el-table-column prop="doctorDecision" label="复评结论" min-width="220" show-overflow-tooltip />
+            <el-table-column prop="doctorName" label="医生" width="90" />
+            <el-table-column prop="reviewTime" label="完成时间" width="150" />
+          </el-table>
+        </template>
+      </div>
+
       <!-- 下部：医生决策 + 决策历史 -->
       <div class="bottom-grid">
         <div class="card">
@@ -168,9 +271,10 @@
 </template>
 
 <script>
-import { fetchAssessment, fetchAssessmentByNo, saveDecision, updateDecision, deleteDecision, fetchRecords, searchStaff } from '../api/antibiotic'
+import { fetchAssessment, fetchAssessmentByNo, saveDecision, updateDecision, deleteDecision, fetchRecords, searchStaff, fetchReassessments, completeReassessment, skipReassessment } from '../api/antibiotic'
 import LabTrendChart from './LabTrendChart.vue'
 import '../styles/abx-theme.css'
+import { markWorkbenchRefresh } from '../utils/patientContext'
 
 export default {
   name: 'DecisionDetail',
@@ -180,9 +284,23 @@ export default {
       patientId: '',
       inHospitalNo: '',
       loading: false,
+      loadError: '',
       saving: false,
       view: { patient: {}, assessment: {}, adviceList: [], planSummary: '', labTrends: [] },
       records: [],
+      reassessments: [],
+      reassessmentLoadError: '',
+      reassessmentSaving: false,
+      reassessmentForm: {
+        cultureSummary: '',
+        clinicalResponse: '',
+        pctTrend: '',
+        decisionAction: '',
+        doctorDecision: '',
+        doctorId: '',
+        doctorName: '',
+        remark: ''
+      },
       doctorDecision: '',
       doctorName: '',
       doctorId: '',
@@ -190,6 +308,15 @@ export default {
       editingTime: '',
       staffOptions: [],
       staffLoading: false
+    }
+  },
+  computed: {
+    latestReassessment() {
+      return this.reassessments.find(r => r.reviewStatus === 'PENDING') || this.reassessments[0] || null
+    },
+    latestDecisionPlan() {
+      const accepted = this.records.find(r => r.decisionStatus === 'accepted')
+      return accepted ? accepted.recommendedPlan : ''
     }
   },
   created() {
@@ -250,20 +377,107 @@ export default {
     },
     async load() {
       this.loading = true
+      this.loadError = ''
+      this.records = []
+      this.reassessments = []
       try {
         const view = this.patientId
           ? await fetchAssessment(this.patientId)
           : await fetchAssessmentByNo(this.inHospitalNo)
-        this.view = view || {}
+        if (!view || !view.patient) {
+          this.loadError = '未找到患者信息，请从患者工作台重新进入，或检查外链住院号是否有效。'
+          return
+        }
+        this.view = view
         // 按住院号解析出 patientId 后，后续决策/历史接口统一用它
-        if (!this.patientId && view && view.patient && view.patient.patientId) {
+        if (!this.patientId && view.patient.patientId) {
           this.patientId = view.patient.patientId
         }
         if (this.patientId) {
-          this.records = await fetchRecords(this.patientId)
+          try {
+            this.records = await fetchRecords(this.patientId)
+          } catch (e) {
+            this.records = []
+            this.loadError = '患者基础信息已加载，但决策历史暂不可用，请检查医生库连接后重试。'
+          }
+          await this.loadReassessments()
         }
+      } catch (e) {
+        this.view = { patient: {}, assessment: {}, adviceList: [], planSummary: '', labTrends: [] }
+        this.loadError = '患者数据暂不可用：请检查 ICU 数据源、患者权限或外链是否已过期。'
       } finally {
         this.loading = false
+      }
+    },
+    async loadReassessments() {
+      this.reassessmentLoadError = ''
+      try {
+        this.reassessments = await fetchReassessments(this.patientId)
+        const pending = this.reassessments.find(r => r.reviewStatus === 'PENDING')
+        if (pending) {
+          this.reassessmentForm = {
+            cultureSummary: pending.cultureSummary || '',
+            clinicalResponse: pending.clinicalResponse || '',
+            pctTrend: pending.pctTrend || '',
+            decisionAction: pending.decisionAction || '',
+            doctorDecision: pending.doctorDecision || '',
+            doctorId: pending.doctorId || '',
+            doctorName: pending.doctorName || '',
+            remark: pending.remark || ''
+          }
+          if (pending.doctorId && pending.doctorName && !this.staffOptions.some(s => s.value === pending.doctorId)) {
+            this.staffOptions.unshift({ value: pending.doctorId, label: pending.doctorName })
+          }
+        }
+      } catch (e) {
+        this.reassessments = []
+        this.reassessmentLoadError = '复评数据暂不可用，请确认数据库升级脚本已执行；原始决策仍可继续使用。'
+      }
+    },
+    handleReassessmentStaffSelect(val) {
+      const picked = this.staffOptions.find(s => s.value === val)
+      this.reassessmentForm.doctorName = picked ? picked.label : ''
+    },
+    reassessmentStatusText(status) {
+      return { PENDING: '待复评', COMPLETED: '已完成', SKIPPED: '已跳过', VOID: '已作废' }[status] || status || '—'
+    },
+    reassessmentTagType(status) {
+      return { PENDING: 'warning', COMPLETED: 'success', SKIPPED: 'info', VOID: 'danger' }[status] || 'info'
+    },
+    reassessmentActionText(action) {
+      return { CONTINUE: '继续当前方案', DE_ESCALATE: '降阶梯', ESCALATE: '升阶梯', SWITCH: '换药', STOP: '停药', OTHER: '其他' }[action] || action || '—'
+    },
+    isOverdue(task) {
+      return task && task.reviewStatus === 'PENDING' && task.reviewDueTime && new Date(task.reviewDueTime).getTime() < Date.now()
+    },
+    async completeReassessmentForm() {
+      const task = this.latestReassessment
+      if (!task || task.reviewStatus !== 'PENDING') return
+      if (!this.reassessmentForm.decisionAction) return this.$message.warning('请选择复评动作')
+      if (!this.reassessmentForm.doctorName) return this.$message.warning('请先选择复评医生')
+      this.reassessmentSaving = true
+      try {
+        await completeReassessment({ id: task.id, ...this.reassessmentForm })
+        this.$message.success('复评已保存')
+        markWorkbenchRefresh('antibiotic-reassessment-saved')
+        await this.loadReassessments()
+      } finally {
+        this.reassessmentSaving = false
+      }
+    },
+    async skipReassessmentForm() {
+      const task = this.latestReassessment
+      if (!task || task.reviewStatus !== 'PENDING') return
+      if (!this.reassessmentForm.doctorName) return this.$message.warning('请先选择复评医生')
+      if (!this.reassessmentForm.remark) return this.$message.warning('跳过复评时请填写原因')
+      this.reassessmentSaving = true
+      try {
+        await skipReassessment({ id: task.id, ...this.reassessmentForm })
+        this.$message.success('已跳过本次复评，并保留原因')
+        markWorkbenchRefresh('antibiotic-reassessment-saved')
+        await this.loadReassessments()
+      } finally {
+        this.reassessmentSaving = false
       }
     },
     async submit(status) {
@@ -283,6 +497,7 @@ export default {
             doctorId: this.doctorId
           })
           this.$message.success('决策已更新')
+          markWorkbenchRefresh('antibiotic-decision-saved')
           this.cancelEdit()
         } else {
           await saveDecision({
@@ -293,8 +508,10 @@ export default {
             doctorId: this.doctorId
           })
           this.$message.success('决策已保存')
+          markWorkbenchRefresh('antibiotic-decision-saved')
         }
         this.records = await fetchRecords(this.patientId)
+        await this.loadReassessments()
       } finally {
         this.saving = false
       }
@@ -329,14 +546,16 @@ export default {
       }).then(async () => {
         await deleteDecision(row.id)
         this.$message.success('已删除')
+        markWorkbenchRefresh('antibiotic-decision-deleted')
         if (this.editingId === row.id) {
           this.cancelEdit()
         }
         this.records = await fetchRecords(this.patientId)
+        await this.loadReassessments()
       }).catch(() => {})
     },
     goBack() {
-      this.$router.push('/page/abx-patient-list')
+      this.$router.push({ path: '/page/abx-patient-list', query: { ...this.$route.query } })
     },
     cultureClass(text) {
       const t = String(text || '')
@@ -348,7 +567,7 @@ export default {
       }
       return ''
     }
-  }
+  },
 }
 </script>
 
@@ -390,6 +609,7 @@ export default {
 .dot-purple { background: #8b6fd8; }
 .dot-green { background: #16a34a; }
 .dot-gray { background: #78716c; }
+.dot-orange { background: #ea580c; }
 
 /* 患者信息横条 */
 .patient-bar {
@@ -505,6 +725,21 @@ export default {
   color: #92400e;
 }
 .culture-empty { color: #a8a29e; font-size: 13px; padding: 8px; }
+
+/* 48～72 小时复评 */
+.reassessment-card { margin-top: 16px; }
+.reassessment-title { gap: 10px; }
+.reassessment-title .el-tag { margin-left: 2px; }
+.due-text { color: #78716c; font-size: 12px; font-weight: 400; }
+.reassessment-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; padding: 12px; border-radius: 8px; background: #fff7ed; }
+.reassessment-summary div { display: flex; flex-direction: column; gap: 4px; }
+.reassessment-summary span { color: #a8a29e; font-size: 12px; }
+.reassessment-summary strong { color: #44403c; font-size: 13px; }
+.reassessment-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 14px; }
+.reassessment-grid .reassessment-wide { grid-column: span 2; }
+.reassessment-actions { display: flex; gap: 10px; margin: 2px 0 14px; }
+@media (max-width: 1100px) { .reassessment-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .reassessment-grid .reassessment-wide { grid-column: span 2; } }
+@media (max-width: 680px) { .reassessment-summary { grid-template-columns: 1fr; } .reassessment-grid { grid-template-columns: 1fr; } .reassessment-grid .reassessment-wide { grid-column: auto; } }
 
 /* 下部：决策 + 历史 */
 .bottom-grid {

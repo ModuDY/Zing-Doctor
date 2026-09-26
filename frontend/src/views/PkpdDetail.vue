@@ -7,6 +7,7 @@
     </div>
 
     <div v-else v-loading="loading" class="page-body">
+      <el-alert v-if="loadError" type="error" :closable="false" show-icon :title="loadError" class="page-error" />
       <!-- 患者信息横条 -->
       <div class="card patient-bar">
         <div class="p-cell"><label>姓名</label><b>{{ data.patient?.name || '—' }}</b></div>
@@ -298,6 +299,7 @@ import '../styles/abx-theme.css'
 
 const route = useRoute()
 const loading = ref(true)
+const loadError = ref('')
 const creatinineChart = ref(null)
 let chartInstance = null
 
@@ -319,6 +321,7 @@ const data = reactive({
 
 function loadData() {
   loading.value = true
+  loadError.value = ''
   const pid = route.params.patientId || route.query.patientId
   const inNo = route.query.inHospitalNo
   const req = pid ? fetchPkpd(pid) : fetchPkpdByNo(inNo)
@@ -330,6 +333,7 @@ function loadData() {
       renderCreatinineChart()
     })
   }).catch(() => {
+    loadError.value = 'PK/PD 数据暂不可用：请检查 ICU 数据源、患者权限或外链是否已过期。'
     loading.value = false
   })
 }
@@ -393,6 +397,8 @@ watch(() => route.query.inHospitalNo, () => {
   min-height: 100vh;
   background: #fafaf9;
 }
+
+.page-error { margin-bottom: 16px; }
 
 .page-body {
   padding: 16px 24px 32px;

@@ -19,12 +19,12 @@ export function fetchPatients(departCode) {
 
 /** 单患者决策页数据（评估 + 推荐方案） */
 export function fetchAssessment(patientId) {
-  return request.get(`/antibiotic/patients/${patientId}/assessment`)
+  return request.get(`/antibiotic/patients/${patientId}/assessment`, { silentError: true })
 }
 
 /** 单患者决策页数据（按 ICU 外链住院号定位患者） */
 export function fetchAssessmentByNo(inHospitalNo) {
-  return request.get('/antibiotic/patients/by-no/assessment', { params: { inHospitalNo } })
+  return request.get('/antibiotic/patients/by-no/assessment', { params: { inHospitalNo }, silentError: true })
 }
 
 /** 保存医生决策 */
@@ -44,7 +44,27 @@ export function deleteDecision(id) {
 
 /** 患者决策历史 */
 export function fetchRecords(patientId) {
-  return request.get(`/antibiotic/patients/${patientId}/records`)
+  return request.get(`/antibiotic/patients/${patientId}/records`, { silentError: true })
+}
+
+/** 患者抗感染 48～72 小时复评记录 */
+export function fetchReassessments(patientId) {
+  return request.get(`/antibiotic/patients/${patientId}/reassessments`, { silentError: true })
+}
+
+/** 当前科室待复评任务（工作台批量待办使用） */
+export function fetchPendingReassessments(departCode) {
+  return request.get('/antibiotic/reassessments/pending', { params: { departCode } })
+}
+
+/** 完成复评 */
+export function completeReassessment(data) {
+  return request.post('/antibiotic/reassessment/complete', data)
+}
+
+/** 跳过复评（必须保留原因） */
+export function skipReassessment(data) {
+  return request.post('/antibiotic/reassessment/skip', data)
 }
 
 /** 职工字典搜索（医生下拉框，支持拼音首字母/工号/姓名） */
@@ -59,5 +79,5 @@ export function fetchPkpd(patientId) {
 
 /** 第二维度：PK/PD 抗菌药物剂量优化（按 ICU 外链住院号） */
 export function fetchPkpdByNo(inHospitalNo) {
-  return request.get('/antibiotic/patients/by-no/pkpd', { params: { inHospitalNo } })
+  return request.get('/antibiotic/patients/by-no/pkpd', { params: { inHospitalNo }, silentError: true })
 }

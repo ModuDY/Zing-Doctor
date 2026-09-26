@@ -2,12 +2,12 @@ import request from './request'
 
 /** 单患者 SOFA 评估（按 patientId） */
 export function fetchSofaAssessment(patientId, startTime, endTime) {
-  return request.get(`/sofa/assessment/${patientId}`, { params: { startTime, endTime } })
+  return request.get(`/sofa/assessment/${patientId}`, { params: { startTime, endTime }, silentError: true })
 }
 
 /** 单患者 SOFA 评估（按 ICU 外链住院号） */
 export function fetchSofaAssessmentByNo(inHospitalNo, startTime, endTime) {
-  return request.get('/sofa/assessment/by-no', { params: { inHospitalNo, startTime, endTime } })
+  return request.get('/sofa/assessment/by-no', { params: { inHospitalNo, startTime, endTime }, silentError: true })
 }
 
 /** 保存评分记录（失败提示由页面给出，带“保存失败”上下文，故 silentError） */
@@ -17,7 +17,7 @@ export function saveSofaRecord(record, startTime, endTime) {
 
 /** 患者历史评分 */
 export function fetchSofaRecords(inHospitalNo) {
-  return request.get('/sofa/records', { params: { inHospitalNo } })
+  return request.get('/sofa/records', { params: { inHospitalNo }, silentError: true })
 }
 
 /** 逻辑删除评分记录（失败提示由页面给出，带“删除失败”上下文，故 silentError） */

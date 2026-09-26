@@ -9,7 +9,8 @@ import request from './request'
  */
 export function fetchInpatients(departCode) {
   const params = departCode ? { departCode } : {}
-  return request.get('/workbench/patients', { params })
+  // 工作台会把“列表未加载”以内嵌状态呈现，避免全局拦截器再弹一条无上下文的错误。
+  return request.get('/workbench/patients', { params, silentError: true })
 }
 
 /**
@@ -19,5 +20,5 @@ export function fetchInpatients(departCode) {
  * 以及未绑定科室时提示什么。列表接口会因为越权报错，所以范围要先于列表拿到。
  */
 export function fetchDepartScope() {
-  return request.get('/workbench/scope')
+  return request.get('/workbench/scope', { silentError: true })
 }

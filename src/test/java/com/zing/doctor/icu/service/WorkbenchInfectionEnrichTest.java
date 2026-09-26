@@ -2,6 +2,7 @@ package com.zing.doctor.icu.service;
 
 import com.zing.doctor.icu.dto.WorkbenchPatient;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
+import com.zing.doctor.module.antibiotic.mapper.AntibioticReassessmentMapper;
 import com.zing.doctor.module.apache2.mapper.Apache2ScoreRecordMapper;
 import com.zing.doctor.module.sofa.mapper.SofaScoreRecordMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,7 +46,8 @@ class WorkbenchInfectionEnrichTest {
     void setUp() {
         mapper = mock(IcuPatientMapper.class);
         service = new WorkbenchEnrichService(mock(SofaScoreRecordMapper.class),
-                mock(Apache2ScoreRecordMapper.class), mapper);
+                mock(Apache2ScoreRecordMapper.class), mapper,
+                mock(AntibioticReassessmentMapper.class));
     }
 
     @Test

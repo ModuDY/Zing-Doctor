@@ -14,6 +14,7 @@ import com.zing.doctor.module.antibiotic.entity.DecisionRecord;
 import com.zing.doctor.module.antibiotic.mapper.AdviceLogMapper;
 import com.zing.doctor.module.antibiotic.mapper.DecisionRecordMapper;
 import com.zing.doctor.module.antibiotic.service.AntibioticDecisionService;
+import com.zing.doctor.module.antibiotic.service.AntibioticReassessmentService;
 import com.zing.doctor.module.system.service.SysParamService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,7 @@ public class AntibioticDecisionServiceImpl implements AntibioticDecisionService 
     private final DecisionRecordMapper decisionRecordMapper;
     private final AdviceLogMapper adviceLogMapper;
     private final SysParamService sysParamService;
+    private final AntibioticReassessmentService reassessmentService;
 
     @Override
     public List<IcuPatientBrief> listSuspectPatients(String departCode) {
@@ -279,6 +281,11 @@ public class AntibioticDecisionServiceImpl implements AntibioticDecisionService 
         record.setDoctorName(doctorName);
         decisionRecordMapper.insert(record);
 
+        if ("accepted".equalsIgnoreCase(record.getDecisionStatus())) {
+            reassessmentService.createPending(record.getId(), patient.getPatientId(), patient.getPatientNo(),
+                    patient.getInHospitalNo(), patient.getDepartCode());
+        }
+
         for (AdviceItem item : advice) {
             if ("48-72 小时复评".equals(item.getDrugName())) {
                 continue;
@@ -319,6 +326,15 @@ public class AntibioticDecisionServiceImpl implements AntibioticDecisionService 
         record.setDoctorName(doctorName);
         record.setUpdateTime(LocalDateTime.now());
         decisionRecordMapper.updateById(record);
+        IcuPatientBrief patient = icuPatientService.getPatientBrief(record.getPatientId());
+        if ("accepted".equalsIgnoreCase(record.getDecisionStatus())) {
+            if (patient != null) {
+                reassessmentService.createPending(record.getId(), patient.getPatientId(), patient.getPatientNo(),
+                        patient.getInHospitalNo(), patient.getDepartCode());
+            }
+        } else {
+            reassessmentService.voidPendingByDecision(record.getId());
+        }
         return record.getId();
     }
 
@@ -329,6 +345,7 @@ public class AntibioticDecisionServiceImpl implements AntibioticDecisionService 
         if (record == null) {
             throw new BizException(404, "决策记录不存在：" + id);
         }
+        reassessmentService.voidPendingByDecision(id);
         decisionRecordMapper.deleteById(id);
         // 级联删除该记录的推荐明细
         adviceLogMapper.delete(new LambdaQueryWrapper<AdviceLog>()

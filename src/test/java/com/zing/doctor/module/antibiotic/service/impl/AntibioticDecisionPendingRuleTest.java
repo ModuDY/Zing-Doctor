@@ -4,6 +4,7 @@ import com.zing.doctor.icu.dto.IcuPatientBrief;
 import com.zing.doctor.icu.service.IcuPatientService;
 import com.zing.doctor.module.antibiotic.mapper.AdviceLogMapper;
 import com.zing.doctor.module.antibiotic.mapper.DecisionRecordMapper;
+import com.zing.doctor.module.antibiotic.service.AntibioticReassessmentService;
 import com.zing.doctor.module.system.service.SysParamService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,10 @@ class AntibioticDecisionPendingRuleTest {
         p.setInDepartTime(inDepartTime);
         if (decidedToday) {
             p.setDecisionStatus("accepted");
-            p.setDecisionTime(LocalDateTime.now().minusHours(1));
+            // 不能写 now().minusHours(1)：判定是 decisionTime.toLocalDate().equals(LocalDate.now())，
+            // 而凌晨 0~1 点跑测试时 now-1h 会落到昨天，于是「今天已决策」被判成「今天没决策」，
+            // 测试无故变红（2026-09-27 00:05 实测踩到，白天跑看不出来）。
+            p.setDecisionTime(LocalDateTime.now());
         }
         return p;
     }
@@ -84,7 +88,8 @@ class AntibioticDecisionPendingRuleTest {
         IcuPatientService icu = mock(IcuPatientService.class);
         when(icu.listSuspectInfections(any())).thenReturn(Collections.singletonList(p));
         AntibioticDecisionServiceImpl service =
-                new AntibioticDecisionServiceImpl(icu, decisionMapperOf(), mock(AdviceLogMapper.class), paramOf(rule));
+                new AntibioticDecisionServiceImpl(icu, decisionMapperOf(), mock(AdviceLogMapper.class), paramOf(rule),
+                        mock(AntibioticReassessmentService.class));
         List<IcuPatientBrief> list = service.listSuspectPatients("D001");
         return Boolean.TRUE.equals(list.get(0).getPendingDecision());
     }

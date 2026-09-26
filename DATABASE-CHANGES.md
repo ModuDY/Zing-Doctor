@@ -375,7 +375,10 @@ SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_param"
   `UPPER(table_name) IN ('ZING_PAGE_CONFIG','SYS_PAGE_CONFIG')`：**新旧名都要认**，
   只判断新名会把尚未 rename 的老库当成空库去重跑全量，后果同样是「按新名建一套空表、老表变孤儿」。
 - `install-mariadb-debian.sh`：25/26 追加进 `MAIN_SQL`（每次全跑，全新库无旧表则整段跳过）。
-- `tools/build-delivery.ps1`：合成 `install-all.sql` 的清单已包含 MySQL 版 25/26。
+- `tools/build-delivery.ps1`：合成 `install-all.sql` 的清单已与 `install-mariadb-debian.sh` 的
+  `MAIN_SQL` 对齐（含 24 写保护、25/26 rename、28/29/30/31/32/33）。此前该清单停在 23，
+  24~33 全部漏登记 —— 后果很隐蔽：用 `install-all.sql` 初始化的库缺表缺参数，
+  而直连 `install-mariadb-debian.sh` 安装的库正常，同一版本两种部署方式行为不同。
 
 **MySQL / MariaDB 版为人工改写**：达梦版用 PL/SQL 游标 + 动态 DDL，`dm_to_mysql.py` 转出来的
 是语法碎片，故 `sql/mysql/25_*`、`sql/mysql/26_*` 是手写的存储过程版，并已在转换脚本的
@@ -993,3 +996,34 @@ SELECT UPPER(COLUMN_NAME) FROM USER_TAB_COLUMNS
  WHERE UPPER(TABLE_NAME) = 'QUALITY_METRIC_DEF' AND UPPER(COLUMN_NAME) = 'PATIENT_FIELDS';
 -- 返回 1 行即已生效；无需重启容器，刷新页面即可
 ```
+
+---
+
+### 2026-09-26 · 抗感染 48～72 小时复评与交付自检
+
+**涉及**
+
+- 新建 `patient_doc_abx_reassessment`：记录复评任务、培养/疗效/PCT 摘要、医生结论与处理动作。
+- 新增 `PENDING / COMPLETED / SKIPPED / VOID` 状态及 `CONTINUE / DE_ESCALATE / ESCALATE / SWITCH / STOP / OTHER` 动作。
+- 抗感染决策保存为 `accepted` 后自动生成 48 小时复评任务；修改/删除决策会作废未完成任务。
+- 患者工作台批量展示复评待办；复评接口按患者科室权限校验，外链访问继续沿用原有鉴权。
+- `/api/health` 现在检查医生库、ICU 库（Mock 模式跳过）以及复评表；未就绪返回 HTTP 503，避免把“进程活着”误报成“系统可交付”。
+- 新增 `/api/system/build-info`，返回版本、提交号、构建时间、profile 和 ICU 数据源模式。
+
+**升级脚本**
+
+- 达梦：`sql/33_antibiotic_reassessment.sql`
+- MySQL/MariaDB：`sql/mysql/33_antibiotic_reassessment.sql`
+- `install.sh` 与 `install-mariadb-debian.sh` 已纳入 33 号增量脚本。
+
+**升级后自检**
+
+```sql
+-- 达梦
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."patient_doc_abx_reassessment";
+
+-- MySQL / MariaDB
+SELECT COUNT(*) FROM `patient_doc_abx_reassessment`;
+```
+
+访问 `/api/health`：`status=UP` 且 `reassessmentSchema=READY`；访问 `/api/system/build-info` 确认当前包版本与构建信息。

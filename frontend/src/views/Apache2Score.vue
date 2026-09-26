@@ -1,5 +1,8 @@
 <template>
   <div class="page">
+    <el-alert v-if="!inHospitalNo" type="warning" :closable="false" show-icon
+              title="缺少患者参数" description="请从患者工作台进入，或检查外链是否携带 inHospitalNo。" />
+    <el-alert v-if="loadError" type="error" :closable="false" show-icon :title="loadError" class="page-error" />
     <!-- 左侧边栏 -->
     <aside class="side">
       <div class="side-head">
@@ -710,6 +713,7 @@ import { getExternalHeaders, isExternalMode } from '../utils/external'
 import { getAuthHeaders, getUser } from '../utils/auth'
 import { useStaffSignature } from '../utils/staffSignature'
 import { operatorLabel } from '../utils/operator'
+import { markWorkbenchRefresh } from '../utils/patientContext'
 
 const route = useRoute()
 const inHospitalNo = ref(route.query.inHospitalNo || '')
@@ -796,6 +800,7 @@ const reportRef = ref(null)
 const reportViewRef = ref(null)
 const reportGenerating = ref(false)
 const saving = ref(false)
+const loadError = ref('')
 
 // 评分医师电子签名（按工号 username 反查 ICU CA 库；取不到则为空，文书不显示签名）
 const { signatureSrc: doctorSignature, load: loadDoctorSignature } = useStaffSignature()
@@ -1026,7 +1031,7 @@ onMounted(async () => {
 async function loadPatientInfo() {
   if (!inHospitalNo.value) return
   try {
-    const res = await request.get(`/apache2/patient-info/${inHospitalNo.value}`)
+    const res = await request.get(`/apache2/patient-info/${inHospitalNo.value}`, { silentError: true })
     if (res) {
       const data = res
       patientInfo.patientId = data.patientId || ''
@@ -1039,6 +1044,7 @@ async function loadPatientInfo() {
       if (data.age) form.age = parseInt(data.age)
     }
   } catch (e) {
+    loadError.value = '患者基础信息暂不可用：请检查 ICU 数据源、患者权限或外链是否已过期。'
     console.error('获取患者信息失败', e)
   }
 }
@@ -1046,7 +1052,7 @@ async function loadPatientInfo() {
 async function loadRecords() {
   if (!inHospitalNo.value) return
   try {
-    const res = await request.get(`/apache2/patient/${inHospitalNo.value}/records`)
+    const res = await request.get(`/apache2/patient/${inHospitalNo.value}/records`, { silentError: true })
     if (res) {
       records.value = res || []
       if (records.value.length > 0 && !currentRecord.value) {
@@ -1054,6 +1060,7 @@ async function loadRecords() {
       }
     }
   } catch (e) {
+    if (!loadError.value) loadError.value = 'APACHE II 评分记录暂不可用，请检查医生库连接后重试。'
     console.error('加载评分记录失败', e)
   }
 }
@@ -1449,6 +1456,7 @@ async function saveRecord() {
     const savedId = saved.id
     // 评分已落库：立即刷新左侧列表、复位按钮，用户无需等待PDF位图生成与大字段上传
     ElMessage.success('评分已保存，评分文书正在后台归档…')
+    markWorkbenchRefresh('apache2-saved')
     currentRecord.value = null
     await loadRecords()
     // 选中最新的一条记录
@@ -2042,6 +2050,8 @@ async function viewSavedPdf(rec) {
 
 <style scoped>
 * { margin: 0; padding: 0; box-sizing: border-box; }
+.page-error { position: fixed; top: 10px; left: 300px; right: 16px; z-index: 10; }
+
 .page { display: flex; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #f0f2f5; color: #303133; font-size: 14px; }
 
 /* 左侧边栏 */

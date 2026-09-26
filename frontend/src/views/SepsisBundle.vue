@@ -7,6 +7,7 @@
     </div>
 
     <div v-else v-loading="loading" class="page-body">
+      <el-alert v-if="loadError" type="error" :closable="false" show-icon :title="loadError" class="page-error" />
       <div class="sepsis-body">
       <!-- 左侧：评估记录列表（形式与 SOFA / APACHE II 评分记录一致） -->
       <aside class="side">
@@ -373,6 +374,7 @@ const router = useRouter()
 const inHospitalNo = computed(() => route.query.inHospitalNo || route.params.inHospitalNo || '')
 
 const loading = ref(false)
+const loadError = ref('')
 const diagnosisTime = ref('')
 /** 记录时间：医生可改，同时决定三块「系统参考」14 天窗口的结束点 */
 const recordTime = ref('')
@@ -610,7 +612,7 @@ function normTime(t) {
 async function loadHistory() {
   if (!inHospitalNo.value) return
   try {
-    const res = await request.get('/sepsis/bundle/history', { params: { inHospitalNo: inHospitalNo.value } })
+    const res = await request.get('/sepsis/bundle/history', { params: { inHospitalNo: inHospitalNo.value }, silentError: true })
     historyList.value = res || []
   } catch (e) {
     console.error('加载历史记录失败', e)
@@ -621,12 +623,13 @@ async function loadHistory() {
 async function loadData(assessId = null) {
   if (!inHospitalNo.value) return
   loading.value = true
+  loadError.value = ''
   try {
     let res
     if (assessId) {
-      res = await request.get(`/sepsis/bundle/detail/${assessId}`)
+      res = await request.get(`/sepsis/bundle/detail/${assessId}`, { silentError: true })
     } else {
-      res = await request.get('/sepsis/bundle/detail', { params: { inHospitalNo: inHospitalNo.value } })
+      res = await request.get('/sepsis/bundle/detail', { params: { inHospitalNo: inHospitalNo.value }, silentError: true })
     }
     if (res) {
       // 合并返回数据，但保留 bundle1h/3h/6h 对象引用
@@ -653,7 +656,7 @@ async function loadData(assessId = null) {
     }
   } catch (e) {
     console.error('加载脓毒症集束化治疗数据失败', e)
-    ElMessage.error('加载数据失败')
+    loadError.value = '脓毒症集束化数据暂不可用：请检查 ICU 数据源、患者权限或外链是否已过期。'
   } finally {
     loading.value = false
   }
@@ -686,6 +689,7 @@ async function runCalculate() {
   // 编辑态：在该记录基础上重算，保留医生已勾选项目；新建态：全量填充
   const keepManual = !!data.id
   loading.value = true
+  loadError.value = ''
   try {
     const params = {
       inHospitalNo: inHospitalNo.value,
@@ -693,7 +697,7 @@ async function runCalculate() {
       diagnosisTime: normTime(diagnosisTime.value)
     }
     if (data.id) params.id = data.id
-    const res = await request.get('/sepsis/bundle/calculate', { params })
+    const res = await request.get('/sepsis/bundle/calculate', { params, silentError: true })
     if (res) applyCalcResult(res, keepManual)
     return true
   } catch (e) {
@@ -956,6 +960,8 @@ onMounted(() => {
   min-height: 100vh;
   background: #fafaf9;
 }
+
+.page-error { margin-bottom: 16px; }
 
 .page-body {
   padding: 16px 24px 32px;
@@ -1761,4 +1767,3 @@ onMounted(() => {
   }
 }
 </style>
-

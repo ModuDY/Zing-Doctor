@@ -184,6 +184,12 @@ const routes = [
     meta: { title: '参数设置' }
   },
   {
+    path: '/page/system-check',
+    name: 'systemCheck',
+    component: () => import('../views/SystemCheck.vue'),
+    meta: { title: '交付自检' }
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'notFound',
     component: () => import('../views/NotFound.vue'),

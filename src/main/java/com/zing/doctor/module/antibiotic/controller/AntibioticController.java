@@ -8,14 +8,19 @@ import com.zing.doctor.icu.service.IcuPatientService;
 import com.zing.doctor.icu.service.UserDepartScopeService;
 import com.zing.doctor.module.antibiotic.dto.PatientAssessmentView;
 import com.zing.doctor.module.antibiotic.dto.PkpdAssessmentView;
+import com.zing.doctor.module.antibiotic.dto.AntibioticReassessmentRequest;
+import com.zing.doctor.module.antibiotic.entity.AntibioticReassessment;
 import com.zing.doctor.module.antibiotic.entity.DecisionRecord;
+import com.zing.doctor.module.antibiotic.mapper.DecisionRecordMapper;
 import com.zing.doctor.module.antibiotic.service.AntibioticDecisionService;
+import com.zing.doctor.module.antibiotic.service.AntibioticReassessmentService;
 import com.zing.doctor.module.antibiotic.service.PkpdService;
 import com.zing.doctor.module.antibiotic.service.impl.AntibioticDecisionServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -37,6 +42,8 @@ public class AntibioticController {
     private final IcuPatientService icuPatientService;
     private final PkpdService pkpdService;
     private final UserDepartScopeService departScopeService;
+    private final AntibioticReassessmentService reassessmentService;
+    private final DecisionRecordMapper decisionRecordMapper;
 
     /**
      * 疑似感染/脓毒症患者列表。
@@ -67,17 +74,21 @@ public class AntibioticController {
 
     /** 单患者决策页：评估数据 + 推荐方案（按 ICU 内部 patientId） */
     @GetMapping("/patients/{patientId}/assessment")
-    public Result<PatientAssessmentView> assessment(@PathVariable("patientId") String patientId) {
+    public Result<PatientAssessmentView> assessment(@PathVariable("patientId") String patientId,
+                                                    HttpServletRequest request) {
+        assertPatientAccess(patientId, request);
         return Result.ok(decisionService.getAssessmentView(patientId));
     }
 
     /** 单患者决策页：评估数据 + 推荐方案（按 ICU 外链住院号 inHospitalNo 定位患者） */
     @GetMapping("/patients/by-no/assessment")
-    public Result<PatientAssessmentView> assessmentByNo(@RequestParam("inHospitalNo") String inHospitalNo) {
+    public Result<PatientAssessmentView> assessmentByNo(@RequestParam("inHospitalNo") String inHospitalNo,
+                                                       HttpServletRequest request) {
         String patientId = icuPatientService.resolvePatientIdByInHospitalNo(inHospitalNo);
         if (patientId == null) {
             throw new BizException(404, "未找到住院号对应的在科患者：" + inHospitalNo);
         }
+        assertPatientAccess(patientId, request);
         return Result.ok(decisionService.getAssessmentView(patientId));
     }
 
@@ -87,7 +98,9 @@ public class AntibioticController {
                                      @RequestParam(value = "doctorDecision", required = false) String doctorDecision,
                                      @RequestParam(value = "decisionStatus", defaultValue = "accepted") String decisionStatus,
                                      @RequestParam(value = "doctorId", required = false) String doctorId,
-                                     @RequestParam(value = "doctorName", required = false) String doctorName) {
+                                     @RequestParam(value = "doctorName", required = false) String doctorName,
+                                     HttpServletRequest request) {
+        assertPatientAccess(patientId, request);
         return Result.ok(decisionService.saveDecision(
                 patientId, doctorDecision, decisionStatus, doctorId, doctorName));
     }
@@ -98,38 +111,119 @@ public class AntibioticController {
                                        @RequestParam(value = "doctorDecision", required = false) String doctorDecision,
                                        @RequestParam(value = "decisionStatus", defaultValue = "accepted") String decisionStatus,
                                        @RequestParam(value = "doctorId", required = false) String doctorId,
-                                       @RequestParam(value = "doctorName", required = false) String doctorName) {
+                                       @RequestParam(value = "doctorName", required = false) String doctorName,
+                                       HttpServletRequest request) {
+        assertDecisionAccess(id, request);
         return Result.ok(decisionService.updateDecisionRecord(
                 id, doctorDecision, decisionStatus, doctorId, doctorName));
     }
 
     /** 删除医生决策记录 */
     @PostMapping("/decision-record/delete")
-    public Result<Void> deleteDecision(@RequestParam("id") Long id) {
+    public Result<Void> deleteDecision(@RequestParam("id") Long id, HttpServletRequest request) {
+        assertDecisionAccess(id, request);
         decisionService.deleteDecisionRecord(id);
         return Result.ok();
     }
 
     /** 患者决策历史 */
     @GetMapping("/patients/{patientId}/records")
-    public Result<List<DecisionRecord>> records(@PathVariable("patientId") String patientId) {
+    public Result<List<DecisionRecord>> records(@PathVariable("patientId") String patientId,
+                                                HttpServletRequest request) {
+        assertPatientAccess(patientId, request);
         if (decisionService instanceof AntibioticDecisionServiceImpl) {
             return Result.ok(((AntibioticDecisionServiceImpl) decisionService).listByPatient(patientId));
         }
         return Result.ok(java.util.Collections.emptyList());
     }
 
+    // ==================== 抗感染 48～72 小时复评 ====================
+
+    /** 查询患者复评记录；患者科室边界与工作台一致。 */
+    @GetMapping("/patients/{patientId}/reassessments")
+    public Result<List<AntibioticReassessment>> reassessments(@PathVariable("patientId") String patientId,
+                                                              HttpServletRequest request) {
+        assertPatientAccess(patientId, request);
+        return Result.ok(reassessmentService.listByPatient(patientId));
+    }
+
+    /** 查询当前科室待复评任务。 */
+    @GetMapping("/reassessments/pending")
+    public Result<List<AntibioticReassessment>> pendingReassessments(
+            @RequestParam(required = false) String departCode, HttpServletRequest request) {
+        String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+        return Result.ok(reassessmentService.listPending(allowed));
+    }
+
+    /** 保存 48～72 小时复评结果。 */
+    @PostMapping("/reassessment/complete")
+    public Result<AntibioticReassessment> completeReassessment(
+            @RequestBody AntibioticReassessmentRequest body, HttpServletRequest request) {
+        assertTaskAccess(body == null ? null : body.getId(), request);
+        return Result.ok(reassessmentService.complete(body));
+    }
+
+    /** 跳过 48～72 小时复评，并保留跳过原因。 */
+    @PostMapping("/reassessment/skip")
+    public Result<AntibioticReassessment> skipReassessment(
+            @RequestBody AntibioticReassessmentRequest body, HttpServletRequest request) {
+        assertTaskAccess(body == null ? null : body.getId(), request);
+        return Result.ok(reassessmentService.skip(body));
+    }
+
+    private void assertPatientAccess(String patientId, HttpServletRequest request) {
+        if (patientId == null || patientId.trim().isEmpty()) {
+            throw new BizException(400, "缺少患者标识");
+        }
+        IcuPatientBrief patient = icuPatientService.getPatientBrief(patientId);
+        if (patient == null) {
+            throw new BizException(404, "未找到患者：" + patientId);
+        }
+        departScopeService.resolveQueryDepart(currentUsername(request), patient.getDepartCode());
+    }
+
+    private void assertTaskAccess(Long id, HttpServletRequest request) {
+        if (id == null) {
+            throw new BizException(400, "缺少复评任务 ID");
+        }
+        AntibioticReassessment task = reassessmentService.getById(id);
+        if (task == null) {
+            throw new BizException(404, "复评任务不存在：" + id);
+        }
+        assertPatientAccess(task.getPatientId(), request);
+    }
+
+    /** 决策记录的更新/删除也必须沿用患者科室边界，不能只保护查询接口。 */
+    private void assertDecisionAccess(Long id, HttpServletRequest request) {
+        if (id == null) {
+            throw new BizException(400, "缺少决策记录 ID");
+        }
+        DecisionRecord record = decisionRecordMapper.selectById(id);
+        if (record == null) {
+            throw new BizException(404, "决策记录不存在：" + id);
+        }
+        assertPatientAccess(record.getPatientId(), request);
+    }
+
     // ==================== 第二维度：PK/PD 剂量优化 ====================
 
     /** 第二维度：PK/PD 抗菌药物剂量优化（按 patientId） */
     @GetMapping("/patients/{patientId}/pkpd")
-    public Result<PkpdAssessmentView> pkpd(@PathVariable("patientId") String patientId) {
+    public Result<PkpdAssessmentView> pkpd(@PathVariable("patientId") String patientId,
+                                           HttpServletRequest request) {
+        assertPatientAccess(patientId, request);
         return Result.ok(pkpdService.getPkpdAssessment(patientId));
     }
 
     /** 第二维度：PK/PD 抗菌药物剂量优化（按 ICU 外链住院号 inHospitalNo） */
     @GetMapping("/patients/by-no/pkpd")
-    public Result<PkpdAssessmentView> pkpdByNo(@RequestParam("inHospitalNo") String inHospitalNo) {
+    public Result<PkpdAssessmentView> pkpdByNo(@RequestParam("inHospitalNo") String inHospitalNo,
+                                               HttpServletRequest request) {
+        String patientId = icuPatientService.resolvePatientIdByInHospitalNo(inHospitalNo);
+        if (patientId == null) {
+            throw new BizException(404, "未找到住院号对应的在科患者：" + inHospitalNo);
+        }
+        assertPatientAccess(patientId, request);
         return Result.ok(pkpdService.getPkpdAssessmentByInHospitalNo(inHospitalNo));
     }
 }

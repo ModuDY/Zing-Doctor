@@ -28,12 +28,36 @@
       :title="scope.message"
     />
     <el-alert
+      v-if="scopeLoadError"
+      class="wb-notice"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="scopeLoadError"
+    />
+    <el-alert
       v-if="needPick"
       class="wb-notice"
       type="warning"
       :closable="false"
       show-icon
       title="该账号有多个科室权限，请先选择科室后再查看患者。"
+    />
+    <el-alert
+      v-if="dataHealth"
+      class="wb-notice data-health-notice"
+      :type="dataHealth.type"
+      :closable="false"
+      show-icon
+      :title="dataHealth.text"
+    />
+    <el-alert
+      v-if="patientsLoadError"
+      class="wb-notice"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="patientsLoadError"
     />
 
     <section class="wb-card filter-card">
@@ -187,7 +211,8 @@
               <template v-else-if="row.suspectedInfection">
                 <div class="infection-line">
                   <span :class="['risk-tag', riskClass(row.infectionRiskLevel)]">{{ row.infectionRiskLevel || '疑似感染' }}</span>
-                  <span class="infection-type" :title="row.infectionEvidence">{{ row.infectionType || '感染部位待明确' }}</span>
+                  <span class="infection-type">{{ row.infectionType || '感染部位待明确' }}</span>
+                  <el-button link type="primary" size="small" class="evidence-link" @click.stop="showEvidence(row)">查看依据</el-button>
                 </div>
                 <div class="status-tags">
                   <span v-if="row.septicShock" class="crit-tag septic">休克</span>
@@ -202,10 +227,23 @@
           </el-table-column>
           <el-table-column label="待办" width="80" align="center">
             <template #default="{ row }">
-              <el-tooltip v-if="row.todoCount > 0" :disabled="!row.todos || !row.todos.length" placement="top">
-                <template #content><div class="todo-tooltip"><div v-for="t in row.todos" :key="t">{{ todoLabel(t) }}</div></div></template>
-                <span class="todo-badge">{{ row.todoCount }}</span>
-              </el-tooltip>
+              <el-popover v-if="row.todoCount > 0" trigger="click" placement="top" width="220">
+                <template #reference>
+                  <span class="todo-badge" @click.stop>{{ row.todoCount }}</span>
+                </template>
+                <div class="todo-popover">
+                  <div class="todo-popover-title">今日待办</div>
+                  <button
+                    v-for="t in row.todos"
+                    :key="t"
+                    type="button"
+                    class="todo-link"
+                    @click="goTodo(row, t)"
+                  >
+                    {{ todoLabel(t) }}
+                  </button>
+                </div>
+              </el-popover>
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
@@ -254,6 +292,7 @@
               <template v-else-if="row.suspectedInfection">
                 <span :class="['risk-tag', riskClass(row.infectionRiskLevel)]">{{ row.infectionRiskLevel || '疑似感染' }}</span>
                 <span class="infection-type">{{ row.infectionType || '感染部位待明确' }}</span>
+                <el-button link type="primary" size="small" class="evidence-link" @click.stop="showEvidence(row)">依据</el-button>
               </template>
               <span v-else class="muted">未发现疑似感染证据</span>
             </div>
@@ -280,19 +319,43 @@
         <div v-else-if="!loading && filteredPatients.length === 0 && viewMode === 'table'" class="empty-foot">没有匹配的患者，试试清空搜索条件。</div>
       </div>
     </section>
+    <el-dialog v-model="evidenceVisible" title="感染风险判定依据" width="520px" destroy-on-close>
+      <div v-if="evidencePatient" class="evidence-dialog">
+        <div class="evidence-patient-head">
+          <strong>{{ evidencePatient.name || '未知患者' }}</strong>
+          <span>{{ evidencePatient.bedNo || '—' }}床 · {{ evidencePatient.patientNo || '—' }}</span>
+        </div>
+        <div class="evidence-grid">
+          <div><span>感染风险</span><strong>{{ evidencePatient.infectionRiskLevel || '疑似感染' }}</strong></div>
+          <div><span>感染类型</span><strong>{{ evidencePatient.infectionType || '感染部位待明确' }}</strong></div>
+          <div><span>休克</span><strong>{{ evidencePatient.septicShock ? '是' : '否' }}</strong></div>
+          <div><span>MDR / MRSA</span><strong>{{ evidencePatient.mdrRisk ? 'MDR ' : '' }}{{ evidencePatient.mrsaRisk ? 'MRSA' : (!evidencePatient.mdrRisk ? '否' : '') }}</strong></div>
+          <div><span>真菌风险</span><strong>{{ evidencePatient.fungalRisk ? '是' : '否' }}</strong></div>
+          <div><span>PCT</span><strong>{{ evidencePatient.pct == null ? '—' : evidencePatient.pct }}</strong></div>
+        </div>
+        <div class="evidence-block">
+          <span class="evidence-label">系统判定依据</span>
+          <p>{{ evidencePatient.infectionEvidence || '暂无可展示的判定依据。' }}</p>
+        </div>
+        <div class="evidence-foot">数据状态：{{ evidencePatient.infectionDataStatus === 'UNKNOWN' ? '部分数据不可用' : '已获取 ICU 数据' }}</div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { Refresh, Search, ArrowDown } from '@element-plus/icons-vue'
 import { externalParam } from '../utils/external'
 import '../styles/quality-theme.css'
 import { fetchInpatients, fetchDepartScope } from '../api/workbench'
 import request from '../api/request'
 import { normalizeDepartParam, deptNameOf } from '../utils/depart'
-import { setCurrentPatient, clearCurrentPatient } from '../utils/patientContext'
+import {
+  setCurrentPatient,
+  clearCurrentPatient,
+  workbenchRefreshToken
+} from '../utils/patientContext'
 
 const router = useRouter()
 const route = useRoute()
@@ -306,7 +369,7 @@ const PATIENT_VIEWS = [
   { key: 'all', label: '全部患者' },
   { key: 'infection', label: '感染风险' },
   { key: 'critical', label: '高危患者' },
-  { key: 'todo', label: '我的待办' }
+  { key: 'todo', label: '今日待办' }
 ]
 
 /** 视图可用 URL 指定（旧链接 /page/abx-patient-list 会重定向到 ?view=infection） */
@@ -327,15 +390,37 @@ const departCode = ref(externalParam('departCode'))
 // 多科室账号尚未选定科室：此时不查数据、也不退回全院，等用户在下拉里选
 const needPick = ref(false)
 const scope = ref({ admin: false, matched: false, departs: [], message: '' })
+const scopeLoadError = ref('')
+const patientsLoadError = ref('')
 const keyword = ref('')
 // 视图模式：table 表格 / cards 床头卡；默认读参数设置 WORKBENCH_VIEW_MODE
 const viewMode = ref('table')
 const sortBy = ref('newest')
 const updatedAt = ref('')
+const refreshToken = ref(workbenchRefreshToken())
+const evidenceVisible = ref(false)
+const evidencePatient = ref(null)
 
 const scopeText = computed(() => {
   if (needPick.value) return '待选择科室'
   return departCode.value ? `科室：${deptNameOf(departCode.value, departments.value)}` : '全院（未限定科室）'
+})
+
+const dataHealth = computed(() => {
+  if (loading.value) return { type: 'info', text: '正在同步 ICU 数据…' }
+  if (scopeLoadError.value || patientsLoadError.value || needPick.value) return null
+  if (scope.value.username && !scope.value.admin && !scope.value.matched) return null
+  if (!patients.value.length && scope.value.matched) {
+    return { type: 'warning', text: '暂无在科患者，或 ICU 数据暂不可用，请结合科室范围和数据源状态判断。' }
+  }
+  const unknownCount = patients.value.filter((p) => p.infectionDataStatus === 'UNKNOWN').length
+  if (unknownCount === patients.value.length && patients.value.length) {
+    return { type: 'error', text: '感染数据源异常，当前感染风险结果不可作为“无感染”判断。' }
+  }
+  if (unknownCount > 0) {
+    return { type: 'warning', text: `感染数据部分不可用：${unknownCount} 人，请勿将“暂不可用”当作“无感染”。` }
+  }
+  return patients.value.length ? { type: 'success', text: 'ICU 数据正常' } : null
 })
 
 const stats = computed(() => {
@@ -388,10 +473,30 @@ function riskClass(level) {
 
 const TODO_LABELS = {
   SOFA_NOT_TODAY: '今日尚未评 SOFA',
-  APACHE_NOT_TODAY: '今日尚未评 APACHE II'
+  APACHE_NOT_TODAY: '今日尚未评 APACHE II',
+  ABX_REASSESSMENT_PENDING: '抗感染 48～72 小时复评待处理'
 }
 function todoLabel(code) {
   return TODO_LABELS[code] || code
+}
+
+function goTodo(row, code) {
+  if (code === 'SOFA_NOT_TODAY') {
+    goSofa(row)
+    return
+  }
+  if (code === 'APACHE_NOT_TODAY') {
+    jump('/page/apache2-score', row)
+    return
+  }
+  if (code === 'ABX_REASSESSMENT_PENDING') {
+    goDecision(row)
+  }
+}
+
+function showEvidence(row) {
+  evidencePatient.value = row
+  evidenceVisible.value = true
 }
 
 /** 当前视图内的患者：视图决定"看哪一批人"，搜索与排序在这批人内部生效 */
@@ -456,6 +561,7 @@ const emptyText = computed(() => {
  * 没拿到范围就发列表请求，会被服务端判成越权而报错，页面先闪一遍错误再恢复。
  */
 async function initScope() {
+  scopeLoadError.value = ''
   try {
     const s = await fetchDepartScope()
     scope.value = s || {}
@@ -485,7 +591,7 @@ async function initScope() {
       needPick.value = false
     }
   } catch (e) {
-    ElMessage.error(`科室范围加载失败：${e.message}`)
+    scopeLoadError.value = '科室权限暂不可用，未加载患者列表。请检查医生库连接后重试。'
     departments.value = []
   }
 }
@@ -496,15 +602,17 @@ async function loadPatients() {
   // 服务端那层校验必须保留 —— 前端拦不住直接调接口的情况。
   if (scope.value.username && !scope.value.admin && !departCode.value) {
     patients.value = []
+    patientsLoadError.value = ''
     return
   }
   loading.value = true
+  patientsLoadError.value = ''
   try {
     patients.value = await fetchInpatients(departCode.value)
     updatedAt.value = new Date().toLocaleString('zh-CN', { hour12: false })
   } catch (e) {
     patients.value = []
-    ElMessage.error(`患者列表加载失败：${e.message}`)
+    patientsLoadError.value = 'ICU 数据源暂不可用，患者列表未加载；请检查连接后重试。'
   } finally {
     loading.value = false
   }
@@ -527,10 +635,22 @@ function onViewModeChange(mode) {
 }
 
 onMounted(async () => {
+  window.addEventListener('zing:workbench-refresh', onWorkbenchRefresh)
   await initViewMode()
   await initScope()
   loadPatients()
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('zing:workbench-refresh', onWorkbenchRefresh)
+})
+
+function onWorkbenchRefresh(event) {
+  const token = event?.detail?.value || workbenchRefreshToken()
+  if (!token || token === refreshToken.value) return
+  refreshToken.value = token
+  loadPatients()
+}
 
 // 同一路径只换 query 时组件不会重新挂载（从菜单点「感染风险」进来就是这种情况），
 // 所以视图变化要单独监听，否则点了菜单页面纹丝不动。
@@ -552,7 +672,14 @@ function jump(path, row) {
   // 那个页面读不到患者就空着 —— 正是「进其他页面就丢掉了」的原因。
   // 注入逻辑见 router/index.js 的 PATIENT_PAGES。
   setCurrentPatient(row)
-  router.push({ path, query: { patientId: row.patientId } })
+  router.push({ path, query: {
+    ...route.query,
+    patientId: row.patientId,
+    inHospitalNo: row.inHospitalNo || '',
+    inDepartTime: row.inDepartmentTime || '',
+    departCode: row.departCode || '',
+    ...(row.name ? { patientName: row.name } : {})
+  } })
 }
 
 /**
@@ -747,6 +874,7 @@ function onDepartChange() {
 .risk-tag.risk-high { color: #b91c1c; background: #fee2e2; font-weight: 600; }
 .risk-tag.risk-mid { color: #b45309; background: #fef3c7; }
 .risk-tag.risk-low { color: #475569; background: #f1f5f9; }
+.evidence-link { flex: 0 0 auto; padding: 0 2px; font-size: 11px; }
 .infection-type {
   max-width: 104px;
   overflow: hidden;
@@ -765,8 +893,11 @@ function onDepartChange() {
 .bed-card-infection { display: flex; align-items: center; gap: 6px; padding-top: 6px; font-size: 12px; }
 .sofa-badge { display: inline-flex; padding: 2px 6px; border-radius: 999px; color: #78716c; background: #f5f5f4; font-size: 11px; font-weight: 500; }
 .sofa-badge.severe { color: #b91c1c; background: #fee2e2; font-weight: 700; }
-.todo-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 23px; height: 23px; padding: 0 7px; border-radius: 999px; color: #fff; background: #dc2626; font-size: 12px; font-weight: 700; }
-.todo-tooltip { min-width: 150px; line-height: 1.8; }
+.todo-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 23px; height: 23px; padding: 0 7px; border-radius: 999px; color: #fff; background: #dc2626; font-size: 12px; font-weight: 700; cursor: pointer; }
+.todo-popover { display: flex; flex-direction: column; gap: 6px; }
+.todo-popover-title { color: #78716c; font-size: 12px; font-weight: 600; }
+.todo-link { padding: 5px 6px; border: 0; border-radius: 5px; color: #c2410c; background: #fff7ed; text-align: left; cursor: pointer; font-size: 12px; }
+.todo-link:hover { background: #ffedd5; }
 .muted { color: #a8a29e; }
 .empty-foot { padding: 38px 16px; text-align: center; color: #a8a29e; font-size: 12px; }
 .bed-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; padding: 16px 8px 8px; }
@@ -789,4 +920,16 @@ function onDepartChange() {
 .bed-card-actions { justify-content: flex-start; padding-top: 10px; }
 @media (max-width: 980px) { .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .list-heading { align-items: flex-start; flex-direction: column; } }
 @media (max-width: 680px) { .wb-page { padding: 16px 12px 30px; } .wb-hero { flex-direction: column; } .hero-actions { padding-top: 0; } .filter-card, .overview-card { padding: 16px; } .filter-field, .filter-field.search-field { width: 100%; min-width: 0; } .stat-grid { grid-template-columns: 1fr; } .section-heading { align-items: flex-start; flex-direction: column; } .section-hint { white-space: normal; } .overview-tags { justify-content: flex-start; } .list-heading { padding: 16px; } .list-body { padding: 0 2px 8px; overflow-x: auto; } .list-body :deep(.el-table) { min-width: 920px; } .bed-card-grid { grid-template-columns: 1fr; padding-left: 2px; padding-right: 2px; } }
+.data-health-notice { margin-top: 8px; }
+.evidence-dialog { color: #44403c; }
+.evidence-patient-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #f5f5f4; }
+.evidence-patient-head strong { color: #292524; font-size: 18px; }
+.evidence-patient-head span, .evidence-foot { color: #a8a29e; font-size: 12px; }
+.evidence-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 16px 0; }
+.evidence-grid > div { display: flex; flex-direction: column; gap: 4px; }
+.evidence-grid span, .evidence-label { color: #a8a29e; font-size: 12px; }
+.evidence-grid strong { color: #44403c; font-size: 13px; }
+.evidence-block { padding: 12px; border-radius: 8px; background: #fafaf9; }
+.evidence-block p { margin: 8px 0 0; color: #57534e; font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
+.evidence-foot { margin-top: 12px; }
 </style>

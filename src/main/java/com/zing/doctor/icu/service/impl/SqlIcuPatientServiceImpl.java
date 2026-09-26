@@ -423,6 +423,8 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         IcuPatientBrief p = new IcuPatientBrief();
         p.setPatientId(str(row.get("patient_id")));
         p.setPatientNo(str(row.get("patient_no")));
+        p.setInHospitalNo(str(row.get("in_hospital_no")));
+        p.setDepartCode(str(row.get("depart_code")));
         p.setName(str(row.get("name")));
         p.setAge(parseInt(row.get("age")));
         p.setGender(str(row.get("gender")));

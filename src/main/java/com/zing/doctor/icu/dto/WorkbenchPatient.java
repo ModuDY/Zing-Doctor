@@ -57,6 +57,14 @@ public class WorkbenchPatient {
     /** 待办数（=todos.size()，前端直接用） */
     private Integer todoCount = 0;
 
+    // ---- 抗感染 48～72 小时复评 ----
+    /** 当前患者尚未完成的复评任务数。正常情况下为 0 或 1。 */
+    private Integer reassessmentCount = 0;
+    /** 当前最早一条待复评任务的计划时间。 */
+    private LocalDateTime reassessmentDueTime;
+    /** FOUND 已完成查询；UNKNOWN 查询失败，不能解释为没有待复评。 */
+    private String reassessmentDataStatus = "FOUND";
+
     // ---- 感染维度（批量回填到全量在科患者，左连接语义：没有就是没有）----
 
     /**

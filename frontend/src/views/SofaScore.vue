@@ -1,6 +1,9 @@
 <template>
   <div class="sofa-page">
-    <div class="app">
+    <el-alert v-if="!inHospitalNo && !patientId" type="warning" :closable="false" show-icon
+              title="缺少患者参数" description="请从患者工作台进入，或检查外链是否携带 patientId / inHospitalNo。" />
+    <div v-else class="app">
+      <el-alert v-if="loadError" type="error" :closable="false" show-icon :title="loadError" class="page-error" />
       <!-- ============ 左侧：评分记录 ============ -->
       <aside class="side">
         <div class="side-head">
@@ -639,6 +642,7 @@ import {
 import { isExternalMode } from '../utils/external'
 import { useStaffSignature } from '../utils/staffSignature'
 import { operatorLabel } from '../utils/operator'
+import { markWorkbenchRefresh } from '../utils/patientContext'
 import { getUser } from '../utils/auth'
 
 const HOSPITAL_LOGO = '/logo.png'  /* 院徽静态资源：frontend/public/logo.png，构建后随 dist 输出 */
@@ -699,6 +703,7 @@ const records = ref([])
 const doctorRemark = ref('')
 const saving = ref(false)
 const loading = ref(false)
+const loadError = ref('')
 
 const rangeStart = ref('')
 const rangeEnd = ref('')
@@ -1253,6 +1258,11 @@ function fmtTime(t) {
 
 
 async function loadAssessment() {
+  if (!inHospitalNo.value && !patientId.value) {
+    loadError.value = '缺少患者参数，无法加载 SOFA 数据。请从患者工作台重新进入。'
+    return
+  }
+  loadError.value = ''
   // 统一入口校验：所有取数（快捷区间 / 按入科时间 / 手动点按钮）都走这里
   if (!(await validateRange())) return
   rangeDirty.value = false
@@ -1283,6 +1293,7 @@ async function loadAssessment() {
     urineMl.value = res.urineMl
     if (res.patient && res.patient.inHospitalNo) inHospitalNo.value = res.patient.inHospitalNo
   } catch (e) {
+    loadError.value = 'SOFA 数据暂不可用：请检查 ICU 数据源、患者权限或外链是否已过期。'
     console.warn('SOFA 取数失败：', e.message || e)
   } finally {
     loading.value = false
@@ -1446,6 +1457,7 @@ async function saveRecord() {
     const saved = await saveSofaRecord(rec, toBackend(rangeStart.value), toBackend(rangeEnd.value))
     const savedId = saved && saved.id ? saved.id : null
     ElMessage.success(cur ? '评分已更新，评分文书正在后台归档…' : '评分已保存，评分文书正在后台归档…')
+    markWorkbenchRefresh('sofa-saved')
     doctorRemark.value = ''
     // 高亮刚落库的记录；不重新载入其分值（当前分值就是刚落库的内容）
     currentRecordId.value = savedId
@@ -1924,6 +1936,8 @@ function base64ToBlob(base64, type) {
 .report-offscreen { position: absolute; left: -9999px; top: 0; width: 794px; pointer-events: none; }
 
 /* ===== 全局基调（与 APACHE II 评分页统一：背景/文字/主色） ===== */
+.page-error { margin: 10px 16px 0; }
+
 .sofa-page {
   min-height: 100vh;
   background: #f0f2f5;

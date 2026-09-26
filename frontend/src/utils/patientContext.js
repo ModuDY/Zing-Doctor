@@ -20,6 +20,7 @@ import { reactive, watch } from 'vue'
  * 少存一个，另一半页面照样是空的。
  */
 const STORAGE_KEY = 'zing_current_patient'
+const WORKBENCH_REFRESH_KEY = 'zing_workbench_refresh_at'
 
 const EMPTY = {
   patientId: '',
@@ -74,6 +75,16 @@ export function clearCurrentPatient() {
   Object.assign(currentPatient, EMPTY)
 }
 
+/** 评分/决策等单患者页面保存成功后通知患者工作台重新取数。 */
+export function markWorkbenchRefresh(reason = 'patient-updated') {
+  const value = `${Date.now()}:${reason}`
+  sessionStorage.setItem(WORKBENCH_REFRESH_KEY, value)
+  window.dispatchEvent(new CustomEvent('zing:workbench-refresh', { detail: { value, reason } }))
+}
+
+export function workbenchRefreshToken() {
+  return sessionStorage.getItem(WORKBENCH_REFRESH_KEY) || ''
+}
 export function hasCurrentPatient() {
   return !!currentPatient.patientId
 }

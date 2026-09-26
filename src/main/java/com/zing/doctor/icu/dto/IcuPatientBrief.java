@@ -20,8 +20,14 @@ public class IcuPatientBrief implements Serializable {
     /** ICU 患者 ID */
     private String patientId;
 
-    /** 住院号/就诊号 */
+    /** 住院号/就诊号（展示/兼容字段） */
     private String patientNo;
+
+    /** ICU 原始住院号，跨模块关联使用，不要用脱敏展示值替代。 */
+    private String inHospitalNo;
+
+    /** sys_depart.org_code，工作台/复评任务的科室边界。 */
+    private String departCode;
 
     /** 姓名（脱敏展示） */
     private String name;

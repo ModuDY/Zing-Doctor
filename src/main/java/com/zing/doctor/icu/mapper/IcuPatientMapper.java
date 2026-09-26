@@ -116,7 +116,7 @@ public interface IcuPatientMapper {
      */
     @Select({"<script>",
             "SELECT t.* FROM (",
-            "  SELECT pi.id AS patient_id, pi.in_hospital_no AS patient_no, pi.name AS name, ",
+            "  SELECT pi.id AS patient_id, pi.in_hospital_no AS patient_no, pi.in_hospital_no AS in_hospital_no, pi.depart_code AS depart_code, pi.name AS name, ",
             "         pi.age AS age, pi.gender AS gender, pi.ward_name AS department, ",
             "         pi.bed_code AS bed_no, pi.is_sepsis_shock AS septic_shock, ",
             "         pi.multidrug_resistant_bacteria AS mdr_bacteria, ",
@@ -262,7 +262,7 @@ public interface IcuPatientMapper {
     List<Map<String, Object>> selectCurrentAbxAdviceByNos(@Param("inHospitalNos") List<String> inHospitalNos);
 
     /** 单患者基本信息（评估页用） */
-    @Select("SELECT pi.id AS patient_id, pi.in_hospital_no AS patient_no, pi.name AS name, "
+    @Select("SELECT pi.id AS patient_id, pi.in_hospital_no AS patient_no, pi.in_hospital_no AS in_hospital_no, pi.depart_code AS depart_code, pi.name AS name, "
             + "pi.age AS age, pi.gender AS gender, pi.ward_name AS department, "
             + "pi.bed_code AS bed_no, pi.is_sepsis_shock AS septic_shock, "
             + "pi.multidrug_resistant_bacteria AS mdr_bacteria, "
@@ -275,7 +275,7 @@ public interface IcuPatientMapper {
 
     /** 按住院号（ICU 外链 inHospitalNo）查单患者（取最新在科记录） */
     @Select("SELECT * FROM ( "
-            + "  SELECT pi.id AS patient_id, pi.in_hospital_no AS patient_no, pi.name AS name, "
+            + "  SELECT pi.id AS patient_id, pi.in_hospital_no AS patient_no, pi.in_hospital_no AS in_hospital_no, pi.depart_code AS depart_code, pi.name AS name, "
             + "  pi.age AS age, pi.gender AS gender, pi.ward_name AS department, "
             + "  pi.bed_code AS bed_no, pi.is_sepsis_shock AS septic_shock, "
             + "  pi.multidrug_resistant_bacteria AS mdr_bacteria, "

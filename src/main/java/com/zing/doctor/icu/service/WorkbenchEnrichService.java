@@ -7,6 +7,8 @@ import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.support.InfectionRules;
 import com.zing.doctor.module.apache2.entity.Apache2ScoreRecord;
 import com.zing.doctor.module.apache2.mapper.Apache2ScoreRecordMapper;
+import com.zing.doctor.module.antibiotic.entity.AntibioticReassessment;
+import com.zing.doctor.module.antibiotic.mapper.AntibioticReassessmentMapper;
 import com.zing.doctor.module.sofa.entity.SofaScoreRecord;
 import com.zing.doctor.module.sofa.mapper.SofaScoreRecordMapper;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +51,7 @@ public class WorkbenchEnrichService {
     private final SofaScoreRecordMapper sofaMapper;
     private final Apache2ScoreRecordMapper apacheMapper;
     private final IcuPatientMapper icuPatientMapper;
+    private final AntibioticReassessmentMapper reassessmentMapper;
 
     /**
      * 给在科患者列表回填：最近 SOFA 总分、当日待办。
@@ -82,7 +85,7 @@ public class WorkbenchEnrichService {
                 p.setLastSofaScore(s.getTotalScore());
             }
 
-            List<String> todos = new ArrayList<>(2);
+            List<String> todos = new ArrayList<>(3);
             long icuDays = p.getIcuDays() == null ? 0 : p.getIcuDays();
             // 入科 ≥24h 还没评 SOFA
             if (icuDays >= 1 && !sofaToday.contains(p.getPatientId())) {
@@ -94,6 +97,57 @@ public class WorkbenchEnrichService {
             }
             p.setTodos(todos);
             p.setTodoCount(todos.size());
+        }
+    }
+
+    /**
+     * 批量回填抗感染复评待办。只查一次本系统复评表，避免工作台逐患者 N+1。
+     * 查询失败时标记 UNKNOWN，不能把「查不到」伪装成「没有待复评」。
+     */
+    public void enrichReassessmentTodos(List<WorkbenchPatient> patients) {
+        if (patients == null || patients.isEmpty()) {
+            return;
+        }
+        List<String> patientIds = patients.stream()
+                .map(WorkbenchPatient::getPatientId)
+                .filter(StrUtil::isNotBlank)
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+        if (patientIds.isEmpty()) {
+            return;
+        }
+        try {
+            List<AntibioticReassessment> pending = reassessmentMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<AntibioticReassessment>()
+                            .in(AntibioticReassessment::getPatientId, patientIds)
+                            .eq(AntibioticReassessment::getReviewStatus, "PENDING")
+                            .eq(AntibioticReassessment::getVoidFlag, 0)
+                            .orderByAsc(AntibioticReassessment::getReviewDueTime));
+            Map<String, List<AntibioticReassessment>> byPatient = new HashMap<>();
+            for (AntibioticReassessment task : pending) {
+                byPatient.computeIfAbsent(task.getPatientId(), k -> new ArrayList<>()).add(task);
+            }
+            for (WorkbenchPatient patient : patients) {
+                List<AntibioticReassessment> tasks = byPatient.getOrDefault(
+                        patient.getPatientId(), Collections.emptyList());
+                patient.setReassessmentCount(tasks.size());
+                patient.setReassessmentDueTime(tasks.isEmpty() ? null : tasks.get(0).getReviewDueTime());
+                patient.setReassessmentDataStatus("FOUND");
+                if (!tasks.isEmpty()) {
+                    List<String> todos = patient.getTodos() == null
+                            ? new ArrayList<>() : new ArrayList<>(patient.getTodos());
+                    if (!todos.contains("ABX_REASSESSMENT_PENDING")) {
+                        todos.add("ABX_REASSESSMENT_PENDING");
+                    }
+                    patient.setTodos(todos);
+                    patient.setTodoCount(todos.size());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("工作台抗感染复评待办查询失败，标记为数据不可用", e);
+            for (WorkbenchPatient patient : patients) {
+                patient.setReassessmentDataStatus("UNKNOWN");
+            }
         }
     }
 
