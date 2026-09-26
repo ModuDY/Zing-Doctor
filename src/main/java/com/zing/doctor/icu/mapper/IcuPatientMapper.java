@@ -88,34 +88,178 @@ public interface IcuPatientMapper {
     List<Map<String, Object>> selectAuthorizedDeparts(@Param("username") String username);
     /**
      * 疑似感染/脓毒症在科患者（含基础信息与多耐药标记）。
-     * 筛选条件：在科 + 未删除，且满足下列任一：
-     *  1) 脓毒性休克标记；
-     *  2) 诊断含感染/脓毒/肺炎/腹腔/血流/尿路/真菌等关键词；
-     *  3) 近期有降钙素原（PCT）检验结果（>0.5 ng/mL 的数值过滤在 Java 端完成，避免达梦 CAST 报错）。
+     *
+     * <p>入列条件（任一命中即入列）：
+     * <ol>
+     *   <li>{@code is_sepsis_shock = 1}（脓毒性休克标记）；</li>
+     *   <li>诊断含 脓毒/感染/肺炎/腹腔/腹膜炎/血流/菌血症/尿路/泌尿/真菌；</li>
+     *   <li>近 7 天有降钙素原（PCT）检验结果。</li>
+     * </ol>
+     *
+     * <p><b>为什么要带 shock_flag / diag_flag / pct_flag 三个命中标志回来</b>：
+     * 第 3 条只能判断"有结果"，判断不了数值——达梦里 PCT 结果可能是 {@code <0.05} 这类
+     * 非数字串，直接 CAST 比较会整条 SQL 报错，数值过滤必须放 Java 端。
+     * 因此这里只标记"是哪条命中的"，由 Service 对<b>仅靠 PCT 命中</b>的患者补一次
+     * {@code PCT >= 0.5} 判断；靠休克标记或感染诊断命中的患者不受影响——
+     * 他们的入列依据本身就是感染证据，不该因为 PCT 低就被剔出去。
+     *
+     * <p><b>同一住院号只保留最新在科记录</b>：patient_info 里同一次住院多次入科会有多行，
+     * 不去重会出现同一患者重复出现、检验/医嘱按住院号聚合时串到上一次住院。
+     * 与工作台 {@link #selectInpatients} 同一口径（PARTITION BY in_hospital_no 取 in_depart_time 最新）。
+     *
+     * <p>存在性判断写成 {@code (SELECT COUNT(1) ... AND ROWNUM <= 1) > 0} 而不是
+     * {@code EXISTS}：EXISTS 不能出现在 SELECT 列表里（达梦/Oracle 都不支持），
+     * 而命中标志必须在结果集中返回。加 ROWNUM 是为了找到第一条就停，避免全量 COUNT。
+     *
+     * @param departCode 科室编码（{@code sys_depart.org_code}）；null / 空 / "ALL" 表示不限科室。
+     *                   注意不要传 ward_name（病区名），与 org_code 不是同一套编码。
      */
-    @Select("SELECT pi.id AS patient_id, pi.in_hospital_no AS patient_no, pi.name AS name, "
-            + "pi.age AS age, pi.gender AS gender, pi.ward_name AS department, "
-            + "pi.bed_code AS bed_no, pi.is_sepsis_shock AS septic_shock, "
-            + "pi.multidrug_resistant_bacteria AS mdr_bacteria, "
-            + "pi.resistant_bacteria AS resistant_bacteria, "
-            + "pi.weight AS weight, pi.height AS height, pi.allergy_content AS allergy_content, "
-            + "pi.in_depart_time AS in_depart_time "
-            + "FROM \"zing_icu_db_prod\".\"patient_info\" pi "
-            + "WHERE pi.is_in_depart = 1 AND pi.del_flag = 0 "
-            + "AND (pi.is_sepsis_shock = 1 "
-            + "  OR EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d "
-            + "             WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 "
-            + "               AND (d.diag_name LIKE '%脓毒%' OR d.diag_name LIKE '%感染%' "
-            + "                    OR d.diag_name LIKE '%肺炎%' OR d.diag_name LIKE '%腹腔%' "
-            + "                    OR d.diag_name LIKE '%腹膜炎%' OR d.diag_name LIKE '%血流%' "
-            + "                    OR d.diag_name LIKE '%菌血症%' OR d.diag_name LIKE '%尿路%' "
-            + "                    OR d.diag_name LIKE '%泌尿%' OR d.diag_name LIKE '%真菌%')) "
-            + "  OR EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li "
-            + "             WHERE li.in_hospital_no = pi.in_hospital_no AND li.del_flag = 0 "
-            + "               AND li.lis_item_name LIKE '%降钙素原%' "
-            + "               AND li.lis_item_result IS NOT NULL AND li.lis_item_result <> '')) "
-            + "ORDER BY pi.in_depart_time DESC")
-    List<Map<String, Object>> selectSuspectPatients();
+    @Select({"<script>",
+            "SELECT t.* FROM (",
+            "  SELECT pi.id AS patient_id, pi.in_hospital_no AS patient_no, pi.name AS name, ",
+            "         pi.age AS age, pi.gender AS gender, pi.ward_name AS department, ",
+            "         pi.bed_code AS bed_no, pi.is_sepsis_shock AS septic_shock, ",
+            "         pi.multidrug_resistant_bacteria AS mdr_bacteria, ",
+            "         pi.resistant_bacteria AS resistant_bacteria, ",
+            "         pi.weight AS weight, pi.height AS height, pi.allergy_content AS allergy_content, ",
+            "         pi.in_depart_time AS in_depart_time, pi.depart_code AS depart_code, ",
+            "         CASE WHEN pi.is_sepsis_shock = 1 THEN 1 ELSE 0 END AS shock_flag, ",
+            "         CASE WHEN (SELECT COUNT(1) FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d ",
+            "                     WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 ",
+            "                       AND (d.diag_name LIKE '%脓毒%' OR d.diag_name LIKE '%感染%' ",
+            "                            OR d.diag_name LIKE '%肺炎%' OR d.diag_name LIKE '%腹腔%' ",
+            "                            OR d.diag_name LIKE '%腹膜炎%' OR d.diag_name LIKE '%血流%' ",
+            "                            OR d.diag_name LIKE '%菌血症%' OR d.diag_name LIKE '%尿路%' ",
+            "                            OR d.diag_name LIKE '%泌尿%' OR d.diag_name LIKE '%真菌%') ",
+            "                       AND ROWNUM &lt;= 1) &gt; 0 THEN 1 ELSE 0 END AS diag_flag, ",
+            "         CASE WHEN (SELECT COUNT(1) FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li ",
+            "                     WHERE li.in_hospital_no = pi.in_hospital_no AND li.del_flag = 0 ",
+            "                       AND li.lis_item_name LIKE '%降钙素原%' ",
+            "                       AND li.lis_item_result IS NOT NULL AND li.lis_item_result &lt;&gt; '' ",
+            "                       AND li.check_time &gt;= SYSDATE - 7 ",
+            "                       AND ROWNUM &lt;= 1) &gt; 0 THEN 1 ELSE 0 END AS pct_flag, ",
+            "         ROW_NUMBER() OVER (PARTITION BY pi.in_hospital_no ORDER BY pi.in_depart_time DESC) AS rn ",
+            "    FROM \"zing_icu_db_prod\".\"patient_info\" pi ",
+            "   WHERE pi.is_in_depart = 1 AND pi.del_flag = 0 ",
+            "  <if test=\"departCode != null and departCode != '' and departCode != 'ALL'\">",
+            "     AND pi.depart_code = #{departCode} ",
+            "  </if>",
+            ") t ",
+            "WHERE t.rn = 1 AND (t.shock_flag = 1 OR t.diag_flag = 1 OR t.pct_flag = 1) ",
+            "ORDER BY t.in_depart_time DESC",
+            "</script>"})
+    List<Map<String, Object>> selectSuspectPatients(@Param("departCode") String departCode);
+
+    // ==================================================================
+    // 疑似感染列表批量取数（一次性按患者集合查完，禁止逐患者 N+1）
+    // ==================================================================
+
+    /**
+     * 批量诊断（感染类型推断 + 休克类型推断共用，一次取回全部患者的诊断）。
+     *
+     * <p>列表页原先每个患者查 2 次诊断（感染类型 1 次、休克类型 1 次）外加 1 次兜底查询，
+     * 50 个患者就是 150 次；这里一次查完，Java 端按 patient_id 分组复用。
+     *
+     * <p>按 diag_time 倒序：调用方遍历时取到的第一条匹配即为最近的诊断。
+     */
+    @Select("<script>"
+            + "SELECT d.patient_id AS patient_id, d.diag_name AS diag_name, d.diag_time AS diag_time "
+            + "FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d "
+            + "WHERE d.del_flag = 0 AND d.status = 1 "
+            + "AND d.patient_id IN "
+            + "<foreach collection='patientIds' item='pid' open='(' separator=',' close=')'>"
+            + "  #{pid}"
+            + "</foreach>"
+            + " ORDER BY d.diag_time DESC"
+            + "</script>")
+    List<Map<String, Object>> selectDiagnosesByPatientIds(@Param("patientIds") List<String> patientIds);
+
+    /**
+     * 批量感染相关检验（只要 PCT / 血常规白细胞，近 7 天）。
+     *
+     * <p>刻意只取这两个指标：列表页只展示 PCT 与 WBC，原先却按患者查了近 7 天
+     * 全量检验明细（每患者最多 300 行），绝大部分是用不上的。
+     *
+     * <p>按 check_time 倒序：调用方取到的第一条即为最新值。
+     */
+    @Select("<script>"
+            + "SELECT li.in_hospital_no AS in_hospital_no, li.lis_item_name AS item_name, "
+            + "li.lis_item_result AS result, li.lis_item_unit AS unit "
+            + "FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li "
+            + "WHERE li.del_flag = 0 "
+            + "AND li.in_hospital_no IN "
+            + "<foreach collection='inHospitalNos' item='no' open='(' separator=',' close=')'>"
+            + "  #{no}"
+            + "</foreach>"
+            + "AND li.lis_item_result IS NOT NULL AND li.lis_item_result &lt;&gt; '' "
+            + "AND li.check_time &gt;= SYSDATE - 7 "
+            + "AND (li.lis_item_name LIKE '%降钙素原%' "
+            + "  OR (li.lis_item_name LIKE '%白细胞%' AND li.lis_item_name NOT LIKE '%尿%' "
+            + "      AND li.lis_item_name NOT LIKE '%分类%')) "
+            + "ORDER BY li.check_time DESC"
+            + "</script>")
+    List<Map<String, Object>> selectInfectionLabsByNos(@Param("inHospitalNos") List<String> inHospitalNos);
+
+    /**
+     * 批量最新体温（按 patient_id 取最近一条）。
+     * 与 {@link #selectLatestTemperature} 同一口径（config_observe_item 名称/体征码匹配）。
+     */
+    @Select("<script>"
+            + "SELECT t.patient_id AS patient_id, t.item_value AS item_value FROM ("
+            + "  SELECT r.patient_id AS patient_id, r.item_value AS item_value, "
+            + "         ROW_NUMBER() OVER (PARTITION BY r.patient_id ORDER BY r.item_time DESC) AS rn "
+            + "  FROM \"zing_icu_db_prod\".\"patient_observe_module_item_record\" r "
+            + "  LEFT JOIN \"zing_icu_db_prod\".\"config_observe_item\" c "
+            + "    ON c.item_code = r.item_code AND c.del_flag = 0 "
+            + "  WHERE r.del_flag = 0 "
+            + "  AND r.patient_id IN "
+            + "  <foreach collection='patientIds' item='pid' open='(' separator=',' close=')'>"
+            + "    #{pid}"
+            + "  </foreach>"
+            + "  AND (c.item_name LIKE '%体温%' OR c.sign_code IN ('T','BT','TEMP','TW')) "
+            + ") t WHERE t.rn = 1"
+            + "</script>")
+    List<Map<String, Object>> selectLatestTemperatureByPatientIds(@Param("patientIds") List<String> patientIds);
+
+    /**
+     * 批量微生物培养/药敏（只取风险增强需要的三列，近 100 条/患者由调用方按住院号截取）。
+     * 与 {@link #selectMicrobiology} 同一识别口径（项目名含 培养/药敏）。
+     */
+    @Select("<script>"
+            + "SELECT li.in_hospital_no AS in_hospital_no, li.lis_item_name AS item_name, "
+            + "li.lis_item_result AS result "
+            + "FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li "
+            + "WHERE li.del_flag = 0 "
+            + "AND li.in_hospital_no IN "
+            + "<foreach collection='inHospitalNos' item='no' open='(' separator=',' close=')'>"
+            + "  #{no}"
+            + "</foreach>"
+            + "AND li.lis_item_result IS NOT NULL AND li.lis_item_result &lt;&gt; '' "
+            + "AND (li.lis_item_name LIKE '%培养%' OR li.lis_item_name LIKE '%药敏%') "
+            + "ORDER BY li.check_time DESC"
+            + "</script>")
+    List<Map<String, Object>> selectMicrobiologyByNos(@Param("inHospitalNos") List<String> inHospitalNos);
+
+    /**
+     * 批量当前抗菌药医嘱（按住院号，用于列表展示"抗菌药开始时间"）。
+     * 与 {@link #selectCurrentAbxAdvice} 同一口径（patient_advice，按 group_id + name 去重）。
+     */
+    @Select("<script>"
+            + "SELECT t.in_hospital_no AS in_hospital_no, t.name AS name, "
+            + "t.start_time AS start_time, t.group_id AS group_id FROM ( "
+            + "  SELECT pa.in_hospital_no AS in_hospital_no, pa.name AS name, "
+            + "         pa.start_time AS start_time, pa.group_id AS group_id, "
+            + "         ROW_NUMBER() OVER (PARTITION BY pa.in_hospital_no, pa.group_id, pa.name "
+            + "                            ORDER BY pa.start_time DESC) AS rn "
+            + "  FROM \"zing_icu_db_prod\".\"patient_advice\" pa "
+            + "  WHERE pa.del_flag = 0 AND pa.status = '1' AND pa.type_code = 'drug' "
+            + "  AND pa.in_hospital_no IN "
+            + "  <foreach collection='inHospitalNos' item='no' open='(' separator=',' close=')'>"
+            + "    #{no}"
+            + "  </foreach>"
+            + ") t WHERE t.rn = 1"
+            + "</script>")
+    List<Map<String, Object>> selectCurrentAbxAdviceByNos(@Param("inHospitalNos") List<String> inHospitalNos);
 
     /** 单患者基本信息（评估页用） */
     @Select("SELECT pi.id AS patient_id, pi.in_hospital_no AS patient_no, pi.name AS name, "

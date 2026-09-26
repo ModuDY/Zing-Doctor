@@ -185,24 +185,188 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         if (patientNo.length() <= 4) return "****";
         return patientNo.substring(0, 3) + "***" + patientNo.substring(patientNo.length() - 2);
     }
+    /**
+     * 疑似感染患者列表。
+     *
+     * <p><b>查询次数固定为 6 次，与患者数无关</b>：患者主表 1 次 + 诊断 1 次 + 检验 1 次 +
+     * 体温 1 次 + 微生物 1 次 + 抗菌药 1 次。原先每个患者单独查诊断/检验/体温/微生物/抗菌药，
+     * 50 个患者就是 250+ 次 ICU 库查询，这是列表要配 60 秒超时的真实原因。
+     *
+     * <p><b>入列的最后一道闸在这里</b>：SQL 只能判断"有没有 PCT 结果"，判不了数值。
+     * 对<b>仅靠 PCT 命中</b>的患者，这里补一次 {@code PCT >= 0.5} 判断；
+     * 靠休克标记或感染诊断命中的患者不参与这道过滤——他们的入列依据本身就是感染证据。
+     *
+     * @param departCode 科室编码（{@code sys_depart.org_code}）；null / 空 / "ALL" 不限科室。
+     *                   科室授权由调用方（Controller）校验，这里只负责按值过滤。
+     */
     @Override
-    public List<IcuPatientBrief> listSuspectInfections() {
-        List<IcuPatientBrief> result = new ArrayList<>();
-        List<Map<String, Object>> suspectList = icuPatientMapper.selectSuspectPatients();
-        if (suspectList == null) suspectList = java.util.Collections.emptyList();
-        for (Map<String, Object> row : suspectList) {
+    public List<IcuPatientBrief> listSuspectInfections(String departCode) {
+        List<Map<String, Object>> rows = icuPatientMapper.selectSuspectPatients(departCode);
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 1) 患者主表 → DTO，并记下每个患者是靠哪条规则入列的（[休克标记, 感染诊断, PCT 结果]）
+        List<IcuPatientBrief> briefs = new ArrayList<>(rows.size());
+        Map<String, boolean[]> hitFlags = new HashMap<>();
+        List<String> patientIds = new ArrayList<>();
+        List<String> inHospitalNos = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
             try {
                 IcuPatientBrief brief = buildBrief(row);
-                // 感染类型（诊断推断）
-                brief.setInfectionType(inferInfectionType(str(row.get("patient_id"))));
-                // 检验指标与风险分层
-                enrichLabsAndRisk(brief);
-                result.add(brief);
+                if (StrUtil.isBlank(brief.getPatientId())) {
+                    continue;
+                }
+                briefs.add(brief);
+                hitFlags.put(brief.getPatientId(), new boolean[]{
+                        intToBool(row.get("shock_flag")) || intToBool(row.get("septic_shock")),
+                        intToBool(row.get("diag_flag")),
+                        intToBool(row.get("pct_flag"))});
+                patientIds.add(brief.getPatientId());
+                if (StrUtil.isNotBlank(brief.getPatientNo())) {
+                    inHospitalNos.add(brief.getPatientNo());
+                }
             } catch (Exception e) {
                 log.warn("解析疑似感染患者数据失败, patientId={}", row.get("patient_id"), e);
             }
         }
+        if (briefs.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 2) 批量补齐：每类数据一次查询，Java 端按 patientId / 住院号分组
+        Map<String, List<Map<String, Object>>> diagMap =
+                groupRows(icuPatientMapper.selectDiagnosesByPatientIds(patientIds), "patient_id");
+        Map<String, List<Map<String, Object>>> labMap = inHospitalNos.isEmpty()
+                ? Collections.emptyMap()
+                : groupRows(icuPatientMapper.selectInfectionLabsByNos(inHospitalNos), "in_hospital_no");
+        Map<String, String> tempMap =
+                toValueMap(icuPatientMapper.selectLatestTemperatureByPatientIds(patientIds),
+                        "patient_id", "item_value");
+        Map<String, List<Map<String, Object>>> microMap = inHospitalNos.isEmpty()
+                ? Collections.emptyMap()
+                : groupRows(icuPatientMapper.selectMicrobiologyByNos(inHospitalNos), "in_hospital_no");
+        Map<String, List<Map<String, Object>>> abxMap = inHospitalNos.isEmpty()
+                ? Collections.emptyMap()
+                : groupRows(icuPatientMapper.selectCurrentAbxAdviceByNos(inHospitalNos), "in_hospital_no");
+
+        // 3) 组装 + 过滤
+        List<IcuPatientBrief> result = new ArrayList<>(briefs.size());
+        for (IcuPatientBrief p : briefs) {
+            boolean[] flags = hitFlags.get(p.getPatientId());
+            boolean byShock = flags != null && flags[0];
+            boolean byDiagnosis = flags != null && flags[1];
+            List<Map<String, Object>> diagnoses =
+                    diagMap.getOrDefault(p.getPatientId(), Collections.emptyList());
+
+            // 感染类型与休克类型共用同一次诊断查询（原先各查一次，还各带一次兜底查询）
+            p.setInfectionType(inferInfectionType(diagnoses, byShock));
+            applyShockType(p, diagnoses, byShock);
+            fillLabs(p, labMap.getOrDefault(p.getPatientNo(), Collections.emptyList()));
+            p.setTemperature(parseDecimalValue(tempMap.get(p.getPatientId())));
+            fillAbxStartTime(p, abxMap.getOrDefault(p.getPatientNo(), Collections.emptyList()));
+            enhanceRiskFromCultures(p, microMap.getOrDefault(p.getPatientNo(), Collections.emptyList()));
+
+            // 仅靠"有 PCT 结果"入列的：数值必须达到 0.5 ng/mL 才算疑似感染
+            if (!byShock && !byDiagnosis && !geThreshold(p.getPct(), PCT_SUSPECT_THRESHOLD)) {
+                continue;
+            }
+            p.setRiskLevel(evaluateRisk(p));
+            result.add(p);
+        }
         return result;
+    }
+
+    /** 疑似感染的 PCT 阈值（ng/mL）：与入列注释口径一致，低于此值不算感染证据 */
+    private static final BigDecimal PCT_SUSPECT_THRESHOLD = new BigDecimal("0.5");
+
+    /** PCT 高风险阈值（ng/mL） */
+    private static final BigDecimal PCT_HIGH_THRESHOLD = new BigDecimal("2");
+
+    /** 按指定列把查询结果分组（批量查询 → 按患者取用） */
+    private Map<String, List<Map<String, Object>>> groupRows(List<Map<String, Object>> rows, String keyColumn) {
+        Map<String, List<Map<String, Object>>> out = new HashMap<>();
+        if (rows == null) {
+            return out;
+        }
+        for (Map<String, Object> r : rows) {
+            if (r == null) {
+                continue;
+            }
+            String key = str(r.get(keyColumn));
+            if (StrUtil.isBlank(key)) {
+                continue;
+            }
+            out.computeIfAbsent(key, k -> new ArrayList<>()).add(r);
+        }
+        return out;
+    }
+
+    /** 两列结果转 Map（键列 → 值列），用于"每患者一条"的批量结果（如最新体温） */
+    private Map<String, String> toValueMap(List<Map<String, Object>> rows, String keyColumn, String valueColumn) {
+        Map<String, String> out = new HashMap<>();
+        if (rows == null) {
+            return out;
+        }
+        for (Map<String, Object> r : rows) {
+            if (r == null) {
+                continue;
+            }
+            String key = str(r.get(keyColumn));
+            if (StrUtil.isBlank(key)) {
+                continue;
+            }
+            out.put(key, str(r.get(valueColumn)));
+        }
+        return out;
+    }
+
+    /**
+     * 从批量检验结果填 PCT / WBC（结果按时间倒序，每个指标取最新一条）。
+     *
+     * <p>数值解析用 {@link #parseDecimalValue}：检验结果常带单位（"0.85 ng/mL"）
+     * 或比较符（"&lt;0.05"），直接 {@code new BigDecimal} 会整条失败、指标变 null。
+     */
+    private void fillLabs(IcuPatientBrief p, List<Map<String, Object>> rows) {
+        Set<String> filled = new HashSet<>();
+        for (Map<String, Object> r : rows) {
+            String itemName = str(r.get("item_name"));
+            String result = str(r.get("result"));
+            if (StrUtil.isBlank(itemName) || StrUtil.isBlank(result)) {
+                continue;
+            }
+            String key = matchLabKey(itemName);
+            if (key == null || !filled.add(key)) {
+                continue;
+            }
+            BigDecimal value = parseDecimalValue(result);
+            if ("PCT".equals(key)) {
+                p.setPct(value);
+            } else if ("WBC".equals(key)) {
+                p.setWbc(value);
+            }
+        }
+    }
+
+    /** 抗菌药开始时间（取当前在用的最早一条，用于判断经验性用药窗口） */
+    private void fillAbxStartTime(IcuPatientBrief p, List<Map<String, Object>> rows) {
+        LocalDateTime earliest = null;
+        for (Map<String, Object> r : rows) {
+            String name = str(r.get("name"));
+            if (!matchesAbx(name) || isSolvent(name)) {
+                continue;
+            }
+            LocalDateTime t = toLocalDateTime(r.get("start_time"));
+            if (t != null && (earliest == null || t.isBefore(earliest))) {
+                earliest = t;
+            }
+        }
+        p.setAbxStartTime(earliest);
+    }
+
+    /** value 非空且 ≥ threshold */
+    private boolean geThreshold(BigDecimal value, BigDecimal threshold) {
+        return value != null && value.compareTo(threshold) >= 0;
     }
 
     @Override
@@ -210,8 +374,13 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         Map<String, Object> basic = icuPatientMapper.selectPatientById(patientId);
         if (basic == null || basic.isEmpty()) {
             throw new BizException(404, "未找到患者：" + patientId);
-        }        IcuPatientBrief patient = buildBrief(basic);
-        patient.setInfectionType(inferInfectionType(patientId));
+        }
+        IcuPatientBrief patient = buildBrief(basic);
+        // 诊断一次取回，感染类型与休克类型共用；休克标记兜底也用主表字段，不再为此回查患者表
+        List<Map<String, Object>> diagnoses = icuPatientMapper.selectDiagnoses(patientId);
+        boolean shockFlag = intToBool(basic.get("septic_shock"));
+        patient.setInfectionType(inferInfectionType(diagnoses, shockFlag));
+        applyShockType(patient, diagnoses, shockFlag);
         enrichLabsAndRisk(patient);
 
         IcuPatientAssessment assessment = new IcuPatientAssessment();
@@ -241,8 +410,10 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
             return null;
         }
         IcuPatientBrief p = buildBrief(row);
-        p.setInfectionType(inferInfectionType(patientId));
-        inferShockType(p, patientId);
+        List<Map<String, Object>> diagnoses = icuPatientMapper.selectDiagnoses(patientId);
+        boolean shockFlag = intToBool(row.get("septic_shock"));
+        p.setInfectionType(inferInfectionType(diagnoses, shockFlag));
+        applyShockType(p, diagnoses, shockFlag);
         return p;
     }
 
@@ -278,7 +449,9 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         p.setWeight(parseDecimal(row.get("weight")));
         // 身高（第二维度 BMI/IBW/AdjBW 计算用）
         p.setHeight(parseDecimal(row.get("height")));
-        // 休克状态不再直接取 patient_info.septic_shock 字段，改为从诊断表推理（见 inferShockType）
+        // 休克由 applyShockType 统一判定（诊断文字优先，patient_info 标记兜底）。
+        // 这里只是默认值——调用方必须接着调 applyShockType，否则患者一律是"非休克"，
+        // 风险等级和决策页的休克分层推荐都会跟着错。
         p.setSepticShock(false);
         p.setShockType("none");
         parseRiskFlags(p, row);
@@ -300,9 +473,15 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         p.setFungalRisk(fungal);
     }
 
-    /** 从诊断推断感染类型（优先级：脓毒 > HAP/VAP > CAP > 腹腔 > 血流 > 尿路 > 真菌 > 其他感染） */
-    private String inferInfectionType(String patientId) {
-        List<Map<String, Object>> diagnoses = icuPatientMapper.selectDiagnoses(patientId);
+    /**
+     * 从诊断推断感染类型（优先级：脓毒 > HAP/VAP > CAP > 腹腔 > 血流 > 尿路 > 真菌 > 其他感染）。
+     *
+     * <p>诊断由调用方一次性批量取回后传入：列表页 50 个患者原本要查 50+ 次诊断，
+     * 现在全表只用 1 次。
+     *
+     * @param shockFlag patient_info.is_sepsis_shock 标记，用于无感染诊断时的兜底归类
+     */
+    private String inferInfectionType(List<Map<String, Object>> diagnoses, boolean shockFlag) {
         if (diagnoses == null) {
             diagnoses = java.util.Collections.emptyList();
         }
@@ -340,26 +519,27 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
             }
         }
         // 无明确感染诊断：若休克标记，归类为脓毒症
-        Map<String, Object> basic = icuPatientMapper.selectPatientById(patientId);
-        if (basic != null && intToBool(basic.get("septic_shock"))) {
-            return "脓毒症/感染性休克";
-        }
-        return "感染（部位待明确）";
+        return shockFlag ? "脓毒症/感染性休克" : "感染（部位待明确）";
     }
 
     /**
-     * 从诊断表推理休克类型。
+     * 判定休克类型。
      * patient_info_diagnosis.diag_name 匹配：
      *  - 含"脓毒性休克" → septic（脓毒性休克）
      *  - 含"感染性休克" → infectious（感染性休克）
-     *  - 都不匹配 → none（非休克）
+     *  - 都不匹配 → 看 patient_info.is_sepsis_shock 标记 → 仍为 septic
+     *  - 都没有 → none（非休克）
+     *
+     * <p><b>为什么必须看主表标记兜底</b>：之前只在诊断文字里找"脓毒性休克/感染性休克"，
+     * 诊断没写这两个词、但主表打了 is_sepsis_shock=1 的患者会被判成非休克，
+     * 进而风险等级掉到中/低、决策页推荐也走不到脓毒性休克分支。
+     * 标记位本身就是"脓毒性休克"的临床结论，不能因为诊断措辞不同就丢掉。
+     *
+     * <p>防御：查询结果可能为 null（无诊断记录），列表中也可能出现 null 元素。
+     * 此处原先未做保护，遍历到 null 元素时 d.get("diag_name") 抛 NPE，
+     * 表现为"只有个别患者的 PK/PD 页面 500、其他页面正常"。
      */
-    private void inferShockType(IcuPatientBrief p, String patientId) {
-        List<Map<String, Object>> diagnoses = icuPatientMapper.selectDiagnoses(patientId);
-        // 与 inferInfectionType 保持一致的防御：查询结果可能为 null（无诊断记录），
-        // 列表中也可能出现 null 元素。此处原先未做保护，遍历到 null 元素时
-        // d.get("diag_name") 抛 NPE，并因 getPatientBrief 被 PK/PD 链路独占调用，
-        // 表现为"只有个别患者的 PK/PD 页面 500、其他页面正常"。
+    private void applyShockType(IcuPatientBrief p, List<Map<String, Object>> diagnoses, boolean shockFlag) {
         if (diagnoses == null) {
             diagnoses = java.util.Collections.emptyList();
         }
@@ -382,6 +562,11 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
                 return;
             }
         }
+        if (shockFlag) {
+            p.setShockType("septic");
+            p.setSepticShock(true);
+            return;
+        }
         p.setShockType("none");
         p.setSepticShock(false);
     }
@@ -389,9 +574,9 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
     /** 补充检验指标（PCT/WBC）、体温、抗菌药开始时间、微生物风险增强与风险分层 */
     private void enrichLabsAndRisk(IcuPatientBrief p) {
         Map<String, String> labs = loadLabs(p.getPatientNo());
-        p.setPct(parseDecimal(labs.get("PCT")));
-        p.setWbc(parseDecimal(labs.get("WBC")));
-        p.setTemperature(parseDecimal(loadTemperature(p.getPatientId())));
+        p.setPct(parseDecimalValue(labs.get("PCT")));
+        p.setWbc(parseDecimalValue(labs.get("WBC")));
+        p.setTemperature(parseDecimalValue(loadTemperature(p.getPatientId())));
         p.setAbxStartTime(loadAbxStartTime(p.getPatientNo()));
         // 培养/药敏结果增强 MDR / MRSA / 真菌 风险判断
         enhanceRiskFromCultures(p, loadMicrobiologyRows(p.getPatientNo()));
@@ -612,7 +797,13 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         return false;
     }
 
-    /** 最早一次抗菌药开始时间（用于判断已用时长；来源 patient_advice_pda JOIN patient_advice） */
+    /**
+     * 最早一次抗菌药开始时间（用于判断已用时长；来源 patient_advice）。
+     *
+     * <p>原来依次取 pda_start_time / pda_plan_time / plan_start_time 三列，
+     * 但 {@code selectCurrentAbxAdvice} 只返回 start_time，三列都不存在 → 恒为 null，
+     * "抗菌药已用时长"一直是空的。改取实际返回的那列。
+     */
     private LocalDateTime loadAbxStartTime(String inHospitalNo) {
         LocalDateTime earliest = null;
         List<Map<String, Object>> abxList = icuPatientMapper.selectCurrentAbxAdvice(inHospitalNo);
@@ -622,13 +813,7 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
             if (!matchesAbx(name) || isSolvent(name)) {
                 continue;
             }
-            LocalDateTime t = toLocalDateTime(r.get("pda_start_time"));
-            if (t == null) {
-                t = toLocalDateTime(r.get("pda_plan_time"));
-            }
-            if (t == null) {
-                t = toLocalDateTime(r.get("plan_start_time"));
-            }
+            LocalDateTime t = toLocalDateTime(r.get("start_time"));
             if (t != null && (earliest == null || t.isBefore(earliest))) {
                 earliest = t;
             }
@@ -645,18 +830,39 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         return false;
     }
 
+    /**
+     * 风险分层（多因素）。
+     *
+     * <p>原来只看"休克 / PCT"两件事，会出现「标签栏三个高危（MDR+MRSA+真菌）全亮、
+     * 风险等级却是低风险」这种自相矛盾的显示——因为耐药与真菌风险根本没参与分级。
+     * 医生看列表时首先扫的就是风险等级，标签与等级打架会直接削弱对页面的信任。
+     *
+     * <p>现行口径：
+     * <ul>
+     *   <li>高风险：脓毒性休克 / PCT ≥ 2 / MDR 合并 MRSA / MDR 合并真菌风险</li>
+     *   <li>中风险：PCT 0.5~2 / MDR、MRSA、真菌任一风险 / HAP-VAP / 血流感染</li>
+     *   <li>低风险：单纯疑似感染，暂无上述高危指标</li>
+     * </ul>
+     */
     private String evaluateRisk(IcuPatientBrief p) {
         if (Boolean.TRUE.equals(p.getSepticShock())) {
             return "高风险";
         }
-        BigDecimal pct = p.getPct();
-        if (pct != null) {
-            if (pct.compareTo(new BigDecimal("2")) >= 0) {
-                return "高风险";
-            }
-            if (pct.compareTo(new BigDecimal("0.5")) >= 0) {
-                return "中风险";
-            }
+        if (geThreshold(p.getPct(), PCT_HIGH_THRESHOLD)) {
+            return "高风险";
+        }
+        boolean mdr = Boolean.TRUE.equals(p.getMdrRisk());
+        boolean mrsa = Boolean.TRUE.equals(p.getMrsaRisk());
+        boolean fungal = Boolean.TRUE.equals(p.getFungalRisk());
+        if (mdr && (mrsa || fungal)) {
+            return "高风险";
+        }
+        if (geThreshold(p.getPct(), PCT_SUSPECT_THRESHOLD) || mdr || mrsa || fungal) {
+            return "中风险";
+        }
+        String type = p.getInfectionType() == null ? "" : p.getInfectionType();
+        if (type.contains("HAP") || type.contains("VAP") || type.contains("血流")) {
+            return "中风险";
         }
         return "低风险";
     }
@@ -828,6 +1034,35 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * 检验结果 → 数值。
+     *
+     * <p>检验结果常带单位（"0.85 ng/mL"）或比较符（"&lt;0.05"），
+     * {@link #parseDecimal} 直接 {@code new BigDecimal} 会整条失败、指标变 null
+     * （表现为列表里 PCT / 体温一列全空）。这里失败后退回到"截取第一个数值"：
+     * 带单位时取数字部分，带比较符时取阈值本身（&lt;0.05 记作 0.05 —— 对
+     * 0.5 门槛的判断是保守的，不会把低值误判成感染证据）。
+     */
+    private BigDecimal parseDecimalValue(Object o) {
+        BigDecimal direct = parseDecimal(o);
+        if (direct != null) {
+            return direct;
+        }
+        String s = str(o);
+        if (StrUtil.isBlank(s)) {
+            return null;
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("-?\\d+(\\.\\d+)?").matcher(s);
+        if (m.find()) {
+            try {
+                return new BigDecimal(m.group());
+            } catch (Exception ignore) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private boolean intToBool(Object o) {

@@ -38,8 +38,8 @@ public class AntibioticDecisionServiceImpl implements AntibioticDecisionService 
     private final AdviceLogMapper adviceLogMapper;
 
     @Override
-    public List<IcuPatientBrief> listSuspectPatients() {
-        return icuPatientService.listSuspectInfections();
+    public List<IcuPatientBrief> listSuspectPatients(String departCode) {
+        return icuPatientService.listSuspectInfections(departCode);
     }
 
     @Override

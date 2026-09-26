@@ -11,7 +11,8 @@
     <div style="height: 16px" />
 
     <el-card shadow="never">
-      <el-table v-loading="loading" :data="patients" stripe style="width: 100%">
+      <el-table v-loading="loading" :data="patients" stripe style="width: 100%"
+                @row-click="goDecision">
         <el-table-column prop="patientNo" label="住院号" width="140" />
         <el-table-column prop="name" label="姓名" width="90" />
         <el-table-column prop="age" label="年龄" width="60" />
@@ -62,6 +63,8 @@
 
 <script>
 import { fetchPatients } from '../api/antibiotic'
+import { setCurrentPatient } from '../utils/patientContext'
+import { currentDepart, resolvePageDepartCode } from '../utils/departContext'
 import '../styles/abx-theme.css'
 
 export default {
@@ -79,12 +82,24 @@ export default {
     async load() {
       this.loading = true
       try {
-        this.patients = await fetchPatients()
+        // 科室边界：外链以 URL 参数为准，菜单进入用侧边栏选中的科室
+        this.patients = await fetchPatients(resolvePageDepartCode(this.$route.query.departCode))
       } finally {
         this.loading = false
       }
     },
     goDecision(row) {
+      // 与工作台保持一致：先把患者写进全局上下文再跳转。
+      // 否则从列表进决策页后，再从侧边栏进 SOFA / APACHE II / 脓毒症集束化 / PK-PD 时
+      // 拿不到当前患者，会退回「未选择患者」。
+      setCurrentPatient({
+        patientId: row.patientId,
+        inHospitalNo: row.patientNo,
+        name: row.name,
+        bedNo: row.bedNo,
+        departCode: currentDepart.departCode || '',
+        departName: currentDepart.departName || row.department || ''
+      })
       // 内部跳转携带 patientId；外链签名上下文已存于 sessionStorage，自动随 API 请求带上
       this.$router.push(`/page/abx-decision?patientId=${row.patientId}`)
     },

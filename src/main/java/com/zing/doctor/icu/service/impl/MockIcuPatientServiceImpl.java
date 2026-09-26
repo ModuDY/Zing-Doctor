@@ -67,8 +67,12 @@ public class MockIcuPatientServiceImpl implements IcuPatientService {
         }
         return rows;
     }
+    /**
+     * Mock 数据不区分科室（假数据里没有 depart_code），科室过滤已在调用方校验过，
+     * 这里保持原样返回全量，避免演示环境因科室为空而列表空白。
+     */
     @Override
-    public List<IcuPatientBrief> listSuspectInfections() {
+    public List<IcuPatientBrief> listSuspectInfections(String departCode) {
         return mockPatients;
     }
 

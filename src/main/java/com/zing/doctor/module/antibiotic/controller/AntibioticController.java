@@ -2,8 +2,10 @@ package com.zing.doctor.module.antibiotic.controller;
 
 import com.zing.doctor.common.BizException;
 import com.zing.doctor.common.Result;
+import com.zing.doctor.external.ExternalLinkInterceptor;
 import com.zing.doctor.icu.dto.IcuPatientBrief;
 import com.zing.doctor.icu.service.IcuPatientService;
+import com.zing.doctor.icu.service.UserDepartScopeService;
 import com.zing.doctor.module.antibiotic.dto.PatientAssessmentView;
 import com.zing.doctor.module.antibiotic.dto.PkpdAssessmentView;
 import com.zing.doctor.module.antibiotic.entity.DecisionRecord;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 
@@ -33,11 +36,27 @@ public class AntibioticController {
     private final AntibioticDecisionService decisionService;
     private final IcuPatientService icuPatientService;
     private final PkpdService pkpdService;
+    private final UserDepartScopeService departScopeService;
 
-    /** 疑似感染/脓毒症患者列表 */
+    /**
+     * 疑似感染/脓毒症患者列表。
+     *
+     * <p>科室边界与患者工作台完全一致：departCode 先过一遍账号的科室授权
+     * （{@link UserDepartScopeService#resolveQueryDepart}），管理员与外链免登录放行，
+     * 普通账号只能查自己的科室，留空不会退回全院。
+     * 之所以必须放在服务端：前端下拉只是「默认选哪个科室」，挡不住直接调接口传别人的科室。
+     */
     @GetMapping("/patients")
-    public Result<List<IcuPatientBrief>> patients() {
-        return Result.ok(decisionService.listSuspectPatients());
+    public Result<List<IcuPatientBrief>> patients(@RequestParam(required = false) String departCode,
+                                                  HttpServletRequest request) {
+        String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+        return Result.ok(decisionService.listSuspectPatients(allowed));
+    }
+
+    /** 当前登录账号；外链免登录时返回 null */
+    private static String currentUsername(HttpServletRequest request) {
+        Object u = request.getAttribute(ExternalLinkInterceptor.ATTR_LOGIN_USER);
+        return u == null ? null : String.valueOf(u);
     }
 
     /** 职工字典搜索（医生下拉框用）：支持拼音首字母/工号/姓名模糊匹配 */

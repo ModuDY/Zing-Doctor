@@ -11,8 +11,13 @@ import java.util.List;
  */
 public interface AntibioticDecisionService {
 
-    /** 疑似感染/脓毒症患者列表 */
-    List<IcuPatientBrief> listSuspectPatients();
+    /**
+     * 疑似感染/脓毒症患者列表。
+     *
+     * @param departCode 已通过科室授权校验的科室编码（{@code sys_depart.org_code}）；
+     *                   管理员 / 外链可为 null 或 "ALL"（不限科室）。
+     */
+    List<IcuPatientBrief> listSuspectPatients(String departCode);
 
     /** 单患者决策页视图（评估数据 + 推荐方案） */
     PatientAssessmentView getAssessmentView(String patientId);

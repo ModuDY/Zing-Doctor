@@ -1,8 +1,12 @@
 import request from './request'
 
-/** 疑似感染患者列表 */
-export function fetchPatients() {
-  return request.get('/antibiotic/patients')
+/**
+ * 疑似感染患者列表。
+ * departCode 是科室边界：服务端会按当前账号的科室授权校验，
+ * 普通账号不传或传越权科室会直接报错（不退回全院）。
+ */
+export function fetchPatients(departCode) {
+  return request.get('/antibiotic/patients', { params: { departCode } })
 }
 
 /** 单患者决策页数据（评估 + 推荐方案） */

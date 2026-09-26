@@ -24,8 +24,14 @@ public interface IcuPatientService {
      */
     List<WorkbenchPatient> listInpatients(String departCode);
 
-    /** 疑似感染/脓毒症患者列表（可按感染类型等条件扩展） */
-    List<IcuPatientBrief> listSuspectInfections();
+    /**
+     * 疑似感染/脓毒症患者列表。
+     *
+     * @param departCode 科室编码（{@code sys_depart.org_code}）；null / 空 / "ALL" 表示不限科室。
+     *                   必须由调用方先做科室授权校验（见 {@code UserDepartScopeService#resolveQueryDepart}）：
+     *                   这里只按传入值过滤，不做权限判断，避免同样的边界逻辑散落两处。
+     */
+    List<IcuPatientBrief> listSuspectInfections(String departCode);
 
     /**
      * 单患者基础信息（轻量，只查患者主表，不跑检验/微生物等关联查询）。
