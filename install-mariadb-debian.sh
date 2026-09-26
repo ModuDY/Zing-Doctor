@@ -540,6 +540,7 @@ SQL
     # 33 抗感染 48～72 小时复评任务与留痕
     33_antibiotic_reassessment.sql
     34_system_check_page.sql
+    35_workbench_view_mode.sql
     )
   for f in "${MAIN_SQL[@]}"; do
     [ -f "$SQL_DIR/$f" ] || { warn "缺少 $f，跳过"; continue; }

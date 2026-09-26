@@ -217,7 +217,8 @@ if (Test-Path $myDir) {
         # 34 交付自检页注册（system-check）。漏登记的后果跟前面那批一样隐蔽：用
         # install-all.sql 一次性初始化的库缺这条注册，外链 /entry/system-check 会被判
         # 「页面未注册」，而走 install.sh / install-mariadb-debian.sh 的库却正常
-        '34_system_check_page.sql')
+        '34_system_check_page.sql',
+        '35_workbench_view_mode.sql')
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine('-- ============================================================')
     [void]$sb.AppendLine('-- zing-doctor MySQL/MariaDB 一次性初始化脚本（打包时自动合成，勿手工编辑）')

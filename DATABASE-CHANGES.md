@@ -1059,3 +1059,33 @@ SELECT `page_code`, `frontend_path`, `status`
 ```
 
 应返回一条启用记录，`frontend_path` 为 `/page/system-check`。再访问 `/api/system/build-info`，确认 `version`、`gitCommit`、`buildTime` 已被当前交付包填充。
+
+---
+
+### 2026-09-27 · 工作台默认视图可配置
+
+**涉及**
+
+- `sys_param` 新增参数 `WORKBENCH_VIEW_MODE`（分组 `workbench`），下拉可选「列表视图 `table` / 床头卡视图 `cards`」，默认 `table`。
+- 工作台打开时的默认视图改由该参数决定，现场在参数设置页改一次即全科生效；此前只能在顶栏手动切换，且切换只对本次会话有效（存 sessionStorage）。
+- 参数值留空时回退 `default_value`；前端读不到该参数时同样回退 `table`，老库未执行本脚本也不会报错，只是默认值不可配。
+
+**升级脚本**
+
+- 达梦：`sql/35_workbench_view_mode.sql`
+- MySQL/MariaDB：`sql/mysql/35_workbench_view_mode.sql`
+- `install.sh` 与 `install-mariadb-debian.sh` 已纳入 35 号脚本。
+
+**升级后自检**
+
+```sql
+-- 达梦
+SELECT "param_key", "param_value", "default_value"
+  FROM "zing_doctor_db_prod"."sys_param"
+ WHERE "param_key" = 'WORKBENCH_VIEW_MODE';
+
+-- MySQL / MariaDB
+SELECT `param_key`, `param_value`, `default_value`
+  FROM `sys_param`
+ WHERE `param_key` = 'WORKBENCH_VIEW_MODE';
+```
