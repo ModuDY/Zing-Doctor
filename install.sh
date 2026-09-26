@@ -177,6 +177,8 @@ FULL_SQL=(
     # 32 疑似感染列表并入患者工作台：更新页面注册展示名（保留 old path，仅改名称与说明）。
     #    同样必须排在 27 之后，否则被配置快照覆盖回旧名称。漏执行不影响功能，只是名称没变。
     "32_abx_page_merge.sql"
+    # 33 抗感染 48～72 小时复评任务与留痕（独立业务表，不覆盖既有决策历史）。
+    "33_antibiotic_reassessment.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -220,6 +222,7 @@ FULL_SQL_JDBC=(
     "31_abx_pending_rule.sql"
     # 32 页面注册展示名更新（同 FULL_SQL：必须排 27 之后）
     "32_abx_page_merge.sql"
+    "33_antibiotic_reassessment.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -280,6 +283,8 @@ INCREMENTAL_SQL=(
     "31_abx_pending_rule.sql"
     # 32 疑似感染列表并入工作台后的页面注册展示名（幂等 UPDATE，未注册时影响 0 行）
     "32_abx_page_merge.sql"
+    # 33 抗感染 48～72 小时复评任务与留痕（幂等建表/序列/索引）
+    "33_antibiotic_reassessment.sql"
 )
 
 # ---------- JDBC 初始化工具 classpath ----------
@@ -734,7 +739,9 @@ EOF
   # ---- 等待后端就绪（最多 60 秒）----
   info "等待后端就绪（最多 60 秒）..."
   for i in $(seq 1 30); do
-    if curl -m 2 -s -o /dev/null "http://127.0.0.1:8081/api/health"; then
+    # -f 不能省：/api/health 未就绪时返回 503，不加 -f 的话 curl 仍返回 0，
+    # 会把「未就绪」当成就绪放行。docker-compose.yml 的健康检查用的是 -f，两处口径必须一致。
+    if curl -f -m 2 -s -o /dev/null "http://127.0.0.1:8081/api/health"; then
       info "后端已就绪（$i 次探测）"; break
     fi
     sleep 2

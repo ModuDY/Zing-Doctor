@@ -534,7 +534,12 @@ SQL
     #    sys_param_group）；若启用 27_restore_config_snapshot.sql，也必须排在它之后 ——
     #    27 会整表 DELETE + INSERT sys_param，而那份快照导出时还没有这个参数
     30_user_depart_scope.sql
-  )
+    # 31/32 抗感染「待决策」口径参数与页面合并。达梦侧 install.sh 三处清单均已含，
+    #    此处漏登记会导致 MariaDB 库装完缺这批参数与页面注册
+    31_abx_pending_rule.sql 32_abx_page_merge.sql
+    # 33 抗感染 48～72 小时复评任务与留痕
+    33_antibiotic_reassessment.sql
+    )
   for f in "${MAIN_SQL[@]}"; do
     [ -f "$SQL_DIR/$f" ] || { warn "缺少 $f，跳过"; continue; }
     run_sql_file "$SQL_DIR/$f" "$DOCTOR_DB"

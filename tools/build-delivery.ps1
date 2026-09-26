@@ -173,7 +173,19 @@ if (Test-Path $myDir) {
         '15_quality_patient_fields.sql', '16_quality_fatality_ref.sql', '17_quality_rule_local.sql',
         '18_quality_manual_audit.sql', '19_quality_target_direction.sql',
         '20_quality_fact_patient_default_cols.sql', '21_ards_prone.sql',
-        '22_ards_prone_config.sql', '23_ards_prone_sign_work_no.sql')
+        '22_ards_prone_config.sql', '23_ards_prone_sign_work_no.sql',
+        # 以下必须与 install-mariadb-debian.sh 的 MAIN_SQL 保持一致。漏登记的后果很隐蔽：
+        # 用 install-all.sql 初始化的库缺表/缺参数，而直连安装的库正常 —— 同一版本、
+        # 两种部署方式行为不同，现场几乎查不出来。
+        # 25/26 表名规范化 rename（全新库无旧表 → 整段跳过，幂等）
+        '25_rename_doctor_tables.sql', '26_rename_clinical_tables.sql',
+        # 28 质控每日批算参数、24 质控配置写保护总开关：都写新表名 sys_param，必须排在 25/26 之后
+        '28_quality_daily_param.sql', '24_quality_config_guard.sql',
+        # 29 工作台页面注册、30 科室边界参数（新表名 sys_page_config / sys_param）
+        '29_patient_workbench.sql', '30_user_depart_scope.sql',
+        # 31/32 抗感染「待决策」口径参数与页面合并；33 复评任务与留痕
+        '31_abx_pending_rule.sql', '32_abx_page_merge.sql',
+        '33_antibiotic_reassessment.sql')
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine('-- ============================================================')
     [void]$sb.AppendLine('-- zing-doctor MySQL/MariaDB 一次性初始化脚本（打包时自动合成，勿手工编辑）')
