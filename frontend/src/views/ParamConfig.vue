@@ -319,7 +319,12 @@ const linkKw = ref('')
 const LINK_BASE = 'https://{host}'
 const LINK_TOKEN = '{token}'
 const LINK_PAGES = [
-  { code: 'abx-patient-list', name: '疑似感染患者列表', desc: '第一维度：疑似感染/脓毒症患者总览，按科室过滤', params: [
+  // 工作台排在最前：它是 ICU 侧最常用的入口，且已吸收原先独立的「疑似感染患者列表」
+  { code: 'patient-workbench', name: '患者工作台', desc: '在科患者总览，含全部/感染风险/高危/今日待办四个视图，支持表格与床头卡', params: [
+    { k: 'departCode', req: false, sample: 'ICU01' },
+    { k: 'realname', req: false, sample: '张医生' },
+    { k: 'username', req: false, sample: '1001' } ] },
+  { code: 'abx-patient-list', name: '疑似感染患者列表（已并入工作台）', desc: '⚠️ 该入口已重定向到患者工作台的「感染风险」视图，建议容器改用 patient-workbench', params: [
     { k: 'departCode', req: false, sample: 'ICU01' },
     { k: 'departName', req: false, sample: '综合ICU' } ] },
   { code: 'abx-decision', name: '经验性抗感染治疗决策', desc: '单患者经验性抗感染方案决策', params: [
@@ -369,7 +374,8 @@ const LINK_PAGES = [
   { code: 'quality-monthly', name: '质控月度汇总', desc: '1-12 月横排对比，同比/环比，支持 xlsx 导出', params: [
     { k: 'departCode', req: false, sample: 'ICU01' } ] },
   { code: 'quality-config', name: '质控指标配置', desc: '指标口径编辑、事实层配置、变更历史与回滚', params: [] },
-  { code: 'param-config', name: '参数设置', desc: '系统参数、ARDS 采集映射、外链页面一览', params: [] }
+  { code: 'param-config', name: '参数设置', desc: '系统参数、ARDS 采集映射、外链页面一览', params: [] },
+  { code: 'system-check', name: '交付自检', desc: '交付验收：检查医生库、ICU 数据源、复评表与当前运行包的构建信息', params: [] }
 ]
 const filteredLinks = computed(() => {
   const kw = linkKw.value.trim().toLowerCase()
