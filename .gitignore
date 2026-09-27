@@ -23,6 +23,11 @@ tools/docker-compose/
 # 本地打包工具链（Node/Maven 等临时安装，不入库）
 .tools/
 
+# 质控规则的运行时导出目录：应用启动时把 classpath 下的 quality 规则复制到这里，
+# 内容与 src/main/resources/quality 逐字节相同，属于运行产物。
+# 不入库的原因：它随启动重新生成，入库后每次启动都可能产生无意义的 diff。
+config/quality/
+
 # 预览图与临时文件（frontend/public/logo.png 为源码资源，不受影响）
 sofa-*.png
 sofa-*-preview*

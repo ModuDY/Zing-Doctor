@@ -5,7 +5,8 @@
       <!-- 视图切换：同一份「在科患者」数据的不同临床视角。
            原先「疑似感染患者列表」是独立页面，医生要在两个页面之间反复找同一个人；
            合并后它降级为这里的一个视图，患者是同一批、患者上下文也是同一个。 -->
-      <div class="patient-views">
+      <div class="views-row">
+        <div class="patient-views">
         <button
           v-for="v in PATIENT_VIEWS"
           :key="v.key"
@@ -15,6 +16,14 @@
           <span class="view-name">{{ v.label }}</span>
           <span class="view-count">{{ viewCount(v.key) }}</span>
         </button>
+      </div>
+      <div class="views-extra">
+        <span class="extra-item warn"><b>{{ stats.reassessmentUnknownCount ? '—' : stats.reassessmentCount }}</b> 复评</span>
+        <span class="extra-sep"></span>
+        <span class="extra-item"><b>{{ stats.critical }}</b> 危重</span>
+        <span class="extra-sep"></span>
+        <span class="extra-item"><b>{{ stats.avgDays }}</b> 天均</span>
+      </div>
       </div>
       <div class="section-heading filter-heading">
         <div>
@@ -44,23 +53,6 @@
             <el-option label="按床位" value="bed" />
           </el-select>
         </div>
-      </div>
-      <div class="stat-strip">
-        <span class="stat-item clickable" :class="{ active: patientView === 'all' }" @click="switchView('all')"><b>{{ stats.total }}</b> 在科</span>
-        <span class="stat-sep"></span>
-        <span class="stat-item clickable infection" :class="{ active: patientView === 'infection' }" @click="switchView('infection')"><b>{{ stats.infectionCount }}</b> 感染</span>
-        <span class="stat-sep"></span>
-        <span class="stat-item clickable danger" :class="{ active: patientView === 'critical' }" @click="switchView('critical')"><b>{{ stats.highRiskCount }}</b> 高危</span>
-        <span class="stat-sep"></span>
-        <span class="stat-item clickable warn" :class="{ active: patientView === 'todo' }" @click="switchView('todo')"><b>{{ stats.todoCount }}</b> 待办</span>
-        <span class="stat-sep"></span>
-        <span class="stat-item warn"><b>{{ stats.reassessmentUnknownCount ? '—' : stats.reassessmentCount }}</b> 复评</span>
-        <span class="stat-sep"></span>
-        <span class="stat-item"><b>{{ stats.critical }}</b> 危重</span>
-        <span class="stat-sep"></span>
-        <span class="stat-item"><b>{{ stats.avgDays }}</b> 天均</span>
-        <span class="stat-spacer"></span>
-        <span class="stat-muted">筛选 {{ filteredPatients.length }} / 共 {{ patients.length }}</span>
       </div>
     </section>
 
@@ -918,4 +910,9 @@ function onDepartChange() {
 .stat-sep { width: 1px; height: 16px; background: #e7e5e4; }
 .stat-spacer { flex: 1; }
 .stat-muted { color: #a8a29e; font-size: 12px; }
+.views-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+.views-extra { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #78716c; }
+.views-extra b { font-size: 16px; color: #1c1917; margin-right: 2px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.views-extra .warn b { color: #b45309; }
+.extra-sep { width: 1px; height: 14px; background: #e7e5e4; }
 </style>
