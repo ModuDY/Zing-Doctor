@@ -418,13 +418,24 @@ function riskClass(level) {
   return 'risk-low'
 }
 
+// 评分待办的口径由参数 WORKBENCH_SCORE_TODO_RULE 决定，文案必须跟着口径走：
+// 口径二下患者是「入科超 24 小时从未评分」，继续写「今日尚未评」会让人以为
+// 昨天评过就不该再被催 —— 而它恰恰会一直催，医生会当成页面出错。
 const TODO_LABELS = {
   SOFA_NOT_TODAY: '今日尚未评 SOFA',
   APACHE_NOT_TODAY: '今日尚未评 APACHE II',
   ABX_REASSESSMENT_PENDING: '抗感染 48～72 小时复评待处理'
 }
+const TODO_LABELS_ADMIT_24H = {
+  SOFA_NOT_TODAY: '入科超 24 小时未评 SOFA',
+  APACHE_NOT_TODAY: '入科超 24 小时未评 APACHE II',
+  ABX_REASSESSMENT_PENDING: '抗感染 48～72 小时复评待处理'
+}
+/** 评分待办口径：TODAY_NO_SCORE 当日无评分（默认）/ ADMIT_24H_NEVER 入科超 24h 从未评分 */
+const scoreTodoRule = ref('TODAY_NO_SCORE')
 function todoLabel(code) {
-  return TODO_LABELS[code] || code
+  const table = scoreTodoRule.value === 'ADMIT_24H_NEVER' ? TODO_LABELS_ADMIT_24H : TODO_LABELS
+  return table[code] || code
 }
 
 function goTodo(row, code) {
@@ -583,6 +594,18 @@ async function initViewMode() {
     if (mode === "cards" || mode === "table") viewMode.value = mode
   } catch (e) { /* 参数未配置时用默认 table */ }
 }
+
+/**
+ * 读评分待办口径（WORKBENCH_SCORE_TODO_RULE）。它决定待办的文案说法：
+ * 「当日无评分」与「入科超 24 小时从未评分」是两件事，不能混用同一句提示。
+ * 读不到时保持默认值 —— 与后端回退的默认口径一致，不会出现前后端说法对不上。
+ */
+async function initTodoRule() {
+  try {
+    const rule = await request.get('/sys-param/get', { params: { key: 'WORKBENCH_SCORE_TODO_RULE' } })
+    if (rule === 'TODAY_NO_SCORE' || rule === 'ADMIT_24H_NEVER') scoreTodoRule.value = rule
+  } catch (e) { /* 参数未配置时用默认 TODAY_NO_SCORE */ }
+}
 function onViewModeChange(mode) {
   sessionStorage.setItem("zing_workbench_view", mode)
 }
@@ -590,6 +613,7 @@ function onViewModeChange(mode) {
 onMounted(async () => {
   window.addEventListener('zing:workbench-refresh', onWorkbenchRefresh)
   await initViewMode()
+  await initTodoRule()
   await initScope()
   loadPatients()
 })

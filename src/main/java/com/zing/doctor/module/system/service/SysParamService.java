@@ -36,6 +36,15 @@ public interface SysParamService {
     /** 待决策规则取值二：入科满 24 小时且从未做过抗感染决策才计入 */
     String ABX_PENDING_ADMIT_24H = "ADMIT_24H_NEVER";
 
+    /** 工作台「今日待办」中 SOFA / APACHE II 未评分提醒的判定规则（见 WorkbenchEnrichService） */
+    String KEY_WORKBENCH_SCORE_TODO_RULE = "WORKBENCH_SCORE_TODO_RULE";
+
+    /** 评分待办取值一：当天没有评分记录即计入（含从未评分） */
+    String WORKBENCH_TODO_TODAY = "TODAY_NO_SCORE";
+
+    /** 评分待办取值二：入科满 24 小时且从未评分才计入 */
+    String WORKBENCH_TODO_ADMIT_24H = "ADMIT_24H_NEVER";
+
     /** 自动注册口令规则的两种取值 */
     String PWD_RULE_WORK_NO = "WORK_NO";
     String PWD_RULE_FIXED = "FIXED";

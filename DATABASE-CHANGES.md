@@ -1089,3 +1089,34 @@ SELECT `param_key`, `param_value`, `default_value`
   FROM `sys_param`
  WHERE `param_key` = 'WORKBENCH_VIEW_MODE';
 ```
+---
+
+### 2026-09-27 · 工作台评分待办口径可配
+
+**涉及**
+
+- `sys_param` 新增参数 `WORKBENCH_SCORE_TODO_RULE`（分组 `workbench`），下拉可选「当日无评分记录 `TODAY_NO_SCORE` / 入科超 24 小时从未评分 `ADMIT_24H_NEVER`」，默认 `TODAY_NO_SCORE`。
+- 工作台「今日待办」中 SOFA / APACHE II 未评分提醒的判定口径改由该参数决定，全院统一。
+- 两种口径的共同前置改为「入科满 24 小时」（按小时判断）。此前用的是 `icuDays >= 1`，而该值被钳到最小值 1、条件恒成立，等于没有前置 —— 当天入科（哪怕 23:00）的患者立刻被列入待办。
+- APACHE II 在本系统是「入科满 24h 自动初评、一人一条」，口径二更贴合其实际用法；口径一下已评过的患者次日会再次出现，连日重复会稀释待办的价值。
+- 评分记录查询失败时改为「不生成评分待办」。此前返回空集，等价于「谁都没评过」，一次数据库抖动就会生成整屏假待办。
+
+**升级脚本**
+
+- 达梦：`sql/36_workbench_score_todo_rule.sql`
+- MySQL/MariaDB：`sql/mysql/36_workbench_score_todo_rule.sql`
+- `install.sh` 与 `install-mariadb-debian.sh` 已纳入 36 号脚本。
+
+**升级后自检**
+
+```sql
+-- 达梦
+SELECT "param_key", "param_value", "default_value"
+  FROM "zing_doctor_db_prod"."sys_param"
+ WHERE "param_key" = 'WORKBENCH_SCORE_TODO_RULE';
+
+-- MySQL / MariaDB
+SELECT `param_key`, `param_value`, `default_value`
+  FROM `sys_param`
+ WHERE `param_key` = 'WORKBENCH_SCORE_TODO_RULE';
+```

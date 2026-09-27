@@ -11,6 +11,7 @@ import com.zing.doctor.module.antibiotic.entity.AntibioticReassessment;
 import com.zing.doctor.module.antibiotic.mapper.AntibioticReassessmentMapper;
 import com.zing.doctor.module.sofa.entity.SofaScoreRecord;
 import com.zing.doctor.module.sofa.mapper.SofaScoreRecordMapper;
+import com.zing.doctor.module.system.service.SysParamService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,11 +19,13 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -34,14 +37,18 @@ import java.util.Set;
  * （patient_doc_sofa_score_record / patient_doc_apache2_score_record），
  * 用 MyBatis-Plus QueryWrapper 批量取，避免逐患者 N+1。
  *
- * <p>待办口径（第一期，克制）：
+ * <p>评分待办口径由参数 {@code WORKBENCH_SCORE_TODO_RULE} 决定，两种口径对应两种排班习惯：
  * <ul>
- *   <li>{@code SOFA_NOT_TODAY} —— 入科 ≥24h 但今天还没有 SOFA 评分记录。
- *       新入科（icuDays ≤1）不催，给医生留当天入科评估的时间窗。</li>
- *   <li>{@code APACHE_NOT_TODAY} —— 入科当天应评 admission，24h 内应有记录；
- *       超过 24h 仍没有任何 APACHE 记录才提醒。</li>
+ *   <li>{@code TODAY_NO_SCORE}（默认）—— 当天没有评分记录即计入（含从未评分）。
+ *       适合每天晨间把全科过一遍的科室。</li>
+ *   <li>{@code ADMIT_24H_NEVER} —— 入科满 24 小时且从未评分才计入。
+ *       适合「新入科先观察、在科一天以上必须评估」的科室。</li>
  * </ul>
- * 抗生素无血培养 / 导管超期等需要回 ICU 库逐患者比对，放第二期。
+ * 两种口径的共同前置：<b>入科满 24 小时</b> —— 当天入科的患者一律不催。
+ * 按小时判断而不是用「在科天数 ≥1」：后者对当天入科的患者也等于 1，条件恒真，
+ * 等于没有前置（本项目踩过：23:00 入科的患者一小时后就被挂上待办）。
+ *
+ * <p>抗生素无血培养 / 导管超期等需要回 ICU 库逐患者比对，放第二期。
  */
 @Slf4j
 @Service
@@ -52,6 +59,7 @@ public class WorkbenchEnrichService {
     private final Apache2ScoreRecordMapper apacheMapper;
     private final IcuPatientMapper icuPatientMapper;
     private final AntibioticReassessmentMapper reassessmentMapper;
+    private final SysParamService sysParamService;
 
     /**
      * 给在科患者列表回填：最近 SOFA 总分、当日待办。
@@ -73,12 +81,15 @@ public class WorkbenchEnrichService {
 
         // 1) 最近一次 SOFA 总分（每个患者取 score_time 最新的一条）
         Map<String, SofaScoreRecord> latestSofa = latestSofaByPatient(patientIds);
-        // 2) 今天有 SOFA 评分的 patientId 集合
+        // 2) 今天有评分的 patientId 集合
         Set<String> sofaToday = scoredToday("sofa", patientIds);
-        // 3) 今天/近 24h 有 APACHE 评分的 patientId 集合
         Set<String> apacheToday = scoredToday("apache", patientIds);
+        // 3) 「从未评过分」的集合只有口径二用得上：按需查，省掉一半查询
+        String rule = scoreTodoRule();
+        boolean admit24hRule = SysParamService.WORKBENCH_TODO_ADMIT_24H.equals(rule);
+        Set<String> sofaEver = admit24hRule ? scoredEver("sofa", patientIds) : Collections.emptySet();
+        Set<String> apacheEver = admit24hRule ? scoredEver("apache", patientIds) : Collections.emptySet();
 
-        LocalDate today = LocalDate.now();
         for (WorkbenchPatient p : patients) {
             SofaScoreRecord s = latestSofa.get(p.getPatientId());
             if (s != null) {
@@ -86,18 +97,51 @@ public class WorkbenchEnrichService {
             }
 
             List<String> todos = new ArrayList<>(3);
-            long icuDays = p.getIcuDays() == null ? 0 : p.getIcuDays();
-            // 入科 ≥24h 还没评 SOFA
-            if (icuDays >= 1 && !sofaToday.contains(p.getPatientId())) {
-                todos.add("SOFA_NOT_TODAY");
-            }
-            // 入科 ≥24h 还没有任何 APACHE 记录（admission 应在入科 24h 内完成）
-            if (icuDays >= 1 && !apacheToday.contains(p.getPatientId())) {
-                todos.add("APACHE_NOT_TODAY");
+            // 共同前置：入科满 24 小时 —— 当天入科的患者不催，留出评估时间窗。
+            // 刻意不用 icuDays >= 1：它被钳到最小值 1，条件恒真，等于没有前置。
+            if (over24Hours(p.getInDepartmentTime())) {
+                String pid = p.getPatientId();
+                // 口径一：当日无评分（含从未评分）；口径二：从未评分
+                boolean sofaDone = admit24hRule ? sofaEver.contains(pid) : sofaToday.contains(pid);
+                if (!sofaDone) {
+                    todos.add("SOFA_NOT_TODAY");
+                }
+                boolean apacheDone = admit24hRule ? apacheEver.contains(pid) : apacheToday.contains(pid);
+                if (!apacheDone) {
+                    todos.add("APACHE_NOT_TODAY");
+                }
             }
             p.setTodos(todos);
             p.setTodoCount(todos.size());
         }
+    }
+
+    /**
+     * 评分待办口径。取值见 {@code WORKBENCH_SCORE_TODO_RULE}；
+     * 未配置 / 已停用 / 留空时回退 {@code TODAY_NO_SCORE}（与参数上的 default_value 一致）。
+     */
+    private String scoreTodoRule() {
+        String raw = sysParamService.value(SysParamService.KEY_WORKBENCH_SCORE_TODO_RULE);
+        if (StrUtil.isBlank(raw)) {
+            return SysParamService.WORKBENCH_TODO_TODAY;
+        }
+        return raw.trim().toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * 入科是否已满 24 小时。
+     *
+     * <p>按小时算而不是用「在科天数 ≥1」：后者把当天入科也算 1，条件恒成立，
+     * 结果 23:00 入科的患者一小时后就被挂上待办。
+     *
+     * <p>入科时间缺失时按「不满 24 小时」处理 —— 宁可少催一次，
+     * 也不要在数据不全的情况下凭猜测催医生。
+     */
+    private boolean over24Hours(LocalDateTime inDepartmentTime) {
+        if (inDepartmentTime == null) {
+            return false;
+        }
+        return ChronoUnit.HOURS.between(inDepartmentTime, LocalDateTime.now()) >= 24;
     }
 
     /**
@@ -419,8 +463,46 @@ public class WorkbenchEnrichService {
                 }
             }
         } catch (Exception e) {
-            // 主库不可用或表未建时，待办降级为空，不拖垮工作台主流程
-            log.warn("工作台待办查询失败({})，降级为无待办", which, e);
+            // 主库不可用或表未建时降级为「不生成评分待办」：返回全集等价于「都当已评过」。
+            // 注意不能返回空集 —— 空集会被上层理解成「谁都没评过」，于是一次数据库抖动
+            // 就会凭空生成一整屏假待办。宁可这次不催，也不要制造噪音。
+            log.warn("工作台待办查询失败({})，本次不生成评分待办", which, e);
+            out.addAll(patientIds);
+        }
+        return out;
+    }
+
+    /**
+     * 有<b>任何</b>评分记录（不限时间）的 patientId 集合 —— 口径二 {@code ADMIT_24H_NEVER} 用。
+     *
+     * <p>与 {@link #scoredToday} 的区别是「今天」与「全部历史」。这对 APACHE II 意义完全不同：
+     * 它在本系统是「入科满 24h 自动初评、一人一条」，若按天去问「今天评了吗」，
+     * 一个入科时就评过的患者会被天天挂上待办。
+     */
+    private Set<String> scoredEver(String which, List<String> patientIds) {
+        Set<String> out = new HashSet<>();
+        try {
+            if ("sofa".equals(which)) {
+                QueryWrapper<SofaScoreRecord> qw = new QueryWrapper<>();
+                qw.select("patient_id")
+                        .in("patient_id", patientIds)
+                        .eq("status", 1);
+                for (SofaScoreRecord r : sofaMapper.selectList(qw)) {
+                    out.add(r.getPatientId());
+                }
+            } else {
+                QueryWrapper<Apache2ScoreRecord> qw = new QueryWrapper<>();
+                qw.select("patient_id")
+                        .in("patient_id", patientIds)
+                        .eq("status", 1);
+                for (Apache2ScoreRecord r : apacheMapper.selectList(qw)) {
+                    out.add(r.getPatientId());
+                }
+            }
+        } catch (Exception e) {
+            // 同 scoredToday：查不到时按「都评过」处理，不生成假待办
+            log.warn("工作台「是否存在评分记录」查询失败({})，本次不生成评分待办", which, e);
+            out.addAll(patientIds);
         }
         return out;
     }
