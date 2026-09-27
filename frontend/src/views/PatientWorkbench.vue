@@ -1,64 +1,5 @@
 <template>
   <div class="wb-page qb-theme">
-    <header class="wb-hero">
-      <div class="hero-copy">
-        <div class="eyebrow">ICU · CLINICAL WORKSPACE</div>
-        <h1>患者工作台</h1>
-        <p>以患者为中心的 ICU 临床入口，集中查看在科状态、评分待办和常用决策工具。</p>
-        <div class="hero-meta">
-          <span class="meta-pill"><i class="meta-dot active"></i>{{ scopeText }}</span>
-          <span class="meta-pill">数据更新于 {{ updatedAt || '—' }}</span>
-        </div>
-      </div>
-      <div class="hero-actions">
-        <el-button class="refresh-btn" :icon="Refresh" :loading="loading" @click="loadPatients">刷新数据</el-button>
-      </div>
-    </header>
-
-    <el-alert class="wb-notice" type="info" :closable="false" show-icon>
-      危重标签与评分待办由系统自动汇总；点击患者行可进入抗感染决策，更多入口可展开查看。
-    </el-alert>
-
-    <el-alert
-      v-if="scope.message"
-      class="wb-notice"
-      :type="scope.admin ? 'info' : (scope.matched ? 'success' : 'warning')"
-      :closable="false"
-      show-icon
-      :title="scope.message"
-    />
-    <el-alert
-      v-if="scopeLoadError"
-      class="wb-notice"
-      type="error"
-      :closable="false"
-      show-icon
-      :title="scopeLoadError"
-    />
-    <el-alert
-      v-if="needPick"
-      class="wb-notice"
-      type="warning"
-      :closable="false"
-      show-icon
-      title="该账号有多个科室权限，请先选择科室后再查看患者。"
-    />
-    <el-alert
-      v-if="dataHealth"
-      class="wb-notice data-health-notice"
-      :type="dataHealth.type"
-      :closable="false"
-      show-icon
-      :title="dataHealth.text"
-    />
-    <el-alert
-      v-if="patientsLoadError"
-      class="wb-notice"
-      type="error"
-      :closable="false"
-      show-icon
-      :title="patientsLoadError"
-    />
 
     <section class="wb-card filter-card">
       <!-- 视图切换：同一份「在科患者」数据的不同临床视角。
@@ -81,6 +22,7 @@
           <h2>患者检索</h2>
         </div>
         <span class="section-hint">支持姓名、住院号、床位和病区搜索</span>
+        <el-button size="small" :icon="Refresh" :loading="loading" @click="loadPatients">刷新</el-button>
       </div>
       <div class="filter-fields">
         <div class="filter-field">
@@ -103,57 +45,25 @@
           </el-select>
         </div>
       </div>
+      <div class="stat-strip">
+        <span class="stat-item clickable" :class="{ active: patientView === 'all' }" @click="switchView('all')"><b>{{ stats.total }}</b> 在科</span>
+        <span class="stat-sep"></span>
+        <span class="stat-item clickable infection" :class="{ active: patientView === 'infection' }" @click="switchView('infection')"><b>{{ stats.infectionCount }}</b> 感染</span>
+        <span class="stat-sep"></span>
+        <span class="stat-item clickable danger" :class="{ active: patientView === 'critical' }" @click="switchView('critical')"><b>{{ stats.highRiskCount }}</b> 高危</span>
+        <span class="stat-sep"></span>
+        <span class="stat-item clickable warn" :class="{ active: patientView === 'todo' }" @click="switchView('todo')"><b>{{ stats.todoCount }}</b> 待办</span>
+        <span class="stat-sep"></span>
+        <span class="stat-item warn"><b>{{ stats.reassessmentUnknownCount ? '—' : stats.reassessmentCount }}</b> 复评</span>
+        <span class="stat-sep"></span>
+        <span class="stat-item"><b>{{ stats.critical }}</b> 危重</span>
+        <span class="stat-sep"></span>
+        <span class="stat-item"><b>{{ stats.avgDays }}</b> 天均</span>
+        <span class="stat-spacer"></span>
+        <span class="stat-muted">筛选 {{ filteredPatients.length }} / 共 {{ patients.length }}</span>
+      </div>
     </section>
 
-    <section class="wb-card overview-card">
-      <div class="section-heading">
-        <div>
-          <div class="section-kicker">CURRENT CENSUS</div>
-          <h2>在科概览</h2>
-        </div>
-        <div class="overview-tags">
-          <span class="summary-tag"><i class="tag-dot orange"></i>当前筛选 {{ filteredPatients.length }} 人</span>
-          <span class="summary-tag muted-tag">共 {{ patients.length }} 人</span>
-        </div>
-      </div>
-      <div class="stat-grid">
-        <div class="stat-card stat-card-primary" :class="{ 'is-active': patientView === 'all' }" @click="switchView('all')">
-          <div class="stat-head"><span class="stat-label">在科患者</span><span class="stat-icon orange-icon">人</span></div>
-          <div class="stat-value">{{ stats.total }}<em> 人</em></div>
-          <div class="stat-foot">当前科室口径下的在科人数</div>
-        </div>
-        <div class="stat-card stat-card-infection" :class="{ 'is-active': patientView === 'infection' }" @click="switchView('infection')">
-          <div class="stat-head"><span class="stat-label">感染风险</span><span class="stat-icon teal-icon">染</span></div>
-          <div class="stat-value infection">{{ stats.infectionCount }}<em> 人</em></div>
-          <div class="stat-foot">疑似感染 / 待抗感染决策</div>
-        </div>
-        <div class="stat-card stat-card-danger" :class="{ 'is-active': patientView === 'critical' }" @click="switchView('critical')">
-          <div class="stat-head"><span class="stat-label">高危患者</span><span class="stat-icon red-icon">危</span></div>
-          <div class="stat-value danger">{{ stats.highRiskCount }}<em> 人</em></div>
-          <div class="stat-foot">SOFA≥10 / 通气 / 升压药 / CRRT / 休克 / 耐药</div>
-        </div>
-        <div class="stat-card stat-card-warning" :class="{ 'is-active': patientView === 'todo' }" @click="switchView('todo')">
-          <div class="stat-head"><span class="stat-label">今日待办</span><span class="stat-icon amber-icon">待</span></div>
-          <div class="stat-value todo">{{ stats.todoCount }}<em> 项</em></div>
-          <div class="stat-foot">未评 SOFA / APACHE II 等</div>
-        </div>
-        <div class="stat-card stat-card-reassessment">
-          <div class="stat-head"><span class="stat-label">抗感染复评</span><span class="stat-icon amber-icon">复</span></div>
-          <div class="stat-value todo">{{ stats.reassessmentUnknownCount ? '—' : stats.reassessmentCount }}<em v-if="!stats.reassessmentUnknownCount"> 项</em></div>
-          <div class="stat-foot">{{ stats.reassessmentUnknownCount ? `有 ${stats.reassessmentUnknownCount} 人状态未知` : '待复评任务（已确认）' }}</div>
-        </div>
-        <div class="stat-card stat-card-neutral">
-          <div class="stat-head"><span class="stat-label">危重患者</span><span class="stat-icon gray-icon">重</span></div>
-          <div class="stat-value">{{ stats.critical }}<em> 人</em></div>
-          <div class="stat-foot">机械通气 / 血管活性药 / CRRT</div>
-        </div>
-        <div class="stat-card stat-card-neutral">
-          <div class="stat-head"><span class="stat-label">平均在科天数</span><span class="stat-icon gray-icon">天</span></div>
-          <div class="stat-value">{{ stats.avgDays }}<em> 天</em></div>
-          <div class="stat-foot">仅统计有入科时间的患者</div>
-        </div>
-      </div>
-    </section>
 
     <section class="wb-card patient-list-card">
       <div class="list-heading">
@@ -985,4 +895,27 @@ function onDepartChange() {
 .evidence-block { padding: 12px; border-radius: 8px; background: #fafaf9; }
 .evidence-block p { margin: 8px 0 0; color: #57534e; font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
 .evidence-foot { margin-top: 12px; }
+/* 紧凑统计条（合并原在科概览大卡片） */
+.stat-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #f5f5f4;
+  font-size: 13px;
+  color: #78716c;
+  flex-wrap: wrap;
+}
+.stat-strip b { font-size: 18px; color: #1c1917; margin-right: 3px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat-strip .danger b { color: #b91c1c; }
+.stat-strip .warn b { color: #b45309; }
+.stat-strip .infection b { color: #0f766e; }
+.stat-item.clickable { cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background .15s; }
+.stat-item.clickable:hover { background: #f5f5f4; }
+.stat-item.clickable.active { background: #ffedd5; color: #c2410c; }
+.stat-item.clickable.active b { color: #c2410c; }
+.stat-sep { width: 1px; height: 16px; background: #e7e5e4; }
+.stat-spacer { flex: 1; }
+.stat-muted { color: #a8a29e; font-size: 12px; }
 </style>
