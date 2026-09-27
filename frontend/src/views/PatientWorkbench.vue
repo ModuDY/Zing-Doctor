@@ -23,22 +23,18 @@
         <span class="extra-item"><b>{{ stats.critical }}</b> 危重</span>
         <span class="extra-sep"></span>
         <span class="extra-item"><b>{{ stats.avgDays }}</b> 天均</span>
+          <el-button size="small" :icon="Refresh" :loading="loading" @click="loadPatients" style="margin-left:8px">刷新</el-button>
       </div>
       </div>
-      <div class="section-heading filter-heading">
-        <div>
-          <div class="section-kicker">PATIENT DIRECTORY</div>
-          <h2>患者检索</h2>
-        </div>
-        <span class="section-hint">支持姓名、住院号、床位和病区搜索</span>
-        <el-button size="small" :icon="Refresh" :loading="loading" @click="loadPatients">刷新</el-button>
-      </div>
+      <!-- 科室不再在本页切换：统一用左侧栏顶部的全局科室上下文。
+           同一批患者在各页面之间来回跳，若这里再留一个科室下拉，
+           很容易出现「工作台看 A 科室、点进 APACHE II 变成 B 科室」而不报错。 -->
       <div class="filter-fields">
         <div class="filter-field">
-          <span class="filter-label">科室范围</span>
-          <el-select v-model="departCode" clearable placeholder="全部科室" popper-class="qb-popper" @change="onDepartChange">
-            <el-option v-for="d in departments" :key="d.org_code" :label="d.depart_name" :value="d.org_code" />
-          </el-select>
+          <span class="filter-label">当前科室</span>
+          <!-- 只读展示：科室已改到左侧栏全局切换，这里不再提供下拉，
+               但要让医生看得到当前口径，否则切了左侧栏不确定工作台跟没跟上 -->
+          <span class="depart-readonly">{{ scopeText }}</span>
         </div>
         <div class="filter-field search-field">
           <span class="filter-label">快速搜索</span>
@@ -174,11 +170,11 @@
             <template #default="{ row }">
               <el-button link type="primary" @click.stop="goDecision(row)">抗感染</el-button>
               <el-button link type="primary" @click.stop="goSofa(row)">SOFA</el-button>
+              <el-button link type="primary" @click.stop="goApache(row)">APACHE II</el-button>
               <el-dropdown trigger="click" popper-class="workbench-more-popper" @command="(cmd) => jump(cmd, row)">
                 <el-button link type="primary" @click.stop>更多<el-icon class="el-icon--right"><arrow-down /></el-icon></el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item command="/page/apache2-score">APACHE II</el-dropdown-item>
                     <el-dropdown-item command="/page/sepsis-bundle">脓毒症集束化</el-dropdown-item>
                     <el-dropdown-item command="/page/ards-prone-record">ARDS 俯卧位</el-dropdown-item>
                     <el-dropdown-item command="/page/abx-pkpd">PK/PD 剂量</el-dropdown-item>
@@ -220,11 +216,11 @@
             <div class="bed-card-actions" @click.stop>
               <el-button link type="primary" size="small" @click="goDecision(row)">抗感染</el-button>
               <el-button link type="primary" size="small" @click="goSofa(row)">SOFA</el-button>
+              <el-button link type="primary" size="small" @click="goApache(row)">APACHE II</el-button>
               <el-dropdown trigger="click" popper-class="workbench-more-popper" @command="(cmd) => jump(cmd, row)">
                 <el-button link type="primary" size="small" @click.stop>更多<el-icon class="el-icon--right"><arrow-down /></el-icon></el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item command="/page/apache2-score">APACHE II</el-dropdown-item>
                     <el-dropdown-item command="/page/sepsis-bundle">脓毒症集束化</el-dropdown-item>
                     <el-dropdown-item command="/page/ards-prone-record">ARDS 俯卧位</el-dropdown-item>
                     <el-dropdown-item command="/page/abx-pkpd">PK/PD 剂量</el-dropdown-item>
@@ -277,6 +273,7 @@ import {
   clearCurrentPatient,
   workbenchRefreshToken
 } from '../utils/patientContext'
+import { currentDepart } from '../utils/departContext'
 
 const router = useRouter()
 const route = useRoute()
@@ -302,13 +299,17 @@ const patientView = ref(normalizeView(route.query.view))
 const loading = ref(false)
 const patients = ref([])
 const departments = ref([])
-// 科室边界由服务端判定（见 UserDepartScopeService），前端只负责呈现与让用户选：
-//   admin   —— 名单内账号豁免限制，可看全部科室
+// 科室不再由本页自选：统一走全局科室上下文（左侧栏顶部的科室下拉），本页只消费它。
+// 优先级：外链 URL 的 departCode > 全局上下文 —— 外链是第三方系统指定了科室，
+// 不能被本地切换覆盖（MainLayout 在外链模式下也不显示全局下拉）。
+// 科室边界仍由服务端判定（见 UserDepartScopeService），前端只是不再自己选：
+//   admin   —— 名单内账号豁免限制，可看全部科室（全局为空时按全院口径）
 //   matched —— 重症侧是否匹配到该账号；false 表示无科室，<b>不会</b>退回全院
-//   departs —— 可选科室列表；多个时由用户自选，前端不替他猜
+//   departs —— 可选科室列表；多个且未选时不查数据，提示用户去左侧栏选
 // departCode 必须是 org_code，不能是病区名 —— 见 utils/depart.js 的说明。
-const departCode = ref(externalParam('departCode'))
-// 多科室账号尚未选定科室：此时不查数据、也不退回全院，等用户在下拉里选
+const externalDepartCode = externalParam('departCode')
+const departCode = ref(externalDepartCode || currentDepart.departCode || '')
+// 多科室账号尚未选定科室：此时不查数据、也不退回全院，等用户在左侧栏选
 const needPick = ref(false)
 const scope = ref({ admin: false, matched: false, departs: [], message: '' })
 const scopeLoadError = ref('')
@@ -496,7 +497,7 @@ function formatTime(value) {
 
 /** 无数据时的说明：先把「没权限 / 没选科室」和「数据源没数据」区分开，别都推给数据源 */
 const emptyText = computed(() => {
-  if (needPick.value) return '该账号有多个科室权限，请先在上方选择科室。'
+  if (needPick.value) return '该账号有多个科室权限，请先在左侧栏选择科室。'
   if (scope.value.username && !scope.value.admin && !scope.value.matched) {
     return '当前账号未在重症系统绑定在用科室，请联系管理员配置科室权限。'
   }
@@ -524,15 +525,18 @@ async function initScope() {
       departCode.value = ext
     }
 
+    // 科室由全局上下文或外链 URL 提供；这里只兜一次底（全局还没值时不至于空着）
+    if (!externalDepartCode && !departCode.value) {
+      departCode.value = currentDepart.departCode || ''
+    }
     if (s.admin) {
-      // 管理员：留空即全院口径，下拉仍可切到具体科室
+      // 管理员：全局未选时留空即全院口径
       needPick.value = false
     } else if (departments.value.length === 1) {
       departCode.value = departments.value[0].org_code
       needPick.value = false
     } else if (departments.value.length > 1) {
-      // 多科室：不替用户猜，让他选
-      departCode.value = ext || ''
+      // 多科室：不替用户猜，等他在左侧栏选定；未选时不查数据
       needPick.value = !departCode.value
     } else {
       // 无科室：matched=false，由模板提示并拦住请求，不退回全院
@@ -610,6 +614,7 @@ watch(() => route.query.view, (v) => {
 function openPatient(row) { goDecision(row) }
 function goDecision(row) { jump('/page/abx-decision', row) }
 function goSofa(row) { jump('/page/sofa-score', row) }
+function goApache(row) { jump('/page/apache2-score', row) }
 
 /**
  * 跳转一律带 patientId（patient_info.id，库内唯一）。
@@ -642,6 +647,24 @@ function onDepartChange() {
   clearCurrentPatient()
   loadPatients()
 }
+
+/**
+ * 全局科室切换（左侧栏下拉）→ 本页重新取数。
+ *
+ * <p>外链模式忽略：那种场景科室由 URL 固定，全局下拉本来也不显示。
+ *
+ * <p>这里同样要清掉当前患者 —— 患者只属于一个科室，带着 A 科室的患者切到 B 科室，
+ * 再进 SOFA / APACHE 看到的还是 A 科室那个人，而且不报错、看着也像对的。
+ */
+watch(() => currentDepart.departCode, (v) => {
+  if (externalDepartCode) return
+  const next = v || ''
+  if (next === departCode.value) return
+  departCode.value = next
+  // 多科室账号在左侧栏选定后，待选提示随之解除
+  if (next) needPick.value = false
+  onDepartChange()
+})
 </script>
 <style scoped>
 /* 患者工作台：沿用质控模块的暖橙 / stone 体系，但把信息层级调整为临床工作流。 */
@@ -707,6 +730,8 @@ function onDepartChange() {
 .filter-field { display: flex; flex-direction: column; gap: 7px; min-width: 178px; }
 .filter-field.search-field { flex: 1 1 320px; min-width: 260px; }
 .filter-label { color: #78716c; font-size: 12px; }
+/* 只读的科室口径：与旁边的输入框同高同边框，视觉上仍是一个字段，但不可点击 */
+.depart-readonly { display: flex; align-items: center; height: 32px; padding: 0 11px; border: 1px solid #e7e5e4; border-radius: 4px; background: #fafaf9; color: #292524; font-size: 13px; }
 .filter-field :deep(.el-input), .filter-field :deep(.el-select) { width: 100%; }
 .overview-card { padding: 20px 22px 22px; }
 .overview-tags { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }

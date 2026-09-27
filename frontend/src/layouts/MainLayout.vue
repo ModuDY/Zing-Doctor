@@ -208,7 +208,10 @@ export default {
       const scope = await request.get('/workbench/scope')
       if (scope && Array.isArray(scope.departs)) {
         this.departs = scope.departs
-        if (!this.selectedDepart && this.departs.length > 0) {
+        // 只有一个科室时无歧义，直接用；有多个时不替用户猜 ——
+        // 自动选中第一个会让医生以为「看到的就是全部」，实际只是其中一个科室，
+        // 而且这种误解不会报错、看着也像对的。留空交由各页面提示用户来选。
+        if (!this.selectedDepart && this.departs.length === 1) {
           this.selectedDepart = this.departs[0].org_code
           this.onDepartChange(this.selectedDepart)
         }
