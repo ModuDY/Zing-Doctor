@@ -122,7 +122,7 @@ public interface IcuPatientMapper {
             "         pi.multidrug_resistant_bacteria AS mdr_bacteria, ",
             "         pi.resistant_bacteria AS resistant_bacteria, ",
             "         pi.weight AS weight, pi.height AS height, pi.allergy_content AS allergy_content, ",
-            "         pi.in_depart_time AS in_depart_time, pi.depart_code AS depart_code, ",
+            "         pi.in_depart_time AS in_depart_time, ",
             "         CASE WHEN pi.is_sepsis_shock = 1 THEN 1 ELSE 0 END AS shock_flag, ",
             "         CASE WHEN (SELECT COUNT(1) FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d ",
             "                     WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 ",
