@@ -5,6 +5,7 @@ import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.module.antibiotic.mapper.AntibioticReassessmentMapper;
 import com.zing.doctor.module.apache2.mapper.Apache2ScoreRecordMapper;
 import com.zing.doctor.module.sofa.mapper.SofaScoreRecordMapper;
+import com.zing.doctor.module.system.service.SysParamService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,7 +48,8 @@ class WorkbenchInfectionEnrichTest {
         mapper = mock(IcuPatientMapper.class);
         service = new WorkbenchEnrichService(mock(SofaScoreRecordMapper.class),
                 mock(Apache2ScoreRecordMapper.class), mapper,
-                mock(AntibioticReassessmentMapper.class));
+                mock(AntibioticReassessmentMapper.class),
+                mock(SysParamService.class));
     }
 
     @Test
