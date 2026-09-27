@@ -282,7 +282,6 @@ public interface IcuPatientMapper {
             + "  pi.resistant_bacteria AS resistant_bacteria, "
             + "  pi.weight AS weight, pi.height AS height, pi.allergy_content AS allergy_content, "
             + "  pi.in_depart_time AS in_depart_time, pi.out_depart_time AS out_depart_time, "
-            + "  pi.depart_code AS depart_code, "
             + "  CAST(pi.diagnosis_content AS VARCHAR(2000)) AS diagnosis "
             + "  FROM \"zing_icu_db_prod\".\"patient_info\" pi "
             + "  WHERE pi.in_hospital_no = #{inHospitalNo} AND pi.del_flag = 0 "
