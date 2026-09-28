@@ -55,3 +55,7 @@ $null
 
 # vite 依赖预构建缓存（含文档原型 docs/ards-prone/.vite，运行产物非源码）
 .vite/
+
+# pnpm 的本地内容寻址缓存（本项目用 npm，无 pnpm-lock.yaml；这里的文件来自
+# 外部工具临时用 pnpm 装依赖，与项目依赖无关）。入库会把别人的机器路径和缓存带进来。
+.pnpm-store/
