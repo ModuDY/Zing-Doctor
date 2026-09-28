@@ -317,7 +317,9 @@ const patientsLoadError = ref('')
 const keyword = ref('')
 // 视图模式：table 表格 / cards 床头卡；默认读参数设置 WORKBENCH_VIEW_MODE
 const viewMode = ref('table')
-const sortBy = ref('newest')
+// 默认按床位：查房是沿床位走的，医生开口问的也是「几床怎么样了」。
+// 排序一股放在前端（filteredPatients），表格与床头卡共用，改这里两个视图同时生效。
+const sortBy = ref('bed')
 const updatedAt = ref('')
 const refreshToken = ref(workbenchRefreshToken())
 const evidenceVisible = ref(false)
@@ -486,7 +488,14 @@ const filteredPatients = computed(() => {
     if (sortBy.value === 'oldest') return timeOf(a) - timeOf(b)
     if (sortBy.value === 'stay') return (b.icuDays || 0) - (a.icuDays || 0)
     if (sortBy.value === 'bed') {
-      return String(a.bedNo || '').localeCompare(String(b.bedNo || ''), 'zh-CN', { numeric: true })
+      const ba = String(a.bedNo || '')
+      const bb = String(b.bedNo || '')
+      // 无床位的排最后：空串在 localeCompare 里最小，不处理的话「待分配」会占住首屏，
+      // 而这些人多半是刚入科还没分床或正在转科，恰恰是按床位查房时最不先看的。
+      if (ba && !bb) return -1
+      if (!ba && bb) return 1
+      // numeric: 让 9 床排在 10 床前面，而不是按字符串排成 10 < 9
+      return ba.localeCompare(bb, 'zh-CN', { numeric: true })
     }
     return timeOf(b) - timeOf(a)
   })
