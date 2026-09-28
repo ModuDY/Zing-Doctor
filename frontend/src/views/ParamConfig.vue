@@ -341,6 +341,7 @@ const LINK_PAGES = [
   { code: 'abx-ddd', name: '抗菌药物使用强度分析', desc: '全院/科室抗菌药物使用率、DDDs、药品排名、趋势', params: [
     { k: 'departCode', req: false, sample: 'ICU01' } ] },
   { code: 'abx-ddd-config', name: 'DDD 值配置管理', desc: '抗菌药物 DDD 值知识库后台配置', params: [] },
+  { code: 'abx-pkpd-config', name: 'PK/PD 药物知识库配置', desc: '抗菌药物 PK/PD 参数界面化配置，优先于内置枚举', params: [] },
   { code: 'abx-mdro', name: '细菌培养检出监测', desc: '菌株排名、标本分布、趋势、高风险菌预警', params: [] },
   { code: 'abx-mdro-config', name: '细菌分类配置管理', desc: '革兰阳性/阴性/真菌、高风险菌列表后台配置', params: [] },
   { code: 'sepsis-bundle', name: '脓毒症休克集束化治疗', desc: '1H/3H/6H 集束化治疗完成情况自动判断与记录', params: [

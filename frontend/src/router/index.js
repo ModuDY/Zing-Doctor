@@ -46,6 +46,12 @@ const routes = [
     meta: { title: 'PK/PD 抗菌药物剂量优化' }
   },
   {
+    path: '/page/abx-pkpd-config',
+    name: 'abxPkpdConfig',
+    component: () => import('../views/PkpdKnowledgeConfig.vue'),
+    meta: { title: 'PK/PD 药物知识库配置' }
+  },
+  {
     path: '/page/abx-ddd',
     name: 'dddOverview',
     component: () => import('../views/DddOverview.vue'),

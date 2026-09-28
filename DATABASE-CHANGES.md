@@ -1120,3 +1120,35 @@ SELECT `param_key`, `param_value`, `default_value`
   FROM `sys_param`
  WHERE `param_key` = 'WORKBENCH_SCORE_TODO_RULE';
 ```
+
+---
+
+### 2026-09-28 · PK/PD 抗菌药物知识库入库
+
+**涉及**
+
+- 新表 `config_abx_pkpd_knowledge`：抗菌药物 PK/PD 参数（PK/PD 类型、目标参数与目标值、蛋白结合率、清除途径、常用剂量、剂量调整、TDM 标记等）。
+- 此前这些参数硬编码在 `AbxDrugKnowledge` 枚举里，加新药必须改代码重新部署；入库后由「PK/PD 药物知识库配置」页面增删改。
+- 匹配优先级：本表 `status=1` 的记录优先，未命中回落内置枚举。`drug_name` 唯一。
+- 新页面 `/page/abx-pkpd-config`（路由 + `sys_page_config` 注册 + 参数设置页外链一览均已就位）。
+- 内置枚举新增头孢呋辛（时间依赖型）。
+
+**升级脚本**
+
+- 达梦：`sql/37_abx_pkpd_knowledge.sql`
+- MySQL/MariaDB：`sql/mysql/37_abx_pkpd_knowledge.sql`
+- `install.sh` 三处清单、`install-mariadb-debian.sh`、`build-delivery.ps1` 的 install-all.sql 生成清单均已纳入 37 号。
+
+**升级后自检**
+
+```sql
+-- 达梦
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."config_abx_pkpd_knowledge";
+SELECT COUNT(*) FROM "zing_doctor_db_prod"."sys_page_config" WHERE "page_code" = 'abx-pkpd-config';
+
+-- MySQL / MariaDB
+SELECT COUNT(*) FROM `config_abx_pkpd_knowledge`;
+SELECT COUNT(*) FROM `sys_page_config` WHERE `page_code` = 'abx-pkpd-config';
+```
+
+两者都应 ≥0 / =1；页面未注册时外链 `/entry/abx-pkpd-config` 会被判「页面未注册」。

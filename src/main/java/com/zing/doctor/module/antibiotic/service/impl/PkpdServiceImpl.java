@@ -8,6 +8,8 @@ import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.service.IcuPatientService;
 import com.zing.doctor.module.antibiotic.dto.*;
 import com.zing.doctor.module.antibiotic.knowledge.AbxDrugKnowledge;
+import com.zing.doctor.module.antibiotic.entity.AbxPkpdKnowledge;
+import com.zing.doctor.module.antibiotic.service.AbxPkpdKnowledgeService;
 import com.zing.doctor.module.antibiotic.service.PkpdService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +41,7 @@ public class PkpdServiceImpl implements PkpdService {
 
     private final IcuPatientService icuPatientService;
     private final IcuPatientMapper icuPatientMapper;
+    private final AbxPkpdKnowledgeService pkpdKnowledgeService;
 
     @Override
     public PkpdAssessmentView getPkpdAssessment(String patientId) {
@@ -464,7 +467,7 @@ public class PkpdServiceImpl implements PkpdService {
             analysis.setStartTime(item.getStartTime());
 
             // 匹配知识库
-            AbxDrugKnowledge knowledge = AbxDrugKnowledge.match(item.getName());
+            KnowledgeInfo knowledge = resolveKnowledge(item.getName());
             if (knowledge != null) {
                 analysis.setKnowledgeMatched(true);
                 analysis.setPkpdType(knowledge.getPkpdType());
@@ -499,7 +502,7 @@ public class PkpdServiceImpl implements PkpdService {
         if (currentAbx == null || currentAbx.isEmpty()) return list;
 
         for (AbxCurrentItem item : currentAbx) {
-            AbxDrugKnowledge knowledge = AbxDrugKnowledge.match(item.getName());
+            KnowledgeInfo knowledge = resolveKnowledge(item.getName());
             if (knowledge == null) continue; // 未匹配知识库的不生成建议
 
             DoseRecommendation rec = new DoseRecommendation();
@@ -574,7 +577,7 @@ public class PkpdServiceImpl implements PkpdService {
     }
 
     /** 构建肾功能剂量调整表 */
-    private List<DoseRecommendation.RenalDoseRow> buildRenalDoseTable(AbxDrugKnowledge knowledge) {
+    private List<DoseRecommendation.RenalDoseRow> buildRenalDoseTable(KnowledgeInfo knowledge) {
         List<DoseRecommendation.RenalDoseRow> table = new ArrayList<>();
         if (!"renal".equals(knowledge.getClearanceRoute())) {
             DoseRecommendation.RenalDoseRow row = new DoseRecommendation.RenalDoseRow();
@@ -604,14 +607,14 @@ public class PkpdServiceImpl implements PkpdService {
     }
 
     /** 简化的肾功能剂量调整（按比例减量，实际应以说明书为准） */
-    private String adjustByCrcl(AbxDrugKnowledge knowledge, double crclRatio) {
+    private String adjustByCrcl(KnowledgeInfo knowledge, double crclRatio) {
         // 简化：CrCl 越低，间隔越长或剂量越小
         if (crclRatio >= 45) return knowledge.getUsualDose() + "（可能需延长间隔）";
         if (crclRatio >= 22) return "减量 25-50% 或延长间隔（详见说明书）";
         return "减量 50% 或 q48-72h（详见说明书）";
     }
 
-    private boolean isWeightBasedDose(AbxDrugKnowledge k) {
+    private boolean isWeightBasedDose(KnowledgeInfo k) {
         String name = k.getDrugName();
         return name.contains("万古霉素") || name.contains("氨基糖苷") || name.contains("阿米卡星")
                 || name.contains("庆大霉素") || name.contains("多粘菌素") || name.contains("达托霉素");
@@ -805,4 +808,84 @@ public class PkpdServiceImpl implements PkpdService {
         }
         return time;
     }
+
+    // ==================================================================
+    // PK/PD 知识库统一解析：优先数据库（界面配置），fallback 内置枚举
+    // ==================================================================
+
+    /** 统一的知识库信息（屏蔽数据库实体与枚举的差异） */
+    @lombok.Data
+    private static class KnowledgeInfo {
+        String drugName;
+        String pkpdType;
+        String targetParam;
+        String targetValue;
+        int proteinBinding;
+        String clearanceRoute;
+        String usualDose;
+        String renalAdjustment;
+        boolean highProteinBinding;
+        boolean tdmRequired;
+        String remark;
+        String getPkpdTypeText() {
+            switch (pkpdType) {
+                case "TIME_DEPENDENT": return "时间依赖性";
+                case "CONCENTRATION_DEPENDENT": return "浓度依赖性";
+                case "TIME_DEPENDENT_LONG_PAE": return "时间依赖性+长PAE";
+                default: return pkpdType;
+            }
+        }
+        String getClearanceRouteText() {
+            switch (clearanceRoute) {
+                case "renal": return "肾脏清除";
+                case "hepatic": return "肝脏清除";
+                case "dual": return "肝肾双通道";
+                default: return clearanceRoute;
+            }
+        }
+    }
+
+    /** 优先查数据库（界面配置），未命中再查内置枚举 */
+    private KnowledgeInfo resolveKnowledge(String drugName) {
+        // 1. 数据库
+        try {
+            AbxPkpdKnowledge db = pkpdKnowledgeService.match(drugName);
+            if (db != null) {
+                KnowledgeInfo ki = new KnowledgeInfo();
+                ki.drugName = db.getDrugName();
+                ki.pkpdType = db.getPkpdType();
+                ki.targetParam = db.getTargetParam();
+                ki.targetValue = db.getTargetValue();
+                ki.proteinBinding = db.getProteinBinding() != null ? db.getProteinBinding() : 0;
+                ki.clearanceRoute = db.getClearanceRoute();
+                ki.usualDose = db.getUsualDose();
+                ki.renalAdjustment = db.getDoseAdjust();
+                ki.highProteinBinding = db.getHighProteinBinding() != null && db.getHighProteinBinding() == 1;
+                ki.tdmRequired = db.getTdmRequired() != null && db.getTdmRequired() == 1;
+                ki.remark = db.getRemark();
+                return ki;
+            }
+        } catch (Exception e) {
+            log.warn("[PKPD] 数据库匹配异常，回退枚举: {}", e.getMessage());
+        }
+        // 2. 内置枚举
+        AbxDrugKnowledge k = AbxDrugKnowledge.match(drugName);
+        if (k != null) {
+            KnowledgeInfo ki = new KnowledgeInfo();
+            ki.drugName = k.getDrugName();
+            ki.pkpdType = k.getPkpdType();
+            ki.targetParam = k.getTargetParam();
+            ki.targetValue = k.getTargetValue();
+            ki.proteinBinding = k.getProteinBinding();
+            ki.clearanceRoute = k.getClearanceRoute();
+            ki.usualDose = k.getUsualDose();
+            ki.renalAdjustment = k.getRenalAdjustment();
+            ki.highProteinBinding = k.isHighProteinBinding();
+            ki.tdmRequired = k.isTdmRequired();
+            ki.remark = k.getRemark();
+            return ki;
+        }
+        return null;
+    }
+
 }

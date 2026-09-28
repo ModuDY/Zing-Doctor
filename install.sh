@@ -182,6 +182,7 @@ FULL_SQL=(
     "34_system_check_page.sql"
     "35_workbench_view_mode.sql"
     "36_workbench_score_todo_rule.sql"
+    "37_abx_pkpd_knowledge.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -229,6 +230,7 @@ FULL_SQL_JDBC=(
     "34_system_check_page.sql"
     "35_workbench_view_mode.sql"
     "36_workbench_score_todo_rule.sql"
+    "37_abx_pkpd_knowledge.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -294,6 +296,7 @@ INCREMENTAL_SQL=(
     "34_system_check_page.sql"
     "35_workbench_view_mode.sql"
     "36_workbench_score_todo_rule.sql"
+    "37_abx_pkpd_knowledge.sql"
 )
 
 # ---------- JDBC 初始化工具 classpath ----------
