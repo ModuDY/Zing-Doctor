@@ -111,10 +111,10 @@
           <li><b>ICU 固定令牌（推荐）</b>：URL 带 <code>extToken=已分配的固定令牌</code>，最简单，ICU 外链模板直接写死即可。</li>
           <li><b>签名校验</b>：URL 带 <code>expire=过期时间戳&amp;sign=按密钥生成的签名</code>，安全性高，由后端程序实时生成。</li>
         </ul>
-        <p>通用业务参数（建议带）：<code>realname=医生姓名</code> —— 会记录为操作人，页面「评分医生」也据此显示。把示例中的 <code>{host}</code>、<code>{token}</code> 替换为实际部署地址与令牌即可使用。</p>
+        <p>通用业务参数（建议带）：<code>realname=医生姓名</code> —— 会记录为操作人，页面「评分医生」也据此显示。示例中地址已填当前服务器，把 <code>{token}</code> 替换为上方生成的固定令牌即可使用。</p>
         <div class="link-actions">
           <el-button type="primary" size="small" @click="onGenToken">随机生成新令牌</el-button>
-          <span class="link-token-tip">当前令牌：<b>{{ maskedToken }}</b>&emsp;对外地址：<b>{{ currentBase() || '{host}' }}</b></span>
+          <span class="link-token-tip">当前令牌：<b>{{ maskedToken }}</b>&emsp;对外地址：<b>{{ currentBase() || 'http://172.88.1.184:2001' }}</b></span>
         </div>
       </div>
 
@@ -316,7 +316,7 @@ const tab = ref('param')
 
 /* ---------- 外链页面一览（与 sys_page_config 已注册页面对应） ---------- */
 const linkKw = ref('')
-const LINK_BASE = 'https://{host}'
+const LINK_BASE = 'http://172.88.1.184:2001'
 const LINK_TOKEN = '{token}'
 const LINK_PAGES = [
   // 工作台排在最前：它是 ICU 侧最常用的入口，且已吸收原先独立的「疑似感染患者列表」
@@ -388,7 +388,11 @@ function buildExample(pg) {
   const base = (currentBase() || LINK_BASE).replace(/\/+$/, '')
   const tok = currentToken() || LINK_TOKEN
   let url = `${base}/entry/${pg.code}?extToken=${tok}&realname=张医生`
-  ;(pg.params || []).forEach((pa) => { url += `&${pa.k}=${pa.sample}` })
+  ;(pg.params || []).forEach((pa) => {
+    // realname 已在基础 URL 中统一携带，避免重复拼接
+    if (pa.k === 'realname') return
+    url += `&${pa.k}=${pa.sample}`
+  })
   return url
 }
 function currentBase() {
