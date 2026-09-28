@@ -1152,3 +1152,31 @@ SELECT COUNT(*) FROM `sys_page_config` WHERE `page_code` = 'abx-pkpd-config';
 ```
 
 两者都应 ≥0 / =1；页面未注册时外链 `/entry/abx-pkpd-config` 会被判「页面未注册」。
+
+---
+
+### 2026-09-28 · 评分文书抬头参数化（院徽 + 院名）
+
+**涉及**
+
+- `sys_param` 新增两个参数（分组 `score`）：
+  - `DOC_HOSPITAL_NAME` 文书医院抬头：多行文本，每行一个院名，文书上字号自上而下递减（20/18/16px）
+  - `DOC_HOSPITAL_LOGO` 文书院徽：图片，可上传（转 base64，限 2MB）或填图片地址
+- APACHE II / SOFA 评分文书（含导出 PDF）抬头改由这两个参数驱动，替换原硬编码
+  的 `/logo.png` 与三行院名——换院徽、改院名不再需要改代码重新构建。
+- 参数设置页新增 `image` 参数类型：列表显示缩略图，编辑支持上传 / 填地址 / 预览。
+- 前端 `useDocHeader` 组合式函数封装取参与兜底：参数留空回退 `default_value`，
+  读不到参数（老库未执行 38 号）回退内置默认，文书照常输出。
+
+**升级脚本**
+
+- 达梦：`sql/38_doc_header.sql`；MySQL/MariaDB：`sql/mysql/38_doc_header.sql`
+- `install.sh` 三处清单、`install-mariadb-debian.sh`、`build-delivery.ps1` 已纳入 38 号。
+
+**升级后自检**
+
+```sql
+SELECT "param_key", "param_value" FROM "zing_doctor_db_prod"."sys_param"
+ WHERE "param_key" IN ('DOC_HOSPITAL_NAME','DOC_HOSPITAL_LOGO');
+-- 应返回 2 行；打开 APACHE II / SOFA 评分页的文书预览，抬头应为配置的院徽与院名
+```

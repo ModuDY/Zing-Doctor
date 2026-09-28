@@ -456,9 +456,7 @@
           <div style="display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
             <img :src="HOSPITAL_LOGO" style="width:60px;height:60px;margin-right:16px;" />
             <div style="text-align:center;">
-              <div style="font-family:'SimHei','黑体',sans-serif;font-size:20px;font-weight:700;letter-spacing:2px;">福州市第二总医院</div>
-              <div style="font-family:'SimHei','黑体',sans-serif;font-size:18px;font-weight:700;letter-spacing:2px;">福州市第二医院</div>
-              <div style="font-family:'SimHei','黑体',sans-serif;font-size:16px;font-weight:700;letter-spacing:2px;">福建省福州中西医结合医院</div>
+              <div v-for="(nm, i) in hospitalNames" :key="i" :style="nameStyle(i)">{{ nm }}</div>
             </div>
           </div>
           <!-- 大标题 -->
@@ -643,9 +641,11 @@ import { isExternalMode } from '../utils/external'
 import { useStaffSignature } from '../utils/staffSignature'
 import { operatorLabel } from '../utils/operator'
 import { markWorkbenchRefresh } from '../utils/patientContext'
+import { useDocHeader, nameStyle } from '../utils/useDocHeader'
 import { getUser } from '../utils/auth'
 
-const HOSPITAL_LOGO = '/logo.png'  /* 院徽静态资源：frontend/public/logo.png，构建后随 dist 输出 */
+// 医院抬头（院徽 + 院名）：参数设置里可改，未配置回退默认（见 useDocHeader）
+const { logo: HOSPITAL_LOGO, hospitalNames, load: loadDocHeader } = useDocHeader()
 
 const route = useRoute()
 const isExternal = isExternalMode()
@@ -1152,6 +1152,8 @@ onMounted(async () => {
   await loadRecords()
   // 电子签名独立于评分流程，放最后加载，不阻塞上面的取数
   await loadDoctorSignature(username.value)
+  // 医院抬头参数同样不阻塞，最后加载
+  loadDocHeader()
 })
 
 function initRange() {

@@ -2,7 +2,7 @@
   <div class="pkpd-config abx-theme">
     <div class="filter-bar">
       <div class="filter-left">
-        <el-input v-model="keyword" clearable placeholder="搜索药品名称" style="width: 220px" @input="filterList" :prefix-icon="Search" />
+        <el-input v-model="keyword" clearable placeholder="搜索药品名称" style="width: 220px" @input="filterList" :prefix-icon="SearchIcon" />
         <el-select v-model="filterType" placeholder="PK/PD类型" clearable style="width: 170px" popper-class="abx-popper" @change="filterList">
           <el-option label="时间依赖性" value="TIME_DEPENDENT" />
           <el-option label="浓度依赖性" value="CONCENTRATION_DEPENDENT" />
@@ -126,11 +126,11 @@
 
 <script>
 import axios from 'axios'
-import { Search, Plus, Refresh } from '@element-plus/icons-vue'
+import { Search as SearchIcon, Plus, Refresh } from '@element-plus/icons-vue'
 
 export default {
   name: 'PkpdKnowledgeConfig',
-  components: { Search, Plus, Refresh },
+  components: { SearchIcon, Plus, Refresh },
   data() {
     return {
       loading: false,

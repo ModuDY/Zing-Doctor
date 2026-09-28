@@ -82,6 +82,12 @@
                 />
               </el-select>
 
+              <!-- 图片型：显示缩略图 -->
+              <div v-else-if="p.paramType === 'image'" class="p-thumb">
+                <img v-if="p.paramValue" :src="p.paramValue" alt="图片参数" />
+                <span v-else class="p-value empty">未配置</span>
+              </div>
+
               <!-- 其余类型只读展示，点编辑修改 -->
               <span v-else class="p-value" :class="{ empty: !p.paramValue }">
                 {{ shortValue(p) }}
@@ -166,8 +172,9 @@
             <el-option label="数字" value="number" />
             <el-option label="开关" value="switch" />
             <el-option label="下拉选择" value="select" />
+            <el-option label="图片" value="image" />
           </el-select>
-          <div class="form-tip">决定参数在列表页上的控件形态：开关与下拉可就地修改</div>
+          <div class="form-tip">决定参数在列表页上的控件形态：开关与下拉可就地修改；图片可上传或填地址</div>
         </el-form-item>
 
         <el-form-item v-if="form.paramType === 'switch'" label="参数值">
@@ -180,6 +187,25 @@
         </el-form-item>
         <el-form-item v-else-if="form.paramType === 'number'" label="参数值">
           <el-input v-model="form.paramValue" type="number" placeholder="数字" />
+        </el-form-item>
+        <el-form-item v-else-if="form.paramType === 'image'" label="参数值">
+          <div class="img-field">
+            <div v-if="form.paramValue" class="img-preview">
+              <img :src="form.paramValue" alt="图片预览" />
+            </div>
+            <div class="img-actions">
+              <el-upload
+                :show-file-list="false"
+                :before-upload="beforeImageUpload"
+                accept="image/*"
+              >
+                <el-button type="primary" plain>上传图片</el-button>
+              </el-upload>
+              <el-button v-if="form.paramValue" link type="danger" @click="form.paramValue = ''">清除</el-button>
+            </div>
+            <el-input v-model="form.paramValue" placeholder="或直接填写图片地址（如 /logo.png）" />
+            <div class="form-tip">上传图片会转成 base64 存入参数；也可直接填图片 URL</div>
+          </div>
         </el-form-item>
         <el-form-item v-else label="参数值">
           <el-input
@@ -596,6 +622,24 @@ function onTypeChange(type) {
   }
 }
 
+/** 图片参数：选图后转 base64 dataURI 存入参数值；返回 false 阻止 el-upload 自动上传 */
+function beforeImageUpload(file) {
+  if (!file.type || !file.type.startsWith('image/')) {
+    ElMessage.warning('请选择图片文件')
+    return false
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    ElMessage.warning('图片不能超过 2MB（参数以 base64 存储，过大会拖慢加载）')
+    return false
+  }
+  const reader = new FileReader()
+  reader.onload = () => {
+    form.paramValue = reader.result
+  }
+  reader.readAsDataURL(file)
+  return false
+}
+
 async function buildAndSave() {
   if (!form.paramName || !form.paramKey || !form.paramGroup) {
     ElMessage.warning('参数名称、参数键、所属分组不能为空')
@@ -816,6 +860,15 @@ onMounted(loadAll)
 .p-value { color: #c2410c; font-size: 12px; max-width: 420px; word-break: break-all; }
 .p-value.empty { color: #c0c4cc; }
 .p-select { width: 180px; }
+
+/* 图片参数：列表缩略图 */
+.p-thumb { display: flex; align-items: center; }
+.p-thumb img { width: 44px; height: 44px; object-fit: contain; border: 1px solid #e7e5e4; border-radius: 6px; background: #fff; padding: 2px; }
+
+/* 图片参数：编辑表单 */
+.img-field { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.img-preview img { max-width: 160px; max-height: 160px; object-fit: contain; border: 1px solid #e7e5e4; border-radius: 8px; background: #fafaf9; padding: 6px; }
+.img-actions { display: flex; align-items: center; gap: 10px; }
 
 .form-tip { font-size: 11px; color: #a8a29e; line-height: 1.5; margin-top: 2px; }
 .w-full { width: 100%; }

@@ -543,6 +543,7 @@ SQL
     35_workbench_view_mode.sql
     36_workbench_score_todo_rule.sql
     37_abx_pkpd_knowledge.sql
+    38_doc_header.sql
     )
   for f in "${MAIN_SQL[@]}"; do
     [ -f "$SQL_DIR/$f" ] || { warn "缺少 $f，跳过"; continue; }

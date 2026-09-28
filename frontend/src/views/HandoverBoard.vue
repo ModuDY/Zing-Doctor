@@ -271,6 +271,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Clock, Warning, EditPen, Delete, Check, Download } from '@element-plus/icons-vue'
 import request from '../api/request'
+import { currentDepart } from '../utils/departContext'
 import '../styles/abx-theme.css'
 
 const router = useRouter()
@@ -279,8 +280,6 @@ const loading = ref(false)
 const saving = ref(false)
 const importing = ref(false)
 const departments = ref([])
-const extDepartCode = routeQuery.get('departCode') || ''
-const selectedDepartCode = ref(extDepartCode || currentDepart.departCode || '')
 const shiftDate = ref(null)  // 交班日期，默认=后端返回的上一完整全天班的起始日期
 const ZERO_SUMMARY = { totalPatients: 0, newInCount: 0, dischargeCount: 0, ventilatorCount: 0, crrtCount: 0, ecmoCount: 0, vasopressorCount: 0, feverCount: 0, abnormalLabCount: 0, sepsisShockCount: 0, isolationCount: 0, noteFilledCount: 0 }
 const overview = reactive({ shiftRange: null, summary: { ...ZERO_SUMMARY }, patients: [] })
@@ -291,6 +290,9 @@ const s = computed(() => overview.summary || {})
 const routeQuery = new URLSearchParams(window.location.search)
 const linkRealname = routeQuery.get('realname') || ''
 const currentDoctor = ref(localStorage.getItem('handoverDoctor') || linkRealname || '')
+// 科室：外链 URL 优先，否则取全局科室上下文（普通医生只能在授权范围内切）
+const extDepartCode = routeQuery.get('departCode') || ''
+const selectedDepartCode = ref(extDepartCode || currentDepart.departCode || '')
 
 // 详情抽屉
 const detailVisible = ref(false)
@@ -473,6 +475,14 @@ function jumpOther(path) {
   }
   router.push({ path, query })
 }
+
+// 全局科室切换时联动刷新（外链模式不跟随）
+watch(() => currentDepart.departCode, (code) => {
+  if (!extDepartCode && code && code !== selectedDepartCode.value) {
+    selectedDepartCode.value = code
+    loadOverview()
+  }
+})
 
 onMounted(() => {
   loadDepartments()
