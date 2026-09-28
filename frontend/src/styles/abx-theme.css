@@ -1,26 +1,26 @@
 /**
- * 抗菌药模块青色主题
+ * 统一暖橙 stone 主题（原抗菌模块）
  *
  * 作用域：仅作用于带 .abx-theme 类的页面根节点，以及显式挂载 .abx-popper / .abx-overlay
  * 的传送层（下拉、日期面板、弹窗、抽屉、消息确认框），不影响其他业务页面。
  *
- * 设计基调：纯白底 + 青色主色（teal-600 #0d9488）+ 暖灰（stone）层次；
+ * 设计基调：纯白底 + 暖橙主色（orange-600 #ea580c）+ 暖灰（stone）层次；
  * 边框为主的卡片、12px 圆角、极轻阴影；与质控暖橙主题共享同一套暖灰中性色，
- * 仅主色不同（青 vs 橙），形成系统内两套可区分的视觉语言。
+ * 全系统统一为暖橙 stone 视觉语言。
  */
 
 /* ---------------------------------------------------------------- 主题变量 */
 .abx-theme,
 .abx-popper,
 .abx-overlay {
-  /* 主色：青色（teal-600 为主色，派生色对齐 EP 的 light-N/dark-2 命名） */
-  --el-color-primary: #0d9488;
-  --el-color-primary-light-3: #2dd4bf;
-  --el-color-primary-light-5: #5eead4;
-  --el-color-primary-light-7: #99f6e4;
-  --el-color-primary-light-8: #ccfbf1;
-  --el-color-primary-light-9: #f0fdfa;
-  --el-color-primary-dark-2: #0f766e;
+  /* 主色：暖橙（orange-600 为主色，派生色对齐 EP 的 light-N/dark-2 命名） */
+  --el-color-primary: #ea580c;
+  --el-color-primary-light-3: #fb923c;
+  --el-color-primary-light-5: #fdba74;
+  --el-color-primary-light-7: #fed7aa;
+  --el-color-primary-light-8: #ffedd5;
+  --el-color-primary-light-9: #fff7ed;
+  --el-color-primary-dark-2: #c2410c;
 
   /* 成功 / 警示 / 危险（与质控主题一致） */
   --el-color-success: #16a34a;
@@ -96,7 +96,7 @@
   --el-table-text-color: #44403c;
   --el-table-header-text-color: #57534e;
   --el-table-row-hover-bg-color: #fafaf9;
-  --el-table-current-row-bg-color: #f0fdfa;
+  --el-table-current-row-bg-color: #fff7ed;
   --el-table-header-bg-color: #fafaf9;
   --el-table-bg-color: #ffffff;
   --el-table-tr-bg-color: #ffffff;
@@ -129,7 +129,7 @@
 .abx-theme .el-tag.el-tag--warning { background: #fef3c7; color: #d97706; }
 .abx-theme .el-tag.el-tag--danger { background: #fee2e2; color: #dc2626; }
 .abx-theme .el-tag.el-tag--info { background: #f5f5f4; color: #78716c; }
-.abx-theme .el-tag.el-tag--primary { background: #ccfbf1; color: #0f766e; }
+.abx-theme .el-tag.el-tag--primary { background: #ffedd5; color: #c2410c; }
 
 .abx-theme .el-alert {
   border-radius: 8px;
@@ -186,14 +186,14 @@
   color: #78716c;
 }
 .abx-theme .el-tabs__item:hover {
-  color: #0f766e;
+  color: #c2410c;
 }
 .abx-theme .el-tabs__item.is-active {
-  color: #0d9488;
+  color: #ea580c;
 }
 .abx-theme .el-tabs__active-bar {
   height: 2px;
-  background-color: #0d9488;
+  background-color: #ea580c;
 }
 
 /* ------------------------------------------------------- 描述列表 / 折叠面板 */
@@ -254,19 +254,19 @@
 }
 .abx-popper .el-select-dropdown__item.is-hovering,
 .abx-popper .el-select-dropdown__item.hover {
-  background: #f0fdfa;
+  background: #fff7ed;
 }
 .abx-popper .el-select-dropdown__item.selected {
-  color: #0d9488;
+  color: #ea580c;
   font-weight: 600;
-  background: #f0fdfa;
+  background: #fff7ed;
 }
 .abx-popper .el-picker-panel {
   border-radius: 12px;
   overflow: hidden;
 }
 .abx-popper .el-date-table td.today .el-date-table-cell__text {
-  color: #0d9488;
+  color: #ea580c;
   font-weight: 700;
 }
 

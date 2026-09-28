@@ -160,6 +160,7 @@ import { useRouter } from 'vue-router'
 import { Refresh, User, Setting } from '@element-plus/icons-vue'
 import request from '../api/request'
 import * as echarts from '../utils/echarts'
+import { currentDepart } from '../utils/departContext'
 import '../styles/abx-theme.css'
 
 const router = useRouter()
@@ -168,7 +169,8 @@ const overview = reactive({})
 const drugRanks = ref([])
 const dateRange = ref([])
 const departments = ref([])
-const selectedDepartCode = ref('20070131')
+const extDddDepart = new URLSearchParams(window.location.search).get('departCode') || ''
+const selectedDepartCode = ref(extDddDepart || currentDepart.departCode || '')
 
 const trendChartRef = ref(null)
 const rankChartRef = ref(null)
@@ -261,7 +263,7 @@ function renderTrendChart() {
       {
         name: '使用率(%)', type: 'line', smooth: true,
         data: trend.map(t => t.usageRate),
-        itemStyle: { color: '#14b8a6' },
+        itemStyle: { color: '#f97316' },
         areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
           { offset: 0, color: 'rgba(20,184,166,0.18)' },
           { offset: 1, color: 'rgba(20,184,166,0.01)' }
@@ -412,7 +414,7 @@ onMounted(async () => {
 }
 
 .metric-card.info {
-  border-left-color: #0d9488;
+  border-left-color: #ea580c;
 }
 
 .metric-label {
@@ -471,7 +473,7 @@ onMounted(async () => {
 .dot {
   width: 4px;
   height: 16px;
-  background: linear-gradient(180deg, #0d9488, #2dd4bf);
+  background: linear-gradient(180deg, #ea580c, #fdba74);
   border-radius: 2px;
   margin-right: 8px;
 }
@@ -500,7 +502,7 @@ onMounted(async () => {
 }
 
 .highlight {
-  color: #0d9488;
+  color: #ea580c;
   font-weight: 600;
 }
 

@@ -361,11 +361,11 @@ onMounted(() => {
   align-items: baseline;
   gap: 8px;
   box-shadow: 0 1px 2px rgba(28,25,23,0.04);
-  border-left: 4px solid #0d9488;
+  border-left: 4px solid #ea580c;
 }
 
 .summary-item.success { border-left-color: #16a34a; }
-.summary-item.primary { border-left-color: #0d9488; }
+.summary-item.primary { border-left-color: #ea580c; }
 .summary-item.warning { border-left-color: #d97706; }
 .summary-item.danger { border-left-color: #dc2626; }
 
@@ -381,7 +381,7 @@ onMounted(() => {
 }
 
 .summary-item .value.success { color: #16a34a; }
-.summary-item .value.primary { color: #0d9488; }
+.summary-item .value.primary { color: #ea580c; }
 .summary-item .value.warning { color: #d97706; }
 .summary-item .value.danger { color: #dc2626; }
 

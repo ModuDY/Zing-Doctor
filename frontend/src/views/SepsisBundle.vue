@@ -1004,8 +1004,8 @@ onMounted(() => {
   color: #1c1917;
 }
 .side-head .count {
-  background: #ccfbf1;
-  color: #0f766e;
+  background: #fff7ed;
+  color: #c2410c;
   min-width: 22px;
   height: 22px;
   padding: 0 6px;
@@ -1026,7 +1026,7 @@ onMounted(() => {
 .add-record-btn {
   width: 100%;
   height: 36px;
-  background: linear-gradient(135deg, #0d9488, #14b8a6);
+  background: linear-gradient(135deg, #ea580c, #f97316);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -1040,7 +1040,7 @@ onMounted(() => {
   box-shadow: 0 2px 6px rgba(13, 148, 136, 0.25);
 }
 .add-record-btn:hover {
-  background: linear-gradient(135deg, #14b8a6, #0d9488);
+  background: linear-gradient(135deg, #f97316, #ea580c);
 }
 .add-record-btn .plus { font-size: 18px; line-height: 1; }
 .side-ghost-btn {
@@ -1054,8 +1054,8 @@ onMounted(() => {
   cursor: pointer;
 }
 .side-ghost-btn:hover {
-  border-color: #99f6e4;
-  color: #0f766e;
+  border-color: #ffedd5;
+  color: #c2410c;
 }
 .record-list {
   flex: 1;
@@ -1074,12 +1074,12 @@ onMounted(() => {
   background: #fff;
 }
 .record-item:hover {
-  border-color: #99f6e4;
-  background: #f0fdfa;
+  border-color: #ffedd5;
+  background: #fff7ed;
 }
 .record-item.active {
-  border-color: #0d9488;
-  background: #f0fdfa;
+  border-color: #ea580c;
+  background: #fff7ed;
 }
 .record-top {
   display: flex;
@@ -1121,7 +1121,7 @@ onMounted(() => {
   background: #f5f5f4;
   color: #78716c;
 }
-.record-tag.cur-tag { background: #ccfbf1; color: #0f766e; }
+.record-tag.cur-tag { background: #fff7ed; color: #c2410c; }
 .record-tag.del-tag { cursor: pointer; }
 .record-tag.del-tag:hover { background: #fee2e2; color: #dc2626; }
 .record-empty {
@@ -1317,9 +1317,9 @@ onMounted(() => {
   gap: 6px;
 }
 .btn:hover {
-  color: #0f766e;
-  border-color: #99f6e4;
-  background: #f0fdfa;
+  color: #c2410c;
+  border-color: #ffedd5;
+  background: #fff7ed;
 }
 .btn-success {
   background: #16a34a;
@@ -1485,8 +1485,8 @@ onMounted(() => {
 }
 .detail-tag {
   font-size: 11px;
-  color: #0f766e;
-  background: #f0fdfa;
+  color: #c2410c;
+  background: #fff7ed;
   padding: 2px 8px;
   border-radius: 4px;
   display: inline-block;
@@ -1568,7 +1568,7 @@ onMounted(() => {
   color: #78716c;
 }
 .progress-text strong {
-  color: #0f766e;
+  color: #c2410c;
   font-size: 14px;
 }
 
@@ -1613,8 +1613,8 @@ onMounted(() => {
 }
 .ref-tag {
   font-size: 11px;
-  color: #0f766e;
-  background: #f0fdfa;
+  color: #c2410c;
+  background: #fff7ed;
   padding: 2px 8px;
   border-radius: 4px;
   display: inline-block;
@@ -1622,8 +1622,8 @@ onMounted(() => {
 }
 /* 「系统参考」标识：上移后作为引导视线的一行，用青色实底强调，与后面的参考值区分开 */
 .ref-tag.prefix {
-  color: #0f766e;
-  background: #ccfbf1;
+  color: #c2410c;
+  background: #fff7ed;
   font-weight: 600;
 }
 .ref-tag.empty {
@@ -1647,13 +1647,13 @@ onMounted(() => {
   transition: all 0.15s;
 }
 .opt-btn:hover {
-  border-color: #99f6e4;
-  color: #0f766e;
+  border-color: #ffedd5;
+  color: #c2410c;
 }
 .opt-btn.on {
   color: #ffffff;
-  background: #0d9488;
-  border-color: #0d9488;
+  background: #ea580c;
+  border-color: #ea580c;
   font-weight: 500;
 }
 
@@ -1710,7 +1710,7 @@ onMounted(() => {
   outline: none;
 }
 .other-input:focus {
-  border-color: #0d9488;
+  border-color: #ea580c;
 }
 .no-reason {
   padding: 16px;

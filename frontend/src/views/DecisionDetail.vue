@@ -603,7 +603,7 @@ export default {
   align-items: center;
 }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
-.dot-blue { background: linear-gradient(180deg, #0d9488, #2dd4bf); }
+.dot-blue { background: linear-gradient(180deg, #ea580c, #fdba74); }
 .dot-cyan { background: #0891b2; }
 .dot-red { background: #dc2626; }
 .dot-purple { background: #8b6fd8; }
@@ -644,7 +644,7 @@ export default {
 .p-cell-group .p-cell:last-child { border-right: none; }
 .p-cell label { font-size: 12px; color: #78716c; }
 .p-cell b { font-size: 14px; color: #44403c; }
-.type-highlight { color: #0f766e; }
+.type-highlight { color: #c2410c; }
 
 /* 主体三栏 */
 .main-grid {
@@ -670,8 +670,8 @@ export default {
 .abx-list::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
 .abx-list li {
   padding: 8px 10px;
-  background: #f0fdfa;
-  border-left: 3px solid #0d9488;
+  background: #fff7ed;
+  border-left: 3px solid #ea580c;
   border-radius: 6px;
   margin-bottom: 8px;
   font-size: 13px;
@@ -680,7 +680,7 @@ export default {
 .abx-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .abx-time { font-family: 'Courier New', monospace; font-size: 12px; color: #78716c; background: #f5f5f4; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
 .abx-name { font-weight: 600; color: #292524; }
-.abx-freq { font-weight: 400; font-size: 12px; color: #0f766e; background: #ccfbf1; padding: 1px 5px; border-radius: 3px; margin-left: 4px; }
+.abx-freq { font-weight: 400; font-size: 12px; color: #c2410c; background: #fff7ed; padding: 1px 5px; border-radius: 3px; margin-left: 4px; }
 .abx-method { font-size: 12px; color: #78716c; }
 .abx-list .empty-li { background: none; border: none; color: #a8a29e; }
 

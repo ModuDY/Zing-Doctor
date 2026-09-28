@@ -3,7 +3,7 @@
     <div class="head">
       <h2>SOFA 评分总览</h2>
       <div class="filters">
-        <input v-model="departCode" class="tb-input" placeholder="科室编码（留空=全部）" />
+        <span class="depart-badge">{{ departName || departCode || "未选择科室" }}</span>
         <input v-model="rangeStart" class="tb-input" type="datetime-local" />
         <span class="sep">~</span>
         <input v-model="rangeEnd" class="tb-input" type="datetime-local" />

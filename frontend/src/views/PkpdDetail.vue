@@ -363,8 +363,8 @@ function renderCreatinineChart() {
       smooth: true,
       symbol: 'circle',
       symbolSize: 6,
-      itemStyle: { color: '#0d9488' },
-      lineStyle: { width: 2, color: '#0d9488' },
+      itemStyle: { color: '#ea580c' },
+      lineStyle: { width: 2, color: '#ea580c' },
       areaStyle: { color: 'rgba(13,148,136,0.12)' }
     }]
   })
@@ -426,7 +426,7 @@ watch(() => route.query.inHospitalNo, () => {
   align-items: center;
 }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
-.dot-blue { background: linear-gradient(180deg, #0d9488, #2dd4bf); }
+.dot-blue { background: linear-gradient(180deg, #ea580c, #fdba74); }
 .dot-cyan { background: #0891b2; }
 .dot-red { background: #dc2626; }
 .dot-purple { background: #8b6fd8; }
@@ -501,7 +501,7 @@ watch(() => route.query.inHospitalNo, () => {
   gap: 8px;
   margin-bottom: 12px;
   padding: 12px;
-  background: linear-gradient(135deg, #f0fdfa, #ccfbf1);
+  background: linear-gradient(135deg, #fff7ed, #fff7ed);
   border-radius: 8px;
 }
 .renal-num { font-size: 36px; font-weight: 700; line-height: 1; }
@@ -559,7 +559,7 @@ watch(() => route.query.inHospitalNo, () => {
   margin-top: 8px;
 }
 .obese-alert { background: #fef3c7; color: #92400e; }
-.low-weight-alert { background: #f0fdfa; color: #0d9488; }
+.low-weight-alert { background: #fff7ed; color: #ea580c; }
 
 /* 肝功能 */
 .liver-grid {
@@ -625,10 +625,10 @@ watch(() => route.query.inHospitalNo, () => {
   gap: 6px;
   margin-top: 8px;
   padding: 6px 8px;
-  background: #f0fdfa;
+  background: #fff7ed;
   border-radius: 4px;
   font-size: 12px;
-  color: #0d9488;
+  color: #ea580c;
 }
 
 /* 剂量优化建议 */

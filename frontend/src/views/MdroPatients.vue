@@ -330,7 +330,7 @@ onMounted(() => {
   align-items: baseline;
   gap: 8px;
   box-shadow: 0 2px 8px rgba(28,25,23,0.04);
-  border-left: 4px solid #0d9488;
+  border-left: 4px solid #ea580c;
 }
 
 .summary-item.danger { border-left-color: #dc2626; }

@@ -104,11 +104,11 @@
   --el-table-fixed-box-shadow: none;
 
   /* ARDS 识别色：青蓝（teal）——用于氧合/通气类关键指标，与暖橙的「操作」语义区分 */
-  --ards-accent: #0d9488;
-  --ards-accent-dark: #0f766e;
-  --ards-accent-soft: #5eead4;
-  --ards-accent-wash: #ccfbf1;
-  --ards-accent-bg: #f0fdfa;
+  --ards-accent: #ea580c;
+  --ards-accent-dark: #c2410c;
+  --ards-accent-soft: #fdba74;
+  --ards-accent-wash: #ffedd5;
+  --ards-accent-bg: #fff7ed;
 
   /* ARDS 病情分级色：轻度（氧合指数 200~300）/ 中度（100~200）/ 重度（≤100），
      与 ARDS 监测看板口径一致，便于跨页面对照；未分级走中性灰 */

@@ -862,10 +862,10 @@ watch(() => currentDepart.departCode, (v) => {
 /* ---- 统计卡：可点即筛选 ---- */
 .stat-card { cursor: pointer; }
 .stat-card.is-active { border-color: #ea580c; box-shadow: 0 0 0 3px #ffedd5; }
-.stat-card-infection::before { background: #0f766e; }
-.stat-card-infection.is-active { border-color: #0f766e; box-shadow: 0 0 0 3px #ccfbf1; }
-.teal-icon { color: #0f766e; background: #ccfbf1; }
-.stat-value.infection { color: #0f766e; }
+.stat-card-infection::before { background: #c2410c; }
+.stat-card-infection.is-active { border-color: #c2410c; box-shadow: 0 0 0 3px #fff7ed; }
+.teal-icon { color: #c2410c; background: #fff7ed; }
+.stat-value.infection { color: #c2410c; }
 
 /* ---- 感染状态列 ---- */
 .infection-line { display: flex; align-items: center; gap: 6px; }
@@ -960,7 +960,7 @@ watch(() => currentDepart.departCode, (v) => {
 .stat-strip b { font-size: 18px; color: #1c1917; margin-right: 3px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .stat-strip .danger b { color: #b91c1c; }
 .stat-strip .warn b { color: #b45309; }
-.stat-strip .infection b { color: #0f766e; }
+.stat-strip .infection b { color: #c2410c; }
 .stat-item.clickable { cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background .15s; }
 .stat-item.clickable:hover { background: #f5f5f4; }
 .stat-item.clickable.active { background: #ffedd5; color: #c2410c; }

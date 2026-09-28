@@ -436,7 +436,7 @@ onMounted(async () => {
 }
 
 .patient-main-drugs .drugs {
-  color: #0d9488;
+  color: #ea580c;
 }
 
 .drug-detail {

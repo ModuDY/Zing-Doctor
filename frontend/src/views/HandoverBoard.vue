@@ -266,7 +266,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Clock, Warning, EditPen, Delete, Check, Download } from '@element-plus/icons-vue'
@@ -279,7 +279,8 @@ const loading = ref(false)
 const saving = ref(false)
 const importing = ref(false)
 const departments = ref([])
-const selectedDepartCode = ref('20070131')
+const extDepartCode = routeQuery.get('departCode') || ''
+const selectedDepartCode = ref(extDepartCode || currentDepart.departCode || '')
 const shiftDate = ref(null)  // 交班日期，默认=后端返回的上一完整全天班的起始日期
 const ZERO_SUMMARY = { totalPatients: 0, newInCount: 0, dischargeCount: 0, ventilatorCount: 0, crrtCount: 0, ecmoCount: 0, vasopressorCount: 0, feverCount: 0, abnormalLabCount: 0, sepsisShockCount: 0, isolationCount: 0, noteFilledCount: 0 }
 const overview = reactive({ shiftRange: null, summary: { ...ZERO_SUMMARY }, patients: [] })
@@ -490,7 +491,7 @@ onMounted(() => {
 
 .summary-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
 .sum-chip { background: #fff; border-radius: 8px; padding: 10px 14px; display: flex; align-items: baseline; gap: 6px; box-shadow: 0 2px 8px rgba(28,25,23,0.04); border-left: 3px solid #78716c; }
-.sum-chip.primary { border-left-color: #0d9488; }
+.sum-chip.primary { border-left-color: #ea580c; }
 .sum-chip.success { border-left-color: #16a34a; }
 .sum-chip.warn { border-left-color: #d97706; }
 .sum-chip.danger { border-left-color: #dc2626; }
@@ -498,10 +499,10 @@ onMounted(() => {
 .sum-chip .lbl { font-size: 12px; color: #78716c; }
 
 .patient-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(390px, 1fr)); gap: 12px; }
-.patient-card { background: #fff; border-radius: 8px; padding: 14px; box-shadow: 0 2px 8px rgba(28,25,23,0.04); border-left: 4px solid #0d9488; cursor: pointer; transition: box-shadow .2s, transform .2s; }
+.patient-card { background: #fff; border-radius: 8px; padding: 14px; box-shadow: 0 2px 8px rgba(28,25,23,0.04); border-left: 4px solid #ea580c; cursor: pointer; transition: box-shadow .2s, transform .2s; }
 .patient-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.12); transform: translateY(-1px); }
 .pc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
-.bed { background: #0d9488; color: #fff; font-weight: 700; font-size: 13px; padding: 2px 8px; border-radius: 4px; }
+.bed { background: #ea580c; color: #fff; font-weight: 700; font-size: 13px; padding: 2px 8px; border-radius: 4px; }
 .pname { font-size: 16px; font-weight: 600; color: #292524; }
 .pmeta { font-size: 12px; color: #78716c; }
 .tags { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
@@ -518,7 +519,7 @@ onMounted(() => {
 .io-row { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: #44403c; margin-bottom: 6px; }
 .io-row b { color: #292524; font-weight: 600; }
 .io-row .pos { color: #d97706; }
-.io-row .neg { color: #0d9488; }
+.io-row .neg { color: #ea580c; }
 
 .lab-row { display: flex; align-items: center; gap: 6px; font-size: 12.5px; margin-bottom: 6px; flex-wrap: wrap; }
 .lab-names { color: #78716c; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
@@ -527,11 +528,11 @@ onMounted(() => {
 .note-row.filled { background: #f0fdf4; border-color: #bbf7d0; border-style: solid; color: #292524; }
 .note-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .note-by { color: #16a34a; font-size: 12px; white-space: nowrap; }
-.note-empty { color: #0d9488; }
+.note-empty { color: #ea580c; }
 
 .detail-wrap { padding: 0 20px 24px; }
 .d-patient { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
-.d-bed { background: #0d9488; color: #fff; font-weight: 700; padding: 3px 10px; border-radius: 4px; margin-right: 8px; }
+.d-bed { background: #ea580c; color: #fff; font-weight: 700; padding: 3px 10px; border-radius: 4px; margin-right: 8px; }
 .d-name { font-size: 18px; font-weight: 600; margin-right: 10px; }
 .d-meta { color: #78716c; font-size: 13px; }
 .d-jump { display: flex; gap: 8px; }
@@ -539,7 +540,7 @@ onMounted(() => {
 
 .d-section { background: #fff; border: 1px solid #e7e5e4; border-radius: 8px; padding: 14px; margin-bottom: 12px; }
 .block-title { display: flex; align-items: center; font-size: 15px; font-weight: 600; color: #292524; margin-bottom: 10px; }
-.block-title .dot { width: 4px; height: 16px; background: #0d9488; border-radius: 2px; margin-right: 8px; }
+.block-title .dot { width: 4px; height: 16px; background: #ea580c; border-radius: 2px; margin-right: 8px; }
 .note-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 8px; }
 .note-meta { font-size: 12px; color: #78716c; }
 .io-summary {
@@ -562,7 +563,7 @@ onMounted(() => {
   font-weight: 600;
   color: #292524;
 }
-.io-value.intake { color: #0d9488; }
+.io-value.intake { color: #ea580c; }
 .io-value.output { color: #dc2626; }
 .catheter-tag {
   display: inline-block;

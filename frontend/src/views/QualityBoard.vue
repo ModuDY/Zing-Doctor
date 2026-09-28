@@ -1000,6 +1000,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Cpu, Download, Grid, CircleCheck, WarningFilled, Hide } from '@element-plus/icons-vue'
 import { externalParam } from '../utils/external'
+import { currentDepart } from '../utils/departContext'
 import '../styles/quality-theme.css'
 import {
   fetchQualityOverview,
@@ -1126,7 +1127,8 @@ const quarterYear = ref(thisYear())
 // 外链进入时 ICU 会把科室编码带在 departCode 上，默认就按该科室查：
 // 否则一进页面就是全院全量计算（127 个指标 × 全院数据），既慢也不是使用者想看的。
 // 下拉仍是 clearable，用户可随时清空回到全院。
-const departCode = ref(externalParam('departCode'))
+const extDepartCode = externalParam('departCode')
+const departCode = ref(extDepartCode || currentDepart.departCode)
 const departments = ref([])
 
 /** 周期起始（后端 PeriodRange.of 支持 yyyy-MM / yyyy） */

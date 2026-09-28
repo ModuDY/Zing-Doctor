@@ -216,6 +216,7 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Cpu, Download, Grid, CircleCheck, Collection, View } from '@element-plus/icons-vue'
 import { externalParam } from '../utils/external'
+import { currentDepart } from '../utils/departContext'
 import '../styles/quality-theme.css'
 import * as echarts from '../utils/echarts'
 import {
@@ -232,7 +233,8 @@ const DEFAULT_HEADER = [
 
 const year = ref(String(new Date().getFullYear()))
 // 外链带 departCode 时默认按该科室统计（与看板一致），不再默认跑全院；可手动清空回到全院
-const departCode = ref(externalParam('departCode'))
+const extDepartCode = externalParam('departCode')
+const departCode = ref(extDepartCode || currentDepart.departCode)
 const departments = ref([])
 const onlyWithData = ref(false)
 // 宽表的行是指标（分子 ÷ 分母 × 系数）。打开它才追加「没有任何指标在引用」的原子项行 ——

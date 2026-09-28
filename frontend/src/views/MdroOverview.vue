@@ -148,6 +148,7 @@ import { useRouter } from 'vue-router'
 import { Refresh, User, Setting } from '@element-plus/icons-vue'
 import request from '../api/request'
 import * as echarts from '../utils/echarts'
+import { currentDepart } from '../utils/departContext'
 import '../styles/abx-theme.css'
 
 const router = useRouter()
@@ -156,7 +157,8 @@ const overview = reactive({})
 const bacteriaRanks = ref([])
 const dateRange = ref([])
 const departments = ref([])
-const selectedDepartCode = ref('20070131')
+const extMdroDepart = new URLSearchParams(window.location.search).get('departCode') || ''
+const selectedDepartCode = ref(extMdroDepart || currentDepart.departCode || '')
 
 const trendChartRef = ref(null)
 const rankChartRef = ref(null)
@@ -245,7 +247,7 @@ function renderTrendChart() {
     series: [
       { name: '阳性率(%)', type: 'line', yAxisIndex: 1, data: trend.map(t => t.positiveRate), smooth: true, itemStyle: { color: '#d97706' }, lineStyle: { width: 3 } },
       { name: '革兰阳性菌', type: 'bar', data: trend.map(t => t.gramPositiveCount), itemStyle: { color: '#16a34a' } },
-      { name: '革兰阴性菌', type: 'bar', data: trend.map(t => t.gramNegativeCount), itemStyle: { color: '#14b8a6' } },
+      { name: '革兰阴性菌', type: 'bar', data: trend.map(t => t.gramNegativeCount), itemStyle: { color: '#f97316' } },
       { name: '真菌', type: 'bar', data: trend.map(t => t.fungiCount), itemStyle: { color: '#d97706' } },
       { name: '高风险细菌', type: 'line', data: trend.map(t => t.highRiskCount), smooth: true, itemStyle: { color: '#dc2626' }, lineStyle: { width: 2, type: 'dashed' } }
     ]
@@ -258,7 +260,7 @@ function renderRankChart() {
   const ranks = bacteriaRanks.value || []
   const names = ranks.map(r => r.bacteriaName).reverse()
   const values = ranks.map(r => r.detectCount).reverse()
-  const colors = ranks.map(r => r.isHighRisk === 1 ? '#dc2626' : '#14b8a6').reverse()
+  const colors = ranks.map(r => r.isHighRisk === 1 ? '#dc2626' : '#f97316').reverse()
   rankChart.setOption({
     tooltip: {
       trigger: 'axis',
@@ -381,7 +383,7 @@ onMounted(() => {
   border-radius: 8px;
   padding: 16px;
   box-shadow: 0 2px 8px rgba(28,25,23,0.04);
-  border-left: 4px solid #0d9488;
+  border-left: 4px solid #ea580c;
 }
 
 .metric-card.success { border-left-color: #16a34a; }
@@ -389,7 +391,7 @@ onMounted(() => {
 .metric-card.danger { border-left-color: #dc2626; }
 .metric-card.info { border-left-color: #78716c; }
 .metric-card.gram-positive { border-left-color: #16a34a; }
-.metric-card.gram-negative { border-left-color: #0d9488; }
+.metric-card.gram-negative { border-left-color: #ea580c; }
 .metric-card.fungi { border-left-color: #d97706; }
 .metric-card.other { border-left-color: #78716c; }
 
@@ -452,7 +454,7 @@ onMounted(() => {
 .block-title .dot {
   width: 4px;
   height: 16px;
-  background: #0d9488;
+  background: #ea580c;
   border-radius: 2px;
   margin-right: 8px;
 }
