@@ -144,7 +144,7 @@ $javacCmd = Get-Command javac -ErrorAction SilentlyContinue
 if ($javacCmd) {
     Write-Host '>>> 编译 tools/db-init/DbInit.java（Java 8 字节码）' -ForegroundColor Cyan
     Invoke-Native -Label 'DbInit 编译' -Exe $javacCmd.Source `
-        -ExeArgs @('-source', '1.8', '-target', '1.8', '-encoding', 'UTF-8', '-d', "$root\tools\db-init", "$root\tools\db-init\DbInit.java")
+        -ExeArgs @('-source', '1.8', '-target', '1.8', '-encoding', 'UTF-8', '-d', "$root\tools\db-init", "$root\tools\db-init\DbInit.java", "$root\tools\db-init\DbCheck.java")
 } elseif (Test-Path "$root\tools\db-init\DbInit.class") {
     Write-Host '>>> 未找到 javac，沿用已有的 tools/db-init/DbInit.class' -ForegroundColor Yellow
 } else {

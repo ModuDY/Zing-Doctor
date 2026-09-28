@@ -435,6 +435,46 @@ SQL
   exit 1
 }
 
+# ---------------- 老库探测（通道无关）----------------
+# 判断 zing_doctor_db_prod 里是否已有业务表（sys_page_config / 旧名 zing_page_config）。
+# 结果写入全局变量 EXIST_COUNT（"0"/"1"/空）；两个通道都不可用时为空。
+#
+# ⚠️ 此前这段检测只在本机有 disql 时执行 —— 没有 disql 的现场（走 JDBC 通道）
+#    每次执行 install.sh 都会重跑全量初始化：CREATE 类语句会被 DbInit 幂等跳过，
+#    但 27 配置快照的整表 DELETE + INSERT 会照常执行，把现场维护过的配置打回
+#    快照日期（真实发生过：升级后质控配置 / 系统参数全部回滚，表现为「升级一次
+#    配置就被重置一次」）。故改为 disql / JDBC 双通道探测。
+#
+# ⚠️ 表名是双引号小写建的，比较必须统一 UPPER；且新旧名都要认（旧名见下），
+#    只认新名会把尚未 rename 的老库误判成空库去重跑全量。
+probe_doctor_tables() {
+  EXIST_COUNT=""
+  if [ -n "$DB_DISQL" ]; then
+    EXIST_COUNT="$(echo "SELECT COUNT(*) FROM all_tables WHERE UPPER(owner)='ZING_DOCTOR_DB_PROD' AND UPPER(table_name) IN ('ZING_PAGE_CONFIG','SYS_PAGE_CONFIG');" \
+         | "$DB_DISQL" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" 2>/dev/null \
+         | grep -oE '[0-9]+' | tail -1)"
+    return 0
+  fi
+  # 无 disql 时用 JDBC 探测（DbCheck 只查 ALL_TABLES 元数据，毫秒级返回）
+  if command -v java >/dev/null 2>&1 && [ -f "lib/DmJdbcDriver18-8.1.3.140.jar" ]; then
+    resolve_dbinit_cp
+    local _cp="$DBINIT_CP"
+    if [ -n "$_cp" ]; then
+      EXIST_COUNT="$(java -cp "lib/DmJdbcDriver18-8.1.3.140.jar:$_cp" \
+           DbCheck "jdbc:dm://$DM_HOST_PORT" "$ADMIN_USER" "$ADMIN_PASS" "ZING_DOCTOR_DB_PROD" "sys_page_config" 2>/dev/null | tail -1)"
+      # 旧名再探一次：尚未执行过 25 号 rename 的老库只有 zing_page_config
+      if [ -z "$EXIST_COUNT" ] || [ "$EXIST_COUNT" = "0" ]; then
+        local _old
+        _old="$(java -cp "lib/DmJdbcDriver18-8.1.3.140.jar:$_cp" \
+           DbCheck "jdbc:dm://$DM_HOST_PORT" "$ADMIN_USER" "$ADMIN_PASS" "ZING_DOCTOR_DB_PROD" "zing_page_config" 2>/dev/null | tail -1)"
+        if [ -n "$_old" ] && [ "$_old" -gt 0 ] 2>/dev/null; then
+          EXIST_COUNT="$_old"
+        fi
+      fi
+    fi
+  fi
+}
+
 init_db() {
   local logfile=/tmp/zing-dbinit.log
   local DISQL="$DB_DISQL"
@@ -445,16 +485,17 @@ init_db() {
   local f
   for f in "${FULL_SQL[@]}";      do files+=("$ROOT/sql/$f");  done
   for f in "${FULL_SQL_JDBC[@]}"; do jfiles+=("$ROOT/sql/$f"); done
-  # 表已存在则跳过初始化（重复部署场景，避免报错）
-  # ⚠️ 表名是双引号小写建的，比较必须统一 UPPER；否则老库识别不出来，会去重跑全量并报错
-  # ⚠️ 新旧名都要认：sys_page_config 由 25 号 rename 而来（旧名 zing_page_config）。
-  #    只判断新名的话，尚未执行过 rename 的老库会被当成空库去重跑全量：
-  #    01_schema.sql 会按新名再建一套空表，老表留在原地变成孤儿表（数据看起来「全没了」）。
-  if [ -n "$DISQL" ]; then
-    local _exist="$(echo "SELECT COUNT(*) FROM all_tables WHERE UPPER(owner)='ZING_DOCTOR_DB_PROD' AND UPPER(table_name) IN ('ZING_PAGE_CONFIG','SYS_PAGE_CONFIG');" \
-         | "$DISQL" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" 2>/dev/null \
-         | grep -oE '[0-9]+' | tail -1)"
-    if [ -n "$_exist" ] && [ "$_exist" -gt 0 ] 2>/dev/null; then
+  # 表已存在则跳过初始化（重复部署场景，避免报错）。
+  # 探测通道无关（disql / JDBC 二选一，见 probe_doctor_tables 顶部的背景说明）：
+  # 检测不到业务表 → 真新库，走全量；探测本身失败（EXIST_COUNT 为空）→ 打出
+  # 醒目警告后再走全量，让运维至少知道发生了什么，而不是静默重灌配置。
+  probe_doctor_tables
+  if [ -z "$EXIST_COUNT" ]; then
+    warn "无法探测 zing_doctor_db_prod 是否已有业务表（无 disql 且 JDBC 探测失败）"
+    warn "将按全新库执行全量初始化 —— 若这其实是一个已在使用的老库，27 配置快照会把现场配置覆盖掉！"
+    warn "确认是老库请立即 Ctrl+C 中止，手动执行增量脚本后用 --skip-db 重新运行本脚本"
+  fi
+  if [ -n "$EXIST_COUNT" ] && [ "$EXIST_COUNT" -gt 0 ] 2>/dev/null; then
       info "检测到 zing_doctor_db_prod 的业务表（sys_page_config / 旧名 zing_page_config）已存在，跳过全量初始化（如需重建请先 DROP SCHEMA）"
       # 老库升级：自动套用增量脚本（幂等），不再要求人工执行 SQL
       apply_incremental
@@ -464,7 +505,6 @@ init_db() {
       warn "老库升级：sql/11_quality_count_rule.sql 建表后，需在看板点一次「同步指标规则」从 ICU 侧灌数，否则看板「质控指标」页为空"
       return 0
     fi
-  fi
 
   if [ -n "$DISQL" ]; then
     info "通道 a：本机 disql 初始化达梦（建模式+建表+种子）..."
