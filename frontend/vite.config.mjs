@@ -2,6 +2,7 @@
 // 而 unplugin-vue-components / unplugin-element-plus 是 ESM-only 包，
 // 若沿用 vite.config.js，vite 会把配置当 CJS 加载并报
 // “resolved to an ESM file. ESM file cannot be loaded by `require`”。
+/// <reference types='vitest' />
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import Components from 'unplugin-vue-components/vite'
@@ -25,6 +26,17 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://localhost:8081', changeOrigin: true },
       '/entry': { target: 'http://localhost:8081', changeOrigin: true }
+    }
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    include: ['src/**/*.{test,spec}.{js,mjs}'],
+    css: false,
+    server: {
+      deps: {
+        inline: ['element-plus']
+      }
     }
   },
   build: {
