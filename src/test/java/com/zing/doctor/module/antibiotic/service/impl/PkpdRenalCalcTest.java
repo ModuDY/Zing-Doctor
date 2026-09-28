@@ -25,7 +25,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class PkpdRenalCalcTest {
 
-    private final PkpdServiceImpl svc = new PkpdServiceImpl(null, null);
+    // PkpdServiceImpl 用 @RequiredArgsConstructor 生成构造器，参数由 final 字段决定：
+    // icuPatientService, icuPatientMapper, pkpdKnowledgeService。
+    // 新增 pkpdKnowledgeService 后这里必须同步加参数 —— 不同步时编译未必报错（可能重用了
+    // 旧的 test-classes），要到运行 new 时才抛 NoSuchMethodError，现象很迷惑。
+    // 本测试只覆盖 Cockcroft-Gault / CKD-EPI / KDIGO 三个纯计算方法，不碰药物知识库，
+    // 因此第三个依赖传 null 是安全的。
+    private final PkpdServiceImpl svc = new PkpdServiceImpl(null, null, null);
 
     // ---------------- Cockcroft-Gault ----------------
 
