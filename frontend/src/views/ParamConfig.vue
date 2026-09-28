@@ -114,7 +114,7 @@
         <p>通用业务参数（建议带）：<code>realname=医生姓名</code> —— 会记录为操作人，页面「评分医生」也据此显示。示例中地址已填当前服务器，把 <code>{token}</code> 替换为上方生成的固定令牌即可使用。</p>
         <div class="link-actions">
           <el-button type="primary" size="small" @click="onGenToken">随机生成新令牌</el-button>
-          <span class="link-token-tip">当前令牌：<b>{{ maskedToken }}</b>&emsp;对外地址：<b>{{ currentBase() || 'http://172.88.1.184:2001' }}</b></span>
+          <span class="link-token-tip">当前令牌：<b>{{ maskedToken }}</b>&emsp;对外地址：<b>{{ currentBase() || LINK_BASE }}</b></span>
         </div>
       </div>
 
@@ -316,7 +316,12 @@ const tab = ref('param')
 
 /* ---------- 外链页面一览（与 sys_page_config 已注册页面对应） ---------- */
 const linkKw = ref('')
-const LINK_BASE = 'http://172.88.1.184:2001'
+// 兜底用浏览器当前地址：用户既然在用浏览器打开本系统，location.origin 基本就是这台
+// 服务器。绝不写死某个具体 IP —— 那样换一家医院部署、而那边的库还没配
+// EXTERNAL_LINK_BASE_URL 时，页面示例会指向上一家客户的内网地址；172.88.x.x 还是
+// 私有网段，别人内网里很可能真存在这台机器，点了就静默连错地方。
+// 有反向代理导致对外地址与访问地址不一致时，仍由 EXTERNAL_LINK_BASE_URL 参数覆盖。
+const LINK_BASE = typeof location !== 'undefined' ? location.origin : ''
 const LINK_TOKEN = '{token}'
 const LINK_PAGES = [
   // 工作台排在最前：它是 ICU 侧最常用的入口，且已吸收原先独立的「疑似感染患者列表」
