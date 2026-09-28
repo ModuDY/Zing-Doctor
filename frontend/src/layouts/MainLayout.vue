@@ -53,11 +53,11 @@
         </router-link>
         <router-link to="/page/sofa-score" class="nav-item" active-class="nav-active">
           <span class="nav-icon">📝</span>
-          <span class="nav-label">SOFA 评分填写</span>
+          <span class="nav-label">SOFA 评分</span>
         </router-link>
         <router-link to="/page/apache2-score" class="nav-item" active-class="nav-active">
           <span class="nav-icon">📋</span>
-          <span class="nav-label">APACHE II 评分填写</span>
+          <span class="nav-label">APACHE II 评分</span>
         </router-link>
         <router-link to="/page/apache2-overview" class="nav-item" active-class="nav-active">
           <span class="nav-icon">🩺</span>
