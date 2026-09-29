@@ -9,7 +9,7 @@
         <span>评分记录</span>
         <span class="count">{{ records.length }}</span>
       </div>
-      <div style="padding:10px;border-bottom:1px solid #ebeef5">
+      <div style="padding:10px;border-bottom:1px solid #e7e5e4">
         <button class="add-record-btn" @click="addRecord">
           <span style="font-size:18px;line-height:1">＋</span>
           新增评分
@@ -101,7 +101,7 @@
         <span class="toolbar-label">取数时间范围：</span>
         <input v-model="fetchStartTime" type="datetime-local" class="dt-input"
                :class="{ 'dt-custom': fetchPreset === 'custom' }" @change="onFetchTimeChange">
-        <span style="color:#c0c4cc">至</span>
+        <span style="color:#d6d3d1">至</span>
         <input v-model="fetchEndTime" type="datetime-local" class="dt-input"
                :class="{ 'dt-custom': fetchPreset === 'custom' }" @change="onFetchTimeChange">
         <span class="range-presets">
@@ -111,7 +111,7 @@
           <button :class="['btn', { active: fetchPreset === 'admission_before' }]" @click="setRangePreset('admission_before')">入科前24h</button>
         </span>
         <button class="btn btn-primary" @click="autoFetchAndCalc">自动获取并计算</button>
-        <span style="margin-left:auto;color:#909399;font-size:12px">取数逻辑：范围内最差值（偏离正常最远）</span>
+        <span style="margin-left:auto;color:#a8a29e;font-size:12px">取数逻辑：范围内最差值（偏离正常最远）</span>
       </div>
 
       <!-- 内容区 -->
@@ -181,7 +181,7 @@
             <div class="panel-title" style="flex-wrap:wrap;gap:8px">
               <span>D 急性生理评分（12项）</span>
               <div style="margin-left:auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-                <span style="font-size:12px;color:#606266;display:flex;align-items:center;gap:6px">
+                <span style="font-size:12px;color:#57534e;display:flex;align-items:center;gap:6px">
                   急性肾衰（肌酐加倍）
                   <span :class="['switch', { on: form.acuteRenalFailure }]" @click="form.acuteRenalFailure = !form.acuteRenalFailure; calculateScore()"></span>
                 </span>
@@ -263,7 +263,7 @@
             <div v-if="form.diagnosisType === 'operative'" class="control-group">
               <span class="ctl-label">急诊手术：</span>
               <span :class="['switch', { on: form.emergencySurgery }]" @click="form.emergencySurgery = !form.emergencySurgery"></span>
-              <span style="font-size:12px;color:#606266">{{ form.emergencySurgery ? '是' : '否' }}</span>
+              <span style="font-size:12px;color:#57534e">{{ form.emergencySurgery ? '是' : '否' }}</span>
             </div>
             <button class="btn btn-text" @click="openWeightTable">权重对照表</button>
           </div>
@@ -293,7 +293,7 @@
               </div>
             </div>
           </div>
-          <div v-else style="padding:20px;text-align:center;color:#909399;font-size:13px">
+          <div v-else style="padding:20px;text-align:center;color:#a8a29e;font-size:13px">
             选择"以上都不是"时，诊断权重为0
           </div>
           <div class="bottom-row">
@@ -441,48 +441,48 @@
         <div class="modal-body">
           <!-- 氧合为派生项：展示 FiO2 / PaO2 / A-aDO2 三要素及各自区间，得分仍为一项 -->
           <div v-if="isOxygenSource" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-            <div style="padding:12px;background:#f5f7fa;border-radius:8px">
-              <div style="font-size:12px;color:#999">FiO2（决定评分分支）</div>
-              <div style="font-size:22px;font-weight:700;color:#409eff">{{ srcOxygen.fio2 === null ? '—' : srcOxygen.fio2 + ' %' }}</div>
-              <div style="font-size:12px;color:#909399">{{ srcOxygen.branchText }}</div>
+            <div style="padding:12px;background:#fafaf9;border-radius:8px">
+              <div style="font-size:12px;color:#a8a29e">FiO2（决定评分分支）</div>
+              <div style="font-size:22px;font-weight:700;color:#ea580c">{{ srcOxygen.fio2 === null ? '—' : srcOxygen.fio2 + ' %' }}</div>
+              <div style="font-size:12px;color:#a8a29e">{{ srcOxygen.branchText }}</div>
             </div>
-            <div style="padding:12px;background:#f5f7fa;border-radius:8px">
-              <div style="font-size:12px;color:#999">PaO2（mmHg）</div>
-              <div style="font-size:22px;font-weight:700;color:#409eff">{{ srcOxygen.pao2 === null ? '—' : srcOxygen.pao2 }}</div>
-              <div style="font-size:12px;color:#909399">区间 {{ srcOxygen.pao2Range }}</div>
+            <div style="padding:12px;background:#fafaf9;border-radius:8px">
+              <div style="font-size:12px;color:#a8a29e">PaO2（mmHg）</div>
+              <div style="font-size:22px;font-weight:700;color:#ea580c">{{ srcOxygen.pao2 === null ? '—' : srcOxygen.pao2 }}</div>
+              <div style="font-size:12px;color:#a8a29e">区间 {{ srcOxygen.pao2Range }}</div>
             </div>
-            <div style="padding:12px;background:#f5f7fa;border-radius:8px">
-              <div style="font-size:12px;color:#999">A-aDO2</div>
-              <div style="font-size:22px;font-weight:700;color:#409eff">{{ srcOxygen.aado2 === null ? '—' : Math.round(srcOxygen.aado2 * 10) / 10 }}</div>
-              <div style="font-size:12px;color:#909399">区间 {{ srcOxygen.aado2Range }}</div>
+            <div style="padding:12px;background:#fafaf9;border-radius:8px">
+              <div style="font-size:12px;color:#a8a29e">A-aDO2</div>
+              <div style="font-size:22px;font-weight:700;color:#ea580c">{{ srcOxygen.aado2 === null ? '—' : Math.round(srcOxygen.aado2 * 10) / 10 }}</div>
+              <div style="font-size:12px;color:#a8a29e">区间 {{ srcOxygen.aado2Range }}</div>
             </div>
           </div>
           <div v-if="isOxygenSource" style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
-            <div style="padding:10px 16px;background:#ecf5ff;border-radius:8px">
-              <span style="font-size:12px;color:#999">氧合得分</span>
-              <b style="font-size:22px;color:#409eff;margin-left:8px">{{ getSourceScore() }} 分</b>
+            <div style="padding:10px 16px;background:#fff1ea;border-radius:8px">
+              <span style="font-size:12px;color:#a8a29e">氧合得分</span>
+              <b style="font-size:22px;color:#ea580c;margin-left:8px">{{ getSourceScore() }} 分</b>
             </div>
-            <div style="font-size:12px;color:#909399">实际命中：{{ getSourceRange() }}</div>
+            <div style="font-size:12px;color:#a8a29e">实际命中：{{ getSourceRange() }}</div>
           </div>
 
           <div v-else style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
-            <div style="padding:14px;background:#f5f7fa;border-radius:8px">
-              <div style="font-size:12px;color:#999">当前值</div>
-              <div style="font-size:24px;font-weight:700;color:#409eff">{{ getSourceValue() }}</div>
+            <div style="padding:14px;background:#fafaf9;border-radius:8px">
+              <div style="font-size:12px;color:#a8a29e">当前值</div>
+              <div style="font-size:24px;font-weight:700;color:#ea580c">{{ getSourceValue() }}</div>
             </div>
-            <div style="padding:14px;background:#f5f7fa;border-radius:8px">
-              <div style="font-size:12px;color:#999">命中区间</div>
-              <div style="font-size:20px;font-weight:700;color:#409eff">{{ getSourceRange() }}</div>
+            <div style="padding:14px;background:#fafaf9;border-radius:8px">
+              <div style="font-size:12px;color:#a8a29e">命中区间</div>
+              <div style="font-size:20px;font-weight:700;color:#ea580c">{{ getSourceRange() }}</div>
             </div>
-            <div style="padding:14px;background:#f5f7fa;border-radius:8px">
-              <div style="font-size:12px;color:#999">得分</div>
-              <div style="font-size:24px;font-weight:700;color:#409eff">{{ getSourceScore() }} 分</div>
+            <div style="padding:14px;background:#fafaf9;border-radius:8px">
+              <div style="font-size:12px;color:#a8a29e">得分</div>
+              <div style="font-size:24px;font-weight:700;color:#ea580c">{{ getSourceScore() }} 分</div>
             </div>
           </div>
-          <div style="border-left:3px solid #409eff;padding-left:10px;margin-bottom:8px"><b>数据趋势</b></div>
+          <div style="border-left:3px solid #ea580c;padding-left:10px;margin-bottom:8px"><b>数据趋势</b></div>
           <div ref="sourceTrendChartRef" style="width:100%;height:240px;margin-bottom:16px"></div>
-          <div style="border-left:3px solid #409eff;padding-left:10px;margin-bottom:8px"><b>数据来源说明</b></div>
-          <div style="font-size:13px;color:#666;line-height:1.8">
+          <div style="border-left:3px solid #ea580c;padding-left:10px;margin-bottom:8px"><b>数据来源说明</b></div>
+          <div style="font-size:13px;color:#57534e;line-height:1.8">
             <template v-if="isOxygenSource">
               <div><b>数据表：</b>patient_observe_module_item_record（FiO2） / patient_info_lis_item（血气：氧分压、二氧化碳分压）</div>
               <div><b>取数逻辑：</b>逐管血气按采集时刻就近匹配 FiO2 → 判分支（FiO2≥50% 用 A-aDO2，否则用 PaO2）→ <b>取氧合得分最差的一管</b>作为评分取值；趋势图中已高亮该管时间点</div>
@@ -609,7 +609,7 @@
           <colgroup>
             <col style="width:15%;"><col style="width:12%;"><col style="width:12%;"><col style="width:12%;"><col style="width:12%;"><col style="width:12%;"><col style="width:12%;"><col style="width:13%;">
           </colgroup>
-          <tr style="background:#f5f5f5;font-weight:600;">
+          <tr style="background:#f5f5f4;font-weight:600;">
             <td style="border:1px solid #000;padding:4px 6px;">GCS评分</td>
             <td v-for="h in GCS_HEADS" :key="h" style="border:1px solid #000;padding:4px 4px;">{{ h }}</td>
             <td style="border:1px solid #000;padding:4px 4px;"></td>
@@ -632,13 +632,13 @@
           <colgroup>
             <col style="width:15%;"><col style="width:8%;"><col style="width:8%;"><col style="width:8%;"><col style="width:8%;"><col style="width:8%;"><col style="width:8%;"><col style="width:8%;"><col style="width:8%;"><col style="width:8%;"><col style="width:7%;"><col style="width:6%;">
           </colgroup>
-          <tr style="background:#f5f5f5;font-weight:600;">
+          <tr style="background:#f5f5f4;font-weight:600;">
             <td style="border:1px solid #000;padding:5px 4px;">D.生理指标</td>
             <td colspan="9" style="border:1px solid #000;padding:3px 4px;"></td>
             <td style="border:1px solid #000;padding:5px 2px;">D 记分</td>
             <td style="border:1px solid #000;padding:5px 2px;">分值</td>
           </tr>
-          <tr style="background:#f5f5f5;font-weight:600;">
+          <tr style="background:#f5f5f4;font-weight:600;">
             <td style="border:1px solid #000;"></td>
             <td v-for="(c,i) in D_SCORE_COLS" :key="i" style="border:1px solid #000;padding:4px 1px;">{{ c }}</td>
             <td style="border:1px solid #000;"></td>
@@ -1660,7 +1660,7 @@ async function renderSourceTrendChart(metric) {
   }
 
   // 显示加载状态
-  sourceTrendChart.showLoading({ text: '加载中...', color: '#409eff', textColor: '#999', maskColor: 'rgba(255,255,255,0.8)' })
+  sourceTrendChart.showLoading({ text: '加载中...', color: '#ea580c', textColor: '#a8a29e', maskColor: 'rgba(255,255,255,0.8)' })
 
   let times = []
   let values = []
@@ -1698,7 +1698,7 @@ async function renderSourceTrendChart(metric) {
   // 如果没有数据，显示空状态
   if (times.length === 0) {
     sourceTrendChart.setOption({
-      title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#999', fontSize: 14, fontWeight: 'normal' } },
+      title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#a8a29e', fontSize: 14, fontWeight: 'normal' } },
       xAxis: { show: false },
       yAxis: { show: false },
       series: []
@@ -1717,13 +1717,13 @@ async function renderSourceTrendChart(metric) {
     xAxis: {
       type: 'category',
       data: times,
-      axisLabel: { fontSize: 10, color: '#999', interval: Math.floor(times.length / 6) || 0, rotate: times.length > 10 ? 30 : 0 }
+      axisLabel: { fontSize: 10, color: '#a8a29e', interval: Math.floor(times.length / 6) || 0, rotate: times.length > 10 ? 30 : 0 }
     },
     yAxis: {
       type: 'value',
       name: unit,
-      nameTextStyle: { fontSize: 10, color: '#999' },
-      axisLabel: { fontSize: 10, color: '#999' }
+      nameTextStyle: { fontSize: 10, color: '#a8a29e' },
+      axisLabel: { fontSize: 10, color: '#a8a29e' }
     },
     dataZoom: times.length > 20 ? [{ type: 'inside', start: 0, end: 100 }] : [],
     series: [{
@@ -1733,12 +1733,12 @@ async function renderSourceTrendChart(metric) {
       smooth: true,
       symbol: 'circle',
       symbolSize: 4,
-      lineStyle: { color: '#409eff', width: 2 },
-      itemStyle: { color: '#409eff' },
+      lineStyle: { color: '#ea580c', width: 2 },
+      itemStyle: { color: '#ea580c' },
       areaStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(64,158,255,0.3)' },
-          { offset: 1, color: 'rgba(64,158,255,0.05)' }
+          { offset: 0, color: 'rgba(234,88,12,0.3)' },
+          { offset: 1, color: 'rgba(234,88,12,0.05)' }
         ])
       },
       markPoint: {
@@ -1769,7 +1769,7 @@ function fmtTrendTime(t) {
  */
 async function renderOxygenTrendChart(metric) {
   if (!sourceTrendChart) return
-  sourceTrendChart.showLoading({ text: '加载中...', color: '#409eff', textColor: '#999', maskColor: 'rgba(255,255,255,0.8)' })
+  sourceTrendChart.showLoading({ text: '加载中...', color: '#ea580c', textColor: '#a8a29e', maskColor: 'rgba(255,255,255,0.8)' })
 
   let data = null
   try {
@@ -1796,7 +1796,7 @@ async function renderOxygenTrendChart(metric) {
 
   if (fio2Series.length + pao2Series.length + aado2Series.length === 0) {
     sourceTrendChart.setOption({
-      title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#999', fontSize: 14, fontWeight: 'normal' } },
+      title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#a8a29e', fontSize: 14, fontWeight: 'normal' } },
       xAxis: { show: false },
       yAxis: { show: false },
       series: []
@@ -1836,15 +1836,15 @@ async function renderOxygenTrendChart(metric) {
     legend: { data: ['PaO2', 'A-aDO2', 'FiO2'], top: 0, textStyle: { fontSize: 11 } },
     grid: { left: 52, right: 56, top: 34, bottom: 30 },
     // 三种来源采样时间不同频，用 time 轴各自按真实时间点绘制（不做类目对齐）
-    xAxis: { type: 'time', axisLabel: { fontSize: 10, color: '#999' } },
+    xAxis: { type: 'time', axisLabel: { fontSize: 10, color: '#a8a29e' } },
     yAxis: [
-      { type: 'value', name: 'mmHg', nameTextStyle: { fontSize: 10, color: '#999' }, axisLabel: { fontSize: 10, color: '#999' } },
-      { type: 'value', name: 'FiO2 %', nameTextStyle: { fontSize: 10, color: '#999' }, axisLabel: { fontSize: 10, color: '#999' }, min: 21, max: 100 }
+      { type: 'value', name: 'mmHg', nameTextStyle: { fontSize: 10, color: '#a8a29e' }, axisLabel: { fontSize: 10, color: '#a8a29e' } },
+      { type: 'value', name: 'FiO2 %', nameTextStyle: { fontSize: 10, color: '#a8a29e' }, axisLabel: { fontSize: 10, color: '#a8a29e' }, min: 21, max: 100 }
     ],
     series: [
       { name: 'PaO2', type: 'line', yAxisIndex: 0,
         data: pao2Series.map(p => [p.name, p.value]),
-        symbol: 'circle', symbolSize: 5, lineStyle: { color: '#409eff', width: 2 }, itemStyle: { color: '#409eff' },
+        symbol: 'circle', symbolSize: 5, lineStyle: { color: '#ea580c', width: 2 }, itemStyle: { color: '#ea580c' },
         markPoint: markWorst(pao2Series) },
       { name: 'A-aDO2', type: 'line', yAxisIndex: 0,
         data: aado2Series.map(p => [p.name, p.value]),
@@ -2053,203 +2053,203 @@ async function viewSavedPdf(rec) {
 * { margin: 0; padding: 0; box-sizing: border-box; }
 .page-error { position: fixed; top: 10px; left: 300px; right: 16px; z-index: 10; }
 
-.page { display: flex; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #f0f2f5; color: #303133; font-size: 14px; }
+.page { display: flex; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #f5f5f4; color: #292524; font-size: 14px; }
 
 /* 左侧边栏 */
-.side { width: 280px; min-width: 280px; display: flex; flex-direction: column; background: #fff; border-right: 1px solid #e4e7ed; position: sticky; top: 0; height: 100vh; }
-.side-head { height: 52px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #ebeef5; font-weight: 600; font-size: 15px; }
-.side-head .count { background: #ecf5ff; color: #409eff; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+.side { width: 280px; min-width: 280px; display: flex; flex-direction: column; background: #fff; border-right: 1px solid #e7e5e4; position: sticky; top: 0; height: 100vh; }
+.side-head { height: 52px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e7e5e4; font-weight: 600; font-size: 15px; }
+.side-head .count { background: #fff1ea; color: #ea580c; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
 .record-list { flex: 1; overflow-y: auto; padding: 8px; }
-.record-item { padding: 12px; margin-bottom: 8px; border: 1px solid #ebeef5; border-radius: 6px; cursor: pointer; transition: all 0.2s; background: #fff; }
-.record-item:hover { border-color: #c6e2ff; background: #f5f9ff; }
-.record-item.active { border-color: #409eff; background: #ecf5ff; }
+.record-item { padding: 12px; margin-bottom: 8px; border: 1px solid #e7e5e4; border-radius: 6px; cursor: pointer; transition: all 0.2s; background: #fff; }
+.record-item:hover { border-color: #fed7aa; background: #fff7ed; }
+.record-item.active { border-color: #ea580c; background: #fff1ea; }
 .record-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-.record-time { font-size: 13px; color: #606266; font-weight: 500; }
+.record-time { font-size: 13px; color: #57534e; font-weight: 500; }
 .record-score { font-size: 20px; font-weight: 700; padding: 2px 10px; border-radius: 4px; }
 .score-low { background: #f0f9eb; color: #67c23a; }
 .score-mid { background: #fdf6ec; color: #e6a23c; }
 .score-high { background: #fef0f0; color: #f56c6c; }
-.record-meta { font-size: 12px; color: #909399; }
+.record-meta { font-size: 12px; color: #a8a29e; }
 .record-meta span { margin-right: 8px; }
-.record-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; background: #f4f4f5; color: #909399; }
-.record-tag.auto { background: #ecf5ff; color: #409eff; }
+.record-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; background: #f5f5f4; color: #a8a29e; }
+.record-tag.auto { background: #fff1ea; color: #ea580c; }
 .record-tag.manual { background: #fdf6ec; color: #e6a23c; }
-.record-empty { text-align: center; color: #c0c4cc; font-size: 13px; padding: 40px 0; }
-.add-record-btn { width: 100%; height: 36px; background: linear-gradient(135deg, #409eff, #66b1ff); color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 6px rgba(64,158,255,0.3); }
-.add-record-btn:hover { background: linear-gradient(135deg, #66b1ff, #409eff); }
+.record-empty { text-align: center; color: #d6d3d1; font-size: 13px; padding: 40px 0; }
+.add-record-btn { width: 100%; height: 36px; background: linear-gradient(135deg, #ea580c, #fb923c); color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 6px rgba(234,88,12,0.3); }
+.add-record-btn:hover { background: linear-gradient(135deg, #fb923c, #ea580c); }
 
 /* 主区域 */
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
 /* 患者信息栏 */
-.patient-bar { background: #fff; padding: 12px 20px; border-bottom: 1px solid #ebeef5; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-.patient-name { font-size: 18px; font-weight: 700; color: #303133; display: flex; align-items: center; gap: 10px; }
-.patient-name .bed-tag { background: #409eff; color: #fff; padding: 2px 10px; border-radius: 4px; font-size: 13px; font-weight: 500; }
+.patient-bar { background: #fff; padding: 12px 20px; border-bottom: 1px solid #e7e5e4; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.patient-name { font-size: 18px; font-weight: 700; color: #292524; display: flex; align-items: center; gap: 10px; }
+.patient-name .bed-tag { background: #ea580c; color: #fff; padding: 2px 10px; border-radius: 4px; font-size: 13px; font-weight: 500; }
 .patient-info { display: flex; gap: 20px; flex-wrap: wrap; }
 .patient-info-item { display: flex; align-items: center; gap: 4px; font-size: 13px; }
-.patient-info-item .label { color: #909399; }
-.patient-info-item .value { color: #303133; font-weight: 500; }
+.patient-info-item .label { color: #a8a29e; }
+.patient-info-item .value { color: #292524; font-weight: 500; }
 .patient-bar-right { margin-left: auto; display: flex; gap: 8px; }
 
 /* 评分汇总卡 */
-.summary-bar { background: #fff; padding: 14px 20px; border-bottom: 1px solid #ebeef5; display: flex; align-items: center; gap: 16px; }
-.total-score-card { min-width: 140px; padding: 12px 20px; background: linear-gradient(135deg, #409eff, #66b1ff); border-radius: 8px; color: #fff; text-align: center; }
+.summary-bar { background: #fff; padding: 14px 20px; border-bottom: 1px solid #e7e5e4; display: flex; align-items: center; gap: 16px; }
+.total-score-card { min-width: 140px; padding: 12px 20px; background: linear-gradient(135deg, #ea580c, #fb923c); border-radius: 8px; color: #fff; text-align: center; }
 .total-score-card .label { font-size: 12px; opacity: 0.9; }
 .total-score-card .value { font-size: 36px; font-weight: 700; line-height: 1.2; }
 .total-score-card .mortality { font-size: 12px; opacity: 0.9; margin-top: 2px; background: rgba(255,255,255,0.2); border-radius: 10px; padding: 2px 8px; display: inline-block; }
 .score-cards { display: flex; gap: 10px; flex: 1; }
-.score-card { flex: 1; min-width: 0; padding: 10px 14px; border: 1px solid #ebeef5; border-radius: 6px; background: #fafafa; display: flex; align-items: center; gap: 10px; }
-.score-card .code { width: 32px; height: 32px; border-radius: 7px; background: #ecf5ff; color: #409eff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; flex-shrink: 0; }
+.score-card { flex: 1; min-width: 0; padding: 10px 14px; border: 1px solid #e7e5e4; border-radius: 6px; background: #fafaf9; display: flex; align-items: center; gap: 10px; }
+.score-card .code { width: 32px; height: 32px; border-radius: 7px; background: #fff1ea; color: #ea580c; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; flex-shrink: 0; }
 .score-card .info { min-width: 0; flex: 1; }
-.score-card .name { font-size: 12px; color: #909399; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.score-card .val { font-size: 22px; font-weight: 700; color: #303133; line-height: 1.2; }
+.score-card .name { font-size: 12px; color: #a8a29e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.score-card .val { font-size: 22px; font-weight: 700; color: #292524; line-height: 1.2; }
 
 /* 工具栏 */
-.toolbar { background: #fff; padding: 10px 20px; border-bottom: 1px solid #ebeef5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.toolbar-label { color: #606266; font-size: 13px; white-space: nowrap; }
-.toolbar input { height: 32px; border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 10px; font-size: 13px; outline: none; background: #fff; }
-.toolbar input:focus { border-color: #409eff; }
-.btn { height: 32px; padding: 0 14px; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; color: #606266; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s; }
-.btn:hover { color: #409eff; border-color: #c6e2ff; background: #ecf5ff; }
-.btn-primary { background: #409eff; color: #fff; border-color: #409eff; }
-.btn-primary:hover { background: #66b1ff; color: #fff; border-color: #66b1ff; }
+.toolbar { background: #fff; padding: 10px 20px; border-bottom: 1px solid #e7e5e4; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toolbar-label { color: #57534e; font-size: 13px; white-space: nowrap; }
+.toolbar input { height: 32px; border: 1px solid #e7e5e4; border-radius: 4px; padding: 0 10px; font-size: 13px; outline: none; background: #fff; }
+.toolbar input:focus { border-color: #ea580c; }
+.btn { height: 32px; padding: 0 14px; border: 1px solid #e7e5e4; border-radius: 4px; background: #fff; color: #57534e; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s; }
+.btn:hover { color: #ea580c; border-color: #fed7aa; background: #fff1ea; }
+.btn-primary { background: #ea580c; color: #fff; border-color: #ea580c; }
+.btn-primary:hover { background: #fb923c; color: #fff; border-color: #fb923c; }
 .btn-success { background: #67c23a; color: #fff; border-color: #67c23a; }
 .btn-success:hover { background: #85ce61; color: #fff; border-color: #85ce61; }
 .btn-danger { background: #f56c6c; color: #fff; border-color: #f56c6c; }
 .btn-danger:hover { background: #f78989; color: #fff; border-color: #f78989; }
-.btn-text { background: none; border: none; color: #409eff; padding: 0 4px; }
-.btn-text:hover { color: #66b1ff; background: none; }
+.btn-text { background: none; border: none; color: #ea580c; padding: 0 4px; }
+.btn-text:hover { color: #fb923c; background: none; }
 
 /* 内容区 */
 .content { padding: 10px 16px; display: flex; flex-direction: column; gap: 10px; }
 .content-row { display: grid; grid-template-columns: minmax(320px, 0.7fr) minmax(500px, 1.3fr); gap: 12px; align-items: start; }
-.panel { background: #fff; border: 1px solid #ebeef5; border-radius: 6px; overflow: hidden; }
-.panel-title { padding: 10px 16px; border-bottom: 1px solid #ebeef5; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-.panel-title::before { content: ''; width: 3px; height: 14px; background: #409eff; border-radius: 2px; }
+.panel { background: #fff; border: 1px solid #e7e5e4; border-radius: 6px; overflow: hidden; }
+.panel-title { padding: 10px 16px; border-bottom: 1px solid #e7e5e4; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.panel-title::before { content: ''; width: 3px; height: 14px; background: #ea580c; border-radius: 2px; }
 .panel-body { padding: 10px 14px; }
 
 /* ABC评分表 */
-.abc-row { display: flex; align-items: center; gap: 12px; padding: 12px; margin-bottom: 10px; border: 1px solid #ebeef5; border-radius: 6px; background: #fafafa; }
+.abc-row { display: flex; align-items: center; gap: 12px; padding: 12px; margin-bottom: 10px; border: 1px solid #e7e5e4; border-radius: 6px; background: #fafaf9; }
 .abc-row:last-child { margin-bottom: 0; }
 .abc-row.gcs { background: #faf8ff; border-color: #e4d9f7; }
-.abc-code { width: 30px; height: 30px; border-radius: 6px; background: #ecf5ff; color: #409eff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0; }
+.abc-code { width: 30px; height: 30px; border-radius: 6px; background: #fff1ea; color: #ea580c; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0; }
 .abc-row.gcs .abc-code { background: #f3efff; color: #7c3aed; }
 .abc-main { flex: 1; min-width: 0; }
 .abc-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
-.abc-head strong { font-size: 14px; color: #303133; }
-.abc-head em { font-size: 12px; color: #909399; font-style: normal; }
-.abc-main input, .abc-main select { width: 100%; height: 32px; border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 10px; font-size: 13px; outline: none; }
-.abc-main input:focus, .abc-main select:focus { border-color: #409eff; }
+.abc-head strong { font-size: 14px; color: #292524; }
+.abc-head em { font-size: 12px; color: #a8a29e; font-style: normal; }
+.abc-main input, .abc-main select { width: 100%; height: 32px; border: 1px solid #e7e5e4; border-radius: 4px; padding: 0 10px; font-size: 13px; outline: none; }
+.abc-main input:focus, .abc-main select:focus { border-color: #ea580c; }
 .gcs-trigger { width: 100%; min-height: 36px; border: 1px solid #d9c8ff; border-radius: 6px; background: #faf8ff; color: #59349d; padding: 6px 12px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .gcs-trigger:hover { border-color: #9c72e8; background: #f5f0ff; }
 .gcs-trigger .gcs-info { text-align: left; }
 .gcs-trigger .gcs-info span { font-size: 12px; font-weight: 600; display: block; }
 .gcs-trigger .gcs-info em { font-size: 11px; color: #7c5aba; font-style: normal; }
 .gcs-trigger .gcs-val { font-size: 24px; font-weight: 700; padding-left: 10px; border-left: 1px solid #dfd0fc; }
-.abc-result { width: 56px; flex-shrink: 0; text-align: center; padding: 8px 0; background: #f0f6ff; border-radius: 6px; }
-.abc-result span { font-size: 11px; color: #909399; display: block; }
-.abc-result b { font-size: 20px; color: #409eff; font-weight: 700; }
-.meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed #ebeef5; }
-.meta-item label { display: block; font-size: 12px; color: #909399; margin-bottom: 4px; }
-.meta-item input, .meta-item select { width: 100%; height: 32px; border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 10px; font-size: 13px; outline: none; }
+.abc-result { width: 56px; flex-shrink: 0; text-align: center; padding: 8px 0; background: #fff7ed; border-radius: 6px; }
+.abc-result span { font-size: 11px; color: #a8a29e; display: block; }
+.abc-result b { font-size: 20px; color: #ea580c; font-weight: 700; }
+.meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed #e7e5e4; }
+.meta-item label { display: block; font-size: 12px; color: #a8a29e; margin-bottom: 4px; }
+.meta-item input, .meta-item select { width: 100%; height: 32px; border: 1px solid #e7e5e4; border-radius: 4px; padding: 0 10px; font-size: 13px; outline: none; }
 
 /* D 急性生理评分表 */
 .d-table { width: 100%; border-collapse: collapse; }
-.d-table th { background: #f5f7fa; color: #606266; font-weight: 500; font-size: 12px; padding: 8px 10px; text-align: left; border-bottom: 1px solid #ebeef5; white-space: nowrap; }
-.d-table td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+.d-table th { background: #fafaf9; color: #57534e; font-weight: 500; font-size: 12px; padding: 8px 10px; text-align: left; border-bottom: 1px solid #e7e5e4; white-space: nowrap; }
+.d-table td { padding: 8px 10px; border-bottom: 1px solid #f5f5f4; font-size: 13px; }
 .d-table tr:last-child td { border-bottom: none; }
-.d-table tr:hover { background: #fafafa; }
-.metric-name { font-weight: 600; color: #303133; }
-.metric-unit { font-size: 11px; color: #909399; margin-top: 2px; }
-.d-table input[type="number"] { width: 90px; height: 30px; border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 8px; font-size: 13px; outline: none; }
-.d-table input[type="number"]:focus { border-color: #409eff; }
+.d-table tr:hover { background: #fafaf9; }
+.metric-name { font-weight: 600; color: #292524; }
+.metric-unit { font-size: 11px; color: #a8a29e; margin-top: 2px; }
+.d-table input[type="number"] { width: 90px; height: 30px; border: 1px solid #e7e5e4; border-radius: 4px; padding: 0 8px; font-size: 13px; outline: none; }
+.d-table input[type="number"]:focus { border-color: #ea580c; }
 .oxygen-fields { display: flex; gap: 6px; flex-wrap: wrap; }
 .oxygen-field { display: flex; flex-direction: column; gap: 2px; }
-.oxygen-field span { font-size: 11px; color: #909399; }
-.oxygen-field input { width: 70px; height: 28px; border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 6px; font-size: 12px; }
-.range-hit { display: inline-block; padding: 2px 8px; background: #f5f7fa; color: #606266; border-radius: 3px; font-size: 12px; }
+.oxygen-field span { font-size: 11px; color: #a8a29e; }
+.oxygen-field input { width: 70px; height: 28px; border: 1px solid #e7e5e4; border-radius: 4px; padding: 0 6px; font-size: 12px; }
+.range-hit { display: inline-block; padding: 2px 8px; background: #fafaf9; color: #57534e; border-radius: 3px; font-size: 12px; }
 .score-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 26px; padding: 0 6px; border-radius: 4px; font-weight: 700; font-size: 15px; }
 .score-0 { background: #f0f9eb; color: #67c23a; }
 .score-1, .score-2 { background: #fdf6ec; color: #e6a23c; }
 .score-3, .score-4 { background: #fef0f0; color: #f56c6c; }
 .metric-actions { display: flex; gap: 4px; }
 .metric-actions .btn { height: 26px; padding: 0 8px; font-size: 12px; min-width: 40px; }
-.switch { width: 38px; height: 20px; border-radius: 10px; background: #c0c4cc; cursor: pointer; position: relative; transition: background 0.2s; }
+.switch { width: 38px; height: 20px; border-radius: 10px; background: #d6d3d1; cursor: pointer; position: relative; transition: background 0.2s; }
 .switch::after { content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: left 0.2s; }
-.switch.on { background: #409eff; }
+.switch.on { background: #ea580c; }
 .switch.on::after { left: 20px; }
 
 /* 死亡率预测区 */
-.mortality-panel { background: #fff; border: 1px solid #ebeef5; border-radius: 6px; overflow: hidden; }
-.mortality-head { padding: 14px 20px; display: flex; align-items: center; gap: 20px; background: linear-gradient(135deg, #f7fbff, #fff); border-bottom: 1px solid #ebeef5; }
+.mortality-panel { background: #fff; border: 1px solid #e7e5e4; border-radius: 6px; overflow: hidden; }
+.mortality-head { padding: 14px 20px; display: flex; align-items: center; gap: 20px; background: linear-gradient(135deg, #fff7ed, #fff); border-bottom: 1px solid #e7e5e4; }
 .mortality-result { min-width: 180px; }
-.mortality-result .label { font-size: 12px; color: #909399; }
+.mortality-result .label { font-size: 12px; color: #a8a29e; }
 .mortality-result .value { font-size: 32px; font-weight: 700; color: #f56c6c; line-height: 1.2; }
-.mortality-result .note { font-size: 12px; color: #c0c4cc; margin-top: 2px; }
-.equation-box { flex: 1; padding: 10px 16px; border: 1px solid #e0e9f6; border-radius: 6px; background: #fff; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.equation-box .eq-label { font-size: 12px; color: #909399; white-space: nowrap; }
-.equation-box .eq-total { font-size: 28px; font-weight: 700; color: #409eff; }
+.mortality-result .note { font-size: 12px; color: #d6d3d1; margin-top: 2px; }
+.equation-box { flex: 1; padding: 10px 16px; border: 1px solid #e7e5e4; border-radius: 6px; background: #fff; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.equation-box .eq-label { font-size: 12px; color: #a8a29e; white-space: nowrap; }
+.equation-box .eq-total { font-size: 28px; font-weight: 700; color: #ea580c; }
 .equation-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.eq-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border: 1px solid #e1e9f5; border-radius: 12px; background: #f8fbff; font-size: 12px; color: #40546c; }
-.eq-chip mark { width: 18px; height: 18px; border-radius: 50%; background: #409eff; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
-.eq-chip strong { color: #409eff; font-size: 14px; }
-.eq-plus { color: #c0c4cc; font-weight: 700; }
-.mortality-controls { padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid #f0f0f0; }
+.eq-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border: 1px solid #e7e5e4; border-radius: 12px; background: #fffbf7; font-size: 12px; color: #57534e; }
+.eq-chip mark { width: 18px; height: 18px; border-radius: 50%; background: #ea580c; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+.eq-chip strong { color: #ea580c; font-size: 14px; }
+.eq-plus { color: #d6d3d1; font-weight: 700; }
+.mortality-controls { padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid #f5f5f4; }
 .control-group { display: flex; align-items: center; gap: 8px; }
-.control-group .ctl-label { font-size: 13px; color: #606266; white-space: nowrap; }
-.seg-btn { height: 30px; padding: 0 12px; border: 1px solid #dcdfe6; border-radius: 4px; background: #fff; color: #606266; font-size: 13px; cursor: pointer; }
-.seg-btn.active { background: #409eff; color: #fff; border-color: #409eff; }
+.control-group .ctl-label { font-size: 13px; color: #57534e; white-space: nowrap; }
+.seg-btn { height: 30px; padding: 0 12px; border: 1px solid #e7e5e4; border-radius: 4px; background: #fff; color: #57534e; font-size: 13px; cursor: pointer; }
+.seg-btn.active { background: #ea580c; color: #fff; border-color: #ea580c; }
 .factor-grid { padding: 12px 20px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.factor-card { border: 1px solid #ebeef5; border-radius: 6px; overflow: hidden; }
-.factor-card-title { padding: 8px 12px; background: #f7fbff; border-bottom: 1px solid #edf2f8; font-size: 13px; font-weight: 600; color: #303133; display: flex; align-items: center; justify-content: space-between; }
-.factor-card-title::before { content: ''; width: 3px; height: 12px; background: #409eff; border-radius: 2px; margin-right: 8px; }
-.factor-card-title b { background: #eef6ff; color: #409eff; padding: 1px 8px; border-radius: 10px; font-size: 11px; }
+.factor-card { border: 1px solid #e7e5e4; border-radius: 6px; overflow: hidden; }
+.factor-card-title { padding: 8px 12px; background: #fff7ed; border-bottom: 1px solid #f5f5f4; font-size: 13px; font-weight: 600; color: #292524; display: flex; align-items: center; justify-content: space-between; }
+.factor-card-title::before { content: ''; width: 3px; height: 12px; background: #ea580c; border-radius: 2px; margin-right: 8px; }
+.factor-card-title b { background: #fff7ed; color: #ea580c; padding: 1px 8px; border-radius: 10px; font-size: 11px; }
 .factor-options { padding: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px; }
-.factor-options label { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid #e6edf6; border-radius: 5px; background: #fbfdff; font-size: 12px; color: #26364d; cursor: pointer; transition: all 0.15s; }
-.factor-options label:hover { border-color: #91caff; background: #f0f7ff; }
-.factor-options label.checked { border-color: #8cc8ff; background: #eef7ff; color: #0b5cad; font-weight: 600; }
-.factor-options input { width: 14px; height: 14px; accent-color: #409eff; }
+.factor-options label { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid #e7e5e4; border-radius: 5px; background: #fffbf7; font-size: 12px; color: #292524; cursor: pointer; transition: all 0.15s; }
+.factor-options label:hover { border-color: #fdba74; background: #fff7ed; }
+.factor-options label.checked { border-color: #fdba74; background: #fff7ed; color: #c2410c; font-weight: 600; }
+.factor-options input { width: 14px; height: 14px; accent-color: #ea580c; }
 .bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 20px 12px; }
-.note-card { border: 1px solid #ebeef5; border-radius: 6px; overflow: hidden; }
-.note-card .note-title { padding: 8px 12px; background: #f7fbff; border-bottom: 1px solid #edf2f8; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-.note-card .note-title::before { content: ''; width: 3px; height: 12px; background: #409eff; border-radius: 2px; }
-.note-card .note-body { padding: 10px 12px; font-size: 13px; color: #40546c; line-height: 1.6; }
+.note-card { border: 1px solid #e7e5e4; border-radius: 6px; overflow: hidden; }
+.note-card .note-title { padding: 8px 12px; background: #fff7ed; border-bottom: 1px solid #f5f5f4; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.note-card .note-title::before { content: ''; width: 3px; height: 12px; background: #ea580c; border-radius: 2px; }
+.note-card .note-body { padding: 10px 12px; font-size: 13px; color: #57534e; line-height: 1.6; }
 .note-card ul { margin: 0; padding-left: 20px; }
-.note-card li { margin-bottom: 4px; font-size: 12px; color: #5d6f86; }
+.note-card li { margin-bottom: 4px; font-size: 12px; color: #57534e; }
 
 /* 底部操作栏 */
-.footer-bar { background: #fff; padding: 10px 20px; border-top: 1px solid #ebeef5; display: flex; align-items: center; gap: 10px; }
-.footer-bar textarea { flex: 1; height: 36px; min-height: 36px; border: 1px solid #dcdfe6; border-radius: 4px; padding: 8px 10px; font-size: 13px; resize: none; outline: none; }
-.footer-bar textarea:focus { border-color: #409eff; }
-.footer-total { padding: 6px 14px; background: #ecf5ff; border-radius: 4px; color: #409eff; font-weight: 700; font-size: 15px; }
+.footer-bar { background: #fff; padding: 10px 20px; border-top: 1px solid #e7e5e4; display: flex; align-items: center; gap: 10px; }
+.footer-bar textarea { flex: 1; height: 36px; min-height: 36px; border: 1px solid #e7e5e4; border-radius: 4px; padding: 8px 10px; font-size: 13px; resize: none; outline: none; }
+.footer-bar textarea:focus { border-color: #ea580c; }
+.footer-total { padding: 6px 14px; background: #fff1ea; border-radius: 4px; color: #ea580c; font-weight: 700; font-size: 15px; }
 
 /* 弹窗 */
 .modal-mask { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); }
 .modal { width: min(720px, calc(100vw - 40px)); max-height: calc(100vh - 60px); display: flex; flex-direction: column; background: #fff; border-radius: 8px; overflow: hidden; }
-.modal-head { padding: 14px 20px; border-bottom: 1px solid #ebeef5; display: flex; align-items: center; justify-content: space-between; }
+.modal-head { padding: 14px 20px; border-bottom: 1px solid #e7e5e4; display: flex; align-items: center; justify-content: space-between; }
 .modal-head h3 { font-size: 16px; font-weight: 600; }
-.modal-close { width: 28px; height: 28px; border: none; background: none; font-size: 20px; color: #909399; cursor: pointer; }
+.modal-close { width: 28px; height: 28px; border: none; background: none; font-size: 20px; color: #a8a29e; cursor: pointer; }
 .modal-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
-.modal-foot { padding: 12px 20px; border-top: 1px solid #ebeef5; display: flex; justify-content: flex-end; gap: 10px; }
+.modal-foot { padding: 12px 20px; border-top: 1px solid #e7e5e4; display: flex; justify-content: flex-end; gap: 10px; }
 .gcs-modal { width: min(800px, calc(100vw - 40px)); }
 .gcs-tabs { flex: 1; overflow-y: auto; padding: 0 20px; }
 .gcs-tabs :deep(.el-tabs__header) { margin: 0 -20px 14px; padding: 0 20px; }
-.gcs-tabs :deep(.el-tabs__item) { font-size: 14px; font-weight: 600; color: #728096; height: 44px; line-height: 44px; }
+.gcs-tabs :deep(.el-tabs__item) { font-size: 14px; font-weight: 600; color: #78716c; height: 44px; line-height: 44px; }
 .gcs-tabs :deep(.el-tabs__item.is-active) { color: #59349d; }
 .gcs-tabs :deep(.el-tabs__active-bar) { background-color: #7c3aed; }
 .gcs-sys-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-.gcs-sys-tip { font-size: 12px; color: #728096; line-height: 1.5; }
-.gcs-mini-primary { flex: 0 0 auto; height: 30px; padding: 0 14px; font-size: 12px; border: none; border-radius: 6px; background: #3b82f6; color: #fff; cursor: pointer; white-space: nowrap; }
+.gcs-sys-tip { font-size: 12px; color: #78716c; line-height: 1.5; }
+.gcs-mini-primary { flex: 0 0 auto; height: 30px; padding: 0 14px; font-size: 12px; border: none; border-radius: 6px; background: #f97316; color: #fff; cursor: pointer; white-space: nowrap; }
 .gcs-mini-primary:disabled { opacity: .6; cursor: not-allowed; }
-.gcs-sys-table { max-height: 360px; overflow-y: auto; border: 1px solid #e8edf4; border-radius: 8px; }
+.gcs-sys-table { max-height: 360px; overflow-y: auto; border: 1px solid #e7e5e4; border-radius: 8px; }
 .gcs-sys-table table { width: 100%; border-collapse: collapse; }
-.gcs-sys-table th, .gcs-sys-table td { padding: 9px 8px; text-align: center; font-size: 12.5px; color: #40546c; border-bottom: 1px solid #eef2f7; white-space: nowrap; }
-.gcs-sys-table th { position: sticky; top: 0; background: #f5f8fc; color: #728096; font-weight: 600; z-index: 1; }
+.gcs-sys-table th, .gcs-sys-table td { padding: 9px 8px; text-align: center; font-size: 12.5px; color: #57534e; border-bottom: 1px solid #f5f5f4; white-space: nowrap; }
+.gcs-sys-table th { position: sticky; top: 0; background: #fafaf9; color: #78716c; font-weight: 600; z-index: 1; }
 .gcs-sys-table tbody tr { cursor: pointer; }
 .gcs-sys-table tbody tr:hover { background: #f6f1ff; }
 .gcs-sys-table tbody tr.selected { background: #efe9fc; }
-.gcs-sys-table td.gcs-empty { text-align: center; color: #94a3b8; padding: 24px 8px; cursor: default; white-space: normal; }
-.gcs-sys-table .pick-link { color: #2563eb; font-weight: 600; cursor: pointer; }
+.gcs-sys-table td.gcs-empty { text-align: center; color: #a8a29e; padding: 24px 8px; cursor: default; white-space: normal; }
+.gcs-sys-table .pick-link { color: #ea580c; font-weight: 600; cursor: pointer; }
 .gcs-sys-table tr.selected .pick-link { color: #7c3aed; }
 .et-tag { display: inline-block; padding: 1px 7px; border-radius: 4px; background: #fff1ea; color: #c2410c; font-size: 11px; font-weight: 600; }
 .gcs-total-bar { padding: 14px; background: #f6f1ff; border-radius: 8px; text-align: center; margin-bottom: 14px; }
@@ -2257,13 +2257,13 @@ async function viewSavedPdf(rec) {
 .gcs-total-bar strong { font-size: 32px; color: #59349d; margin: 0 8px; }
 .gcs-total-bar em { font-size: 13px; color: #7c5aba; font-style: normal; }
 .gcs-row { margin-bottom: 14px; }
-.gcs-row-title { font-size: 14px; font-weight: 600; color: #34445b; margin-bottom: 8px; }
+.gcs-row-title { font-size: 14px; font-weight: 600; color: #292524; margin-bottom: 8px; }
 .gcs-options { display: flex; flex-wrap: wrap; gap: 8px; }
-.gcs-options button { min-width: 140px; height: 36px; padding: 0 14px; border: 1px solid #d9e2ef; border-radius: 6px; background: #fff; color: #334155; font-size: 13px; cursor: pointer; text-align: left; }
+.gcs-options button { min-width: 140px; height: 36px; padding: 0 14px; border: 1px solid #e7e5e4; border-radius: 6px; background: #fff; color: #292524; font-size: 13px; cursor: pointer; text-align: left; }
 .gcs-options button.active { border-color: #7c3aed; background: #7c3aed; color: #fff; }
 .gcs-record-table { width: 100%; border-collapse: collapse; }
-.gcs-record-table th, .gcs-record-table td { padding: 8px; text-align: center; border-bottom: 1px solid #edf2f7; font-size: 12px; color: #40546c; }
-.gcs-record-table th { background: #f5f8fc; color: #728096; font-weight: 600; }
+.gcs-record-table th, .gcs-record-table td { padding: 8px; text-align: center; border-bottom: 1px solid #f5f5f4; font-size: 12px; color: #57534e; }
+.gcs-record-table th { background: #fafaf9; color: #78716c; font-weight: 600; }
 .gcs-record-table strong { color: #59349d; font-size: 15px; }
 
 /* 历史记录 PDF 标签 */
@@ -2279,14 +2279,14 @@ async function viewSavedPdf(rec) {
 .record-tag.archive-tag.done { background: #e1f3d8; color: #389e0d; }
 .record-tag.archive-tag.done:hover { background: #d3f0c0; }
 /* 无文书：不可点击，仅说明这条记录还不能归档（自动初评记录常见） */
-.record-tag.archive-tag.none { background: #f4f4f5; color: #c0c4cc; cursor: default; }
+.record-tag.archive-tag.none { background: #f5f5f4; color: #d6d3d1; cursor: default; }
 
 /* 离屏文书渲染源：移出视口但保留真实尺寸供 html2canvas 渲染 */
 .report-offscreen { position: absolute; left: -9999px; top: 0; width: 794px; pointer-events: none; }
 
 /* 文书预览弹窗 */
 .report-modal { width: min(880px, calc(100vw - 40px)); }
-.report-scroll { background: #e9edf2; padding: 18px; }
+.report-scroll { background: #e7e5e4; padding: 18px; }
 .report-view-host { display: flex; justify-content: center; }
 .report-view-host .report-page { flex: 0 0 auto; background: #ffffff; box-shadow: 0 2px 12px rgba(0,0,0,0.12); }
 
@@ -2298,14 +2298,14 @@ async function viewSavedPdf(rec) {
 
 /* ===== 取数时间范围：快捷按钮组 / 自定义态 / 区间回显 ===== */
 .range-presets { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.toolbar .dt-input { height: 32px; border: 1px solid #dcdfe6; border-radius: 4px; padding: 0 10px; font-size: 13px; outline: none; background: #fff; }
-.toolbar .dt-input.dt-custom { border-color: #409eff; background: #f2f8ff; }
-.btn.active { border-color: #409eff; background: #ecf5ff; color: #409eff; font-weight: 600; }
-.range-chip { height: 32px; display: inline-flex; align-items: center; padding: 0 12px; border: 1px dashed #dcdfe6; border-radius: 4px; color: #a8abb2; font-size: 13px; cursor: default; }
-.range-chip.active { border-style: solid; border-color: #409eff; background: #ecf5ff; color: #409eff; font-weight: 600; }
-.range-echo { display: flex; align-items: center; gap: 8px; padding: 6px 20px; background: #f7fbff; border-bottom: 1px solid #edf2f8; font-size: 12.5px; color: #40546c; }
-.range-echo .echo-lbl { color: #909399; }
-.range-echo b { font-weight: 600; color: #303133; }
-.range-echo .echo-tag { padding: 1px 8px; border-radius: 10px; background: #ecf5ff; color: #409eff; font-size: 11.5px; }
+.toolbar .dt-input { height: 32px; border: 1px solid #e7e5e4; border-radius: 4px; padding: 0 10px; font-size: 13px; outline: none; background: #fff; }
+.toolbar .dt-input.dt-custom { border-color: #ea580c; background: #fff7ed; }
+.btn.active { border-color: #ea580c; background: #fff1ea; color: #ea580c; font-weight: 600; }
+.range-chip { height: 32px; display: inline-flex; align-items: center; padding: 0 12px; border: 1px dashed #e7e5e4; border-radius: 4px; color: #a8a29e; font-size: 13px; cursor: default; }
+.range-chip.active { border-style: solid; border-color: #ea580c; background: #fff1ea; color: #ea580c; font-weight: 600; }
+.range-echo { display: flex; align-items: center; gap: 8px; padding: 6px 20px; background: #fff7ed; border-bottom: 1px solid #f5f5f4; font-size: 12.5px; color: #57534e; }
+.range-echo .echo-lbl { color: #a8a29e; }
+.range-echo b { font-weight: 600; color: #292524; }
+.range-echo .echo-tag { padding: 1px 8px; border-radius: 10px; background: #fff1ea; color: #ea580c; font-size: 11.5px; }
 .range-echo .echo-tip { margin-left: auto; color: #e6a23c; }
 </style>
