@@ -32,6 +32,8 @@ public class WorkbenchPatient {
     private String gender;
     /** sys_depart.org_code，与外链 / 质控同一体系 */
     private String departCode;
+    /** 科室名称（patient_info.depart_name），展示用 */
+    private String departName;
     /** 病区名，仅展示 */
     private String wardName;
     private String bedNo;

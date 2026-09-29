@@ -805,18 +805,26 @@ public class WorkbenchEnrichService {
         }
     }
 
-    /** 判断检验结果是否异常。有参考范围按数值判断，否则看 alarm_flag。 */
+    /** 判断检验结果是否异常。文字型结果优先看内容（未检出/阴性等=正常），数值型结果按参考范围判断。 */
     private boolean isAbnormal(String result, String low, String high, String alarm) {
-        if (!alarm.isEmpty() && !"0".equals(alarm) && !"N".equalsIgnoreCase(alarm)) return true;
         if (result.isEmpty()) return false;
+        // 文字型结果：含明确阴性关键词的，强制视为正常，不看 alarm_flag
+        String lower = result.toLowerCase();
+        if (lower.contains("未检出") || lower.contains("阴性") || lower.contains("无细菌")
+                || lower.contains("无致病菌") || lower.contains("正常菌群") || lower.contains("未生长")
+                || lower.contains("未见") || lower.contains("无异常") || lower.contains("正常")) {
+            return false;
+        }
+        // 尝试数值判断
         try {
             double val = Double.parseDouble(result);
             if (!low.isEmpty() && val < Double.parseDouble(low)) return true;
             if (!high.isEmpty() && val > Double.parseDouble(high)) return true;
-        } catch (NumberFormatException ignored) {
-            // 文字型结果（阴性/阳性等），看 alarm_flag
+            return false;
+        } catch (NumberFormatException e) {
+            // 其他文字型结果（阳性/检出XXX等），看 alarm_flag
+            return !alarm.isEmpty() && !"0".equals(alarm) && !"N".equalsIgnoreCase(alarm);
         }
-        return false;
     }
 
     /** 判断趋势：当前值 vs 上一个值。 */

@@ -107,6 +107,7 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         patient.setAge(parseInt(row.get("age")));
         patient.setGender(str(row.get("gender")));
         patient.setDepartCode(str(row.get("depart_code")));
+        patient.setDepartName(str(row.get("depart_name")));
         patient.setWardName(str(row.get("ward_name")));
         patient.setBedNo(str(row.get("bed_no")));
         LocalDateTime admittedAt = toLocalDateTime(row.get("in_depart_time"));

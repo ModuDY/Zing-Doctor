@@ -68,7 +68,7 @@ public interface IcuPatientMapper {
             "SELECT t.* FROM (",
             "  SELECT pi.id AS patient_id, pi.in_hospital_no AS in_hospital_no, pi.name AS name, ",
             "         pi.age AS age, pi.gender AS gender, pi.depart_code AS depart_code, ",
-            "         pi.ward_name AS ward_name, pi.bed_code AS bed_no, ",
+            "         pi.depart_name AS depart_name, pi.ward_name AS ward_name, pi.bed_code AS bed_no, ",
             "         pi.in_depart_time AS in_depart_time, ",
             "         ROW_NUMBER() OVER (PARTITION BY pi.in_hospital_no ORDER BY pi.in_depart_time DESC) AS rn ",
             "    FROM \"zing_icu_db_prod\".\"patient_info\" pi ",
