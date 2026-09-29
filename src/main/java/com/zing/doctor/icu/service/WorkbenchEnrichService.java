@@ -18,6 +18,7 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -64,7 +65,17 @@ public class WorkbenchEnrichService {
     private final IcuPatientMapper icuPatientMapper;
     private final AntibioticReassessmentMapper reassessmentMapper;
     private final SysParamService sysParamService;
-    private final SepsisBundleRecordMapper sepsisBundleMapper;
+
+    /**
+     * 脓毒症集束化记录（二期第一批新增）。
+     *
+     * <p>刻意用字段注入而不是并进 {@code @RequiredArgsConstructor}：本类构造器被单测直接
+     * {@code new}（WorkbenchInfectionEnrichTest），每往构造器加一个依赖，构造签名就变一次，
+     * 测试全部 {@code NoSuchMethodError} —— 运行时才能发现，编译期看不出来。
+     * 字段注入不影响既有构造签名，后续再加依赖也不会踩同一个坑。
+     */
+    @Autowired
+    private SepsisBundleRecordMapper sepsisBundleMapper;
 
     /**
      * 给在科患者列表回填：最近 SOFA 总分、当日待办。
