@@ -264,13 +264,15 @@ export default {
       this.loading = true
       this.loadError = ''
       try {
-        const res = await fetchPatientSummary(patientId)
-        if (res && res.code === 0 && res.data) {
-          this.patient = res.data
+        // request.js 响应拦截器已解包：成功时直接返回 data（WorkbenchPatient），
+        // 失败时抛 Error（message 为友好文案）。因此这里不判断 res.code。
+        const data = await fetchPatientSummary(patientId)
+        if (data) {
+          this.patient = data
           // 写入全局患者上下文，侧边栏切换页面时患者不丢
-          setCurrentPatient(res.data)
+          setCurrentPatient(data)
         } else {
-          this.loadError = (res && res.msg) || '加载失败'
+          this.loadError = '患者不存在或已出科'
         }
       } catch (e) {
         this.loadError = e.message || '网络异常'

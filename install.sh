@@ -388,6 +388,58 @@ apply_incremental() {
     warn "增量脚本返回非 0（详见 $logfile）：多为「对象已存在」提示，可忽略"
   fi
   verify_quality_columns
+  verify_quality_tables
+}
+
+# ---------------- 增量升级校验：配置真源三张表到底建了没有 ----------------
+# 与 verify_quality_columns 同理：增量失败只 warn，漏建表和已建表在日志里
+# 长得一样。quality_fact_def 缺失时后端会静默回退 yaml 配置源，页面不报错，
+# 直到调用 /api/quality/config/facts 才 500「无效的表或视图名」。
+# 这里显式复查三张表，缺表就停止部署并给出手动执行指引。
+verify_quality_tables() {
+  local vf=/tmp/zing-verify-tables.sql
+  local log=/tmp/zing-verify-tables.log
+  cat > "$vf" <<'SQL'
+DECLARE
+  v_missing VARCHAR(2000) := '';
+  PROCEDURE chk(p_table VARCHAR) IS
+    c INT;
+  BEGIN
+    SELECT COUNT(*) INTO c FROM ALL_TABLES
+     WHERE UPPER(TABLE_NAME) = UPPER(p_table);
+    IF c = 0 THEN
+      v_missing := v_missing || ' ' || UPPER(p_table);
+    END IF;
+  END;
+BEGIN
+  chk('QUALITY_METRIC_DEF');
+  chk('QUALITY_FACT_DEF');
+  chk('QUALITY_DEF_HISTORY');
+  IF LENGTH(v_missing) > 0 THEN
+    RAISE_APPLICATION_ERROR(-20002, '缺少表:' || v_missing
+      || ' —— 请手动执行 sql/10_quality_config.sql（幂等可重复）');
+  END IF;
+END;
+/
+SQL
+
+  local rc=0
+  db_exec "$log" "$vf" || rc=$?
+  if [ "$rc" = "2" ]; then
+    warn "无可用的数据库通道，跳过配置真源表校验；请自行确认 10_quality_config.sql 已执行"
+    return 0
+  fi
+  if [ "$rc" = "0" ]; then
+    info "配置真源表校验通过（quality_metric_def / quality_fact_def / quality_def_history）"
+    return 0
+  fi
+
+  err "配置真源表缺失，停止部署（详见 $log）"
+  err "  缺 quality_fact_def → 质控配置页「事实层」Tab 500「无效的表或视图名[quality_fact_def]」"
+  err "  缺 quality_def_history → 配置变更历史 Tab 不可用，且保存配置时无法留痕"
+  err "  缺 quality_metric_def → 配置真源回退 yaml，页面只能看、没有新增按钮"
+  err "  请先手动执行 sql/10_quality_config.sql（幂等可重复），再重启服务"
+  exit 1
 }
 
 # ---------------- 增量升级校验：关键列到底加上了没有 ----------------

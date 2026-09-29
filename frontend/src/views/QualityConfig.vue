@@ -1849,7 +1849,14 @@ async function loadMetrics() {
 }
 
 async function loadFacts() {
-  facts.value = await fetchConfigFacts()
+  // 事实层定义依赖 quality_fact_def 表；老库若漏跑增量脚本会 500。
+  // 与 loadRules 一样吃掉异常：指标配置 Tab 仍可用，事实层 Tab 显示空态。
+  try {
+    facts.value = await fetchConfigFacts()
+  } catch (e) {
+    facts.value = []
+    console.warn('[quality-config] 事实层加载失败:', e.message)
+  }
 }
 
 // ---------------------------------------------------------------------------

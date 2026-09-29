@@ -456,6 +456,30 @@ run_sql_file() {
   mariadb_admin "$db" < "$file"
 }
 
+# ---------------- 配置真源表校验：三张表到底建了没有 ----------------
+# 与达梦版 install.sh 的 verify_quality_tables 对应：增量/全量执行失败只 warn，
+# 漏建表和已建表在日志里长得一样。quality_fact_def 缺失时后端静默回退 yaml，
+# 页面不报错，直到调用 /api/quality/config/facts 才 500。这里显式复查。
+verify_quality_tables() {
+  local missing=""
+  local t cnt
+  for t in quality_metric_def quality_fact_def quality_def_history; do
+    cnt="$(admin_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$DOCTOR_DB' AND TABLE_NAME='$t';" "$DOCTOR_DB" 2>/dev/null || echo 0)"
+    if [ "$cnt" = "0" ] || [ -z "$cnt" ]; then
+      missing="$missing $t"
+    fi
+  done
+  if [ -n "$missing" ]; then
+    err "配置真源表缺失:$missing"
+    err "  缺 quality_fact_def → 质控配置页「事实层」Tab 500「无效的表或视图名[quality_fact_def]」"
+    err "  缺 quality_def_history → 配置变更历史 Tab 不可用，且保存配置时无法留痕"
+    err "  缺 quality_metric_def → 配置真源回退 yaml，页面只能看、没有新增按钮"
+    err "  请先手动执行 sql/mysql/10_quality_config.sql（幂等可重复），再重启服务"
+    exit 1
+  fi
+  info "配置真源表校验通过（quality_metric_def / quality_fact_def / quality_def_history）"
+}
+
 if [ "$CONFIG_ONLY" = "yes" ]; then
   info "跳过：建库/建账号/授权、SQL 导入（--config-only 只更新运行环境）"
 elif [ -z "$DB_CLI" ]; then
@@ -552,6 +576,7 @@ SQL
     run_sql_file "$SQL_DIR/$f" "$DOCTOR_DB"
   done
   info "主库表数量：$(admin_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$DOCTOR_DB';")"
+  verify_quality_tables
 
   # 可选识别词库（默认不导，需要时取消注释）
   # for f in 03_word_inc_v23111.sql 03_word_inc_v2319.sql 04_abx_word_training.sql; do
