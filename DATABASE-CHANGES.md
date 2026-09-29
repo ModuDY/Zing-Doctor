@@ -1180,3 +1180,26 @@ SELECT "param_key", "param_value" FROM "zing_doctor_db_prod"."sys_param"
  WHERE "param_key" IN ('DOC_HOSPITAL_NAME','DOC_HOSPITAL_LOGO');
 -- 应返回 2 行；打开 APACHE II / SOFA 评分页的文书预览，抬头应为配置的院徽与院名
 ```
+---
+
+### 2026-09-29 · 侧边栏医院 logo 显示开关
+
+**涉及**
+
+- 新系统参数 `SIDEBAR_SHOW_LOGO`（system 分组，switch 类型，默认 1=开）：侧边栏顶部是否显示医院 logo；关闭后仅显示系统名称文字。
+- logo 图片复用「文书院徽」参数 `DOC_HOSPITAL_LOGO`（image 类型，默认 `/logo.png`，已在 38 号登记），在参数设置 → 评分配置里上传替换。
+- 侧边栏 `MainLayout` 新增 `loadSidebarConfig()`：先于科室加载拉取上述两个参数，未配置/读取失败保持内置默认，不中断布局。
+
+**升级脚本**
+
+- 达梦：`sql/39_sidebar_logo.sql`（`WHERE NOT EXISTS` 幂等，依赖 38 号已建 `DOC_HOSPITAL_LOGO`）
+- MySQL/MariaDB：`sql/mysql/39_sidebar_logo.sql`
+- `install.sh` 达梦/MySQL 两处清单、`install-mariadb-debian.sh`、`build-delivery.ps1` 的 install-all.sql 生成清单均已纳入 39 号（紧随 38 号之后）。
+
+**升级后自检**
+
+```sql
+-- 达梦 / MySQL 通用
+SELECT param_key, param_value FROM sys_param WHERE param_key = 'SIDEBAR_SHOW_LOGO';
+-- 应返回 1 行；param_value 为空表示用默认值（显示）
+```

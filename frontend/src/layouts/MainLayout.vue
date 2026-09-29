@@ -3,7 +3,7 @@
     <!-- 侧边栏 -->
     <aside class="sidebar">
       <div class="sidebar-logo">
-        <div class="logo-icon">医</div>
+        <img v-if="sidebarLogoVisible" class="logo-icon" :src="sidebarLogoUrl" alt="医院logo">
         <div class="logo-text">
           <div class="logo-title">医生决策系统</div>
         </div>
@@ -166,7 +166,9 @@ export default {
   data() {
     return {
       departs: [],
-      selectedDepart: currentDepart.departCode || ''
+      selectedDepart: currentDepart.departCode || '',
+      sidebarLogoUrl: '/logo.png',
+      sidebarLogoVisible: true
     }
   },
   computed: {
@@ -202,6 +204,8 @@ export default {
     }
   },
   async mounted() {
+    // 侧边栏品牌配置（logo显示开关 + logo图片）：所有访问方式都需要，先于科室加载
+    this.loadSidebarConfig()
     // 已登录用户加载授权科室列表；外链访问不加载（URL 已指定科室）
     if (!this.loggedIn || this.isExternalLink) return
     try {
@@ -221,6 +225,28 @@ export default {
     }
   },
   methods: {
+    /**
+     * 侧边栏品牌配置：
+     *  - SIDEBAR_SHOW_LOGO：是否显示医院logo（switch，默认开）
+     *  - DOC_HOSPITAL_LOGO：logo图片（image，默认 /logo.png），与文书抬头共用
+     * 任一参数未配置或读取失败，保持内置默认，绝不打断布局渲染。
+     */
+    async loadSidebarConfig() {
+      try {
+        const [showRes, logoRes] = await Promise.all([
+          request.get('/sys-param/get', { params: { key: 'SIDEBAR_SHOW_LOGO' }, silentError: true }),
+          request.get('/sys-param/get', { params: { key: 'DOC_HOSPITAL_LOGO' }, silentError: true })
+        ])
+        if (showRes !== undefined && showRes !== null && showRes !== '') {
+          this.sidebarLogoVisible = String(showRes) === '1'
+        }
+        if (logoRes) {
+          this.sidebarLogoUrl = String(logoRes)
+        }
+      } catch (e) {
+        // 保持默认
+      }
+    },
     onDepartChange(code) {
       const dep = this.departs.find(d => d.org_code === code)
       const prev = currentDepart.departCode
@@ -312,14 +338,10 @@ export default {
 .logo-icon {
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, #57534e, #292524);
   border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  font-weight: 700;
-  color: #fff;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
 }
 
 .logo-title {
