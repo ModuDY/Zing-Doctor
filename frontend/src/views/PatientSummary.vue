@@ -99,8 +99,8 @@
                 <div class="score-grade" :class="apacheGradeClass(patient.lastApacheScore)">
                   {{ apacheGradeText(patient.lastApacheScore) }}
                 </div>
-                <div class="score-mortality" v-if="apacheMortality(patient.lastApacheScore)">
-                  死亡率 {{ apacheMortality(patient.lastApacheScore) }}
+                <div class="score-mortality" v-if="patient.lastApacheMortality != null">
+                  预计死亡率 {{ patient.lastApacheMortality }}%
                 </div>
               </div>
             </div>
@@ -562,17 +562,6 @@ export default {
       if (score <= 14) return 'grade-mid'
       if (score <= 19) return 'grade-high'
       return 'grade-critical'
-    },
-    apacheMortality(score) {
-      if (score == null) return null
-      if (score <= 4) return '约4%'
-      if (score <= 9) return '约8%'
-      if (score <= 14) return '约15%'
-      if (score <= 19) return '约25%'
-      if (score <= 24) return '约40%'
-      if (score <= 29) return '约55%'
-      if (score <= 34) return '约75%'
-      return '约85%'
     }
   }
 }

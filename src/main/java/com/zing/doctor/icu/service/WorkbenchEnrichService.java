@@ -116,6 +116,7 @@ public class WorkbenchEnrichService {
             Apache2ScoreRecord a = latestApache.get(p.getPatientId());
             if (a != null) {
                 p.setLastApacheScore(a.getTotalScore());
+                p.setLastApacheMortality(a.getMortalityRate());
             }
 
             List<String> todos = new ArrayList<>(3);
