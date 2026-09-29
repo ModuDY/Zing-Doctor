@@ -60,7 +60,7 @@
             <div class="section-kicker">PATIENT LIST</div>
             <h2>患者列表 <span class="heading-count">{{ filteredPatients.length }}</span></h2>
           </div>
-          <span class="section-hint">点击患者行进入抗感染决策</span>
+          <span class="section-hint">点击患者行进入诊疗摘要</span>
         </div>
         <el-radio-group v-model="viewMode" class="view-switch" size="small" @change="onViewModeChange">
           <el-radio-button value="table">列表视图</el-radio-button>
@@ -644,7 +644,7 @@ watch(() => route.query.view, (v) => {
   patientView.value = normalizeView(v)
 })
 
-function openPatient(row) { goDecision(row) }
+function openPatient(row) { jump('/page/patient-summary', row) }
 function goDecision(row) { jump('/page/abx-decision', row) }
 function goSofa(row) { jump('/page/sofa-score', row) }
 function goApache(row) { jump('/page/apache2-score', row) }

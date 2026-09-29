@@ -61,6 +61,25 @@ public interface IcuPatientMapper {
     List<Map<String, Object>> selectInpatients(@Param("departCode") String departCode);
 
     /**
+     * 单患者在科基础信息（与 selectInpatients 同口径：同一住院号只取最新在科记录）。
+     * 患者诊疗摘要聚合接口用，避免为查一个患者跑全院列表。
+     */
+    @Select({"<script>",
+            "SELECT t.* FROM (",
+            "  SELECT pi.id AS patient_id, pi.in_hospital_no AS in_hospital_no, pi.name AS name, ",
+            "         pi.age AS age, pi.gender AS gender, pi.depart_code AS depart_code, ",
+            "         pi.ward_name AS ward_name, pi.bed_code AS bed_no, ",
+            "         pi.in_depart_time AS in_depart_time, ",
+            "         ROW_NUMBER() OVER (PARTITION BY pi.in_hospital_no ORDER BY pi.in_depart_time DESC) AS rn ",
+            "    FROM \"zing_icu_db_prod\".\"patient_info\" pi ",
+            "   WHERE pi.is_in_depart = 1 AND pi.del_flag = 0 ",
+            "     AND pi.id = #{patientId} ",
+            ") t ",
+            "WHERE t.rn = 1",
+            "</script>"})
+    Map<String, Object> selectInpatientById(@Param("patientId") String patientId);
+
+    /**
      * 取一个账号在重症系统里被授权的科室（org_code + 名称），用于工作台的科室边界。
      *
      * <p>授权取自 {@code sys_user_depart} —— 这是真正的多科室授权表。实测 542 个有授权

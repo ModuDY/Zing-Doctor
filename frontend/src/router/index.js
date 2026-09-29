@@ -24,6 +24,12 @@ const routes = [
     meta: { title: '患者工作台' }
   },
   {
+    path: '/page/patient-summary',
+    name: 'patientSummary',
+    component: () => import('../views/PatientSummary.vue'),
+    meta: { title: '患者诊疗摘要' }
+  },
+  {
     path: '/page/abx-patient-list',
     name: 'patientList',
     // 已并入患者工作台的「感染风险」视图，不再有独立页面。
@@ -219,6 +225,7 @@ const router = createRouter({
  * patientId，APACHE II 与脓毒症只读 inHospitalNo（住院号），少带一个另一半页面照样空着。
  */
 const PATIENT_PAGES = new Set([
+  '/page/patient-summary',
   '/page/abx-decision',
   '/page/abx-pkpd',
   '/page/sofa-score',

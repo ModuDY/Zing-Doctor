@@ -25,6 +25,15 @@ public interface IcuPatientService {
     List<WorkbenchPatient> listInpatients(String departCode);
 
     /**
+     * 单患者工作台基础信息（只查患者主表，不跑 enrich / 检验 / 微生物关联查询）。
+     * 患者诊疗摘要聚合接口用：先取基础信息确认患者在科及所属科室，再由调用方走 enrich 流水线。
+     * 未找到（不存在 / 已出科 / 已删除）返回 null。
+     */
+    default WorkbenchPatient getWorkbenchPatient(String patientId) {
+        return null;
+    }
+
+    /**
      * 疑似感染/脓毒症患者列表。
      *
      * @param departCode 科室编码（{@code sys_depart.org_code}）；null / 空 / "ALL" 表示不限科室。

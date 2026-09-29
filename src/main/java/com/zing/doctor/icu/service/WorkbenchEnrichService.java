@@ -81,6 +81,8 @@ public class WorkbenchEnrichService {
 
         // 1) 最近一次 SOFA 总分（每个患者取 score_time 最新的一条）
         Map<String, SofaScoreRecord> latestSofa = latestSofaByPatient(patientIds);
+        // 1b) 最近一次 APACHE II 总分（同上，患者诊疗摘要用）
+        Map<String, Apache2ScoreRecord> latestApache = latestApacheByPatient(patientIds);
         // 2) 今天有评分的 patientId 集合
         Set<String> sofaToday = scoredToday("sofa", patientIds);
         Set<String> apacheToday = scoredToday("apache", patientIds);
@@ -94,6 +96,10 @@ public class WorkbenchEnrichService {
             SofaScoreRecord s = latestSofa.get(p.getPatientId());
             if (s != null) {
                 p.setLastSofaScore(s.getTotalScore());
+            }
+            Apache2ScoreRecord a = latestApache.get(p.getPatientId());
+            if (a != null) {
+                p.setLastApacheScore(a.getTotalScore());
             }
 
             List<String> todos = new ArrayList<>(3);
@@ -430,6 +436,21 @@ public class WorkbenchEnrichService {
         Map<String, SofaScoreRecord> out = new HashMap<>();
         for (SofaScoreRecord r : list) {
             // 已按 score_time 倒序，putIfAbsent 保留每个 patient 的第一条（最新）
+            out.putIfAbsent(r.getPatientId(), r);
+        }
+        return out;
+    }
+
+    /** 每个 patientId 取 score_time 最大的一条 APACHE II 记录（不返回 pdf_data 大字段）。 */
+    private Map<String, Apache2ScoreRecord> latestApacheByPatient(List<String> patientIds) {
+        QueryWrapper<Apache2ScoreRecord> qw = new QueryWrapper<>();
+        qw.select("patient_id", "total_score", "score_time")
+                .in("patient_id", patientIds)
+                .eq("status", 1)
+                .orderByDesc("score_time");
+        List<Apache2ScoreRecord> list = apacheMapper.selectList(qw);
+        Map<String, Apache2ScoreRecord> out = new HashMap<>();
+        for (Apache2ScoreRecord r : list) {
             out.putIfAbsent(r.getPatientId(), r);
         }
         return out;

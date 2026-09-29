@@ -22,3 +22,11 @@ export function fetchInpatients(departCode) {
 export function fetchDepartScope() {
   return request.get('/workbench/scope', { silentError: true })
 }
+
+/**
+ * 单患者诊疗摘要：把工作台列表的 enrich 流水线收敛到一个患者上。
+ * 返回 WorkbenchPatient 全字段（基本信息/生命支持/评分/感染/待办）。
+ */
+export function fetchPatientSummary(patientId) {
+  return request.get(`/workbench/patients/${patientId}/summary`, { silentError: true })
+}

@@ -9,6 +9,7 @@ import com.zing.doctor.icu.service.UserDepartScopeService;
 import com.zing.doctor.icu.service.WorkbenchEnrichService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -61,6 +62,36 @@ public class PatientWorkbenchController {
         // 感染维度（ICU 库批量；只对疑似患者取 PCT/培养/抗菌药明细，其余标记"已查过、没有"）
         workbenchEnrichService.enrichInfection(patients, allowed);
         return Result.ok(patients);
+    }
+
+    /**
+     * 单患者诊疗摘要：把工作台列表的 enrich 流水线收敛到一个患者上。
+     *
+     * <p>与 {@link #patients} 的区别是输入从「科室」变成「患者」：先按 patientId 取基础信息
+     * 确认在科及所属科室，再用患者所属科室过一遍授权校验，最后走同一套 enrich。
+     * 外链（username=null）不套科室限制，由 extToken 体系控制。
+     *
+     * <p>部分失败不整体报错：感染维度 / 复评待办查询失败时模型内 dataStatus 标记 UNKNOWN，
+     * 前端按块渲染「数据暂不可用」；评分查询失败时降级为不生成待办（不制造假催办）。
+     */
+    @GetMapping("/patients/{patientId}/summary")
+    public Result<WorkbenchPatient> summary(@PathVariable String patientId,
+                                            HttpServletRequest request) {
+        WorkbenchPatient patient = icuPatientService.getWorkbenchPatient(patientId);
+        if (patient == null) {
+            return Result.fail("患者不存在或已出科");
+        }
+        String allowed = departScopeService.resolveQueryDepart(
+                currentUsername(request), patient.getDepartCode());
+        if (allowed == null) {
+            return Result.fail("无该患者科室权限");
+        }
+        List<WorkbenchPatient> list = java.util.Collections.singletonList(patient);
+        icuPatientService.enrichCrisisFlags(list, patient.getDepartCode());
+        workbenchEnrichService.enrich(list);
+        workbenchEnrichService.enrichReassessmentTodos(list);
+        workbenchEnrichService.enrichInfection(list, patient.getDepartCode());
+        return Result.ok(patient);
     }
 
     /** 当前登录账号；外链免登录时返回 null */

@@ -49,6 +49,8 @@ public class WorkbenchPatient {
     // ---- 评分 / 待办 ----
     /** 最近一次 SOFA 总分（0-24），未评过为 null */
     private Integer lastSofaScore;
+    /** 最近一次 APACHE II 总分，未评过为 null */
+    private Integer lastApacheScore;
     /**
      * 当日待办 code 列表，如 SOFA_NOT_TODAY / APACHE_NOT_TODAY。
      * 空列表表示当日无待办。

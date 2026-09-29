@@ -93,6 +93,29 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         return patients;
     }
 
+    @Override
+    public WorkbenchPatient getWorkbenchPatient(String patientId) {
+        Map<String, Object> row = icuPatientMapper.selectInpatientById(patientId);
+        if (row == null) {
+            return null;
+        }
+        WorkbenchPatient patient = new WorkbenchPatient();
+        patient.setInHospitalNo(str(row.get("in_hospital_no")));
+        patient.setPatientId(str(row.get("patient_id")));
+        patient.setPatientNo(str(row.get("in_hospital_no")));
+        patient.setName(str(row.get("name")));
+        patient.setAge(parseInt(row.get("age")));
+        patient.setGender(str(row.get("gender")));
+        patient.setDepartCode(str(row.get("depart_code")));
+        patient.setWardName(str(row.get("ward_name")));
+        patient.setBedNo(str(row.get("bed_no")));
+        LocalDateTime admittedAt = toLocalDateTime(row.get("in_depart_time"));
+        patient.setInDepartmentTime(admittedAt);
+        patient.setIcuDays(admittedAt == null ? null
+                : Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(admittedAt.toLocalDate(), LocalDateTime.now().toLocalDate()) + 1));
+        return patient;
+    }
+
     /**
      * 危重标签批量回填：机械通气 / 血管活性药 / CRRT。
      *
