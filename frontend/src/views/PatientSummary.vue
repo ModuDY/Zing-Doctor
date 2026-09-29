@@ -606,12 +606,12 @@ export default {
 
 /* 快捷操作 */
 .action-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
 }
 .action-btn {
-  flex: 0 0 calc(50% - 5px);
+  width: 100%;
   height: 40px;
   font-size: 13px;
 }
@@ -636,7 +636,7 @@ export default {
 @media (max-width: 700px) {
   .summary-page { padding: 14px; }
   .infection-metrics { grid-template-columns: 1fr; }
-  .action-btn { flex: 0 0 100%; }
+  .action-grid { grid-template-columns: 1fr; }
   .patient-name { font-size: 20px; }
 }
 </style>

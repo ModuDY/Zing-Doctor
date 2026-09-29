@@ -355,6 +355,13 @@ const LINK_PAGES = [
     { k: 'departCode', req: false, sample: 'ICU01' },
     { k: 'realname', req: false, sample: '张医生' },
     { k: 'username', req: false, sample: '1001' } ] },
+  { code: 'patient-summary', name: '患者诊疗摘要', desc: '单患者基本信息、生命支持、评分、感染指标、抗菌药、待办与快捷操作', params: [
+    { k: 'patientId', req: true, sample: '10001' },
+    { k: 'inHospitalNo', req: true, sample: '201152869' },
+    { k: 'inDepartTime', req: false, sample: '2026-09-04T08:00:00' },
+    { k: 'departCode', req: false, sample: 'ICU01' },
+    { k: 'patientName', req: false, sample: '陈丽珍' },
+    { k: 'realname', req: false, sample: '张医生' } ] },
   { code: 'abx-patient-list', name: '疑似感染患者列表（已并入工作台）', desc: '⚠️ 该入口已重定向到患者工作台的「感染风险」视图，建议容器改用 patient-workbench', params: [
     { k: 'departCode', req: false, sample: 'ICU01' },
     { k: 'departName', req: false, sample: '综合ICU' } ] },

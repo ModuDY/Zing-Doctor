@@ -1254,3 +1254,28 @@ SELECT COUNT(*) FROM quality_fact_def;   -- 应为 10
 ```
 
 重启后启动日志应显示「事实层 10 个」。
+
+---
+
+### 2026-09-29 · 患者诊疗摘要页面注册
+
+**涉及**
+
+- 新增页面注册 `patient-summary` → `/page/patient-summary`，允许患者诊疗摘要通过 `/entry/patient-summary` 外链免登录打开。
+- 参数设置 → 外链页面新增患者诊疗摘要示例；必传 `patientId`，建议同时传 `inHospitalNo`、`inDepartTime`、`departCode`、`patientName` 和 `realname`，以便摘要页快捷进入评分、抗感染和其他患者级功能时保留上下文。
+- 不新增业务表，不改变现有患者摘要接口和权限逻辑；摘要接口仍按患者所属科室执行直连账号权限校验，外链由 extToken/签名校验控制。
+
+**升级脚本**
+
+- 达梦：`sql/41_patient_summary_page.sql`
+- MySQL/MariaDB：`sql/mysql/41_patient_summary_page.sql`
+- `install.sh`、`install-mariadb-debian.sh` 和 `tools/build-delivery.ps1` 已纳入 41 号脚本。老库升级必须执行该脚本，否则 `/entry/patient-summary` 会返回「未注册的页面」。
+
+**升级后自检**
+
+```sql
+SELECT page_code, frontend_path, status
+  FROM sys_page_config
+ WHERE page_code = 'patient-summary';
+-- 应返回 1 行：/page/patient-summary，status=1
+```

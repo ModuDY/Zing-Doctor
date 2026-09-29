@@ -1,9 +1,11 @@
 <template>
-  <div class="apache2-overview">
-    <!-- 顶部筛选 -->
-    <div class="filter-bar">
-      <span class="page-title">APACHE II 评分总览</span>
-      <div class="filters">
+  <div class="apache2-overview qb-theme">
+    <section class="overview-header">
+      <div class="header-left">
+        <h1 class="page-title">APACHE II 评分总览</h1>
+        <span v-if="departName" class="depart-pill">{{ departName }}</span>
+      </div>
+      <div class="header-right">
         <el-date-picker
           v-model="dateRange"
           type="daterange"
@@ -12,101 +14,130 @@
           end-placeholder="结束日期"
           value-format="YYYY-MM-DD"
           :clearable="false"
-          style="width: 260px"
+          class="date-picker"
         />
-        <el-button type="primary" @click="loadData">
+        <el-button type="primary" @click="loadData" class="query-btn">
           <el-icon><Search /></el-icon> 查询
         </el-button>
         <el-button type="warning" :loading="autoGenerating" @click="manualAutoGenerate">
           自动补全在科患者评分
         </el-button>
-        <span v-if="departName" class="depart-tag">科室：{{ departName }}</span>
       </div>
-    </div>
+    </section>
 
-    <el-empty v-if="departCodeInvalid" :description="departCodeInvalidText" />
+    <el-empty v-if="departCodeInvalid" :description="departCodeInvalidText" class="empty-state"></el-empty>
 
-    <template v-else>
-      <!-- 统计卡片 -->
-      <div class="stat-cards">
+    <div v-else>
+      <div class="stat-row">
         <div class="stat-card">
+          <div class="card-kicker">RECORDS</div>
           <div class="stat-label">评分记录数</div>
           <div class="stat-value">{{ summary.totalCount }}</div>
           <div class="stat-sub">当前时间范围</div>
         </div>
         <div class="stat-card">
+          <div class="card-kicker">AVERAGE</div>
           <div class="stat-label">平均总分</div>
           <div class="stat-value">{{ fmt2(summary.avgScore) }}</div>
           <div class="stat-sub">APACHE II 总分</div>
         </div>
         <div class="stat-card">
+          <div class="card-kicker">MORTALITY</div>
           <div class="stat-label">平均死亡率</div>
-          <div class="stat-value">{{ fmt2(summary.avgMortality) }}%</div>
+          <div class="stat-value">{{ fmt2(summary.avgMortality) }}<span class="stat-unit">%</span></div>
           <div class="stat-sub">预测院内死亡率</div>
         </div>
-        <div class="stat-card stat-card-warning">
+        <div class="stat-card stat-danger">
+          <div class="card-kicker">HIGH RISK</div>
           <div class="stat-label">高危患者数</div>
           <div class="stat-value">{{ summary.highRiskCount }}</div>
           <div class="stat-sub">总分 ≥ 20 分</div>
         </div>
       </div>
 
-      <!-- 评分分布图表 -->
-      <div class="chart-row">
-        <div class="chart-box">
-          <div class="chart-title">APACHE II 评分分布</div>
-          <div v-show="summary.totalCount > 0" ref="distributionChartRef" class="chart-container"></div>
-          <div v-if="!summary.totalCount" class="chart-empty">当前时间范围内暂无评分数据</div>
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-kicker">DISTRIBUTION</div>
+          <div class="card-title">APACHE II 评分分布</div>
         </div>
+        <div v-show="summary.totalCount > 0" ref="distributionChartRef" class="chart-container"></div>
+        <div v-if="!summary.totalCount" class="chart-empty">当前时间范围内暂无评分数据</div>
       </div>
 
-      <!-- 患者评分列表 -->
-      <div class="table-box">
-        <div class="table-title">患者评分列表（点击行展开详情）</div>
+      <div class="table-card">
+        <div class="card-header">
+          <div>
+            <div class="card-kicker">PATIENTS</div>
+            <div class="card-title">患者评分列表</div>
+          </div>
+          <span class="table-count">共 {{ records.length }} 条记录</span>
+        </div>
         <el-table
           ref="tableRef"
           v-loading="loading"
           :data="records"
           style="width: 100%"
           row-key="id"
-          border
           @row-click="handleRowClick"
+          class="apache-table"
         >
           <el-table-column type="expand">
             <template #default="{ row }">
               <div class="detail-panel">
                 <div class="detail-section">
-                  <div class="detail-title">评分汇总</div>
+                  <div class="detail-section-title">评分汇总</div>
                   <div class="detail-scores">
-                    <div class="score-item"><span class="score-label">A 年龄分</span><span class="score-val">{{ row.ageScore }}</span></div>
-                    <div class="score-item"><span class="score-label">B 慢性健康分</span><span class="score-val">{{ row.chronicScore }}</span></div>
-                    <div class="score-item"><span class="score-label">C GCS分</span><span class="score-val">{{ row.gcsScore }}</span></div>
-                    <div class="score-item"><span class="score-label">D 急性生理分</span><span class="score-val">{{ row.physiologyScore }}</span></div>
-                    <div class="score-item score-total"><span class="score-label">总分</span><span class="score-val">{{ row.totalScore }}</span></div>
-                    <div class="score-item score-mortality"><span class="score-label">预测死亡率</span><span class="score-val">{{ fmt2(row.mortalityRate) }}%</span></div>
+                    <div class="detail-score-item">
+                      <span class="ds-label">A 年龄分</span>
+                      <span class="ds-val">{{ row.ageScore }}</span>
+                    </div>
+                    <div class="detail-score-item">
+                      <span class="ds-label">B 慢性健康分</span>
+                      <span class="ds-val">{{ row.chronicScore }}</span>
+                    </div>
+                    <div class="detail-score-item">
+                      <span class="ds-label">C GCS 分</span>
+                      <span class="ds-val">{{ row.gcsScore }}</span>
+                    </div>
+                    <div class="detail-score-item">
+                      <span class="ds-label">D 急性生理分</span>
+                      <span class="ds-val">{{ row.physiologyScore }}</span>
+                    </div>
+                    <div class="detail-score-item ds-total">
+                      <span class="ds-label">总分</span>
+                      <span class="ds-val">{{ row.totalScore }}</span>
+                    </div>
+                    <div class="detail-score-item ds-mortality">
+                      <span class="ds-label">预测死亡率</span>
+                      <span class="ds-val">{{ fmt2(row.mortalityRate) }}%</span>
+                    </div>
                   </div>
                 </div>
                 <div class="detail-section">
-                  <div class="detail-title">评分信息</div>
-                  <div class="detail-info">
-                    <div><span>评分来源：</span>{{ scoreTypeText(row.scoreType) }}</div>
-                    <div><span>评分时间：</span>{{ row.scoreTime }}</div>
-                    <div><span>疾病分类：</span>{{ diagnosisTypeText(row.diagnosisType) }}</div>
-                    <div><span>创建人：</span>{{ operatorLabel(row.createBy) || '—' }}</div>
+                  <div class="detail-section-title">评分信息</div>
+                  <div class="detail-info-grid">
+                    <div class="di-item"><span class="di-label">评分来源</span><span class="di-value">{{ scoreTypeText(row.scoreType) }}</span></div>
+                    <div class="di-item"><span class="di-label">评分时间</span><span class="di-value">{{ row.scoreTime }}</span></div>
+                    <div class="di-item"><span class="di-label">疾病分类</span><span class="di-value">{{ diagnosisTypeText(row.diagnosisType) }}</span></div>
+                    <div class="di-item"><span class="di-label">创建人</span><span class="di-value">{{ operatorLabel(row.createBy) || '—' }}</span></div>
                   </div>
                 </div>
                 <div class="detail-actions">
                   <el-button size="small" type="primary" @click.stop="goToScorePage(row)">
-                    查看/编辑评分
+                    查看 / 编辑评分
                   </el-button>
                 </div>
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="patientName" label="患者姓名" width="100" />
-          <el-table-column prop="inHospitalNo" label="住院号" width="140" />
-          <el-table-column prop="scoreType" label="评分来源" width="100">
-            <template #default="{ row }">{{ scoreTypeText(row.scoreType) }}</template>
+          <el-table-column prop="patientName" label="患者姓名" min-width="90" />
+          <el-table-column prop="inHospitalNo" label="住院号" min-width="130" />
+          <el-table-column prop="scoreType" label="评分来源" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.scoreType === 'custom' ? 'warning' : 'info'" size="small" effect="plain">
+                {{ scoreTypeText(row.scoreType) }}
+              </el-tag>
+            </template>
           </el-table-column>
           <el-table-column prop="ageScore" label="A年龄" width="70" align="center" />
           <el-table-column prop="chronicScore" label="B慢性" width="70" align="center" />
@@ -114,16 +145,20 @@
           <el-table-column prop="physiologyScore" label="D生理" width="70" align="center" />
           <el-table-column prop="totalScore" label="总分" width="80" align="center">
             <template #default="{ row }">
-              <span :class="getTotalScoreClass(row.totalScore)">{{ row.totalScore }}</span>
+              <span :class="['total-score', getTotalScoreClass(row.totalScore)]">{{ row.totalScore }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="mortalityRate" label="死亡率" width="90" align="center">
-            <template #default="{ row }">{{ fmt2(row.mortalityRate) }}%</template>
+            <template #default="{ row }">
+              <span :class="['mortality-val', { 'mortality-high': row.mortalityRate >= 40 }]">
+                {{ fmt2(row.mortalityRate) }}%
+              </span>
+            </template>
           </el-table-column>
-          <el-table-column prop="scoreTime" label="评分时间" width="170" />
+          <el-table-column prop="scoreTime" label="评分时间" min-width="160" />
         </el-table>
       </div>
-    </template>
+    </div>
   </div>
 </template>
 
@@ -140,8 +175,6 @@ import { currentDepart } from '../utils/departContext'
 
 const route = useRoute()
 const router = useRouter()
-// ICU 外链模板未被替换的占位符（如 ${departCode}）会原样带进 query，必须按“无效参数”处理，
-// 否则会以一个不存在的科室去查询，表面“成功”但永远返回空数据。
 const RAW_PLACEHOLDER = /\$\{[^}]*\}/
 const pickQuery = (v) => {
   const s = String(v == null ? '' : v).trim()
@@ -173,7 +206,6 @@ const summary = reactive({
 const distributionChartRef = ref(null)
 let distributionChart = null
 
-/** 本地时区日期 yyyy-MM-dd：不能用 toISOString()（UTC 会整体前移一天，导致当天记录被排除） */
 function fmtDate(d) {
   const p = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
@@ -188,7 +220,6 @@ onMounted(() => {
   }
 })
 
-// 非外链场景下，侧边栏切换科室时自动重新加载
 watch(() => currentDepart.departCode, (code) => {
   if (!externalDepartCode && code) {
     departCode.value = code
@@ -211,8 +242,6 @@ async function loadData() {
   }
   loading.value = true
   try {
-    // 注意：request 响应拦截器已把后端 Result 信封 { code, message, data } 解包，
-    // 这里拿到的就是 Result.data 本身，不能再判断 res.code（历史 bug：恒不等 0，导致永远提示“加载失败”）
     const data = (await request.get('/apache2/overview', {
       params: {
         departCode: departCode.value,
@@ -229,7 +258,6 @@ async function loadData() {
     await nextTick()
     renderDistributionChart()
   } catch (e) {
-    // 全局拦截器已统一提示，这里只留诊断日志
     console.warn('APACHE II 总览加载失败: ', e && e.message)
   } finally {
     loading.value = false
@@ -237,7 +265,6 @@ async function loadData() {
 }
 
 const autoGenerating = ref(false)
-// 手动触发：为当前科室“在科且入科超24h、尚无评分记录”的患者自动生成评分（幂等，可重复执行）
 async function manualAutoGenerate() {
   try {
     await ElMessageBox.confirm(
@@ -246,7 +273,7 @@ async function manualAutoGenerate() {
       { confirmButtonText: '开始生成', cancelButtonText: '取消', type: 'warning' }
     )
   } catch (action) {
-    return // 用户取消
+    return
   }
   autoGenerating.value = true
   try {
@@ -275,35 +302,51 @@ function renderDistributionChart() {
     return
   }
   distributionChart.setOption({
-    tooltip: { trigger: 'axis' },
-    grid: { left: 50, right: 20, top: 30, bottom: 30 },
-    xAxis: { type: 'category', data: categories, axisLabel: { color: '#666' } },
-    yAxis: { type: 'value', name: '人数', axisLabel: { color: '#666' } },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: '#1c1917',
+      borderColor: '#1c1917',
+      textStyle: { color: '#fff', fontSize: 12 }
+    },
+    grid: { left: 50, right: 24, top: 24, bottom: 32 },
+    xAxis: {
+      type: 'category',
+      data: categories,
+      axisLabel: { color: '#78716c', fontSize: 12 },
+      axisLine: { lineStyle: { color: '#e7e5e4' } },
+      axisTick: { show: false }
+    },
+    yAxis: {
+      type: 'value',
+      name: '人数',
+      nameTextStyle: { color: '#a8a29e', fontSize: 11 },
+      axisLabel: { color: '#78716c', fontSize: 12 },
+      splitLine: { lineStyle: { color: '#f5f5f4' } }
+    },
     series: [{
       type: 'bar',
       data: values,
+      barWidth: '45%',
       itemStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: '#409eff' },
-          { offset: 1, color: '#79bbff' }
+          { offset: 0, color: '#f97316' },
+          { offset: 1, color: '#fdba74' }
         ]),
-        borderRadius: [4, 4, 0, 0]
+        borderRadius: [6, 6, 0, 0]
       },
-      label: { show: true, position: 'top', color: '#666', fontSize: 12 }
+      label: { show: true, position: 'top', color: '#57534e', fontSize: 12, fontWeight: 600 }
     }]
   }, true)
-  // 容器从 v-show 隐藏恢复显示后尺寸可能为 0，主动校正一次
   distributionChart.resize()
 }
 
-/** 窗口尺寸变化时自适应，避免图表被拉伸变形 */
 function handleResize() {
   if (distributionChart) {
     distributionChart.resize()
   }
 }
 
-/** 点击行展开/收起明细（展开列自身已有点击处理，跳过以免重复切换） */
 function handleRowClick(row, column) {
   if (column && column.type === 'expand') return
   if (tableRef.value) {
@@ -311,14 +354,11 @@ function handleRowClick(row, column) {
   }
 }
 
-/** 数值统一保留两位小数（空值/非数字按 0.00 显示） */
 function fmt2(v) {
   const n = Number(v)
   return isNaN(n) ? '0.00' : n.toFixed(2)
 }
 
-// 与评分页保持同一口径：auto/daily=自动评分、custom=手工评分
-// （admission/24h/48h 为历史遗留取值，保留原样展示；reviewed 从未落库，已移除）
 function scoreTypeText(type) {
   const map = {
     auto: '自动评分',
@@ -348,42 +388,79 @@ function goToScorePage(row) {
     `&patientName=${encodeURIComponent(row.patientName || '')}` +
     `&departCode=${encodeURIComponent(departCode.value)}` +
     `&recordId=${encodeURIComponent(row.id)}`
-  // 当前页面跳转，sessionStorage 上下文自然继承
   router.push(appendExternalContext(url))
 }
 </script>
 
 <style scoped>
 .apache2-overview {
-  padding: 16px;
-  background: #f5f7fa;
-  min-height: 100vh;
+  min-height: 100%;
+  background: #f5f5f4;
+  padding: 20px 24px 40px;
 }
-.filter-bar {
+.overview-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  background: #fff;
-  padding: 14px 20px;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
 }
-.page-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #303133;
-}
-.filters {
+.header-left {
   display: flex;
   align-items: center;
   gap: 12px;
 }
-.depart-tag {
-  color: #909399;
-  font-size: 13px;
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1c1917;
+  margin: 0;
+  line-height: 1.2;
 }
-.stat-cards {
+.depart-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #c2410c;
+  font-weight: 600;
+  font-size: 12px;
+  border: 1px solid #fed7aa;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.date-picker { width: 260px; }
+.query-btn { font-weight: 600; }
+.empty-state { padding: 80px 0; }
+
+.card-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #a8a29e;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1c1917;
+  margin: 0;
+}
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.stat-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
@@ -391,50 +468,53 @@ function goToScorePage(row) {
 }
 .stat-card {
   background: #fff;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-  border-left: 4px solid #409eff;
+  border: 1px solid #e7e5e4;
+  border-radius: 10px;
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
 }
-.stat-card-warning {
-  border-left-color: #f56c6c;
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ea580c, #f97316);
+}
+.stat-card.stat-danger::before {
+  background: linear-gradient(90deg, #dc2626, #ef4444);
 }
 .stat-label {
   font-size: 13px;
-  color: #909399;
+  color: #57534e;
   margin-bottom: 8px;
 }
 .stat-value {
-  font-size: 32px;
-  font-weight: 700;
-  color: #303133;
-  line-height: 1.2;
+  font-size: 34px;
+  font-weight: 800;
+  color: #1c1917;
+  line-height: 1.1;
+  margin-bottom: 6px;
 }
-.stat-card-warning .stat-value {
-  color: #f56c6c;
+.stat-card.stat-danger .stat-value { color: #dc2626; }
+.stat-unit {
+  font-size: 18px;
+  font-weight: 600;
+  margin-left: 2px;
 }
 .stat-sub {
   font-size: 12px;
-  color: #c0c4cc;
-  margin-top: 6px;
+  color: #a8a29e;
 }
-.chart-row {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-.chart-box {
+
+.chart-card {
   background: #fff;
-  padding: 16px 20px;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-}
-.chart-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #303133;
-  margin-bottom: 12px;
+  border: 1px solid #e7e5e4;
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
 }
 .chart-container {
   height: 280px;
@@ -445,107 +525,122 @@ function goToScorePage(row) {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #909399;
+  color: #a8a29e;
   font-size: 13px;
-  background: #fafafa;
-  border-radius: 4px;
-}
-:deep(.el-table__row) {
-  cursor: pointer;
-}
-.table-box {
-  background: #fff;
-  padding: 16px 20px;
+  background: #fafaf9;
   border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
 }
-.table-title {
-  font-size: 15px;
+
+.table-card {
+  background: #fff;
+  border: 1px solid #e7e5e4;
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+.table-count {
+  font-size: 12px;
+  color: #a8a29e;
+  margin-top: 6px;
+}
+
+.apache-table {
+  --el-table-border-color: #f5f5f4;
+  --el-table-header-bg-color: #fafaf9;
+  --el-table-header-text-color: #57534e;
+  --el-table-row-hover-bg-color: #fff7ed;
+}
+.apache-table :deep(.el-table__header th) {
   font-weight: 600;
-  color: #303133;
-  margin-bottom: 12px;
+  font-size: 13px;
 }
+.apache-table :deep(.el-table__cell) { padding: 10px 0; }
+.apache-table :deep(.el-table__row) { cursor: pointer; }
+.total-score { font-weight: 700; font-size: 15px; }
+.score-danger { color: #dc2626; }
+.score-warning { color: #ea580c; }
+.score-info { color: #2563eb; }
+.score-normal { color: #16a34a; }
+.mortality-val { font-weight: 600; color: #57534e; }
+.mortality-high { color: #dc2626; }
+
 .detail-panel {
-  padding: 16px;
-  background: #fafafa;
-  border-radius: 6px;
+  padding: 16px 20px;
+  background: #fafaf9;
+  border-radius: 8px;
+  margin: 8px 0;
 }
-.detail-section {
-  margin-bottom: 16px;
-}
-.detail-title {
+.detail-section { margin-bottom: 16px; }
+.detail-section:last-child { margin-bottom: 0; }
+.detail-section-title {
   font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-  margin-bottom: 10px;
-  padding-left: 8px;
-  border-left: 3px solid #409eff;
+  font-weight: 700;
+  color: #1c1917;
+  margin-bottom: 12px;
+  padding-left: 10px;
+  border-left: 3px solid #ea580c;
 }
 .detail-scores {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 12px;
+  gap: 10px;
 }
-.score-item {
+.detail-score-item {
   background: #fff;
-  padding: 12px;
-  border-radius: 6px;
+  padding: 14px 10px;
+  border-radius: 8px;
   text-align: center;
-  border: 1px solid #ebeef5;
+  border: 1px solid #e7e5e4;
 }
-.score-label {
+.ds-label {
   display: block;
-  font-size: 12px;
-  color: #909399;
+  font-size: 11px;
+  color: #a8a29e;
   margin-bottom: 6px;
 }
-.score-val {
+.ds-val {
   font-size: 22px;
-  font-weight: 700;
-  color: #303133;
+  font-weight: 800;
+  color: #1c1917;
 }
-.score-total {
-  background: #ecf5ff;
-  border-color: #409eff;
+.ds-total {
+  background: #fff7ed;
+  border-color: #fdba74;
 }
-.score-total .score-val {
-  color: #409eff;
+.ds-total .ds-val { color: #ea580c; }
+.ds-mortality {
+  background: #fef2f2;
+  border-color: #fecaca;
 }
-.score-mortality {
-  background: #fef0f0;
-  border-color: #f56c6c;
-}
-.score-mortality .score-val {
-  color: #f56c6c;
-}
-.detail-info {
+.ds-mortality .ds-val { color: #dc2626; }
+.detail-info-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.di-item {
+  display: flex;
   gap: 8px;
   font-size: 13px;
-  color: #606266;
 }
-.detail-info span {
-  color: #909399;
-}
+.di-label { color: #a8a29e; flex-shrink: 0; }
+.di-value { color: #44403c; font-weight: 500; }
 .detail-actions {
   text-align: right;
   margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e7e5e4;
 }
-.score-danger {
-  color: #f56c6c;
-  font-weight: 700;
+
+@media (max-width: 1200px) {
+  .stat-row { grid-template-columns: repeat(2, 1fr); }
+  .detail-scores { grid-template-columns: repeat(3, 1fr); }
 }
-.score-warning {
-  color: #e6a23c;
-  font-weight: 700;
-}
-.score-info {
-  color: #409eff;
-  font-weight: 600;
-}
-.score-normal {
-  color: #67c23a;
-  font-weight: 600;
+@media (max-width: 768px) {
+  .apache2-overview { padding: 14px; }
+  .stat-row { grid-template-columns: 1fr; }
+  .detail-scores { grid-template-columns: repeat(2, 1fr); }
+  .detail-info-grid { grid-template-columns: 1fr; }
+  .page-title { font-size: 18px; }
+  .date-picker { width: 100%; }
 }
 </style>

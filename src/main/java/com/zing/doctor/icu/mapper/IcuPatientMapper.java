@@ -221,21 +221,21 @@ public interface IcuPatientMapper {
 
     /**
      * 批量最新体温（按 patient_id 取最近一条）。
-     * 与 {@link #selectLatestTemperature} 同一口径（config_observe_item 名称/体征码匹配）。
+     * 与 {@link #selectLatestTemperature} 同一口径（patient_observe_module_item 患者级配置，按 item_name 匹配体温）。
      */
     @Select("<script>"
             + "SELECT t.patient_id AS patient_id, t.item_value AS item_value FROM ("
             + "  SELECT r.patient_id AS patient_id, r.item_value AS item_value, "
             + "         ROW_NUMBER() OVER (PARTITION BY r.patient_id ORDER BY r.item_time DESC) AS rn "
             + "  FROM \"zing_icu_db_prod\".\"patient_observe_module_item_record\" r "
-            + "  LEFT JOIN \"zing_icu_db_prod\".\"config_observe_item\" c "
-            + "    ON c.item_code = r.item_code AND c.del_flag = 0 "
-            + "  WHERE r.del_flag = 0 "
+            + "  INNER JOIN \"zing_icu_db_prod\".\"patient_observe_module_item\" i "
+            + "    ON i.patient_id = r.patient_id AND i.item_code = r.item_code AND i.del_flag = 0 AND i.status = 1 "
+            + "  WHERE r.del_flag = 0 AND r.status = 1 "
             + "  AND r.patient_id IN "
             + "  <foreach collection='patientIds' item='pid' open='(' separator=',' close=')'>"
             + "    #{pid}"
             + "  </foreach>"
-            + "  AND (c.item_name LIKE '%体温%' OR c.sign_code IN ('T','BT','TEMP','TW')) "
+            + "  AND i.item_name LIKE '%体温%' "
             + ") t WHERE t.rn = 1"
             + "</script>")
     List<Map<String, Object>> selectLatestTemperatureByPatientIds(@Param("patientIds") List<String> patientIds);
@@ -348,14 +348,14 @@ public interface IcuPatientMapper {
             + ") WHERE ROWNUM <= 300")
     List<Map<String, Object>> selectRecentLabs(@Param("inHospitalNo") String inHospitalNo);
 
-    /** 患者最新体温（观察项记录 join 配置取体温项目，按名称/体征代码匹配；ROWNUM 取最新 1 条） */
+    /** 患者最新体温（观察项记录 JOIN 患者级观察项配置，按 item_name 匹配体温；ROWNUM 取最新 1 条） */
     @Select("SELECT * FROM ( "
             + "  SELECT r.item_value AS item_value, r.item_time AS item_time "
             + "  FROM \"zing_icu_db_prod\".\"patient_observe_module_item_record\" r "
-            + "  LEFT JOIN \"zing_icu_db_prod\".\"config_observe_item\" c "
-            + "    ON c.item_code = r.item_code AND c.del_flag = 0 "
-            + "  WHERE r.patient_id = #{patientId} AND r.del_flag = 0 "
-            + "    AND (c.item_name LIKE '%体温%' OR c.sign_code IN ('T','BT','TEMP','TW')) "
+            + "  INNER JOIN \"zing_icu_db_prod\".\"patient_observe_module_item\" i "
+            + "    ON i.patient_id = r.patient_id AND i.item_code = r.item_code AND i.del_flag = 0 AND i.status = 1 "
+            + "  WHERE r.patient_id = #{patientId} AND r.del_flag = 0 AND r.status = 1 "
+            + "    AND i.item_name LIKE '%体温%' "
             + "  ORDER BY r.item_time DESC "
             + ") WHERE ROWNUM <= 1")
     Map<String, Object> selectLatestTemperature(@Param("patientId") String patientId);
