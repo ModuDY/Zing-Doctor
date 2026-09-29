@@ -7,7 +7,7 @@
           <h1 class="bt-hospital">{{ hospitalNames[0] }}</h1>
           <h2 class="bt-system">重症医生决策系统</h2>
           <p class="bt-desc">
-            重症临床决策与质控平台，评分、抗感染、质控一站式完成。
+            重症临床决策与质控平台，评分、决策、质控一站式完成。
           </p>
         </div>
       </aside>
