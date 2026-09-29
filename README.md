@@ -106,7 +106,7 @@ CI_SECURITY_SCAN=1 bash tools/ci.sh   # 额外跑后端依赖漏洞扫描（需�
 
 ## 交付包命名规范
 
-统一格式：`zing-doctor-<版本>-<形态>-<yyyyMMdd>.tar.gz`（或 `.zip`），`<版本>` 取自 `pom.xml` 的 `<version>`。
+统一格式：`zing-doctor-deploy-v<版本>-<形态>.zip`，`<版本>` 取自 `pom.xml` 的 `<version>`。不带打包日期——版本即发布标识，需要区分就升版本号（打包时间见包内 `build-info.properties`）。
 
 | 形态 | 内容 | 适用场景 | 体积参考 |
 |---|---|---|---|

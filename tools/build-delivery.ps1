@@ -159,12 +159,13 @@ Copy-Item $jar "$root\app\zing-doctor.jar" -Force
 Write-Host '>>> 已同步 jar -> app/zing-doctor.jar' -ForegroundColor Cyan
 
 # ---------- 组装 ----------
-$stamp = Get-Date -Format 'yyyyMMdd'
 if ($Lite) { $suffix = 'lite' } else { $suffix = 'full' }
 # 脱敏包单独命名：默认包（出厂口令，内部/现场直接用）与外发包（CHANGE_ME）不混用
 if ($Sanitize) { $suffix = "$suffix-sanitized" }
-# 包名带版本号（v1.0.0-20260929-lite）：现场拿到包不用解压就知道是哪个发布版本
-$zip = Join-Path $OutDir ("zing-doctor-deploy-v$buildVersion-$stamp-$suffix.zip")
+# 包名只带版本号（v1.0.0-lite），不再拼日期：版本本身就是发布标识，再带日期会出现
+# 「同一版本两个包名」（跨天打包时昨天 v1.0.0-20260929、今天 v1.0.0-20260930），
+# 现场不知道该用哪个。要区分就升 pom 版本号。构建时间仍在 build-info.properties 里。
+$zip = Join-Path $OutDir ("zing-doctor-deploy-v$buildVersion-$suffix.zip")
 $stage = Join-Path $env:TEMP ('zing-pkg-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 $work = Join-Path $stage 'zing-doctor'
 New-Item -ItemType Directory -Force -Path $work | Out-Null
@@ -405,7 +406,7 @@ if ($KeepDocs) {
 [void]$lines.Add('## 全新部署（在部署目录的父目录执行，例如 /data）')
 [void]$lines.Add('```')
 [void]$lines.Add('cd /data')
-[void]$lines.Add('unzip -o zing-doctor-deploy-v<版本>-<日期>-lite.zip  # 解出 /data/zing-doctor')
+[void]$lines.Add('unzip -o zing-doctor-deploy-v<版本>-lite.zip  # 解出 /data/zing-doctor')
 [void]$lines.Add('cd zing-doctor')
 [void]$lines.Add('# 修改 docker-compose.yml：DOCTOR_URL / DOCTOR_USERNAME / DOCTOR_PASSWORD / EXTERNAL_LINK_BASE_URL')
 [void]$lines.Add('bash install.sh                                 # 无外网走内网直连；有外网也可 docker compose up -d --build')
@@ -415,7 +416,7 @@ if ($KeepDocs) {
 [void]$lines.Add('在部署目录的【父目录】执行，解压会自动覆盖 zing-doctor/ 里的旧文件：')
 [void]$lines.Add('```')
 [void]$lines.Add('cd /data                       # 部署目录 /data/zing-doctor 的父目录')
-[void]$lines.Add('unzip -o zing-doctor-deploy-v<版本>-<日期>-lite.zip')
+[void]$lines.Add('unzip -o zing-doctor-deploy-v<版本>-lite.zip')
 [void]$lines.Add('cd zing-doctor && bash install.sh')
 [void]$lines.Add('```')
 [void]$lines.Add('只想零星替换文件时：')
