@@ -32,6 +32,10 @@ public class BuildInfoController {
     @Value("${BUILD_VERSION:${zing.build.version:unknown}}")
     private String buildVersion;
 
+    /** 发布版本（如 v1.0.0）：正式发布时由打包脚本注入，现场核版本用它而不是 gitCommit。 */
+    @Value("${BUILD_RELEASE:${zing.build.release:unknown}}")
+    private String buildRelease;
+
     @Value("${GIT_COMMIT:${zing.build.git-commit:unknown}}")
     private String gitCommit;
 
@@ -43,6 +47,7 @@ public class BuildInfoController {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("application", "zing-doctor");
         data.put("version", buildVersion);
+        data.put("release", buildRelease);
         data.put("gitCommit", gitCommit);
         data.put("buildTime", buildTime);
         data.put("activeProfile", activeProfile == null || activeProfile.trim().isEmpty()

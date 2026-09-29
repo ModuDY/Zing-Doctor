@@ -165,47 +165,50 @@
           </template>
         </div>
 
-        <!-- 今日待办 -->
-        <div class="summary-card todo-card">
-          <div class="card-header">
-            <div>
-              <div class="card-kicker">TODAY</div>
-              <h3 class="card-title">今日待办</h3>
-            </div>
-            <el-badge :value="patient.todoCount || 0" :hidden="!patient.todoCount" class="todo-badge" />
-          </div>
-          <div v-if="patient.todoCount && patient.todoCount > 0" class="todo-list">
-            <div
-              v-for="todo in todoItems"
-              :key="todo.code"
-              class="todo-item"
-              @click="handleTodo(todo)"
-            >
-              <div class="todo-dot" :class="todo.type"></div>
-              <div class="todo-content">
-                <div class="todo-text">{{ todo.label }}</div>
-                <div class="todo-sub" v-if="todo.sub">{{ todo.sub }}</div>
+        <!-- 底部：今日待办 + 快捷操作 左右分栏 -->
+        <div class="summary-row bottom-row">
+          <!-- 今日待办 -->
+          <div class="summary-card todo-card">
+            <div class="card-header">
+              <div>
+                <div class="card-kicker">TODAY</div>
+                <h3 class="card-title">今日待办</h3>
               </div>
-              <el-icon class="todo-arrow"><arrow-right /></el-icon>
+              <el-badge :value="patient.todoCount || 0" :hidden="!patient.todoCount" class="todo-badge" />
             </div>
+            <div v-if="patient.todoCount && patient.todoCount > 0" class="todo-list">
+              <div
+                v-for="todo in todoItems"
+                :key="todo.code"
+                class="todo-item"
+                @click="handleTodo(todo)"
+              >
+                <div class="todo-dot" :class="todo.type"></div>
+                <div class="todo-content">
+                  <div class="todo-text">{{ todo.label }}</div>
+                  <div class="todo-sub" v-if="todo.sub">{{ todo.sub }}</div>
+                </div>
+                <el-icon class="todo-arrow"><arrow-right /></el-icon>
+              </div>
+            </div>
+            <div v-else class="todo-empty">今日无待办事项</div>
           </div>
-          <div v-else class="todo-empty">今日无待办事项</div>
-        </div>
 
-        <!-- 快捷操作 -->
-        <div class="summary-card actions-card">
-          <div class="card-kicker">QUICK ACTIONS</div>
-          <h3 class="card-title">快捷操作</h3>
-          <div class="action-grid">
-            <el-button type="primary" @click="jump('/page/abx-decision')" class="action-btn primary-action">
-              抗感染决策
-            </el-button>
-            <el-button @click="jump('/page/abx-pkpd')" class="action-btn">PK/PD 剂量</el-button>
-            <el-button @click="jump('/page/sofa-score')" class="action-btn">SOFA 评分</el-button>
-            <el-button @click="jump('/page/apache2-score')" class="action-btn">APACHE II</el-button>
-            <el-button @click="jump('/page/sepsis-bundle')" class="action-btn">脓毒症集束化</el-button>
-            <el-button @click="jump('/page/ards-monitor')" class="action-btn">ARDS 监测</el-button>
-            <el-button @click="jump('/page/ards-prone-list')" class="action-btn">俯卧位记录</el-button>
+          <!-- 快捷操作 -->
+          <div class="summary-card actions-card">
+            <div class="card-kicker">QUICK ACTIONS</div>
+            <h3 class="card-title">快捷操作</h3>
+            <div class="action-grid">
+              <el-button type="primary" @click="jump('/page/abx-decision')" class="action-btn primary-action">
+                抗感染决策
+              </el-button>
+              <el-button @click="jump('/page/abx-pkpd')" class="action-btn">PK/PD 剂量</el-button>
+              <el-button @click="jump('/page/sofa-score')" class="action-btn">SOFA 评分</el-button>
+              <el-button @click="jump('/page/apache2-score')" class="action-btn">APACHE II</el-button>
+              <el-button @click="jump('/page/sepsis-bundle')" class="action-btn">脓毒症集束化</el-button>
+              <el-button @click="jump('/page/ards-monitor')" class="action-btn">ARDS 监测</el-button>
+              <el-button @click="jump('/page/ards-prone-list')" class="action-btn">俯卧位记录</el-button>
+            </div>
           </div>
         </div>
       </template>
@@ -425,6 +428,15 @@ export default {
 }
 .top-row .summary-card { margin-bottom: 0; }
 
+/* 底部左右分栏：待办 + 快捷操作 */
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+.bottom-row .summary-card { margin-bottom: 0; }
+
 /* 基本信息 */
 .info-grid {
   display: grid;
@@ -587,18 +599,19 @@ export default {
 .todo-arrow { color: #a8a29e; font-size: 14px; }
 .todo-empty {
   text-align: center;
-  padding: 20px;
+  padding: 10px;
   color: #a8a29e;
   font-size: 13px;
 }
 
 /* 快捷操作 */
 .action-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 .action-btn {
+  flex: 0 0 calc(50% - 5px);
   height: 40px;
   font-size: 13px;
 }
@@ -617,13 +630,13 @@ export default {
 /* 响应式 */
 @media (max-width: 1100px) {
   .top-row { grid-template-columns: 1fr; }
+  .bottom-row { grid-template-columns: 1fr; }
   .infection-metrics { grid-template-columns: repeat(2, 1fr); }
-  .action-grid { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 700px) {
   .summary-page { padding: 14px; }
   .infection-metrics { grid-template-columns: 1fr; }
-  .action-grid { grid-template-columns: repeat(2, 1fr); }
+  .action-btn { flex: 0 0 100%; }
   .patient-name { font-size: 20px; }
 }
 </style>
