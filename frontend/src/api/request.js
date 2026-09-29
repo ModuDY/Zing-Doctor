@@ -122,11 +122,15 @@ request.interceptors.response.use(
     leaveRequest()
     const res = resp.data
     // 会话过期：清本地令牌并回登录页。登录链路自身的 401（账号密码错）不在此处理。
+    // 登录页内的 401 或调用方声明 silentError 的，不弹全局提示（避免登录页刷新时报错）。
     if (res.code === 401 && !isAuthRequest(resp.config.url)) {
       console.error('[api]', resp.config.url, res.code, res.message)
       clearSession()
-      ElMessage.error(SESSION_EXPIRED_TEXT)
-      redirectToLogin()
+      const silent = resp.config && resp.config.silentError
+      if (!silent && window.location.pathname !== '/login') {
+        ElMessage.error(SESSION_EXPIRED_TEXT)
+        redirectToLogin()
+      }
       return Promise.reject(new Error(SESSION_EXPIRED_TEXT))
     }
     if (res.code !== 0) {
@@ -144,8 +148,11 @@ request.interceptors.response.use(
     // HTTP 层返回 401（未经全局异常处理包装的场景）同样按会话失效处理
     if (err.response && err.response.status === 401 && !isAuthRequest(err.config && err.config.url)) {
       clearSession()
-      ElMessage.error(SESSION_EXPIRED_TEXT)
-      redirectToLogin()
+      const silent = err.config && err.config.silentError
+      if (!silent && window.location.pathname !== '/login') {
+        ElMessage.error(SESSION_EXPIRED_TEXT)
+        redirectToLogin()
+      }
       return Promise.reject(new Error(SESSION_EXPIRED_TEXT))
     }
     const data = err.response && err.response.data

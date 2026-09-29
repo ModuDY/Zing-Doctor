@@ -66,7 +66,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Link } from '@element-plus/icons-vue'
@@ -87,10 +87,6 @@ const rules = {
   username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
-
-onMounted(() => {
-  loadDocHeader()
-})
 
 async function submit() {
   if (loading.value) return

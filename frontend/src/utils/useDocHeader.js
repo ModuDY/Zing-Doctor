@@ -10,6 +10,7 @@
  */
 import { ref } from 'vue'
 import request from '../api/request'
+import { getToken } from './auth'
 
 const KEY_LOGO = 'DOC_HOSPITAL_LOGO'
 const KEY_NAME = 'DOC_HOSPITAL_NAME'
@@ -51,6 +52,10 @@ function parseNames(raw) {
 async function fetchHeader() {
   if (cache) return cache
   if (inflight) return inflight
+  // 未登录时不请求需要认证的参数接口，直接用默认抬头（不缓存，登录后会重新请求）
+  if (!getToken()) {
+    return { logo: DEFAULT_LOGO, names: [...DEFAULT_NAMES] }
+  }
   inflight = (async () => {
     let logo = DEFAULT_LOGO
     let names = [...DEFAULT_NAMES]

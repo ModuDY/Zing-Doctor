@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 用 hoisted 保证 mock 在 vi.mock 工厂提升后仍可用
-const mocks = vi.hoisted(() => ({ get: vi.fn() }))
+const mocks = vi.hoisted(() => ({ get: vi.fn(), getToken: vi.fn(() => 'test-token') }))
 vi.mock('../api/request', () => ({ default: { get: mocks.get } }))
+vi.mock('./auth', () => ({ getToken: mocks.getToken }))
 
 beforeEach(() => {
   mocks.get.mockReset()
+  mocks.getToken.mockReturnValue('test-token')
   vi.resetModules()
 })
 
@@ -86,5 +88,19 @@ describe('useDocHeader', () => {
     const h = m.useDocHeader()
     await h.load()
     expect(h.hospitalNames.value).toEqual(['第一行', '第二行'])
+  })
+
+  it('未登录时不请求参数接口，直接用默认抬头', async () => {
+    mocks.getToken.mockReturnValue(null)
+    const m = await fresh()
+    const h = m.useDocHeader()
+    await h.load()
+    expect(mocks.get).not.toHaveBeenCalled()
+    expect(h.logo.value).toBe('/logo.png')
+    expect(h.hospitalNames.value).toEqual([
+      '福州市第二总医院',
+      '福州市第二医院',
+      '福建省福州中西医结合医院'
+    ])
   })
 })
