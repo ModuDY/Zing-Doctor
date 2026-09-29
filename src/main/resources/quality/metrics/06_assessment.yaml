@@ -1,0 +1,14 @@
+# =====================================================================
+# 指标层 · 评估依从（8 条）
+# 分子看「有没有做过某类评估」，分母看「同期该做的人有多少」，
+# 评估项识别在事实层 fact_assessment 完成（观察项字典关键词）。
+# =====================================================================
+
+- {code: quality_305, name: "进行镇静评估的 ICU患者人数", domain: 评估依从, fact: fact_assessment, unit: "人", valueType: COUNT, where: "sedation_assessed = 1", dims: [depart_code], version: 1, sortNo: 30, remark: "观察项名含「镇静 / RASS / SAS」"}
+- {code: quality_306, name: "进行镇痛评估的 ICU患者人数", domain: 评估依从, fact: fact_assessment, unit: "人", valueType: COUNT, where: "analgesia_assessed = 1", dims: [depart_code], version: 1, sortNo: 31, remark: "观察项名含「镇痛 / 疼痛 / CPOT」"}
+- {code: quality_307, name: "ICU内完成意识评估的急性脑损伤患者人数", domain: 评估依从, fact: fact_assessment, unit: "人", valueType: COUNT, where: "abi = 1 AND consciousness_assessed = 1", dims: [depart_code], version: 1, sortNo: 32, remark: "ABI 由诊断识别（脑出血/脑梗死/颅脑损伤/脑外伤/蛛网膜下腔出血/缺氧性脑病）"}
+- {code: quality_308, name: "同期ICU急性脑损伤患者总人数", domain: 评估依从, fact: fact_assessment, unit: "人", valueType: COUNT, where: "abi = 1", dims: [depart_code], version: 1, sortNo: 33, remark: "quality_307 的分母"}
+- {code: quality_309, name: "入住ICU超过48h的患者中48h内启动EN的患者人数", domain: 评估依从, fact: fact_assessment, unit: "人", valueType: COUNT, where: "stay_gt_48h = 1 AND en_48h = 1", dims: [depart_code], version: 1, sortNo: 34, remark: "EN 由医嘱名称识别（肠内营养/鼻饲/能全力等）"}
+- {code: quality_310, name: "同期入住ICU超过48h的患者总人数", domain: 评估依从, fact: fact_assessment, unit: "人", valueType: COUNT, where: "stay_gt_48h = 1", dims: [depart_code], version: 1, sortNo: 35, remark: "quality_309 的分母；未转出者按本周期末计算住院时长"}
+- {code: quality_423, name: "完成意识评估的ABI患者数", domain: 评估依从, fact: fact_assessment, unit: "人", valueType: COUNT, where: "abi = 1 AND consciousness_assessed = 1", dims: [depart_code], version: 1, sortNo: 60, remark: "与 quality_307 同值同实现（来源清单分列两条）"}
+- {code: quality_424, name: "同期ABI患者总数（转出+出院的患者中）", domain: 评估依从, fact: fact_assessment, unit: "人", valueType: COUNT, where: "abi = 1 AND out_in_period = 1", dims: [depart_code], version: 1, sortNo: 61, remark: "限定本周期内转出/出院，与 quality_308（口径为全周期在科）不同，故单独出数"}

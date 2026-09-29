@@ -1,0 +1,128 @@
+序号,指标编号,指标名称,所属域,实现状态,事实层,DSL可表达,剩余缺口,说明
+1,quality_0,收治人数（转入+入院）,患者流转,IMPL,fact_patient_stay,YES,,复用 Handover 口径
+2,quality_2,ICU收治患者床日数,患者流转,IMPL,fact_patient_stay,YES,,跨月已切分：事实层 stay_days 取「本周期 ∩ 在院区间」交集天数，指标层 agg=SUM 出数
+3,quality_9,完成3h集束化治疗的患者数,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,复用 SepsisBundle
+4,quality_10,入ICU诊断为感染性休克,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+5,quality_11,入ICU诊断为感染性休克并全部完成6h bundle,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+6,quality_12,使用抗菌药物前病原学检验标本送检,抗菌药送检,IMPL,fact_abx_culture,YES,,老脚本越界取值（我方修正）
+7,quality_13,使用抗菌药物治疗,抗菌药送检,IMPL,fact_abx_culture,YES,,quality_12 的分母，单独出数便于核对；来源清单另有同义条目 428/430（治疗性口径待定，故为占位）
+8,quality_14,进行深静脉血栓预防的患者数,DVT预防,PENDING_SOURCE,fact_dvt,YES,,待接 useDvtAdviceList
+9,quality_15,ICU收治患者预计病死率(%),评分_资源,IMPL,fact_score_resource,YES,,复用 Apache2
+10,quality_16,ICU死亡患者数,患者流转,IMPL,fact_patient_stay,YES,,
+11,quality_17,非计划气管插管拔管数,导管_管路_院感,PENDING_SOURCE,fact_device,YES,待接 tubeList 源表,表达式就绪（unplanned_removal 已派生）；老脚本循环变量泄漏
+12,quality_18,ICU患者气管插管拔管数,导管_管路_院感,PENDING_SOURCE,fact_device,YES,待接 tubeList 源表,表达式就绪（removed_in_period 已派生）
+13,quality_19,气管插管计划拔管后48h内再插管数,导管_管路_院感,PENDING_SOURCE,fact_device,YES,待接 tubeList 源表,接源后需补一条同患者配对派生列（可沿用 readmit_48h 的 EXISTS + DATEDIFF 写法）；老脚本时间桶错位
+14,quality_20,术后非计划转入例数,患者流转,PENDING_SOURCE,fact_patient_stay,YES,,待接「非计划」判定源（手术计划状态）；事实层已备 post_op，缺该标识则与 quality_21 无法区分
+15,quality_21,术后转入例数,患者流转,IMPL,fact_patient_stay,YES,,
+16,quality_22,转出ICU后48h内重返ICU,患者流转,IMPL,fact_patient_stay,YES,,事实层 readmit_48h（EXISTS + DATEDIFF(HOUR) ≤ 48）已实现
+17,quality_23,转出ICU,患者流转,IMPL,fact_patient_stay,YES,,
+18,quality_24,发生呼吸机相关性肺炎（VAP）数,导管_管路_院感,PLACEHOLDER,fact_device,YES,口径待定,VAP 判定标准待院感科确认（是否采用 CDC/NHSN 的 VAE 定义、感染窗口多长）
+19,quality_25,患者有创机械通气天数,导管_管路_院感,PLACEHOLDER,fact_device,YES,口径待定,需明确同一次住院多次上机是否合并、跨月如何切分
+20,quality_26,发生血管内导管相关血流感染（CRBSI）数,导管_管路_院感,PENDING_SOURCE,fact_device,YES,待接管路表,表达式就绪（device_infection 已派生）；老脚本数据源错配指向脓毒症 bundle
+21,quality_27,患者血管内导管留置天数,导管_管路_院感,PLACEHOLDER,fact_device,YES,口径待定,同 quality_25
+22,quality_30,ICU实际病死率(%),患者流转,MANUAL,fact_patient_stay,NO,,人工录入
+23,quality_31,ICU患者预计病死率(%),评分_资源,MANUAL,fact_score_resource,NO,,人工录入（与quality_15口径待并）
+24,quality_32,APACHEⅡ评分≥15分,评分_资源,IMPL,fact_score_resource,YES,,
+25,quality_34,完成1h集束化治疗的患者数,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+26,quality_301,同期ICU实际开放总床日数,评分_资源,PENDING_SOURCE,fact_bed,YES,待接 bedInfoList 源表,待接床位开放记录；床日沿用 fact_patient_stay 的交集写法，无新增算子
+27,quality_302,ICU医师总数,评分_资源,PENDING_SOURCE,fact_staff,YES,,待接 staffInfoList（花名册）
+28,quality_303,ICU护士总数,评分_资源,PENDING_SOURCE,fact_staff,YES,,待接 staffInfoList（花名册）
+29,quality_304,ICU实际开放床位数,评分_资源,PENDING_SOURCE,fact_bed,YES,,待接 bedInfoList（床位开放记录）
+30,quality_305,进行镇静评估的 ICU患者人数,评估依从,IMPL,fact_assessment,YES,,
+31,quality_306,进行镇痛评估的 ICU患者人数,评估依从,IMPL,fact_assessment,YES,,
+32,quality_307,ICU内完成意识评估的急性脑损伤患者人数,评估依从,IMPL,fact_assessment,YES,,
+33,quality_308,同期ICU急性脑损伤患者总人数,评估依从,IMPL,fact_assessment,YES,,
+34,quality_309,入住ICU超过48h的患者中48h内启动EN的患者人数,评估依从,IMPL,fact_assessment,YES,,
+35,quality_310,同期入住ICU超过48h的患者总人数,评估依从,IMPL,fact_assessment,YES,,
+36,quality_311,中重度 ARDS 患者中实施俯卧位通气治疗的人数,ARDS专项,IMPL,fact_ards,YES,,
+37,quality_312,应实施俯卧位通气治疗的中重度ARDS 患者总人数,ARDS专项,IMPL,fact_ards,YES,,
+38,quality_401,全院收治人数,患者流转,MANUAL,fact_patient_stay,NO,,人工录入
+39,quality_402,全院实际占用床日数,患者流转,MANUAL,fact_patient_stay,NO,,人工录入（全院口径在病案室，不走引擎）
+40,quality_403,同期患者总数（转出+出院）,患者流转,IMPL,fact_patient_stay,YES,,
+41,quality_404,仅进行深静脉血栓药物预防的患者数,DVT预防,PENDING_SOURCE,fact_dvt,YES,,待接 useDvtAdviceList
+42,quality_405,进行深静脉血栓药物预防的患者总数,DVT预防,PENDING_SOURCE,fact_dvt,YES,,待接 useDvtAdviceList
+43,quality_406,仅进行深静脉血栓机械预防的患者数,DVT预防,PENDING_SOURCE,fact_dvt,YES,,待接 useDvtAdviceList
+44,quality_407,进行深静脉血栓机械预防的患者总数,DVT预防,PENDING_SOURCE,fact_dvt,YES,,待接医嘱侧机械预防数据（间歇充气加压/弹力袜）；无源时不给出假 0
+45,quality_408,仅进行下腔静脉滤器置入的患者数,DVT预防,PENDING_SOURCE,fact_dvt,YES,,待接 useDvtAdviceList
+46,quality_409,进行下腔静脉滤器置入的患者总数,DVT预防,PENDING_SOURCE,fact_dvt,YES,,待接下腔静脉滤器置入记录；无源时不给出假 0
+47,quality_410,深静脉血栓相关死亡人数,DVT预防,IMPL,fact_dvt,YES,,
+48,quality_411,进行深静脉血栓预防并诊断深静脉血栓的患者数,DVT预防,PLACEHOLDER,fact_dvt,YES,,空壳：口径待定，页面占位
+49,quality_412,进行深静脉血栓预防并死亡的患者总数,DVT预防,PENDING_SOURCE,fact_dvt,YES,,待接 useDvtAdviceList
+50,quality_413,进行深静脉血栓预防、诊断深静脉血栓并死亡的患者总数,DVT预防,PENDING_SOURCE,fact_dvt,YES,,待接 useDvtAdviceList
+51,quality_414,收治的入ICU前发生感染性休克的患者数,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+52,quality_415,1h内完成乳酸测定的患者数,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+53,quality_416,1h内留取血培养的患者数,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+54,quality_417,1h内使用抗菌药物的患者数,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+55,quality_418,完成1h集束化治疗的患者数,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,与quality_34同值同实现
+56,quality_419,完成6h集束化治疗的患者数,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+57,quality_420,收治的ARDS患者数,ARDS专项,IMPL,fact_ards,YES,,
+58,quality_421,采用保护性肺通气的患者数,ARDS专项,PLACEHOLDER,fact_ards,YES,,空壳：口径待定，页面占位
+59,quality_422,采用俯卧位通气的患者数,ARDS专项,IMPL,fact_ards,YES,,
+60,quality_423,完成意识评估的ABI患者数,评估依从,IMPL,fact_assessment,YES,,
+61,quality_424,同期ABI患者总数（转出+出院的患者中）,评估依从,IMPL,fact_assessment,YES,,
+62,quality_425,导尿管相关泌尿系感染发生例数,导管_管路_院感,PLACEHOLDER,fact_device,YES,口径待定,CAUTI 判定标准待院感科确认
+63,quality_426,导尿管留置总天数,导管_管路_院感,PLACEHOLDER,fact_device,YES,口径待定,同 quality_25
+64,quality_427,治疗性抗菌药物使用前送检病原学标本例数,抗菌药送检,PLACEHOLDER,fact_abx_culture,YES,,空壳：口径待定，页面占位
+65,quality_428,使用治疗性抗菌药物例数,抗菌药送检,PLACEHOLDER,fact_abx_culture,YES,,空壳：口径待定，页面占位
+66,quality_429,治疗性抗菌药物使用前送检PCT例数,抗菌药送检,PLACEHOLDER,fact_abx_culture,YES,,空壳：口径待定，页面占位
+67,quality_430,使用治疗性抗菌药物例数,抗菌药送检,PLACEHOLDER,fact_abx_culture,YES,,空壳：与428重复，保留三条
+68,quality_431,治疗性抗菌药物使用前送检G/GM实验例数,抗菌药送检,PLACEHOLDER,fact_abx_culture,YES,,空壳：名称应为G试验/GM试验
+69,quality_432,治疗性抗菌药物使用前送检白介素例数,抗菌药送检,PLACEHOLDER,fact_abx_culture,YES,,空壳：口径待定，页面占位
+70,quality_433,收治的≤18岁的感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+71,quality_434,收治的18-65岁的感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+72,quality_435,收治的≥65岁的感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+73,quality_436,收治的血流感染（CRBSI）感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+74,quality_437,收治的血流感染（非CRBSI）感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+75,quality_438,收治的血流感染感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+76,quality_439,收治的腹腔感染感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+77,quality_440,收治的泌尿系感染感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+78,quality_441,收治的中枢神经系统感染感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+79,quality_442,收治的肺部感染感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+80,quality_443,收治的胆道感染感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+81,quality_444,收治的胃肠道感染感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+82,quality_445,收治的骨髓感染感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+83,quality_446,收治的皮肤软组织感染感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+84,quality_447,收治的其他部位感染感染性休克患者数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+85,quality_448,收治的感染性休克患者死亡数（包括ICU内发生）,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+86,quality_449,收治的入ICU发生感染性休克的患者数,脓毒症_感染性休克,IMPL,fact_sepsis_bundle,YES,,
+87,quality_450,非插管的男性ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+88,quality_451,插管的男性ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+89,quality_452,年龄≤18岁男性ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+90,quality_453,年龄18-65岁男性ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+91,quality_454,年龄＞65岁男性ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+92,quality_455,非插管的女性ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+93,quality_456,插管的女性ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+94,quality_457,年龄≤18岁女性ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+95,quality_458,年龄18-65岁女性ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+96,quality_459,年龄＞65岁女性ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+97,quality_460,轻度ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+98,quality_461,中度ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+99,quality_462,重度ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+100,quality_463,细菌性肺炎ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+101,quality_464,病毒性肺炎ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+102,quality_465,真菌性肺炎ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+103,quality_466,吸入性肺炎ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+104,quality_467,肺挫伤ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+105,quality_468,严重感染（肺外）ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+106,quality_469,严重创伤（肺外）ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+107,quality_470,急性重症胰腺炎ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+108,quality_471,大量输血ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+109,quality_472,体外循环ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+110,quality_473,其他原因ARDS人数,ARDS专项,IMPL,fact_ards,YES,,
+111,quality_474,实施有创机械通气的ARDS患者人数,ARDS专项,IMPL,fact_ards,YES,,
+112,quality_475,实施无创机械通气的ARDS患者人数,ARDS专项,IMPL,fact_ards,YES,,
+113,quality_476,实施高流量(HFNC)的ARDS患者人数,ARDS专项,IMPL,fact_ards,YES,,
+114,quality_477,ARDS平均机械通气支持天数,ARDS专项,PLACEHOLDER,fact_ards,YES,avg_days,空壳：口径待定，页面占位
+115,quality_478,中重度ARDS患者肌松的使用人数,ARDS专项,IMPL,fact_ards,YES,,
+116,quality_479,中重度ARDS患者总人数,ARDS专项,IMPL,fact_ards,YES,,
+117,quality_480,实施ECMO支持的ARDS患者人数,ARDS专项,IMPL,fact_ards,YES,,
+118,quality_481,ARDS平均ECMO支持天数,ARDS专项,PLACEHOLDER,fact_ards,YES,avg_days,空壳：口径待定，页面占位
+119,quality_482,ARDS实施俯卧位通气的人数,ARDS专项,IMPL,fact_ards,YES,,
+120,quality_483,轻度ARDS俯卧位人数,ARDS专项,IMPL,fact_ards,YES,,
+121,quality_484,中度ARDS俯卧位人数,ARDS专项,IMPL,fact_ards,YES,,
+122,quality_485,重度ARDS俯卧位人数,ARDS专项,IMPL,fact_ards,YES,,
+123,quality_486,ARDS平均俯卧位通气天数,ARDS专项,PLACEHOLDER,fact_ards,YES,avg_days,空壳：口径待定，页面占位
+124,quality_487,ARDS患者的院内死亡人数,ARDS专项,PLACEHOLDER,fact_ards,YES,,空壳：口径待定——指标名为「院内死亡」而库内只有 ICU 转归（out_vest_type=3），直报会系统性偏低；待接病案首页出院结局
+125,quality_488,轻度ARDS患者院内死亡人数,ARDS专项,PLACEHOLDER,fact_ards,YES,,空壳：口径待定，同 quality_487（院内死亡全口径）
+126,quality_489,中度ARDS患者院内死亡人数,ARDS专项,PLACEHOLDER,fact_ards,YES,,空壳：口径待定，同 quality_487（院内死亡全口径）
+127,quality_490,重度ARDS患者院内死亡人数,ARDS专项,PLACEHOLDER,fact_ards,YES,,空壳：口径待定，同 quality_487（院内死亡全口径）

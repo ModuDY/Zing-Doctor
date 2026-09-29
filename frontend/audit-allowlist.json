@@ -1,0 +1,23 @@
+{
+  "_说明": [
+    "依赖漏洞豁免清单：仅用于『官方暂无向后兼容修复版本、且经评估当前不可利用』的项。",
+    "每条必须写清 原因(reason) / 处置计划(plan) / 复核期限(reviewBy)；",
+    "复核期限一到，scripts/audit-ci.mjs 会把该豁免视为过期并按阻断处理，强制重新评估。"
+  ],
+  "waivers": [
+    {
+      "package": "jspdf",
+      "severity": "critical",
+      "reason": "漏洞源自其内置的 dompurify 清洗逻辑（XSS），仅当把不可信 HTML/DOM 交给 jspdf 处理时才可能触发；本系统仅在评分文书页用 jspdf 画自身受控的离屏 DOM（SOFA / APACHE II 文书），无外部 HTML 输入。",
+      "plan": "升级 jspdf 2.5.1 → 4.2.1（跨大版本）：需回归 SOFA 与 APACHE II 的 PDF 生成、入库（Base64 字段）与打印预览后再发布，属 P3 依赖升级窗口内的事项。",
+      "reviewBy": "2026-12-31"
+    },
+    {
+      "package": "echarts",
+      "severity": "moderate",
+      "reason": "XSS 需把不可信数据作为 echarts option 传入；图表数据均来自本院数据库，且渲染在 canvas 中。",
+      "plan": "升级 echarts 5.5.1 → 6.x（跨大版本），需逐页回归 9 个图表页面后执行。",
+      "reviewBy": "2026-12-31"
+    }
+  ]
+}

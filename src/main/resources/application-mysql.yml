@@ -1,0 +1,38 @@
+# ============================================================
+# MySQL 8.x 数据源配置（非信创环境 / Debian 直连部署）
+# 激活方式：SPRING_PROFILES_ACTIVE=mysql
+#
+# ANSI_QUOTES：让 MySQL 把双引号当标识符引用（和达梦一致），
+# 这样 Mapper 里 "column_name" 写法在两种库上都能跑，不用逐条改。
+# ============================================================
+spring:
+  datasource:
+    dynamic:
+      datasource:
+        doctor:
+          driver-class-name: com.mysql.cj.jdbc.Driver
+          url: jdbc:mysql://${MYSQL_DOCTOR_HOST:127.0.0.1}:${MYSQL_DOCTOR_PORT:3306}/zing_doctor_db_prod?useUnicode=true&characterEncoding=utf8mb4&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&sessionVariables=sql_mode='ANSI_QUOTES'
+          username: ${MYSQL_DOCTOR_USER:root}
+          password: ${MYSQL_DOCTOR_PASSWORD:}
+          hikari:
+            connection-timeout: 10000
+            maximum-pool-size: 10
+            minimum-idle: 2
+            max-lifetime: 1800000
+            connection-test-query: SELECT 1
+        icu:
+          driver-class-name: com.mysql.cj.jdbc.Driver
+          url: jdbc:mysql://${MYSQL_ICU_HOST:127.0.0.1}:${MYSQL_ICU_PORT:3306}/zing_icu_db_prod?useUnicode=true&characterEncoding=utf8mb4&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&sessionVariables=sql_mode='ANSI_QUOTES'
+          username: ${MYSQL_ICU_USER:root}
+          password: ${MYSQL_ICU_PASSWORD:}
+          read-only: true
+          hikari:
+            connection-timeout: 10000
+            maximum-pool-size: 10
+            minimum-idle: 2
+            max-lifetime: 1800000
+            connection-test-query: SELECT 1
+
+# 数据库方言标识：供 DbDialect / Mapper SQL 方言切换使用
+zing:
+  db-type: mysql

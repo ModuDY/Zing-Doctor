@@ -1,0 +1,70 @@
+# =====================================================================
+# 指标层 · ARDS 专项（46 条）
+#
+# 这一域指标条数最多（46/127），也是老系统维护成本最高的部分：同样的人群
+# 识别逻辑被复制到几十个脚本里，改一次口径要改几十处。
+# 新结构下「ARDS 人群 / 分度 / 病因 / 呼吸支持方式」在事实层 fact_ards 各算一次，
+# 每条指标只剩一个布尔组合 —— 46 条指标的可维护性因此与 5 条没有区别。
+#
+# 分度说明：当前按诊断文本中的「轻度/中度/重度」标注分层。若诊断未标注分度，
+# 该患者会计入 quality_420（ARDS 总数）但不计入分度指标，页面因此能看出
+# 「未分度人数」= 420 - (460+461+462)，这条差额是可被业务方验证的。
+# =====================================================================
+
+# ---- 俯卧位通气 ----
+- {code: quality_311, name: "中重度 ARDS 患者中实施俯卧位通气治疗的人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND (ards_moderate = 1 OR ards_severe = 1) AND prone = 1", dims: [depart_code], version: 1, sortNo: 36, remark: ""}
+- {code: quality_312, name: "应实施俯卧位通气治疗的中重度ARDS 患者总人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND (ards_moderate = 1 OR ards_severe = 1)", dims: [depart_code], version: 1, sortNo: 37, remark: "quality_311 的分母"}
+- {code: quality_422, name: "采用俯卧位通气的患者数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND prone = 1", dims: [depart_code], version: 1, sortNo: 59, remark: "不限分度"}
+- {code: quality_482, name: "ARDS实施俯卧位通气的人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND prone = 1", dims: [depart_code], version: 1, sortNo: 119, remark: "与 quality_422 同值同实现（来源清单分列两条）"}
+- {code: quality_483, name: "轻度ARDS俯卧位人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards_mild = 1 AND prone = 1", dims: [depart_code], version: 1, sortNo: 120, remark: ""}
+- {code: quality_484, name: "中度ARDS俯卧位人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards_moderate = 1 AND prone = 1", dims: [depart_code], version: 1, sortNo: 121, remark: ""}
+- {code: quality_485, name: "重度ARDS俯卧位人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards_severe = 1 AND prone = 1", dims: [depart_code], version: 1, sortNo: 122, remark: ""}
+- {code: quality_486, name: "ARDS平均俯卧位通气天数", domain: ARDS专项, fact: fact_ards, unit: "天", valueType: AVG, implStatus: PLACEHOLDER, version: 1, sortNo: 123, remark: "空壳：需俯卧位起止时间（观察项目前只有「是否发生」），口径待定"}
+
+# ---- 人群与分度 ----
+- {code: quality_420, name: "收治的ARDS患者数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1", dims: [depart_code], version: 1, sortNo: 57, remark: "ARDS 人群识别基于诊断（含 ARDS / 急性呼吸窘迫）"}
+- {code: quality_460, name: "轻度ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards_mild = 1", dims: [depart_code], version: 1, sortNo: 97, remark: "按诊断文本分度"}
+- {code: quality_461, name: "中度ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards_moderate = 1", dims: [depart_code], version: 1, sortNo: 98, remark: "按诊断文本分度"}
+- {code: quality_462, name: "重度ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards_severe = 1", dims: [depart_code], version: 1, sortNo: 99, remark: "按诊断文本分度"}
+- {code: quality_479, name: "中重度ARDS患者总人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND (ards_moderate = 1 OR ards_severe = 1)", dims: [depart_code], version: 1, sortNo: 116, remark: ""}
+
+# ---- 性别与年龄 ----
+- {code: quality_450, name: "非插管的男性ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND intubated = 0 AND sex_male = 1", dims: [depart_code], version: 1, sortNo: 87, remark: ""}
+- {code: quality_451, name: "插管的男性ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND intubated = 1 AND sex_male = 1", dims: [depart_code], version: 1, sortNo: 88, remark: ""}
+- {code: quality_452, name: "年龄≤18岁男性ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND sex_male = 1 AND age_num <= 18", dims: [depart_code], version: 1, sortNo: 89, remark: ""}
+- {code: quality_453, name: "年龄18-65岁男性ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND sex_male = 1 AND age_num >= 19 AND age_num <= 64", dims: [depart_code], version: 1, sortNo: 90, remark: ""}
+- {code: quality_454, name: "年龄＞65岁男性ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND sex_male = 1 AND age_num >= 65", dims: [depart_code], version: 1, sortNo: 91, remark: ""}
+- {code: quality_455, name: "非插管的女性ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND intubated = 0 AND (sex_male IS NULL OR sex_male = 0)", dims: [depart_code], version: 1, sortNo: 92, remark: ""}
+- {code: quality_456, name: "插管的女性ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND intubated = 1 AND (sex_male IS NULL OR sex_male = 0)", dims: [depart_code], version: 1, sortNo: 93, remark: ""}
+- {code: quality_457, name: "年龄≤18岁女性ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND (sex_male IS NULL OR sex_male = 0) AND age_num <= 18", dims: [depart_code], version: 1, sortNo: 94, remark: ""}
+- {code: quality_458, name: "年龄18-65岁女性ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND (sex_male IS NULL OR sex_male = 0) AND age_num >= 19 AND age_num <= 64", dims: [depart_code], version: 1, sortNo: 95, remark: ""}
+- {code: quality_459, name: "年龄＞65岁女性ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND (sex_male IS NULL OR sex_male = 0) AND age_num >= 65", dims: [depart_code], version: 1, sortNo: 96, remark: ""}
+
+# ---- 病因分层 ----
+- {code: quality_463, name: "细菌性肺炎ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND cause_bacterial_pneumonia = 1", dims: [depart_code], version: 1, sortNo: 100, remark: "病因按诊断文本关键词归类，一条诊断可能同时命中多个病因，故各病因之和可大于 ARDS 总数"}
+- {code: quality_464, name: "病毒性肺炎ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND cause_viral_pneumonia = 1", dims: [depart_code], version: 1, sortNo: 101, remark: ""}
+- {code: quality_465, name: "真菌性肺炎ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND cause_fungal_pneumonia = 1", dims: [depart_code], version: 1, sortNo: 102, remark: ""}
+- {code: quality_466, name: "吸入性肺炎ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND cause_aspiration = 1", dims: [depart_code], version: 1, sortNo: 103, remark: ""}
+- {code: quality_467, name: "肺挫伤ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND cause_contusion = 1", dims: [depart_code], version: 1, sortNo: 104, remark: ""}
+- {code: quality_468, name: "严重感染（肺外）ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND cause_extrapulmonary_infection = 1", dims: [depart_code], version: 1, sortNo: 105, remark: "脓毒症/感染性休克且诊断中不含「肺炎」"}
+- {code: quality_469, name: "严重创伤（肺外）ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND cause_extrapulmonary_trauma = 1", dims: [depart_code], version: 1, sortNo: 106, remark: ""}
+- {code: quality_470, name: "急性重症胰腺炎ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND cause_pancreatitis = 1", dims: [depart_code], version: 1, sortNo: 107, remark: ""}
+- {code: quality_471, name: "大量输血ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND cause_massive_transfusion = 1", dims: [depart_code], version: 1, sortNo: 108, remark: ""}
+- {code: quality_472, name: "体外循环ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND cause_cardiopulmonary_bypass = 1", dims: [depart_code], version: 1, sortNo: 109, remark: ""}
+- {code: quality_473, name: "其他原因ARDS人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND cause_bacterial_pneumonia = 0 AND cause_viral_pneumonia = 0 AND cause_fungal_pneumonia = 0 AND cause_aspiration = 0 AND cause_contusion = 0 AND cause_extrapulmonary_infection = 0 AND cause_extrapulmonary_trauma = 0 AND cause_pancreatitis = 0 AND cause_massive_transfusion = 0 AND cause_cardiopulmonary_bypass = 0", dims: [depart_code], version: 1, sortNo: 110, remark: "以上病因一个都未命中才计为其他，保证「各病因 + 其他」可加"}
+
+# ---- 呼吸支持 ----
+- {code: quality_421, name: "采用保护性肺通气的患者数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 58, remark: "空壳：保护性肺通气需潮气量/平台压数值（小潮气量 6ml/kg 预测体重），当前无结构化参数源"}
+- {code: quality_474, name: "实施有创机械通气的ARDS患者人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND intubated = 1", dims: [depart_code], version: 1, sortNo: 111, remark: "医嘱+观察项关键词识别，见事实层"}
+- {code: quality_475, name: "实施无创机械通气的ARDS患者人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND niv = 1", dims: [depart_code], version: 1, sortNo: 112, remark: ""}
+- {code: quality_476, name: "实施高流量(HFNC)的ARDS患者人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND hfnc = 1", dims: [depart_code], version: 1, sortNo: 113, remark: ""}
+- {code: quality_477, name: "ARDS平均机械通气支持天数", domain: ARDS专项, fact: fact_ards, unit: "天", valueType: AVG, implStatus: PLACEHOLDER, version: 1, sortNo: 114, remark: "空壳：需通气起止时间与跨月切分规则（口径待定）"}
+- {code: quality_478, name: "中重度ARDS患者肌松的使用人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND (ards_moderate = 1 OR ards_severe = 1) AND muscle_relaxant = 1", dims: [depart_code], version: 1, sortNo: 115, remark: "肌松药按药名识别（顺阿曲库铵/维库溴铵/罗库溴铵等）"}
+- {code: quality_480, name: "实施ECMO支持的ARDS患者人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, where: "ards = 1 AND ecmo = 1", dims: [depart_code], version: 1, sortNo: 117, remark: "ECMO 由医嘱关键词识别；若后续接入 ECMO 专用记录表，改事实层一列即可"}
+- {code: quality_481, name: "ARDS平均ECMO支持天数", domain: ARDS专项, fact: fact_ards, unit: "天", valueType: AVG, implStatus: PLACEHOLDER, version: 1, sortNo: 118, remark: "空壳：需 ECMO 起止时间，口径待定"}
+
+# ---- 转归 ----
+- {code: quality_487, name: "ARDS患者的院内死亡人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 124, remark: "空壳：口径待定 —— 指标名是「院内死亡」，而库内只有 ICU 转归（out_vest_type=3，转出后病房死亡看不到）。直接拿 ICU 死亡当院内死亡会上报偏低，故不出数；事实层已备 died_in_period，接入病案首页出院结局后可启用"}
+- {code: quality_488, name: "轻度ARDS患者院内死亡人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 125, remark: "空壳：同 quality_487（院内死亡全口径待定）"}
+- {code: quality_489, name: "中度ARDS患者院内死亡人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 126, remark: "空壳：同 quality_487（院内死亡全口径待定）"}
+- {code: quality_490, name: "重度ARDS患者院内死亡人数", domain: ARDS专项, fact: fact_ards, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 127, remark: "空壳：同 quality_487（院内死亡全口径待定）"}

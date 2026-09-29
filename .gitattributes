@@ -1,0 +1,53 @@
+# 统一换行符，消灭同一个文件里 LF / CRLF 混用的情况。
+#
+# 混用的后果：Git 每次碰到这些文件都刷 "LF will be replaced by CRLF" 警告，
+# 而且哪天有人改动它，Git 会把另一半行悄悄转换掉，混进一次看似无关的提交里，
+# diff 变得没法看，回溯时容易误判成「这行是我改的」。
+#
+# 规则：仓库内一律存 LF。具体取舍：
+#   .sh 必须是 LF —— 带 CRLF 的脚本在 Linux 上会报 bad interpreter，直接装不起来；
+#   .ps1 用 CRLF —— Windows 侧执行，且 PowerShell 5.1 读 .ps1 依赖 BOM，
+#                   统一 CRLF 可减少编辑器自作主张改编码的机会。
+#
+# 生效方式：新增/改动的文件自动按此规范化。要让存量文件也统一，执行一次
+#   git add --renormalize .
+# 那会产生一个只改换行符的提交，建议单独提交，别和业务改动混在一起。
+
+* text=auto
+
+# ---- Linux 侧执行：必须 LF ----
+*.sh  text eol=lf
+*.sql text eol=lf
+
+# ---- 源码与配置：LF ----
+*.java       text eol=lf
+*.vue        text eol=lf
+*.js         text eol=lf
+*.jsx        text eol=lf
+*.ts         text eol=lf
+*.json       text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+*.xml        text eol=lf
+*.md         text eol=lf
+*.properties text eol=lf
+
+# ---- Windows 侧执行：CRLF ----
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# ---- 二进制：禁止任何转换 ----
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.svg  binary
+*.zip  binary
+*.jar  binary
+*.xls  binary
+*.xlsx binary
+*.doc  binary
+*.docx binary
+*.pdf  binary

@@ -1,0 +1,73 @@
+# 医生决策系统 - CI 流水线
+#
+# 说明：真正的校验逻辑都在 tools/ci.sh 里，这里只负责“什么时候跑、跑在什么环境”。
+# 换成 GitLab CI / Jenkins 时，把下面两个 job 的命令照搬过去即可，无需改脚本。
+#
+# 后端 job 使用 Java 8：与生产运行环境（交付包要求 JDK 8）保持一致，
+# 避免出现「本地 17 编译通过、服务器 8 跑不起来」的字节码版本问题。
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: 后端测试（Java 8）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 JDK 8
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+          cache: maven
+
+      # 达梦驱动以 system scope + lib/ 相对路径引入，仓库内已包含，无需额外下载
+      - name: 单元测试
+        run: mvn -B test
+
+      - name: 测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          if-no-files-found: ignore
+
+  frontend:
+    name: 前端 lint / 依赖扫描 / 构建
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      # 用 Node 22 LTS：ESLint 10 的 engines 要求 ^20.19.0 || ^22.13.0 || >=24，
+      # 早期 20.x（如 20.18）会触发 EBADENGINE 甚至 lint 启动失败。
+      # 版本来自 frontend/.nvmrc（单一来源，本地/CI 一致），lock 由 npm 10 系列生成，
+      # 避免「本地 npm 11 生成的 lock，在 CI 的 npm 10 下 npm ci 校验失败」。
+      - name: 安装 Node（版本取自 frontend/.nvmrc）
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # 注意：xlsx 依赖来自 SheetJS 官方源（cdn.sheetjs.com），CI 需能访问外网
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 代码检查（ESLint，error 门槛）
+        run: npm run lint
+
+      - name: 生产依赖漏洞扫描
+        run: npm run audit:ci
+
+      - name: 构建
+        run: npm run build

@@ -1,0 +1,44 @@
+# ============================================================
+# MariaDB 10.5 数据源配置（Debian 服务器直连部署，医院 ICU 库为 MariaDB）
+# 激活方式：SPRING_PROFILES_ACTIVE=mariadb
+#
+# 与 mysql profile 的区别：
+#   - 驱动用官方 org.mariadb.jdbc.Driver（jdbc:mariadb://）
+#   - MariaDB Connector/J 3.x 默认 sslMode=disable，内网无需 useSSL 参数
+#   - 分页方言 DbType.MARIADB（底层同 MySQL 方言）
+#   - SQL 方言翻译复用 MySqlDialectInterceptor（MariaDB 10.5 与 MySQL 8 高度兼容）
+#
+# ANSI_QUOTES：让双引号被当作标识符引用（与达梦一致），Mapper 里 "col_name"
+# 写法可直接运行，无需逐条改造。
+# ============================================================
+spring:
+  datasource:
+    dynamic:
+      datasource:
+        doctor:
+          driver-class-name: org.mariadb.jdbc.Driver
+          url: jdbc:mariadb://${MARIADB_DOCTOR_HOST:127.0.0.1}:${MARIADB_DOCTOR_PORT:3306}/zing_doctor_db_prod?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&sessionVariables=sql_mode='ANSI_QUOTES'
+          username: ${MARIADB_DOCTOR_USER:zing}
+          password: ${MARIADB_DOCTOR_PASSWORD:zing@2026}
+          hikari:
+            connection-timeout: 10000
+            maximum-pool-size: 10
+            minimum-idle: 2
+            max-lifetime: 1800000
+            connection-test-query: SELECT 1
+        icu:
+          driver-class-name: org.mariadb.jdbc.Driver
+          url: jdbc:mariadb://${MARIADB_ICU_HOST:127.0.0.1}:${MARIADB_ICU_PORT:3306}/zing_icu_db_prod?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&sessionVariables=sql_mode='ANSI_QUOTES'
+          username: ${MARIADB_ICU_USER:zing}
+          password: ${MARIADB_ICU_PASSWORD:zing@2026}
+          read-only: true
+          hikari:
+            connection-timeout: 10000
+            maximum-pool-size: 10
+            minimum-idle: 2
+            max-lifetime: 1800000
+            connection-test-query: SELECT 1
+
+# 数据库方言标识：供分页插件 / 拦截器识别
+zing:
+  db-type: mariadb

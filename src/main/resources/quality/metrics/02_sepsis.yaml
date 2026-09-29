@@ -1,0 +1,43 @@
+# =====================================================================
+# 指标层 · 脓毒症 / 感染性休克（27 条）
+#
+# 时间窗（1h/3h/6h）与「是否发生某要素」全部在事实层 fact_sepsis_bundle
+# 判好，这里只做布尔组合 —— 口径集中在事实层一处，指标轻量、易核对。
+# =====================================================================
+
+# ---- 集束化治疗 ----
+- {code: quality_9,   name: "完成3h集束化治疗的患者数", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND lactate_3h = 1 AND culture_3h = 1 AND abx_3h = 1", dims: [depart_code], version: 1, sortNo: 3,  remark: "3h 三要素（乳酸+血培养+抗菌药）。30ml/kg 晶体液要素待接入液体复苏数据后可加进 where"}
+- {code: quality_10,  name: "入ICU诊断为感染性休克", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "pre_icu_shock = 1", dims: [depart_code], version: 1, sortNo: 4,  remark: "入 ICU 前已发生：诊断「感染性休克」时间早于入科时间"}
+- {code: quality_11,  name: "入ICU诊断为感染性休克并全部完成6h bundle", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "pre_icu_shock = 1 AND lactate_3h = 1 AND culture_3h = 1 AND abx_3h = 1 AND vaso_6h = 1", dims: [depart_code], version: 1, sortNo: 5,  remark: "6h = 3h 三要素 + 血管活性药（低血压处理要素）"}
+- {code: quality_34,  name: "完成1h集束化治疗的患者数", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND lactate_1h = 1 AND culture_1h = 1 AND abx_1h = 1", dims: [depart_code], version: 1, sortNo: 25, remark: "1h 三要素；与 quality_418 同值同实现（两条来源清单保留）"}
+- {code: quality_419, name: "完成6h集束化治疗的患者数", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND lactate_3h = 1 AND culture_3h = 1 AND abx_3h = 1 AND vaso_6h = 1", dims: [depart_code], version: 1, sortNo: 56, remark: "6h bundle；复测乳酸要素暂不单列（需同一患者两次乳酸配对）"}
+
+# ---- 单项达标（1h 内） ----
+- {code: quality_414, name: "收治的入ICU前发生感染性休克的患者数", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "pre_icu_shock = 1", dims: [depart_code], version: 1, sortNo: 51, remark: "与 quality_10 同口径、来源清单不同，保留两条"}
+- {code: quality_415, name: "1h内完成乳酸测定的患者数", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND lactate_1h = 1", dims: [depart_code], version: 1, sortNo: 52, remark: "检验项目名含「乳酸」且采样时间距入科≤60min"}
+- {code: quality_416, name: "1h内留取血培养的患者数", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND culture_1h = 1", dims: [depart_code], version: 1, sortNo: 53, remark: "检验项目名含「血培养」；若贵院血培养明细名不含该词，改事实层关键词即可"}
+- {code: quality_417, name: "1h内使用抗菌药物的患者数", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND abx_1h = 1", dims: [depart_code], version: 1, sortNo: 54, remark: "抗菌药识别走药名词表 + 医嘱 type_code='drug'"}
+- {code: quality_418, name: "完成1h集束化治疗的患者数", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND lactate_1h = 1 AND culture_1h = 1 AND abx_1h = 1", dims: [depart_code], version: 1, sortNo: 55, remark: "与 quality_34 同值同实现"}
+
+# ---- 年龄分层 ----
+- {code: quality_433, name: "收治的≤18岁的感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND age_num <= 18", dims: [depart_code], version: 1, sortNo: 70, remark: "age_num 在事实层用正则确认可解析后转数字，规避达梦对文本年龄的隐式转换报错"}
+- {code: quality_434, name: "收治的18-65岁的感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND age_num >= 19 AND age_num <= 64", dims: [depart_code], version: 1, sortNo: 71, remark: "按 18<age<65 处理，避免与相邻区间重复计数"}
+- {code: quality_435, name: "收治的≥65岁的感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND age_num >= 65", dims: [depart_code], version: 1, sortNo: 72, remark: ""}
+
+# ---- 感染部位分型 ----
+- {code: quality_436, name: "收治的血流感染（CRBSI）感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND site_crbsi = 1", dims: [depart_code], version: 1, sortNo: 73, remark: "导管相关血流感染"}
+- {code: quality_437, name: "收治的血流感染（非CRBSI）感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND site_blood = 1 AND site_crbsi = 0", dims: [depart_code], version: 1, sortNo: 74, remark: ""}
+- {code: quality_438, name: "收治的血流感染感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND site_blood = 1", dims: [depart_code], version: 1, sortNo: 75, remark: "= CRBSI + 非CRBSI"}
+- {code: quality_439, name: "收治的腹腔感染感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND site_abdomen = 1", dims: [depart_code], version: 1, sortNo: 76, remark: ""}
+- {code: quality_440, name: "收治的泌尿系感染感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND site_urinary = 1", dims: [depart_code], version: 1, sortNo: 77, remark: ""}
+- {code: quality_441, name: "收治的中枢神经系统感染感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND site_cns = 1", dims: [depart_code], version: 1, sortNo: 78, remark: ""}
+- {code: quality_442, name: "收治的肺部感染感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND site_lung = 1", dims: [depart_code], version: 1, sortNo: 79, remark: ""}
+- {code: quality_443, name: "收治的胆道感染感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND site_biliary = 1", dims: [depart_code], version: 1, sortNo: 80, remark: ""}
+- {code: quality_444, name: "收治的胃肠道感染感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND site_gi = 1", dims: [depart_code], version: 1, sortNo: 81, remark: ""}
+- {code: quality_445, name: "收治的骨髓感染感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND site_marrow = 1", dims: [depart_code], version: 1, sortNo: 82, remark: ""}
+- {code: quality_446, name: "收治的皮肤软组织感染感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND site_skin = 1", dims: [depart_code], version: 1, sortNo: 83, remark: ""}
+- {code: quality_447, name: "收治的其他部位感染感染性休克患者数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND site_none = 1", dims: [depart_code], version: 1, sortNo: 84, remark: "以上部位一个都未命中才计为其他部位，避免分型相互重叠"}
+
+# ---- 转归与发生时机 ----
+- {code: quality_448, name: "收治的感染性休克患者死亡数（包括ICU内发生）", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "sepsis_shock = 1 AND died_in_period = 1", dims: [depart_code], version: 1, sortNo: 85, remark: ""}
+- {code: quality_449, name: "收治的入ICU发生感染性休克的患者数", domain: 脓毒症_感染性休克, fact: fact_sepsis_bundle, unit: "人", valueType: COUNT, where: "in_icu_shock = 1", dims: [depart_code], version: 1, sortNo: 86, remark: "入 ICU 后发生（诊断时间不早于入科时间）"}

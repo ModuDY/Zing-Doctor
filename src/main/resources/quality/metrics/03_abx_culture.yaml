@@ -1,0 +1,15 @@
+# =====================================================================
+# 指标层 · 抗菌药送检（8 条）
+#
+# 事实层已把「首次抗菌药时间」与「首次各类送检时间」算成列，
+# 因此「送检早于用药」这条核心口径在这里只写一次比较表达式。
+# =====================================================================
+
+- {code: quality_12,  name: "使用抗菌药物前病原学检验标本送检", domain: 抗菌药送检, fact: fact_abx_culture, unit: "%", valueType: RATE, scale: 100, where: "abx_used = 1 AND culture_first_time IS NOT NULL AND culture_first_time <= abx_first_time", denominatorWhere: "abx_used = 1", dims: [depart_code], version: 1, sortNo: 6, remark: "分母=使用抗菌药物患者；分子=首次培养/涂片/镜检/药敏/鉴定送检时间不晚于首剂抗菌药时间。老脚本越界取值（把全院送检算进分子），此处按患者维度修正"}
+- {code: quality_13,  name: "使用抗菌药物治疗", domain: 抗菌药送检, fact: fact_abx_culture, unit: "人", valueType: COUNT, where: "abx_used = 1", dims: [depart_code], version: 1, sortNo: 7, remark: "quality_12 的分母，单独出数便于核对"}
+- {code: quality_427, name: "治疗性抗菌药物使用前送检病原学标本例数", domain: 抗菌药送检, fact: fact_abx_culture, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 64, remark: "空壳：口径待定 —— 缺「治疗性 / 预防性」用药标识。老系统同样为空壳，不给出假 0"}
+- {code: quality_428, name: "使用治疗性抗菌药物例数", domain: 抗菌药送检, fact: fact_abx_culture, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 65, remark: "空壳：口径待定 —— 同上缺治疗性标识"}
+- {code: quality_429, name: "治疗性抗菌药物使用前送检PCT例数", domain: 抗菌药送检, fact: fact_abx_culture, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 66, remark: "空壳：口径待定 —— 与 quality_427 同因（缺「治疗性 / 预防性」用药标识）。若按全部抗菌药出数会系统性低估，故不出数；PCT 首检时间已在事实层备好，接入标识后补一条 where 即可启用"}
+- {code: quality_430, name: "使用治疗性抗菌药物例数", domain: 抗菌药送检, fact: fact_abx_culture, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 67, remark: "空壳：与 quality_428 重复，来源清单要求保留三条，此处保留占位"}
+- {code: quality_431, name: "治疗性抗菌药物使用前送检G/GM实验例数", domain: 抗菌药送检, fact: fact_abx_culture, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 68, remark: "空壳：口径待定 —— 同 quality_427。另指标名有误（应为 G 试验 / GM 试验），名称沿用来源清单以免对不上账"}
+- {code: quality_432, name: "治疗性抗菌药物使用前送检白介素例数", domain: 抗菌药送检, fact: fact_abx_culture, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 69, remark: "空壳：口径待定 —— 同 quality_427（白介素按 IL-6 识别的词表已在事实层备好）"}

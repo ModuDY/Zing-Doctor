@@ -1,0 +1,64 @@
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+# 达梦 JDBC 驱动随项目交付（pom 以 system scope + lib/ 相对路径引用），必须入库，
+# 否则全新检出/CI 上 Maven 解析不到该依赖，构建直接失败
+!lib/*.jar
+.idea/
+*.iml
+.vscode/
+.DS_Store
+logs/
+node_modules/
+frontend/dist/
+frontend/node_modules/
+application-local.yml
+
+# 部署包与运行时二进制
+*.zip
+*.tar.gz
+tools/docker-compose/
+
+# 本地打包工具链（Node/Maven 等临时安装，不入库）
+.tools/
+
+# 质控规则的运行时导出目录：应用启动时把 classpath 下的 quality 规则复制到这里，
+# 内容与 src/main/resources/quality 逐字节相同，属于运行产物。
+# 不入库的原因：它随启动重新生成，入库后每次启动都可能产生无意义的 diff。
+config/quality/
+
+# 预览图与临时文件（frontend/public/logo.png 为源码资源，不受影响）
+sofa-*.png
+sofa-*-preview*
+A_high_fidelity_UI_mockup_*.png
+_pack_tmp.ps1
+.preview/
+_debug_*.png
+
+# 运行与构建日志（app-out.log / app-err.log / frontend/vite-*.log 等，
+# 每次运行都会变化，不应入库；frontend/public/logo.png 为源码资源，不受影响）
+*.log
+
+# CodeBuddy IDE 本地规则/技能包（本地开发辅助，非项目成果，不入库）
+.codebuddy/
+
+# 其他 IDE 的本地技能/配置（随工具生成，非项目成果，不入库）
+.trae/
+
+# 浏览器/e2e 调试残留（Chrome profile、dbg-*/prof-* 等，体积大且每次都变，不入库）
+.tmp-e2e/
+
+# PowerShell 重定向误产物（`> $null` 被当成文件名时生成的 0 字节文件）
+$null
+*.hdr
+
+# vite 依赖预构建缓存（运行产物非源码）
+.vite/
+
+# Python 字节码缓存（tools 下的一次性脚本的副产物）
+__pycache__/
+
+# pnpm 的本地内容寻址缓存（本项目用 npm，无 pnpm-lock.yaml；这里的文件来自
+# 外部工具临时用 pnpm 装依赖，与项目依赖无关）。入库会把别人的机器路径和缓存带进来。
+.pnpm-store/
