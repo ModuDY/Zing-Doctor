@@ -55,9 +55,10 @@ async function fetchHeader() {
     let logo = DEFAULT_LOGO
     let names = [...DEFAULT_NAMES]
     try {
+      // 抬头属非关键增强：silentError 关闭全局错误弹窗，失败在下方 catch 静默回退默认
       const [logoRes, nameRes] = await Promise.all([
-        request.get('/sys-param/get', { params: { key: KEY_LOGO } }),
-        request.get('/sys-param/get', { params: { key: KEY_NAME } })
+        request.get('/sys-param/get', { params: { key: KEY_LOGO }, silentError: true }),
+        request.get('/sys-param/get', { params: { key: KEY_NAME }, silentError: true })
       ])
       if (logoRes) logo = String(logoRes)
       if (nameRes) names = parseNames(nameRes)

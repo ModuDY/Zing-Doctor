@@ -1,40 +1,66 @@
 <template>
   <div class="login-page">
-    <div class="login-card">
-      <div class="brand">
-        <div class="brand-logo">医</div>
+    <div class="login-shell">
+      <!-- 左侧：品牌文字（院名 / 系统名 / 描述） -->
+      <aside class="brand-panel">
         <div class="brand-text">
-          <div class="brand-title">医生决策系统</div>
+          <h1 class="bt-hospital">{{ hospitalNames[0] }}</h1>
+          <h2 class="bt-system">重症医生决策系统</h2>
+          <p class="bt-desc">
+            重症临床决策与质控平台，评分、抗感染、质控一站式完成。
+          </p>
         </div>
-      </div>
+      </aside>
 
-      <div class="login-title">账号登录</div>
-      <div class="login-desc">请使用院内分配的账号登录，第三方系统通过外链访问无需登录。</div>
+      <!-- 右侧：登录卡片（顶部院徽 + 表单） -->
+      <main class="form-panel">
+        <div class="form-side">
+          <div class="form-wrap">
+            <img class="card-logo" :src="logo" alt="院徽" />
 
-      <el-form ref="formRef" :model="form" :rules="rules" size="large" @submit.prevent>
-        <el-form-item prop="username">
-          <el-input
-            v-model="form.username"
-            placeholder="账号"
-            :prefix-icon="User"
-            autocomplete="username"
-            @keyup.enter="submit" />
-        </el-form-item>
-        <el-form-item prop="password">
-          <el-input
-            v-model="form.password"
-            type="password"
-            placeholder="密码"
-            :prefix-icon="Lock"
-            show-password
-            autocomplete="current-password"
-            @keyup.enter="submit" />
-        </el-form-item>
+            <el-form
+              ref="formRef"
+              :model="form"
+              :rules="rules"
+              label-position="top"
+              size="large"
+              @submit.prevent>
+              <el-form-item label="账号" prop="username">
+                <el-input
+                  v-model="form.username"
+                  placeholder="请输入账号"
+                  :prefix-icon="User"
+                  autocomplete="username"
+                  @keyup.enter="submit" />
+              </el-form-item>
+              <el-form-item label="密码" prop="password">
+                <el-input
+                  v-model="form.password"
+                  type="password"
+                  placeholder="请输入密码"
+                  :prefix-icon="Lock"
+                  show-password
+                  autocomplete="current-password"
+                  @keyup.enter="submit" />
+              </el-form-item>
 
-        <el-button class="submit-btn" type="primary" size="large" :loading="loading" @click="submit">
-          登 录
-        </el-button>
-      </el-form>
+              <el-button
+                class="submit-btn"
+                type="primary"
+                size="large"
+                :loading="loading"
+                @click="submit">
+                登 录
+              </el-button>
+            </el-form>
+
+            <div class="fp-note">
+              <el-icon class="note-ic"><Link /></el-icon>
+              第三方系统通过外链访问，无需登录
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
   </div>
 </template>
@@ -43,12 +69,15 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { User, Lock } from '@element-plus/icons-vue'
+import { User, Lock, Link } from '@element-plus/icons-vue'
 import { login as loginApi } from '../api/auth'
 import { setToken, setUser } from '../utils/auth'
+import { useDocHeader } from '../utils/useDocHeader'
 
 const route = useRoute()
 const router = useRouter()
+
+const { logo, hospitalNames, load: loadDocHeader } = useDocHeader()
 
 const formRef = ref(null)
 const loading = ref(false)
@@ -60,8 +89,7 @@ const rules = {
 }
 
 onMounted(() => {
-  // 外链访问（第三方系统带凭证进入）不需要登录，进来时直接放行到目标页
-  if (route.query.redirect) return
+  loadDocHeader()
 })
 
 async function submit() {
@@ -91,76 +119,156 @@ async function submit() {
 <style scoped>
 .login-page {
   min-height: 100vh;
+  min-height: 100dvh;
+  /* 完整插画铺整页背景，内容浮于背景上 */
+  background:
+    linear-gradient(rgba(245, 245, 244, 0.18), rgba(245, 245, 244, 0.18)),
+    url('/login-bg.jpg') left center/cover no-repeat fixed;
+}
+
+.login-shell {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ---------------- 左侧：品牌文字（右对齐，与人物叠加） ---------------- */
+.brand-panel {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 40px 8% 40px 9%;
+  background: transparent;
+}
+.brand-text {
+  max-width: 480px;
+  text-align: left;
+}
+.bt-hospital {
+  font-size: 38px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #1c1917;
+  margin: 0;
+}
+.bt-system {
+  font-size: 38px;
+  font-weight: 400;
+  letter-spacing: 1px;
+  color: #292524;
+  margin: 10px 0 0;
+}
+.bt-desc {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: #57534e;
+  margin: 16px 0 0;
+  white-space: nowrap;
+}
+
+/* ---------------- 右侧：登录卡片 ---------------- */
+.form-panel {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* 与 MainLayout 外壳同一套暖石色，避免登录后视觉跳变 */
-  background: #fafaf9;
-  padding: 24px;
+  padding: 40px 9% 40px 8%;
+  background: transparent;
 }
-
-.login-card {
+.form-side {
   width: 100%;
   max-width: 400px;
-  background: #fff;
-  border: 1px solid #e7e5e4;
+}
+
+.form-wrap {
+  background: rgba(255, 255, 255, 0.60);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(41, 37, 36, 0.06);
-  padding: 36px 32px 28px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 14px 44px rgba(41, 37, 36, 0.10);
+  padding: 34px 32px 26px;
 }
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 28px;
+.card-logo {
+  display: block;
+  width: 76px;
+  height: 76px;
+  object-fit: contain;
+  margin: 0 auto 24px;
 }
 
-.brand-logo {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #57534e, #292524);
+/* label 在输入框上方，不拿 placeholder 当标签 */
+.form-wrap :deep(.el-form-item__label) {
+  font-weight: 600;
+  color: #44403c;
+  padding-bottom: 6px;
+}
+.form-wrap :deep(.el-input__wrapper) {
   border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 20px;
-  font-weight: 600;
+  box-shadow: 0 0 0 1px #e7e5e4 inset;
+  background: #fff;
 }
-
-.brand-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #292524;
-  line-height: 1.3;
+.form-wrap :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #ea580c inset;
 }
-
-.login-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #292524;
-  margin-bottom: 6px;
-}
-
-.login-desc {
-  font-size: 13px;
-  color: #a8a29e;
-  margin-bottom: 22px;
-  line-height: 1.6;
+.form-wrap :deep(.el-input__inner) {
+  height: 42px;
 }
 
 .submit-btn {
   width: 100%;
-  margin-top: 4px;
-  /* 中性暖灰主色：与侧边栏同一套语言，不与抗菌药（青）/质控（橙）主题打架 */
-  background: #292524;
-  border-color: #292524;
+  height: 46px;
+  margin-top: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 4px;
+  border-radius: 12px;
+  background: #ea580c;
+  border-color: #ea580c;
+  transition: background 0.18s ease, transform 0.08s ease;
 }
-
 .submit-btn:hover,
 .submit-btn:focus {
-  background: #44403c;
-  border-color: #44403c;
+  background: #c2410c;
+  border-color: #c2410c;
+}
+.submit-btn:active {
+  transform: scale(0.985);
+}
+
+.fp-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+  font-size: 12.5px;
+  color: #a8a29e;
+}
+.note-ic {
+  font-size: 14px;
+}
+
+/* ---------------- 响应式 ---------------- */
+@media (max-width: 900px) {
+  .login-shell {
+    grid-template-columns: 1fr;
+  }
+  .brand-panel {
+    justify-content: center;
+    text-align: center;
+    padding: 36px 24px 8px;
+  }
+  .brand-text {
+    max-width: none;
+  }
+  .bt-desc {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .form-panel {
+    padding: 20px 24px 36px;
+  }
 }
 </style>
