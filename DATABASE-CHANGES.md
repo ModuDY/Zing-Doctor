@@ -1203,3 +1203,54 @@ SELECT "param_key", "param_value" FROM "zing_doctor_db_prod"."sys_param"
 SELECT param_key, param_value FROM sys_param WHERE param_key = 'SIDEBAR_SHOW_LOGO';
 -- 应返回 1 行；param_value 为空表示用默认值（显示）
 ```
+---
+
+### 2026-09-29 · 质控事实层定义（quality_fact_def）补数与防丢
+
+**故障现象**
+
+服务器上质控看板每次「触发计算」都 FAILED，耗时仅几十毫秒（压根没算）：
+
+```text
+[质控] DSL 加载完成（真源 db）：数据源 2 个，事实层 0 个，指标 127 条
+[质控] 计算完成 状态=FAILED 成功=0 失败=2 耗时=41ms
+```
+
+**根因**
+
+配置真源是 DB，指标按 `fact_name` 引用事实层。出现过「指标表 127 条、事实层表 0 条」的半空状态（配置快照类脚本先 DELETE 后 INSERT，INSERT 未成功时留下空表），而播种条件要求「两张表都为空」才导入 → 不播种；回退判断又只看指标表 → 事实层空也被当成有效配置。结果是 0 个事实层，每条指标都编译不过。
+
+代码侧已修两处（`QualityDslLoader`）：
+
+1. 播种改为**按层判断**，缺哪层补哪层（不再要求两表都空），且不会整体重导（避免撞指标表唯一索引）。
+2. 事实层读回为空也**整体回退 YAML**（只回退一层会留下「新指标 + 旧事实层」错配）。
+
+**升级脚本**
+
+- 达梦：`sql/40_qc_fact_def_seed.sql`
+- MySQL/MariaDB：`sql/mysql/40_qc_fact_def_seed.sql`
+- 仅当事实层表为空时导入出厂的 10 条定义，已有配置不动；可重复执行。
+
+**为什么还要这个脚本（代码不是会自动补种吗）**
+
+代码补种用的是 classpath 的 YAML 出厂定义，而库里的指标定义已演进（例如引用了 `dvt_active_status` 列，YAML 里没有）。实测对比：
+
+| 数据来源 | 成功 | 失败 |
+|---|---|---|
+| 表空（故障态） | 0 | 2 |
+| 代码补种（YAML） | 762 | 12 |
+| 40 号脚本（出厂快照，含演进列） | 885 | 0 |
+
+所以线上若要彻底恢复，执行 40 号脚本；代码补种只作为没有脚本时的兜底。
+
+**依赖与登记**
+
+依赖 `10_quality_config.sql`（表与 `uk_qfd_name` 已建）；`install.sh` 达梦/MySQL 两处清单、`install-mariadb-debian.sh`、`build-delivery.ps1` 的 install-all.sql 生成清单均已纳入 40 号（紧随 39 号）。
+
+**升级后自检**
+
+```sql
+SELECT COUNT(*) FROM quality_fact_def;   -- 应为 10
+```
+
+重启后启动日志应显示「事实层 10 个」。

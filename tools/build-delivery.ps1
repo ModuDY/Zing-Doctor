@@ -222,7 +222,8 @@ if (Test-Path $myDir) {
         '36_workbench_score_todo_rule.sql',
         '37_abx_pkpd_knowledge.sql',
         '38_doc_header.sql',
-        '39_sidebar_logo.sql')
+        '39_sidebar_logo.sql',
+        '40_qc_fact_def_seed.sql')
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine('-- ============================================================')
     [void]$sb.AppendLine('-- zing-doctor MySQL/MariaDB 一次性初始化脚本（打包时自动合成，勿手工编辑）')

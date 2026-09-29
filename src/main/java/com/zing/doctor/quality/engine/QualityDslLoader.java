@@ -155,16 +155,20 @@ public class QualityDslLoader {
             try {
                 // 首次切到 db 真源时配置表是空的，此时把 classpath 的 YAML 作为「出厂种子」导入一次，
                 // 免去人工准备上百条数据，也保证 DB 与既有配置逐字段一致。
-                if (configRepo.isEmpty()) {
-                    seedFromYaml();
-                }
+                // 注意是按层分别补：只补那些为空的层，不整体重导（见 seedMissingLayers）。
+                seedMissingLayers();
                 dbFacts = indexByFact(configRepo.loadFacts());
                 dbMetrics = indexByCode(configRepo.loadMetrics());
             } catch (Exception e) {
                 // 配置表不可用（表未建 / 连不上库）不能拖垮整个质控：退回 YAML，看板照常有数。
                 log.warn("[质控] 配置表加载失败，本次回退 classpath YAML: {}", e.getMessage());
             }
-            if (dbMetrics == null || dbMetrics.isEmpty()) {
+            // 任一层为空都整体回退 YAML：只回退一层会留下「新指标 + 旧事实层」这类错配，
+            // 而事实层为空时指标根本编译不过（每台指标都要按 fact_name 找到事实层）。
+            // 曾经这里只看 dbMetrics，于是「指标 127 条 + 事实层 0 条」被当成有效配置，
+            // 表现为看板上每次触发计算都 FAILED 且耗时极短（压根没算）。
+            if (dbMetrics == null || dbMetrics.isEmpty()
+                    || dbFacts == null || dbFacts.isEmpty()) {
                 newFacts = readFactsFromYaml();
                 newMetrics = readMetricsFromYaml();
             } else {
@@ -201,37 +205,66 @@ public class QualityDslLoader {
     // ------------------------------------------------------------------
 
     /**
-     * 把 classpath 的 YAML 作为「出厂种子」导入配置表（仅在配置表为空时执行一次）。
+     * 配置表缺哪一层就补哪一层（以 classpath 的 YAML 为「出厂种子」）。
      *
-     * <p>注意事实层与指标层都导：指标通过 {@code fact_name} 引用事实层，
-     * 只导指标会让新库上的每一条指标都因找不到事实层而无法编译。
+     * <p><b>为什么必须分层判断，而不是「两张表都空才导」</b>：事实层与指标是两层独立配置，
+     * 指标通过 {@code fact_name} 引用事实层。实际出现过「指标表 127 条、事实层表被清空」的
+     * 半空状态（配置快照脚本先 DELETE 后 INSERT，INSERT 未成功时就会留下它），此时按
+     * 「两表都空」判断为不需要播种，事实层就成了 0 个 —— 每一条指标都因找不到事实层而
+     * 无法编译，看板上每次触发计算都是 FAILED，且耗时只有几十毫秒（压根没开始算）。
+     * 分层判断后，缺哪层补哪层，另一层已有的配置不受影响。
+     *
+     * <p><b>为什么不能整体重导</b>：种子是逐条 insert、不判重的，对已有 127 条指标的表
+     * 整体重导会撞唯一索引（index_code），反而让整个播种失败、连事实层也补不进去。
      */
-    private void seedFromYaml() {
-        Map<String, FactDefinition> facts = readFactsFromYaml();
-        Map<String, MetricDefinition> metrics = readMetricsFromYaml();
-        if (facts.isEmpty() && metrics.isEmpty()) {
-            log.warn("[质控] 配置表为空，且 classpath 未找到 YAML，跳过出厂种子导入");
+    private void seedMissingLayers() {
+        long factCount;
+        long metricCount;
+        try {
+            factCount = configRepo.factCount();
+            metricCount = configRepo.metricCount();
+        } catch (Exception e) {
+            // 表不存在 / 连不上库：交给 reload 的回退分支处理，这里不播种
+            log.debug("[质控] 出厂种子检查跳过，配置表不可用: {}", e.getMessage());
+            return;
+        }
+        if (factCount > 0 && metricCount > 0) {
             return;
         }
         LocalDateTime now = LocalDateTime.now();
-        for (FactDefinition f : facts.values()) {
-            QualityFactDef row = new QualityFactDef();
-            configRepo.fillRow(row, f);
-            row.setOperator("seed");
-            row.setCreateTime(now);
-            row.setUpdateTime(now);
-            configRepo.insertFact(row);
+        if (factCount == 0) {
+            Map<String, FactDefinition> facts = readFactsFromYaml();
+            if (facts.isEmpty()) {
+                log.warn("[质控] 事实层配置表为空，但 classpath 未找到 facts YAML，无法补种");
+            } else {
+                for (FactDefinition f : facts.values()) {
+                    QualityFactDef row = new QualityFactDef();
+                    configRepo.fillRow(row, f);
+                    row.setOperator("seed");
+                    row.setCreateTime(now);
+                    row.setUpdateTime(now);
+                    configRepo.insertFact(row);
+                }
+                log.warn("[质控] 事实层配置表为空，已从 classpath YAML 补种 {} 条", facts.size());
+            }
         }
-        for (MetricDefinition m : metrics.values()) {
-            QualityMetricDef row = new QualityMetricDef();
-            configRepo.fillRow(row, m);
-            row.setStatus(1);
-            row.setOperator("seed");
-            row.setCreateTime(now);
-            row.setUpdateTime(now);
-            configRepo.insertMetric(row);
+        if (metricCount == 0) {
+            Map<String, MetricDefinition> metrics = readMetricsFromYaml();
+            if (metrics.isEmpty()) {
+                log.warn("[质控] 指标配置表为空，但 classpath 未找到 metrics YAML，无法补种");
+            } else {
+                for (MetricDefinition m : metrics.values()) {
+                    QualityMetricDef row = new QualityMetricDef();
+                    configRepo.fillRow(row, m);
+                    row.setStatus(1);
+                    row.setOperator("seed");
+                    row.setCreateTime(now);
+                    row.setUpdateTime(now);
+                    configRepo.insertMetric(row);
+                }
+                log.warn("[质控] 指标配置表为空，已从 classpath YAML 补种 {} 条", metrics.size());
+            }
         }
-        log.info("[质控] 出厂种子导入完成：事实层 {} 条，指标 {} 条", facts.size(), metrics.size());
     }
 
     // ------------------------------------------------------------------

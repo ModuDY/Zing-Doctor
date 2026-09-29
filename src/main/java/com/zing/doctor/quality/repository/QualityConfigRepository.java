@@ -81,9 +81,23 @@ public class QualityConfigRepository {
         return list;
     }
 
-    /** 两张配置表是否都为空（用于判断是否需要从 YAML 导入出厂种子）。 */
-    public boolean isEmpty() {
-        return metricMapper.selectCount(null) == 0 && factMapper.selectCount(null) == 0;
+    /**
+     * 指标配置表行数。
+     *
+     * <p><b>为什么要分开计数、而不用一个「两张表都为空」的判断</b>：事实层与指标是两层配置，
+     * 指标通过 {@code fact_name} 引用事实层，二者可以各自独立为空。曾经用
+     * {@code 指标数==0 && 事实层数==0} 来决定要不要从 YAML 播种，只能覆盖「全新空库」；
+     * 一旦出现「指标有 127 条、事实层被清空」的半空状态，判断为 false 于是不播种，
+     * 事实层就变成 0 个，每一条指标都因找不到事实层而无法编译，看板点一次计算失败一次。
+     * 分层计数后，缺哪层补哪层。
+     */
+    public long metricCount() {
+        return metricMapper.selectCount(null);
+    }
+
+    /** 事实层配置表行数（同上，分层计数以便单独补种）。 */
+    public long factCount() {
+        return factMapper.selectCount(null);
     }
 
     // ------------------------------------------------------------------
