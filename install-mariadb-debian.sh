@@ -570,6 +570,7 @@ SQL
     38_doc_header.sql
     39_sidebar_logo.sql
     40_qc_fact_def_seed.sql
+    42_workbench_bed_sort_mode.sql
     41_patient_summary_page.sql
     )
   for f in "${MAIN_SQL[@]}"; do

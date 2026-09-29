@@ -1279,3 +1279,34 @@ SELECT page_code, frontend_path, status
  WHERE page_code = 'patient-summary';
 -- 应返回 1 行：/page/patient-summary，status=1
 ```
+
+---
+
+### 2026-09-29 · 工作台床位排序口径可配置
+
+**涉及**
+
+- 新系统参数 `WORKBENCH_BED_SORT_MODE`（workbench 分组，select，默认 `numeric`）：
+
+| 值 | 含义 |
+|---|---|
+| `numeric` | 默认。提取床号中的数字按数值升序，不区分纯数字 / 含字母（9 床排在 10 床前） |
+| `digitFirst` | 纯数字床号在前、含字母的在后，两组内部各自按数值升序 |
+| `letterFirst` | 含字母的在前、纯数字在后，两组内部各自按数值升序 |
+
+- 无床位的患者（刚入科未分床、转科中）在三种口径下都排在最后。
+- 前端 `PatientWorkbench.vue`：`filteredPatients` 的床位分支抽出 `compareBed()`，
+  表格视图与床头卡视图共用；未配置参数时回退 `numeric`，与改造前行为一致。
+
+**升级脚本**
+
+- 达梦：`sql/42_workbench_bed_sort_mode.sql`
+- MySQL/MariaDB：`sql/mysql/42_workbench_bed_sort_mode.sql`
+- `WHERE NOT EXISTS` 幂等，可重复执行。
+
+**升级后自检**
+
+```sql
+SELECT param_key, param_value, default_value FROM sys_param WHERE param_key = 'WORKBENCH_BED_SORT_MODE';
+-- 应返回 1 行；param_value 为空表示用默认值 numeric
+```

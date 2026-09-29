@@ -318,8 +318,12 @@ const keyword = ref('')
 // 视图模式：table 表格 / cards 床头卡；默认读参数设置 WORKBENCH_VIEW_MODE
 const viewMode = ref('table')
 // 默认按床位：查房是沿床位走的，医生开口问的也是「几床怎么样了」。
-// 排序一股放在前端（filteredPatients），表格与床头卡共用，改这里两个视图同时生效。
+// 排序一概放在前端（filteredPatients），表格与床头卡共用，改这里两个视图同时生效。
 const sortBy = ref('bed')
+// 床位排序口径（WORKBENCH_BED_SORT_MODE）：numeric 提取数值升序 / digitFirst 纯数字在前 /
+// letterFirst 含字母在前。各院床号形态不一（12、12A、A12、12-1），排序只能现场定，
+// 故做成参数；读不到时用 numeric，与改造前的行为一致。
+const bedSortMode = ref('numeric')
 const updatedAt = ref('')
 const refreshToken = ref(workbenchRefreshToken())
 const evidenceVisible = ref(false)
@@ -487,19 +491,46 @@ const filteredPatients = computed(() => {
   return list.slice().sort((a, b) => {
     if (sortBy.value === 'oldest') return timeOf(a) - timeOf(b)
     if (sortBy.value === 'stay') return (b.icuDays || 0) - (a.icuDays || 0)
-    if (sortBy.value === 'bed') {
-      const ba = String(a.bedNo || '')
-      const bb = String(b.bedNo || '')
-      // 无床位的排最后：空串在 localeCompare 里最小，不处理的话「待分配」会占住首屏，
-      // 而这些人多半是刚入科还没分床或正在转科，恰恰是按床位查房时最不先看的。
-      if (ba && !bb) return -1
-      if (!ba && bb) return 1
-      // numeric: 让 9 床排在 10 床前面，而不是按字符串排成 10 < 9
-      return ba.localeCompare(bb, 'zh-CN', { numeric: true })
-    }
+    if (sortBy.value === 'bed') return compareBed(a.bedNo, b.bedNo, bedSortMode.value)
     return timeOf(b) - timeOf(a)
   })
 })
+
+/** 床号拆解：数字部分用于数值比较，pure 表示「纯数字床号」 */
+function bedParts(bed) {
+  const raw = String(bed || '').trim()
+  const m = raw.match(/\d+/)
+  return { raw, pure: raw.length > 0 && /^\d+$/.test(raw), num: m ? Number(m[0]) : null }
+}
+
+/**
+ * 床位比较。三种口径由参数 WORKBENCH_BED_SORT_MODE 决定：
+ *
+ * - numeric（默认）：提取数字按数值升序，不区分纯数字 / 含字母 —— 改造前就是这个行为。
+ *   9 床排在 10 床前面，而不是按字符串排成 10 < 9。
+ * - digitFirst：纯数字床号在前、含字母的在后，两组内部各自按数值升序。
+ *   加床写成「12A」的科室，想先看完正式床位再看加床时用。
+ * - letterFirst：含字母的在前、纯数字在后，两组内部各自按数值升序。
+ *
+ * 无床位的（刚入科未分床、转科中）一律排最后：空串在字符串比较里最小，
+ * 不处理的话「待分配」会占住首屏，而这些人恰恰是按床位查房时最不先看的。
+ */
+function compareBed(bedA, bedB, mode) {
+  const a = bedParts(bedA)
+  const b = bedParts(bedB)
+  if (a.raw && !b.raw) return -1
+  if (!a.raw && b.raw) return 1
+  if (!a.raw && !b.raw) return 0
+
+  if (mode === 'digitFirst' && a.pure !== b.pure) return a.pure ? -1 : 1
+  if (mode === 'letterFirst' && a.pure !== b.pure) return a.pure ? 1 : -1
+
+  // 组内按数值升序；都是非数字或数值相同时按字符串比，保证顺序稳定不抖动
+  if (a.num != null && b.num != null && a.num !== b.num) return a.num - b.num
+  if (a.num != null && b.num == null) return -1
+  if (a.num == null && b.num != null) return 1
+  return a.raw.localeCompare(b.raw, 'zh-CN', { numeric: true })
+}
 
 function deptLabel(row) {
   return deptNameOf(row.departCode, departments.value) || row.wardName || '未分配'
@@ -605,6 +636,18 @@ async function initViewMode() {
 }
 
 /**
+ * 读床位排序口径（WORKBENCH_BED_SORT_MODE=numeric/digitFirst/letterFirst）。
+ * 读不到或值非法时保持 numeric —— 与后端默认值、与改造前的行为一致，
+ * 未升级脚本的院区不会因为读不到参数就变成另一种排序。
+ */
+async function initBedSortMode() {
+  try {
+    const mode = await request.get('/sys-param/get', { params: { key: 'WORKBENCH_BED_SORT_MODE' } })
+    if (mode === 'numeric' || mode === 'digitFirst' || mode === 'letterFirst') bedSortMode.value = mode
+  } catch (e) { /* 参数未配置时用默认 numeric */ }
+}
+
+/**
  * 读评分待办口径（WORKBENCH_SCORE_TODO_RULE）。它决定待办的文案说法：
  * 「当日无评分」与「入科超 24 小时从未评分」是两件事，不能混用同一句提示。
  * 读不到时保持默认值 —— 与后端回退的默认口径一致，不会出现前后端说法对不上。
@@ -622,6 +665,7 @@ function onViewModeChange(mode) {
 onMounted(async () => {
   window.addEventListener('zing:workbench-refresh', onWorkbenchRefresh)
   await initViewMode()
+  await initBedSortMode()
   await initTodoRule()
   await initScope()
   loadPatients()
