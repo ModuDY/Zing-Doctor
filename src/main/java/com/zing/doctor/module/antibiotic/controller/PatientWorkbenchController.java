@@ -91,6 +91,10 @@ public class PatientWorkbenchController {
         workbenchEnrichService.enrich(list);
         workbenchEnrichService.enrichReassessmentTodos(list);
         workbenchEnrichService.enrichInfection(list, patient.getDepartCode());
+        // 二期第一批：24h 检验 / 培养药敏 / 脓毒症集束化
+        workbenchEnrichService.enrichLabs24h(list);
+        workbenchEnrichService.enrichCulture(list);
+        workbenchEnrichService.enrichSepsisBundle(list);
         return Result.ok(patient);
     }
 

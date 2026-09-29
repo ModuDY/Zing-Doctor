@@ -11,7 +11,11 @@ import com.zing.doctor.module.antibiotic.entity.AntibioticReassessment;
 import com.zing.doctor.module.antibiotic.mapper.AntibioticReassessmentMapper;
 import com.zing.doctor.module.sofa.entity.SofaScoreRecord;
 import com.zing.doctor.module.sofa.mapper.SofaScoreRecordMapper;
+import com.zing.doctor.module.sepsis.entity.SepsisBundleRecord;
+import com.zing.doctor.module.sepsis.mapper.SepsisBundleRecordMapper;
 import com.zing.doctor.module.system.service.SysParamService;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -60,6 +64,7 @@ public class WorkbenchEnrichService {
     private final IcuPatientMapper icuPatientMapper;
     private final AntibioticReassessmentMapper reassessmentMapper;
     private final SysParamService sysParamService;
+    private final SepsisBundleRecordMapper sepsisBundleMapper;
 
     /**
      * 给在科患者列表回填：最近 SOFA 总分、当日待办。
@@ -526,5 +531,305 @@ public class WorkbenchEnrichService {
             out.addAll(patientIds);
         }
         return out;
+    }
+
+    // ==================== 二期第一批：24h 检验 / 培养药敏 / 脓毒症集束化 ====================
+
+    /**
+     * 24 小时检验摘要（异常优先）。
+     *
+     * <p>窗口由参数 {@code PATIENT_SUMMARY_LAB_WINDOW} 控制：
+     * <ul>
+     *   <li>{@code 24H}（默认）—— 当前时间往前推 24 小时；</li>
+     *   <li>{@code TODAY} —— 今日 0 点至今。</li>
+     * </ul>
+     * 异常判断：有 low_value/high_value 时按数值范围判断，否则看 alarm_flag。
+     * 部分失败不整体报错：dataStatus=UNKNOWN，前端按块渲染「数据暂不可用」。
+     */
+    public void enrichLabs24h(List<WorkbenchPatient> patients) {
+        if (patients == null || patients.isEmpty()) return;
+        String window = sysParamService.value("PATIENT_SUMMARY_LAB_WINDOW");
+        if (window == null || window.isEmpty()) window = "24H";
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime start;
+        LocalDateTime end = now;
+        if ("TODAY".equalsIgnoreCase(window)) {
+            start = now.toLocalDate().atStartOfDay();
+        } else {
+            start = now.minusHours(24);
+        }
+        String startStr = start.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String endStr = end.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+        for (WorkbenchPatient p : patients) {
+            WorkbenchPatient.Labs24h labs = new WorkbenchPatient.Labs24h();
+            p.setLabs24h(labs);
+            if (p.getInHospitalNo() == null || p.getInHospitalNo().isEmpty()) {
+                labs.setDataStatus("EMPTY");
+                continue;
+            }
+            try {
+                List<Map<String, Object>> rows = icuPatientMapper.selectLabsByTimeRange(
+                        p.getInHospitalNo(), startStr, endStr);
+                if (rows == null || rows.isEmpty()) {
+                    labs.setDataStatus("EMPTY");
+                    continue;
+                }
+                List<WorkbenchPatient.LabItem> abnormal = new ArrayList<>();
+                int normalCount = 0;
+                // 按项目名分组，用于判断趋势（最新值 vs 次新值）
+                Map<String, List<Map<String, Object>>> byItem = new HashMap<>();
+                for (Map<String, Object> row : rows) {
+                    String name = str(row.get("item_name"));
+                    byItem.computeIfAbsent(name, k -> new ArrayList<>()).add(row);
+                }
+                for (Map<String, Object> row : rows) {
+                    String name = str(row.get("item_name"));
+                    String result = str(row.get("result"));
+                    String unit = str(row.get("unit"));
+                    String low = str(row.get("low_value"));
+                    String high = str(row.get("height_value"));
+                    String limit = str(row.get("item_limit"));
+                    String alarm = str(row.get("alarm_flag"));
+                    String refRange = !limit.isEmpty() ? limit :
+                            (!low.isEmpty() && !high.isEmpty() ? low + "-" + high : "");
+                    boolean isAbnormal = isAbnormal(result, low, high, alarm);
+                    WorkbenchPatient.LabItem item = new WorkbenchPatient.LabItem();
+                    item.setItemName(name);
+                    item.setResult(result);
+                    item.setUnit(unit);
+                    item.setRefRange(refRange);
+                    item.setCheckTime(str(row.get("check_time")));
+                    // 趋势：同一项目有多个时间点时判断
+                    List<Map<String, Object>> series = byItem.get(name);
+                    if (series != null && series.size() >= 2) {
+                        item.setTrend(judgeTrend(result, str(series.get(1).get("result"))));
+                    }
+                    if (isAbnormal) {
+                        abnormal.add(item);
+                    } else {
+                        normalCount++;
+                    }
+                }
+                labs.setAbnormalItems(abnormal);
+                labs.setAbnormalCount(abnormal.size());
+                labs.setNormalCount(normalCount);
+                labs.setDataStatus("FOUND");
+            } catch (Exception e) {
+                log.warn("患者摘要 24h 检验查询失败(inHospitalNo={})", p.getInHospitalNo(), e);
+                labs.setDataStatus("UNKNOWN");
+            }
+        }
+    }
+
+    /**
+     * 培养与药敏摘要。
+     *
+     * <p>状态判断逻辑：
+     * <ul>
+     *   <li>查 patient_info_lis 报告头（lis_name 含「培养」）—— 无报告头 = NOT_SENT；</li>
+     *   <li>有报告头但无明细 = PENDING（已送检未出报告）；</li>
+     *   <li>有明细且结果含致病菌 = POSITIVE；否则 NEGATIVE。</li>
+     * </ul>
+     * 药敏结果是字符串，摘要只拼前 3 条，完整报告走抗感染决策页。
+     */
+    public void enrichCulture(List<WorkbenchPatient> patients) {
+        if (patients == null || patients.isEmpty()) return;
+        for (WorkbenchPatient p : patients) {
+            WorkbenchPatient.CultureSummary culture = new WorkbenchPatient.CultureSummary();
+            p.setCulture(culture);
+            if (p.getInHospitalNo() == null || p.getInHospitalNo().isEmpty()) {
+                culture.setDataStatus("NOT_SENT");
+                continue;
+            }
+            try {
+                // 1. 查报告头判断是否送检
+                List<Map<String, Object>> headers = icuPatientMapper.selectCultureReportHeaders(p.getInHospitalNo());
+                if (headers == null || headers.isEmpty()) {
+                    culture.setDataStatus("NOT_SENT");
+                    continue;
+                }
+                Map<String, Object> latest = headers.get(0);
+                culture.setLatestSpecimen(str(latest.get("report_name")));
+                culture.setSampleTime(str(latest.get("sample_time")));
+                culture.setReportTime(str(latest.get("report_time")));
+
+                // 2. 查明细判断是否出报告
+                List<Map<String, Object>> details = icuPatientMapper.selectMicrobiology(p.getInHospitalNo());
+                if (details == null || details.isEmpty()) {
+                    culture.setDataStatus("PENDING");
+                    continue;
+                }
+
+                // 3. 解析检出菌和药敏
+                List<String> organisms = new ArrayList<>();
+                List<String> astList = new ArrayList<>();
+                boolean hasPathogen = false;
+                for (Map<String, Object> row : details) {
+                    String itemName = str(row.get("item_name"));
+                    String result = str(row.get("result"));
+                    if (result.isEmpty()) continue;
+                    if (itemName.contains("药敏")) {
+                        if (astList.size() < 3) astList.add(result);
+                    } else if (itemName.contains("培养")) {
+                        // 培养结果：排除"未检出"/"阴性"/"无细菌生长"等
+                        if (!isNegativeCulture(result)) {
+                            organisms.add(result);
+                            hasPathogen = true;
+                        }
+                    }
+                }
+                culture.setOrganisms(organisms);
+                culture.setAstSummary(String.join("; ", astList));
+                // 耐药风险：复用感染维度的判断（如果已有）
+                if (Boolean.TRUE.equals(p.getMdrRisk())) culture.setDrugResistanceRisk("MDR");
+                else if (Boolean.TRUE.equals(p.getMrsaRisk())) culture.setDrugResistanceRisk("MRSA");
+                else if (Boolean.TRUE.equals(p.getFungalRisk())) culture.setDrugResistanceRisk("真菌风险");
+                culture.setDataStatus(hasPathogen ? "POSITIVE" : "NEGATIVE");
+            } catch (Exception e) {
+                log.warn("患者摘要培养查询失败(inHospitalNo={})", p.getInHospitalNo(), e);
+                culture.setDataStatus("UNKNOWN");
+            }
+        }
+    }
+
+    /**
+     * 脓毒症集束化状态摘要（只读 patient_doc_sepsis_bundle_record 快照，不重新计算）。
+     *
+     * <p>完成数从 bundle_1h_data / bundle_3h_data / bundle_6h_data JSON 中解析 Boolean 字段统计。
+     * 无记录 = NOT_APPLICABLE；有记录但未全部完成 = IN_PROGRESS；全部完成 = COMPLETED。
+     */
+    public void enrichSepsisBundle(List<WorkbenchPatient> patients) {
+        if (patients == null || patients.isEmpty()) return;
+        List<String> inHospitalNos = new ArrayList<>();
+        for (WorkbenchPatient p : patients) {
+            if (p.getInHospitalNo() != null && !p.getInHospitalNo().isEmpty()) {
+                inHospitalNos.add(p.getInHospitalNo());
+            }
+        }
+        if (inHospitalNos.isEmpty()) {
+            for (WorkbenchPatient p : patients) {
+                WorkbenchPatient.SepsisBundleSummary s = new WorkbenchPatient.SepsisBundleSummary();
+                s.setDataStatus("NOT_APPLICABLE");
+                p.setSepsisBundle(s);
+            }
+            return;
+        }
+        // 批量查最新记录（按 inHospitalNo 分组取 createTime 最新）
+        Map<String, SepsisBundleRecord> latestByNo = new HashMap<>();
+        try {
+            QueryWrapper<SepsisBundleRecord> qw = new QueryWrapper<>();
+            qw.in("in_hospital_no", inHospitalNos)
+                    .eq("status", 1)
+                    .orderByDesc("create_time");
+            List<SepsisBundleRecord> records = sepsisBundleMapper.selectList(qw);
+            for (SepsisBundleRecord r : records) {
+                latestByNo.putIfAbsent(r.getInHospitalNo(), r);
+            }
+        } catch (Exception e) {
+            log.warn("患者摘要脓毒症记录查询失败", e);
+            for (WorkbenchPatient p : patients) {
+                WorkbenchPatient.SepsisBundleSummary s = new WorkbenchPatient.SepsisBundleSummary();
+                s.setDataStatus("UNKNOWN");
+                p.setSepsisBundle(s);
+            }
+            return;
+        }
+
+        for (WorkbenchPatient p : patients) {
+            WorkbenchPatient.SepsisBundleSummary s = new WorkbenchPatient.SepsisBundleSummary();
+            p.setSepsisBundle(s);
+            SepsisBundleRecord record = latestByNo.get(p.getInHospitalNo());
+            if (record == null) {
+                s.setDataStatus("NOT_APPLICABLE");
+                continue;
+            }
+            try {
+                // 解析 1H JSON
+                int[] h1 = countBundleItems(record.getBundle1hData());
+                int[] h3 = countBundleItems(record.getBundle3hData());
+                int[] h6 = countBundleItems(record.getBundle6hData());
+                s.setH1Completed(h1[0]); s.setH1Total(h1[1]);
+                s.setH3Completed(h3[0]); s.setH3Total(h3[1]);
+                s.setH6Completed(h6[0]); s.setH6Total(h6[1]);
+                s.setRecordTime(record.getCreateTime() != null ?
+                        record.getCreateTime().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : null);
+
+                // 未完成项
+                List<String> pending = new ArrayList<>();
+                if (h1[0] < h1[1]) pending.add("1H 集束化未完成(" + h1[0] + "/" + h1[1] + ")");
+                if (h3[0] < h3[1]) pending.add("3H 集束化未完成(" + h3[0] + "/" + h3[1] + ")");
+                if (h6[0] < h6[1]) pending.add("6H 集束化未完成(" + h6[0] + "/" + h6[1] + ")");
+                s.setPendingItems(pending);
+
+                // 状态
+                boolean allDone = (h1[0] >= h1[1] && h3[0] >= h3[1] && h6[0] >= h6[1])
+                        || (Integer.valueOf(1).equals(record.getBundle1hCompleted())
+                            && Integer.valueOf(1).equals(record.getBundle3hCompleted())
+                            && Integer.valueOf(1).equals(record.getBundle6hCompleted()));
+                s.setDataStatus(allDone ? "COMPLETED" : "IN_PROGRESS");
+            } catch (Exception e) {
+                log.warn("脓毒症 JSON 解析失败(inHospitalNo={})", p.getInHospitalNo(), e);
+                s.setDataStatus("UNKNOWN");
+            }
+        }
+    }
+
+    /** 解析 bundle JSON，返回 [completedCount, totalCount]。只统计 Boolean 类型的字段。 */
+    private int[] countBundleItems(String json) {
+        if (json == null || json.isEmpty()) return new int[]{0, 0};
+        try {
+            JSONObject obj = JSONUtil.parseObj(json);
+            int completed = 0, total = 0;
+            for (String key : obj.keySet()) {
+                Object v = obj.get(key);
+                if (v instanceof Boolean) {
+                    total++;
+                    if (Boolean.TRUE.equals(v)) completed++;
+                }
+            }
+            return new int[]{completed, total};
+        } catch (Exception e) {
+            return new int[]{0, 0};
+        }
+    }
+
+    /** 判断检验结果是否异常。有参考范围按数值判断，否则看 alarm_flag。 */
+    private boolean isAbnormal(String result, String low, String high, String alarm) {
+        if (!alarm.isEmpty() && !"0".equals(alarm) && !"N".equalsIgnoreCase(alarm)) return true;
+        if (result.isEmpty()) return false;
+        try {
+            double val = Double.parseDouble(result);
+            if (!low.isEmpty() && val < Double.parseDouble(low)) return true;
+            if (!high.isEmpty() && val > Double.parseDouble(high)) return true;
+        } catch (NumberFormatException ignored) {
+            // 文字型结果（阴性/阳性等），看 alarm_flag
+        }
+        return false;
+    }
+
+    /** 判断趋势：当前值 vs 上一个值。 */
+    private String judgeTrend(String current, String previous) {
+        try {
+            double c = Double.parseDouble(current);
+            double p = Double.parseDouble(previous);
+            if (c > p) return "UP";
+            if (c < p) return "DOWN";
+            return "FLAT";
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** 培养结果是否为阴性（未检出/无细菌生长等）。 */
+    private boolean isNegativeCulture(String result) {
+        if (result.isEmpty()) return true;
+        String r = result.toLowerCase();
+        return r.contains("未检出") || r.contains("无细菌") || r.contains("无致病菌")
+                || r.contains("阴性") || r.contains("正常菌群") || r.contains("未生长");
+    }
+
+    private static String str(Object o) {
+        return o == null ? "" : String.valueOf(o).trim();
     }
 }

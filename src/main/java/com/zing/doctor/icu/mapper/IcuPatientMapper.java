@@ -348,6 +348,41 @@ public interface IcuPatientMapper {
             + ") WHERE ROWNUM <= 300")
     List<Map<String, Object>> selectRecentLabs(@Param("inHospitalNo") String inHospitalNo);
 
+    /**
+     * 按时间范围查检验明细（患者摘要 24h 检验用）。
+     * 与 selectRecentLabs 同表同字段，但时间范围由调用方控制（最近24h / 今日）。
+     * 结果按 check_time 倒序，最多 200 条。
+     */
+    @Select("SELECT * FROM ( "
+            + "  SELECT li.lis_item_name AS item_name, li.lis_item_short_name AS short_name, "
+            + "  li.lis_item_result AS result, "
+            + "  li.lis_item_unit AS unit, li.check_time AS check_time, "
+            + "  li.lis_item_low_value AS low_value, li.lis_item_height_value AS height_value, "
+            + "  li.lis_item_limit AS item_limit, li.lis_item_alarm_flag AS alarm_flag "
+            + "  FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li "
+            + "  WHERE li.in_hospital_no = #{inHospitalNo} AND li.del_flag = 0 "
+            + "  AND li.lis_item_result IS NOT NULL AND li.lis_item_result <> '' "
+            + "  AND li.check_time >= #{startTime} AND li.check_time < #{endTime} "
+            + "  ORDER BY li.check_time DESC "
+            + ") WHERE ROWNUM <= 200")
+    List<Map<String, Object>> selectLabsByTimeRange(@Param("inHospitalNo") String inHospitalNo,
+                                                     @Param("startTime") String startTime,
+                                                     @Param("endTime") String endTime);
+
+    /**
+     * 查培养类报告头（患者摘要培养状态判断用）。
+     * 用于区分「未送检」和「已送检未出报告」：有报告头=已送检，无报告头=未送检。
+     * 识别口径：patient_info_lis.lis_name 含「培养」。
+     */
+    @Select("SELECT l.lis_code AS lis_code, l.lis_name AS report_name, "
+            + "l.lis_short_name AS speciman, l.receive_time AS receive_time, "
+            + "l.report_time AS report_time, l.sample_time AS sample_time "
+            + "FROM \"zing_icu_db_prod\".\"patient_info_lis\" l "
+            + "WHERE l.in_hospital_no = #{inHospitalNo} AND l.del_flag = 0 "
+            + "AND l.lis_name LIKE '%培养%' "
+            + "ORDER BY l.sample_time DESC")
+    List<Map<String, Object>> selectCultureReportHeaders(@Param("inHospitalNo") String inHospitalNo);
+
     /** 患者最新体温（观察项记录 JOIN 患者级观察项配置，按 item_name 匹配体温；ROWNUM 取最新 1 条） */
     @Select("SELECT * FROM ( "
             + "  SELECT r.item_value AS item_value, r.item_time AS item_time "

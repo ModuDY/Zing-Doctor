@@ -125,4 +125,71 @@ public class WorkbenchPatient {
 
     /** 感染风险等级：高风险 / 中风险 / 低风险；非疑似感染时为 null */
     private String infectionRiskLevel;
+
+    // ---- 二期第一批：24h 检验 / 培养药敏 / 脓毒症集束化 ----
+
+    /** 24 小时检验摘要（异常优先） */
+    private Labs24h labs24h;
+
+    /** 培养与药敏摘要 */
+    private CultureSummary culture;
+
+    /** 脓毒症集束化状态摘要 */
+    private SepsisBundleSummary sepsisBundle;
+
+    /**
+     * 24 小时检验摘要。
+     * dataStatus: FOUND(有结果) / EMPTY(窗口内无检验) / UNKNOWN(查询失败)
+     */
+    @Data
+    public static class Labs24h {
+        private String dataStatus = "UNKNOWN";
+        private List<LabItem> abnormalItems = java.util.Collections.emptyList();
+        private Integer normalCount = 0;
+        private Integer abnormalCount = 0;
+    }
+
+    @Data
+    public static class LabItem {
+        private String itemName;
+        private String result;
+        private String unit;
+        private String refRange;
+        private String checkTime;
+        /** UP / DOWN / FLAT / null（只有一个时间点时无法判断趋势） */
+        private String trend;
+    }
+
+    /**
+     * 培养与药敏摘要。
+     * dataStatus: NOT_SENT(未送检) / PENDING(已送检未出报告) / NEGATIVE(未检出) / POSITIVE(已检出) / UNKNOWN(查询失败)
+     */
+    @Data
+    public static class CultureSummary {
+        private String dataStatus = "UNKNOWN";
+        private String latestSpecimen;
+        private String sampleTime;
+        private String reportTime;
+        private List<String> organisms = java.util.Collections.emptyList();
+        /** MDR / MRSA / 真菌风险 / null */
+        private String drugResistanceRisk;
+        private String astSummary;
+    }
+
+    /**
+     * 脓毒症集束化状态摘要（只读 patient_doc_sepsis_bundle_record 快照）。
+     * dataStatus: NOT_APPLICABLE(无记录) / IN_PROGRESS(进行中) / COMPLETED(全部完成) / OVERDUE(超时) / UNKNOWN(查询失败)
+     */
+    @Data
+    public static class SepsisBundleSummary {
+        private String dataStatus = "UNKNOWN";
+        private Integer h1Completed = 0;
+        private Integer h1Total = 0;
+        private Integer h3Completed = 0;
+        private Integer h3Total = 0;
+        private Integer h6Completed = 0;
+        private Integer h6Total = 0;
+        private List<String> pendingItems = java.util.Collections.emptyList();
+        private String recordTime;
+    }
 }
