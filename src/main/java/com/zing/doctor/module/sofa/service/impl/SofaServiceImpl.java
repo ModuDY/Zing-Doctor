@@ -993,6 +993,20 @@ public class SofaServiceImpl implements SofaService {
         return true;
     }
 
+    /**
+     * SOFA 总览。
+     *
+     * <p><b>统计口径是「患者」不是「记录」</b>：同一患者在窗口内可能评多次（每日评、病情变化加评），
+     * 按记录统计会让一天评 3 次的患者被计 3 次，高危数与恶化数都虚高。医生要看的是
+     * 「现在有几个高危患者」「有几个在恶化」，所以先按患者取<b>最新一次</b>评分，
+     * 再在这份「每人一条」的集合上统计平均分、高危数、恶化数与分布。
+     * 记录数仍返回（{@code recordCount} / {@code totalCount}），供核对工作量。
+     *
+     * <p><b>床号来自 ICU 患者表</b>：评分记录实体里没有床号字段，前端曾在「床号」列下直接显示
+     * 科室代码（departCode），医生会把「20070131」当成床号。这里批量取在科患者一次、
+     * 在 Java 端按 患者ID / 住院号回填真实床号。只覆盖在科患者 —— 已出科的历史评分没有床号，
+     * 前端显示「—」，这比拿科室代码冒充要强。
+     */
     @Override
     public Map<String, Object> getOverview(String departCode, String startTime, String endTime) {
         LambdaQueryWrapper<SofaScoreRecord> w = new LambdaQueryWrapper<SofaScoreRecord>()
@@ -1006,22 +1020,36 @@ public class SofaServiceImpl implements SofaService {
         List<SofaScoreRecord> records = scoreRecordMapper.selectList(w);
 
         Map<String, Object> result = new LinkedHashMap<>();
+        result.put("recordCount", records.size());
+        // 兼容旧前端：totalCount 仍是记录数，患者数另给 patientCount
         result.put("totalCount", records.size());
-        double avg = records.stream().mapToInt(r -> r.getTotalScore() == null ? 0 : r.getTotalScore())
+
+        // ---- 患者维度：同一患者只保留最新一次评分 ----
+        Map<String, SofaScoreRecord> latestByPatient = new LinkedHashMap<>();
+        for (SofaScoreRecord r : records) {
+            String key = patientKey(r);
+            SofaScoreRecord prev = latestByPatient.get(key);
+            if (prev == null || laterThan(r, prev)) {
+                latestByPatient.put(key, r);
+            }
+        }
+        List<SofaScoreRecord> latestList = new ArrayList<>(latestByPatient.values());
+        result.put("patientCount", latestList.size());
+
+        double avg = latestList.stream().mapToInt(r -> r.getTotalScore() == null ? 0 : r.getTotalScore())
                 .average().orElse(0);
         result.put("avgScore", round(avg, 1));
-        result.put("highRiskCount", records.stream()
+        result.put("highRiskCount", latestList.stream()
                 .filter(r -> r.getTotalScore() != null && r.getTotalScore() >= 10).count());
         // ΔSOFA 恶化预警（较上次升高 ≥2，对应 Sepsis-3 器官功能障碍阈值）
-        List<SofaScoreRecord> worsened = records.stream()
+        List<SofaScoreRecord> worsened = latestList.stream()
                 .filter(r -> r.getDeltaSofa() != null && r.getDeltaSofa() >= 2)
                 .collect(Collectors.toList());
         result.put("worsenedCount", worsened.size());
-        result.put("worsenedList", worsened);
 
         Map<String, Integer> dist = new LinkedHashMap<>();
         dist.put("0-1", 0); dist.put("2-5", 0); dist.put("6-9", 0); dist.put("10-14", 0); dist.put("15-24", 0);
-        for (SofaScoreRecord r : records) {
+        for (SofaScoreRecord r : latestList) {
             int s = r.getTotalScore() == null ? 0 : r.getTotalScore();
             if (s <= 1) dist.merge("0-1", 1, Integer::sum);
             else if (s <= 5) dist.merge("2-5", 1, Integer::sum);
@@ -1030,8 +1058,110 @@ public class SofaServiceImpl implements SofaService {
             else dist.merge("15-24", 1, Integer::sum);
         }
         result.put("scoreDistribution", dist);
-        result.put("records", records);
+
+        // ---- 趋势：按天聚合，给前端画走势 ----
+        result.put("trend", buildTrend(records));
+
+        // ---- 床号：一次批量取在科患者，禁止逐条查 ----
+        Map<String, String> bedById = new HashMap<>();
+        Map<String, String> bedByNo = new HashMap<>();
+        try {
+            for (Map<String, Object> p : icuPatientMapper.selectInpatients(departCode)) {
+                String bed = str(p.get("bed_no"));
+                if (bed == null || bed.trim().isEmpty()) continue;
+                String pid = str(p.get("patient_id"));
+                String no = str(p.get("in_hospital_no"));
+                if (pid != null) bedById.put(pid, bed);
+                if (no != null) bedByNo.put(no, bed);
+            }
+        } catch (Exception e) {
+            // ICU 库不可用时不能让总览整个挂掉：床号留空，其余照出
+            log.warn("[SOFA] 在科患者床号取数失败，总览床号留空: {}", e.getMessage());
+        }
+
+        result.put("worsenedList", worsened.stream()
+                .map(r -> toRow(r, bedOf(r, bedById, bedByNo))).collect(Collectors.toList()));
+        result.put("records", records.stream()
+                .map(r -> toRow(r, bedOf(r, bedById, bedByNo))).collect(Collectors.toList()));
         return result;
+    }
+
+    /** 患者唯一键：优先住院号（跨次入科稳定），缺失时退回患者ID。 */
+    private String patientKey(SofaScoreRecord r) {
+        if (r.getInHospitalNo() != null && !r.getInHospitalNo().trim().isEmpty()) {
+            return "N:" + r.getInHospitalNo().trim();
+        }
+        return "P:" + (r.getPatientId() == null ? "" : r.getPatientId().trim());
+    }
+
+    /** a 的评分时间是否晚于 b（空时间视为最早）。 */
+    private boolean laterThan(SofaScoreRecord a, SofaScoreRecord b) {
+        LocalDateTime ta = a.getScoreTime();
+        LocalDateTime tb = b.getScoreTime();
+        if (ta == null) return false;
+        if (tb == null) return true;
+        return ta.isAfter(tb);
+    }
+
+    private String str(Object o) {
+        return o == null ? null : String.valueOf(o);
+    }
+
+    private String bedOf(SofaScoreRecord r, Map<String, String> bedById, Map<String, String> bedByNo) {
+        String b = r.getPatientId() == null ? null : bedById.get(r.getPatientId());
+        if ((b == null || b.trim().isEmpty()) && r.getInHospitalNo() != null) {
+            b = bedByNo.get(r.getInHospitalNo());
+        }
+        return b;
+    }
+
+    /**
+     * 按天聚合评分：平均总分 / 当日最高 / 评分次数 / 涉及患者数。
+     * SOFA 的价值在动态变化，静态分布看不出走向，所以总览要带这条序列。
+     */
+    private List<Map<String, Object>> buildTrend(List<SofaScoreRecord> records) {
+        Map<String, List<SofaScoreRecord>> byDay = new TreeMap<>();
+        for (SofaScoreRecord r : records) {
+            if (r.getScoreTime() == null) continue;
+            byDay.computeIfAbsent(r.getScoreTime().toLocalDate().toString(), k -> new ArrayList<>()).add(r);
+        }
+        List<Map<String, Object>> trend = new ArrayList<>();
+        for (Map.Entry<String, List<SofaScoreRecord>> e : byDay.entrySet()) {
+            List<SofaScoreRecord> day = e.getValue();
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("date", e.getKey());
+            m.put("avgScore", round(day.stream()
+                    .mapToInt(x -> x.getTotalScore() == null ? 0 : x.getTotalScore()).average().orElse(0), 1));
+            m.put("maxScore", day.stream()
+                    .mapToInt(x -> x.getTotalScore() == null ? 0 : x.getTotalScore()).max().orElse(0));
+            m.put("count", day.size());
+            m.put("patientCount", day.stream().map(this::patientKey).distinct().count());
+            trend.add(m);
+        }
+        return trend;
+    }
+
+    /** 评分记录转行：带上真实床号（实体里没有这个字段，只能在这里补）。 */
+    private Map<String, Object> toRow(SofaScoreRecord r, String bedNo) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", r.getId());
+        m.put("patientId", r.getPatientId());
+        m.put("inHospitalNo", r.getInHospitalNo());
+        m.put("patientName", r.getPatientName());
+        m.put("departCode", r.getDepartCode());
+        m.put("bedNo", bedNo);
+        m.put("scoreTime", r.getScoreTime());
+        m.put("scoreType", r.getScoreType());
+        m.put("totalScore", r.getTotalScore());
+        m.put("respScore", r.getRespScore());
+        m.put("coagScore", r.getCoagScore());
+        m.put("liverScore", r.getLiverScore());
+        m.put("cardioScore", r.getCardioScore());
+        m.put("neuroScore", r.getNeuroScore());
+        m.put("renalScore", r.getRenalScore());
+        m.put("deltaSofa", r.getDeltaSofa());
+        m.put("id", r.getId());
+        return m;
     }
 
     @Override
