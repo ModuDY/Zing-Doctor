@@ -29,52 +29,50 @@
       </el-empty>
 
       <template v-if="patient">
-        <!-- 第一行：基本信息 / 生命支持 / 评分 -->
+        <!-- 第一行：患者概览 + 评分 -->
         <div class="summary-row top-row">
-          <!-- 基本信息 -->
-          <div class="summary-card info-card">
-            <div class="card-kicker">BASIC INFO</div>
-            <h3 class="card-title">基本信息</h3>
-            <div class="info-grid">
-              <div class="info-item">
-                <span class="info-label">年龄</span>
-                <span class="info-value">{{ patient.age || '—' }}</span>
+          <!-- 患者概览：基本信息 + 生命支持 -->
+          <div class="summary-card overview-card">
+            <div class="card-kicker">PATIENT OVERVIEW</div>
+            <h3 class="card-title">患者概览</h3>
+            <div class="overview-body">
+              <!-- 基本信息：行式紧凑布局 -->
+              <div class="overview-info">
+                <div class="info-line">
+                  <span class="info-line-label">年龄性别</span>
+                  <span class="info-line-value">{{ patient.age || '—' }}岁 · {{ patient.gender || '—' }}</span>
+                </div>
+                <div class="info-line">
+                  <span class="info-line-label">科室</span>
+                  <span class="info-line-value">{{ patient.departName || patient.wardName || patient.departCode || '—' }}</span>
+                </div>
+                <div class="info-line">
+                  <span class="info-line-label">住院号</span>
+                  <span class="info-line-value">{{ patient.patientNo || '—' }}</span>
+                </div>
+                <div class="info-line">
+                  <span class="info-line-label">入科时间</span>
+                  <span class="info-line-value">{{ formatTime(patient.inDepartmentTime) }}</span>
+                </div>
               </div>
-              <div class="info-item">
-                <span class="info-label">性别</span>
-                <span class="info-value">{{ patient.gender || '—' }}</span>
+              <!-- 生命支持：紧凑标签 -->
+              <div class="overview-support">
+                <div class="support-label">生命支持</div>
+                <div class="support-chips">
+                  <span :class="['support-chip', { on: patient.ventilated }]">
+                    {{ patient.ventilated ? '● 机械通气' : '○ 机械通气' }}
+                  </span>
+                  <span :class="['support-chip', { on: patient.onVasopressor }]">
+                    {{ patient.onVasopressor ? '● 血管活性药' : '○ 血管活性药' }}
+                  </span>
+                  <span :class="['support-chip', { on: patient.onCrrt }]">
+                    {{ patient.onCrrt ? '● CRRT' : '○ CRRT' }}
+                  </span>
+                </div>
+                <div class="support-none" v-if="!patient.ventilated && !patient.onVasopressor && !patient.onCrrt">
+                  暂无生命支持
+                </div>
               </div>
-              <div class="info-item">
-                <span class="info-label">科室编码</span>
-                <span class="info-value">{{ patient.departCode || '—' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">入科时间</span>
-                <span class="info-value">{{ formatTime(patient.inDepartmentTime) }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 生命支持 -->
-          <div class="summary-card support-card">
-            <div class="card-kicker">LIFE SUPPORT</div>
-            <h3 class="card-title">当前生命支持</h3>
-            <div class="support-tags">
-              <div :class="['support-item', { active: patient.ventilated }]">
-                <div class="support-icon">{{ patient.ventilated ? '✓' : '—' }}</div>
-                <div class="support-label">机械通气</div>
-              </div>
-              <div :class="['support-item', { active: patient.onVasopressor }]">
-                <div class="support-icon">{{ patient.onVasopressor ? '✓' : '—' }}</div>
-                <div class="support-label">血管活性药</div>
-              </div>
-              <div :class="['support-item', { active: patient.onCrrt }]">
-                <div class="support-icon">{{ patient.onCrrt ? '✓' : '—' }}</div>
-                <div class="support-label">CRRT</div>
-              </div>
-            </div>
-            <div class="support-hint" v-if="!patient.ventilated && !patient.onVasopressor && !patient.onCrrt">
-              暂无生命支持记录
             </div>
           </div>
 
@@ -88,7 +86,9 @@
                 <div :class="['score-value', { 'score-na': patient.lastSofaScore == null }]">
                   {{ patient.lastSofaScore != null ? patient.lastSofaScore : '未评' }}
                 </div>
-                <div class="score-range">0 – 24</div>
+                <div class="score-grade" :class="sofaGradeClass(patient.lastSofaScore)">
+                  {{ sofaGradeText(patient.lastSofaScore) }}
+                </div>
               </div>
               <div class="score-divider"></div>
               <div class="score-item">
@@ -96,7 +96,12 @@
                 <div :class="['score-value', { 'score-na': patient.lastApacheScore == null }]">
                   {{ patient.lastApacheScore != null ? patient.lastApacheScore : '未评' }}
                 </div>
-                <div class="score-range">0 – 71</div>
+                <div class="score-grade" :class="apacheGradeClass(patient.lastApacheScore)">
+                  {{ apacheGradeText(patient.lastApacheScore) }}
+                </div>
+                <div class="score-mortality" v-if="apacheMortality(patient.lastApacheScore)">
+                  死亡率 {{ apacheMortality(patient.lastApacheScore) }}
+                </div>
               </div>
             </div>
           </div>
@@ -211,74 +216,75 @@
           </div>
 
           <!-- 培养与药敏摘要 -->
-          <div class="summary-card culture-card">
+          <div :class="['summary-card', 'culture-card', { 'card-mini': cultureIsEmpty }]">
             <div class="card-header">
               <div>
                 <div class="card-kicker">CULTURE</div>
                 <h3 class="card-title">培养与药敏</h3>
               </div>
-              <el-tag
-                v-if="patient.culture"
-                :type="cultureTagType(patient.culture.dataStatus)"
-                size="small"
-                effect="plain"
-              >
-                {{ cultureStatusText(patient.culture.dataStatus) }}
-              </el-tag>
+              <template v-if="patient.culture">
+                <el-tag
+                  :type="cultureTagType(patient.culture.dataStatus)"
+                  size="small"
+                  effect="plain"
+                >
+                  {{ cultureStatusText(patient.culture.dataStatus) }}
+                </el-tag>
+              </template>
             </div>
 
-            <template v-if="patient.culture">
-              <div v-if="patient.culture.dataStatus === 'UNKNOWN'" class="block-unknown">数据暂不可用</div>
-              <div v-else-if="patient.culture.dataStatus === 'NOT_SENT'" class="block-empty">近期无培养送检</div>
+            <div v-if="cultureIsEmpty" class="mini-hint">
+              {{ patient.culture && patient.culture.dataStatus === 'UNKNOWN' ? '数据暂不可用' : '近期无培养送检' }}
+            </div>
+
+            <template v-else-if="patient.culture">
+              <div class="culture-meta">
+                <div class="meta-row">
+                  <span class="meta-label">标本</span>
+                  <span class="meta-val">{{ patient.culture.latestSpecimen || '—' }}</span>
+                </div>
+                <div class="meta-row">
+                  <span class="meta-label">采样时间</span>
+                  <span class="meta-val">{{ patient.culture.sampleTime || '—' }}</span>
+                </div>
+                <div class="meta-row" v-if="patient.culture.reportTime">
+                  <span class="meta-label">报告时间</span>
+                  <span class="meta-val">{{ patient.culture.reportTime }}</span>
+                </div>
+              </div>
+              <div v-if="patient.culture.dataStatus === 'PENDING'" class="block-pending">
+                已送检，等待报告
+              </div>
               <template v-else>
-                <div class="culture-meta">
-                  <div class="meta-row">
-                    <span class="meta-label">标本</span>
-                    <span class="meta-val">{{ patient.culture.latestSpecimen || '—' }}</span>
-                  </div>
-                  <div class="meta-row">
-                    <span class="meta-label">采样时间</span>
-                    <span class="meta-val">{{ patient.culture.sampleTime || '—' }}</span>
-                  </div>
-                  <div class="meta-row" v-if="patient.culture.reportTime">
-                    <span class="meta-label">报告时间</span>
-                    <span class="meta-val">{{ patient.culture.reportTime }}</span>
+                <div class="culture-organisms" v-if="patient.culture.organisms && patient.culture.organisms.length">
+                  <div class="org-label">检出菌</div>
+                  <div class="org-list">
+                    <el-tag
+                      v-for="(org, i) in patient.culture.organisms"
+                      :key="i"
+                      type="danger"
+                      size="small"
+                      effect="plain"
+                    >{{ org }}</el-tag>
                   </div>
                 </div>
-                <div v-if="patient.culture.dataStatus === 'PENDING'" class="block-pending">
-                  已送检，等待报告
+                <div v-else class="block-empty">未检出致病菌</div>
+                <div class="culture-risk" v-if="patient.culture.drugResistanceRisk">
+                  <el-tag :type="cultureRiskType(patient.culture.drugResistanceRisk)" size="small">
+                    {{ patient.culture.drugResistanceRisk }}
+                  </el-tag>
                 </div>
-                <template v-else>
-                  <div class="culture-organisms" v-if="patient.culture.organisms && patient.culture.organisms.length">
-                    <div class="org-label">检出菌</div>
-                    <div class="org-list">
-                      <el-tag
-                        v-for="(org, i) in patient.culture.organisms"
-                        :key="i"
-                        type="danger"
-                        size="small"
-                        effect="plain"
-                      >{{ org }}</el-tag>
-                    </div>
-                  </div>
-                  <div v-else class="block-empty">未检出致病菌</div>
-                  <div class="culture-risk" v-if="patient.culture.drugResistanceRisk">
-                    <el-tag :type="cultureRiskType(patient.culture.drugResistanceRisk)" size="small">
-                      {{ patient.culture.drugResistanceRisk }}
-                    </el-tag>
-                  </div>
-                  <div class="culture-ast" v-if="patient.culture.astSummary">
-                    <div class="ast-label">药敏摘要</div>
-                    <div class="ast-text">{{ patient.culture.astSummary }}</div>
-                  </div>
-                </template>
+                <div class="culture-ast" v-if="patient.culture.astSummary">
+                  <div class="ast-label">药敏摘要</div>
+                  <div class="ast-text">{{ patient.culture.astSummary }}</div>
+                </div>
               </template>
             </template>
           </div>
         </div>
 
         <!-- 脓毒症集束化状态 -->
-        <div class="summary-card sepsis-card" v-if="patient.sepsisBundle">
+        <div :class="['summary-card', 'sepsis-card', { 'card-mini': sepsisIsEmpty }]" v-if="patient.sepsisBundle">
           <div class="card-header">
             <div>
               <div class="card-kicker">SEPSIS BUNDLE</div>
@@ -293,12 +299,10 @@
             </el-tag>
           </div>
 
-          <template v-if="patient.sepsisBundle.dataStatus === 'NOT_APPLICABLE'">
-            <div class="block-empty">暂无脓毒症集束化评估记录</div>
-          </template>
-          <template v-else-if="patient.sepsisBundle.dataStatus === 'UNKNOWN'">
-            <div class="block-unknown">数据暂不可用</div>
-          </template>
+          <div v-if="sepsisIsEmpty" class="mini-hint">
+            {{ patient.sepsisBundle.dataStatus === 'UNKNOWN' ? '数据暂不可用' : '暂无脓毒症集束化评估记录' }}
+          </div>
+
           <template v-else>
             <div class="sepsis-progress">
               <div class="bundle-col">
@@ -408,6 +412,16 @@ export default {
     }
   },
   computed: {
+    cultureIsEmpty() {
+      return !this.patient || !this.patient.culture ||
+        this.patient.culture.dataStatus === 'UNKNOWN' ||
+        this.patient.culture.dataStatus === 'NOT_SENT'
+    },
+    sepsisIsEmpty() {
+      return !this.patient || !this.patient.sepsisBundle ||
+        this.patient.sepsisBundle.dataStatus === 'NOT_APPLICABLE' ||
+        this.patient.sepsisBundle.dataStatus === 'UNKNOWN'
+    },
     todoItems() {
       if (!this.patient || !this.patient.todos) return []
       const map = {
@@ -518,6 +532,47 @@ export default {
     bundlePercent(completed, total) {
       if (!total || total <= 0) return '0%'
       return Math.min(100, Math.round((completed / total) * 100)) + '%'
+    },
+    sofaGradeText(score) {
+      if (score == null) return '—'
+      if (score <= 6) return '轻度'
+      if (score <= 9) return '中度'
+      if (score <= 12) return '重度'
+      return '极重度'
+    },
+    sofaGradeClass(score) {
+      if (score == null) return ''
+      if (score <= 6) return 'grade-low'
+      if (score <= 9) return 'grade-mid'
+      if (score <= 12) return 'grade-high'
+      return 'grade-critical'
+    },
+    apacheGradeText(score) {
+      if (score == null) return '—'
+      if (score <= 4) return '低风险'
+      if (score <= 9) return '较低风险'
+      if (score <= 14) return '中风险'
+      if (score <= 19) return '较高风险'
+      if (score <= 24) return '高风险'
+      return '极高风险'
+    },
+    apacheGradeClass(score) {
+      if (score == null) return ''
+      if (score <= 9) return 'grade-low'
+      if (score <= 14) return 'grade-mid'
+      if (score <= 19) return 'grade-high'
+      return 'grade-critical'
+    },
+    apacheMortality(score) {
+      if (score == null) return null
+      if (score <= 4) return '约4%'
+      if (score <= 9) return '约8%'
+      if (score <= 14) return '约15%'
+      if (score <= 19) return '约25%'
+      if (score <= 24) return '约40%'
+      if (score <= 29) return '约55%'
+      if (score <= 34) return '约75%'
+      return '约85%'
     }
   }
 }
@@ -618,10 +673,10 @@ export default {
 }
 .card-header .card-title { margin-bottom: 0; }
 
-/* 第一行三列 */
+/* 第一行两列：患者概览 + 评分 */
 .top-row {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
+  grid-template-columns: 1.5fr 1fr;
   gap: 16px;
   margin-bottom: 0;
 }
@@ -636,62 +691,68 @@ export default {
 }
 .bottom-row .summary-card { margin-bottom: 0; }
 
-/* 基本信息 */
-.info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 16px;
+/* 患者概览 */
+.overview-body {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
 }
-.info-item {
+.overview-info {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 8px;
 }
-.info-label {
+.info-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+}
+.info-line-label {
+  color: #a8a29e;
+  font-size: 12px;
+  min-width: 56px;
+  flex-shrink: 0;
+}
+.info-line-value {
+  color: #292524;
+  font-weight: 600;
+}
+.overview-support {
+  flex: 1;
+  min-width: 0;
+}
+.overview-support .support-label {
   font-size: 11px;
   color: #a8a29e;
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
-.info-value {
-  font-size: 14px;
-  color: #292524;
-  font-weight: 500;
-}
-
-/* 生命支持 */
-.support-tags {
+.support-chips {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
-.support-item {
-  flex: 1;
-  text-align: center;
-  padding: 12px 8px;
-  border-radius: 8px;
+.support-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
   background: #f5f5f4;
+  color: #a8a29e;
   border: 1px solid #e7e5e4;
-  transition: all .2s;
 }
-.support-item.active {
+.support-chip.on {
   background: #fff7ed;
+  color: #c2410c;
   border-color: #fdba74;
+  font-weight: 600;
 }
-.support-icon {
-  font-size: 20px;
-  font-weight: 700;
-  margin-bottom: 6px;
-  color: #a8a29e;
-}
-.support-item.active .support-icon { color: #ea580c; }
-.support-label {
-  font-size: 12px;
-  color: #57534e;
-}
-.support-item.active .support-label { color: #c2410c; font-weight: 600; }
-.support-hint {
-  margin-top: 10px;
+.support-none {
   font-size: 12px;
   color: #a8a29e;
-  text-align: center;
+  margin-top: 6px;
 }
 
 /* 评分 */
@@ -712,16 +773,28 @@ export default {
   font-weight: 800;
   color: #ea580c;
   line-height: 1;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 .score-value.score-na {
   font-size: 18px;
   font-weight: 500;
   color: #a8a29e;
 }
-.score-range {
-  font-size: 10px;
+.score-grade {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.score-grade.grade-low { background: #dcfce7; color: #166534; }
+.score-grade.grade-mid { background: #fef3c7; color: #92400e; }
+.score-grade.grade-high { background: #ffedd5; color: #c2410c; }
+.score-grade.grade-critical { background: #fee2e2; color: #991b1b; }
+.score-mortality {
+  font-size: 11px;
   color: #a8a29e;
+  margin-top: 4px;
 }
 .score-divider {
   width: 1px;
@@ -870,6 +943,27 @@ export default {
   font-size: 13px;
   text-align: center;
   margin-top: 10px;
+}
+
+/* 空状态折叠卡片 */
+.card-mini {
+  padding: 12px 20px;
+}
+.card-mini .card-header {
+  margin-bottom: 0;
+}
+.card-mini .card-title {
+  margin-bottom: 0;
+  font-size: 14px;
+}
+.card-mini .card-kicker {
+  margin-bottom: 2px;
+}
+.mini-hint {
+  font-size: 12px;
+  color: #a8a29e;
+  margin-top: 6px;
+  padding-left: 2px;
 }
 
 /* 24h 检验 */
