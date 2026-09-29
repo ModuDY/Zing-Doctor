@@ -130,7 +130,7 @@
           </el-table-column>
           <el-table-column label="待办" width="80" align="center">
             <template #default="{ row }">
-              <el-popover v-if="row.todoCount > 0" trigger="click" placement="top" width="220">
+              <el-popover v-if="row.todoCount > 0" trigger="hover" placement="top" width="220" :hide-after="300">
                 <template #reference>
                   <span class="todo-badge" @click.stop>{{ row.todoCount }}</span>
                 </template>
