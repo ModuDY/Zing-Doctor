@@ -1,7 +1,7 @@
 package com.zing.doctor.icu.controller;
 
 import com.zing.doctor.common.Result;
-import com.zing.doctor.icu.dto.TimelineEvent;
+import com.zing.doctor.icu.dto.TimelineResponse;
 import com.zing.doctor.icu.dto.WorkbenchPatient;
 import com.zing.doctor.icu.service.IcuPatientService;
 import com.zing.doctor.icu.service.TimelineService;
@@ -12,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
-import java.util.List;
 
 /**
  * 临床时间线接口
@@ -34,7 +33,7 @@ public class TimelineController {
     private final UserDepartScopeService departScopeService;
 
     @GetMapping("/patients/{patientId}/timeline")
-    public Result<List<TimelineEvent>> getTimeline(@PathVariable String patientId,
+    public Result<TimelineResponse> getTimeline(@PathVariable String patientId,
                                                     HttpServletRequest request) {
         // 权限校验：先查患者所属科室
         WorkbenchPatient patient = icuPatientService.getWorkbenchPatient(patientId);
@@ -46,8 +45,8 @@ public class TimelineController {
         if (allowed == null) {
             return Result.fail("无该患者科室权限");
         }
-        List<TimelineEvent> events = timelineService.getPatientTimeline(patientId);
-        return Result.ok(events);
+        TimelineResponse response = timelineService.getPatientTimeline(patientId);
+        return Result.ok(response);
     }
 
     /** 当前登录账号；外链免登录时返回 null */

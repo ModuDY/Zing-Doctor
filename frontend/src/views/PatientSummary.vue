@@ -257,7 +257,7 @@
                     <polyline :points="sparklinePoints(item.trendPoints)" fill="none" stroke="#ea580c" stroke-width="1.5" />
                   </svg>
                   <div v-if="expandedLabIdx === idx && item.trendPoints && item.trendPoints.length" class="lab-trend-detail">
-                    <svg :viewBox="`0 0 ${item.trendPoints.length * 40} 80`" class="trend-chart">
+                    <svg :viewBox="`0 0 ${item.trendPoints.length * 40} 80`" class="trend-chart" preserveAspectRatio="none">
                       <polyline :points="trendChartPoints(item.trendPoints)" fill="none" stroke="#ea580c" stroke-width="2" />
                       <circle v-for="(pt, pi) in item.trendPoints" :key="pi" :cx="pi * 40 + 20" :cy="trendChartY(pt.value, item.trendPoints)" r="3" fill="#ea580c" />
                     </svg>
@@ -483,6 +483,10 @@
               <el-icon><refresh /></el-icon> 刷新
             </el-button>
           </div>
+          <div v-if="timelinePartial && timelineFailedSources.length" class="timeline-partial-tip">
+            <el-icon><warning /></el-icon>
+            部分模块数据暂不可用：{{ timelineFailedSources.map(s => timelineTypeLabel(s)).join('、') }}
+          </div>
           <div v-if="timeline.length" class="timeline-list">
             <div v-for="(evt, i) in timeline" :key="i" class="timeline-item">
               <div class="timeline-dot" :class="'dot-' + evt.type.toLowerCase()"></div>
@@ -589,11 +593,11 @@
 import { fetchPatientSummary } from '../api/workbench'
 import request from '../api/request'
 import { setCurrentPatient, clearCurrentPatient } from '../utils/patientContext'
-import { ArrowLeft, ArrowRight, ArrowDown, Refresh } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, ArrowDown, Refresh, Warning } from '@element-plus/icons-vue'
 
 export default {
   name: 'PatientSummary',
-  components: { ArrowLeft, ArrowRight, ArrowDown, Refresh },
+  components: { ArrowLeft, ArrowRight, ArrowDown, Refresh, Warning },
   data() {
     return {
       patient: null,
@@ -607,6 +611,8 @@ export default {
       timeline: [],
       timelineLoading: false,
       timelineError: false,
+      timelinePartial: false,
+      timelineFailedSources: [],
       expandedLabIdx: -1,
       showEcmoDetail: false,
       showCultureReport: false
@@ -748,9 +754,19 @@ export default {
       if (!patientId) return
       this.timelineLoading = true
       this.timelineError = false
+      this.timelinePartial = false
+      this.timelineFailedSources = []
       try {
         const data = await request.get(`/api/workbench/patients/${patientId}/timeline`, { silentError: true })
-        this.timeline = Array.isArray(data) ? data : []
+        if (data && Array.isArray(data.events)) {
+          this.timeline = data.events
+          this.timelinePartial = data.dataStatus === 'PARTIAL'
+          this.timelineFailedSources = data.failedSources || []
+        } else if (Array.isArray(data)) {
+          this.timeline = data
+        } else {
+          this.timeline = []
+        }
       } catch (e) {
         this.timeline = []
         this.timelineError = true
@@ -1435,9 +1451,9 @@ export default {
 .labs-table-head,
 .lab-item {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(92px, .85fr) minmax(80px, .8fr) 62px;
+  grid-template-columns: minmax(70px, 1.4fr) minmax(90px, .9fr) minmax(75px, .75fr) 58px;
   align-items: center;
-  column-gap: 10px;
+  column-gap: 8px;
 }
 .labs-table-head {
   min-height: 28px;
@@ -1714,6 +1730,18 @@ export default {
 
 /* 临床时间线 */
 .timeline-card { }
+.timeline-partial-tip {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .timeline-list { margin-top: 12px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
 .timeline-item {
   display: flex;

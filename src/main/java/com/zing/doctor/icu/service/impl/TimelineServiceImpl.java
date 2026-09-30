@@ -2,6 +2,7 @@ package com.zing.doctor.icu.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.zing.doctor.icu.dto.TimelineEvent;
+import com.zing.doctor.icu.dto.TimelineResponse;
 import com.zing.doctor.icu.service.TimelineService;
 import com.zing.doctor.module.antibiotic.entity.AntibioticReassessment;
 import com.zing.doctor.module.antibiotic.entity.DecisionRecord;
@@ -31,8 +32,10 @@ import java.util.List;
 /**
  * 临床时间线聚合服务
  *
- * <p>聚合已有事件：入科、SOFA/APACHE评分、抗感染决策/复评、脓毒症集束化、
+ * <p>聚合已有事件：SOFA/APACHE评分、抗感染决策/复评、脓毒症集束化、
  * 俯卧位记录、查房记录。不新增数据源，纯聚合。</p>
+ * <p>每个模块独立捕获异常，失败时记录到 failedSources，
+ * 返回 PARTIAL 状态，避免医生误认为该模块无记录。</p>
  */
 @Slf4j
 @Service
@@ -48,12 +51,13 @@ public class TimelineServiceImpl implements TimelineService {
     private final RoundRecordMapper roundMapper;
 
     @Override
-    public List<TimelineEvent> getPatientTimeline(String patientId) {
+    public TimelineResponse getPatientTimeline(String patientId) {
         long start = System.currentTimeMillis();
         List<TimelineEvent> events = new ArrayList<>();
+        List<String> failedSources = new ArrayList<>();
 
+        // SOFA 评分
         try {
-            // SOFA 评分
             QueryWrapper<SofaScoreRecord> sofaQw = new QueryWrapper<>();
             sofaQw.eq("patient_id", patientId).eq("status", 1)
                     .orderByDesc("score_time").last("LIMIT 10");
@@ -64,10 +68,11 @@ public class TimelineServiceImpl implements TimelineService {
             }
         } catch (Exception e) {
             log.warn("时间线-SOFA查询失败: patientId={}, err={}", patientId, e.getMessage());
+            failedSources.add("SOFA");
         }
 
+        // APACHE II 评分
         try {
-            // APACHE II 评分
             QueryWrapper<Apache2ScoreRecord> apacheQw = new QueryWrapper<>();
             apacheQw.eq("patient_id", patientId).eq("status", 1)
                     .orderByDesc("score_time").last("LIMIT 10");
@@ -78,10 +83,11 @@ public class TimelineServiceImpl implements TimelineService {
             }
         } catch (Exception e) {
             log.warn("时间线-APACHE查询失败: patientId={}, err={}", patientId, e.getMessage());
+            failedSources.add("APACHE2");
         }
 
+        // 抗感染决策
         try {
-            // 抗感染决策
             QueryWrapper<DecisionRecord> decQw = new QueryWrapper<>();
             decQw.eq("patient_id", patientId).orderByDesc("create_time").last("LIMIT 10");
             for (DecisionRecord r : decisionMapper.selectList(decQw)) {
@@ -90,10 +96,11 @@ public class TimelineServiceImpl implements TimelineService {
             }
         } catch (Exception e) {
             log.warn("时间线-抗感染决策查询失败: patientId={}, err={}", patientId, e.getMessage());
+            failedSources.add("ABX_DECISION");
         }
 
+        // 抗菌药复评
         try {
-            // 抗菌药复评
             QueryWrapper<AntibioticReassessment> reQw = new QueryWrapper<>();
             reQw.eq("patient_id", patientId).ne("review_status", "VOID")
                     .orderByDesc("review_due_time").last("LIMIT 10");
@@ -105,10 +112,11 @@ public class TimelineServiceImpl implements TimelineService {
             }
         } catch (Exception e) {
             log.warn("时间线-抗菌药复评查询失败: patientId={}, err={}", patientId, e.getMessage());
+            failedSources.add("ABX_REASSESSMENT");
         }
 
+        // 脓毒症集束化
         try {
-            // 脓毒症集束化
             QueryWrapper<SepsisBundleRecord> sepQw = new QueryWrapper<>();
             sepQw.eq("patient_id", patientId).orderByDesc("create_time").last("LIMIT 10");
             for (SepsisBundleRecord r : sepsisBundleMapper.selectList(sepQw)) {
@@ -116,10 +124,11 @@ public class TimelineServiceImpl implements TimelineService {
             }
         } catch (Exception e) {
             log.warn("时间线-脓毒症集束化查询失败: patientId={}, err={}", patientId, e.getMessage());
+            failedSources.add("SEPSIS_BUNDLE");
         }
 
+        // 俯卧位记录
         try {
-            // 俯卧位记录
             QueryWrapper<ArdsProneRecord> proneQw = new QueryWrapper<>();
             proneQw.eq("patient_id", patientId).eq("status", 1)
                     .orderByDesc("start_time").last("LIMIT 10");
@@ -130,10 +139,11 @@ public class TimelineServiceImpl implements TimelineService {
             }
         } catch (Exception e) {
             log.warn("时间线-俯卧位查询失败: patientId={}, err={}", patientId, e.getMessage());
+            failedSources.add("PRONE");
         }
 
+        // 查房记录
         try {
-            // 查房记录
             QueryWrapper<RoundRecord> roundQw = new QueryWrapper<>();
             roundQw.eq("patient_id", patientId).eq("status", 1)
                     .orderByDesc("round_date").last("LIMIT 10");
@@ -147,6 +157,7 @@ public class TimelineServiceImpl implements TimelineService {
             }
         } catch (Exception e) {
             log.warn("时间线-查房记录查询失败: patientId={}, err={}", patientId, e.getMessage());
+            failedSources.add("ROUND");
         }
 
         // 按时间倒序排序，最多50条
@@ -154,12 +165,20 @@ public class TimelineServiceImpl implements TimelineService {
         if (events.size() > 50) {
             events = events.subList(0, 50);
         }
+
         long cost = System.currentTimeMillis() - start;
         if (cost > 500) {
-            log.warn("时间线聚合耗时较长: patientId={}, events={}, cost={}ms", patientId, events.size(), cost);
+            log.warn("时间线聚合耗时较长: patientId={}, events={}, failed={}, cost={}ms",
+                    patientId, events.size(), failedSources.size(), cost);
         } else {
-            log.debug("时间线聚合完成: patientId={}, events={}, cost={}ms", patientId, events.size(), cost);
+            log.debug("时间线聚合完成: patientId={}, events={}, failed={}, cost={}ms",
+                    patientId, events.size(), failedSources.size(), cost);
         }
-        return events;
+
+        if (failedSources.isEmpty()) {
+            return TimelineResponse.ok(events);
+        } else {
+            return TimelineResponse.partial(events, failedSources);
+        }
     }
 }
