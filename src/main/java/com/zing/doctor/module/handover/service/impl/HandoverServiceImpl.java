@@ -804,8 +804,11 @@ public class HandoverServiceImpl implements HandoverService {
         boolean isHr = "oi_hr".equalsIgnoreCase(itemCode) || n.contains("心率") || n.contains("脉搏");
         boolean isRr = "oi_hxpl".equalsIgnoreCase(itemCode) || n.contains("呼吸频率") || n.contains("呼吸") ;
         boolean isSpo2 = "oi_spo2".equalsIgnoreCase(itemCode) || ((n.contains("血氧饱和") || upper.contains("SPO2")) && !n.contains("中心静脉"));
+        boolean isTemp = "oi_tiwen".equalsIgnoreCase(itemCode)
+                || n.contains("体温") || n.contains("腋温") || n.contains("肛温")
+                || n.contains("口温") || n.contains("耳温") || n.contains("额温");
 
-        if (n.contains("体温")) {
+        if (isTemp) {
             if (isBlank(c.getTemp())) {
                 c.setTemp(val);
                 c.setVitalTime(t);
