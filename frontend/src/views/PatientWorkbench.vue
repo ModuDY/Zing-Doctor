@@ -82,7 +82,8 @@
             <template #default="{ row }">
               <div class="patient-name-line">
                 <span class="patient-name">{{ row.name || '未知' }}</span>
-                <span v-if="row.lastSofaScore != null" :class="['sofa-badge', row.lastSofaScore >= 10 ? 'severe' : '']">SOFA {{ row.lastSofaScore }}</span>
+                <span v-if="scoreDisplay === 'APACHE2' && row.lastApacheScore != null" :class="['sofa-badge', row.lastApacheScore >= 25 ? 'severe' : '']">APACHE {{ row.lastApacheScore }}</span>
+                <span v-else-if="row.lastSofaScore != null" :class="['sofa-badge', row.lastSofaScore >= 10 ? 'severe' : '']">SOFA {{ row.lastSofaScore }}</span>
               </div>
               <div class="patient-sub">住院号 {{ row.patientNo || '—' }}</div>
             </template>
@@ -102,7 +103,8 @@
                 <span v-if="row.ventilated" class="crit-tag vent">机械通气</span>
                 <span v-if="row.onVasopressor" class="crit-tag vaso">血管活性药</span>
                 <span v-if="row.onCrrt" class="crit-tag crrt">CRRT</span>
-                <span v-if="!row.ventilated && !row.onVasopressor && !row.onCrrt" class="muted">无标记</span>
+                <span v-if="row.onEcmo" class="crit-tag ecmo">ECMO</span>
+                <span v-if="!row.ventilated && !row.onVasopressor && !row.onCrrt && !row.onEcmo" class="muted">无标记</span>
               </div>
             </template>
           </el-table-column>
@@ -196,10 +198,12 @@
               <span v-if="row.ventilated" class="crit-tag vent">机械通气</span>
               <span v-if="row.onVasopressor" class="crit-tag vaso">血管活性药</span>
               <span v-if="row.onCrrt" class="crit-tag crrt">CRRT</span>
-              <span v-if="!row.ventilated && !row.onVasopressor && !row.onCrrt" class="muted">暂无危重标记</span>
+              <span v-if="row.onEcmo" class="crit-tag ecmo">ECMO</span>
+              <span v-if="!row.ventilated && !row.onVasopressor && !row.onCrrt && !row.onEcmo" class="muted">暂无危重标记</span>
             </div>
             <div class="bed-card-metrics">
-              <div><span>SOFA</span><strong :class="{ 'score-danger': row.lastSofaScore >= 10 }">{{ row.lastSofaScore == null ? '—' : row.lastSofaScore }}</strong></div>
+              <div v-if="scoreDisplay === 'APACHE2'"><span>APACHE</span><strong :class="{ 'score-danger': row.lastApacheScore >= 25 }">{{ row.lastApacheScore == null ? '—' : row.lastApacheScore }}</strong></div>
+              <div v-else><span>SOFA</span><strong :class="{ 'score-danger': row.lastSofaScore >= 10 }">{{ row.lastSofaScore == null ? '—' : row.lastSofaScore }}</strong></div>
               <div><span>待办</span><strong :class="{ 'todo-number': row.todoCount > 0 }">{{ row.todoCount || 0 }}</strong></div>
               <div><span>复评</span><strong :class="{ 'todo-number': hasPendingReassessment(row), 'reassessment-unknown-number': isReassessmentUnknown(row) }">{{ isReassessmentUnknown(row) ? '未知' : (row.reassessmentCount || 0) }}</strong></div>
               <div><span>在科</span><strong>{{ row.icuDays == null ? '—' : `${row.icuDays}天` }}</strong></div>
@@ -361,7 +365,7 @@ const stats = computed(() => {
   const avg = withDays.length
     ? Math.round(withDays.reduce((sum, p) => sum + p.icuDays, 0) / withDays.length)
     : 0
-  const critical = list.filter((p) => p.ventilated || p.onVasopressor || p.onCrrt).length
+  const critical = list.filter((p) => p.ventilated || p.onVasopressor || p.onCrrt || p.onEcmo).length
   const todoCount = list.reduce((sum, p) => sum + (p.todoCount || 0), 0)
   const reassessmentUnknownCount = list.filter(isReassessmentUnknown).length
   const reassessmentCount = list.reduce((sum, p) => sum + (isReassessmentUnknown(p) ? 0 : Number(p.reassessmentCount || 0)), 0)
@@ -396,7 +400,7 @@ function reassessmentDueLabel(p) {
  * 脓毒性休克、耐药菌、SOFA≥10 同样是高危。原「危重」口径只覆盖通气/升压药/CRRT。
  */
 function isCriticalPatient(p) {
-  return Boolean(p.ventilated || p.onVasopressor || p.onCrrt || p.septicShock
+  return Boolean(p.ventilated || p.onVasopressor || p.onCrrt || p.onEcmo || p.septicShock
     || p.mdrRisk || p.fungalRisk
     || (p.lastSofaScore != null && p.lastSofaScore >= 10))
 }
@@ -439,6 +443,8 @@ const TODO_LABELS_ADMIT_24H = {
 }
 /** 评分待办口径：TODAY_NO_SCORE 当日无评分（默认）/ ADMIT_24H_NEVER 入科超 24h 从未评分 */
 const scoreTodoRule = ref('TODAY_NO_SCORE')
+/** 工作台评分显示类型：SOFA（默认）/ APACHE2，由参数 WORKBENCH_SCORE_DISPLAY 控制 */
+const scoreDisplay = ref('SOFA')
 function todoLabel(code) {
   const table = scoreTodoRule.value === 'ADMIT_24H_NEVER' ? TODO_LABELS_ADMIT_24H : TODO_LABELS
   return table[code] || code
@@ -658,6 +664,17 @@ async function initTodoRule() {
     if (rule === 'TODAY_NO_SCORE' || rule === 'ADMIT_24H_NEVER') scoreTodoRule.value = rule
   } catch (e) { /* 参数未配置时用默认 TODAY_NO_SCORE */ }
 }
+
+/**
+ * 读工作台评分显示类型（WORKBENCH_SCORE_DISPLAY=SOFA/APACHE2）。
+ * 控制列表与床头卡展示 SOFA 还是 APACHE II，默认 SOFA。
+ */
+async function initScoreDisplay() {
+  try {
+    const v = await request.get('/sys-param/get', { params: { key: 'WORKBENCH_SCORE_DISPLAY' } })
+    if (v === 'APACHE2' || v === 'SOFA') scoreDisplay.value = v
+  } catch (e) { /* 参数未配置时用默认 SOFA */ }
+}
 function onViewModeChange(mode) {
   sessionStorage.setItem("zing_workbench_view", mode)
 }
@@ -667,6 +684,7 @@ onMounted(async () => {
   await initViewMode()
   await initBedSortMode()
   await initTodoRule()
+  await initScoreDisplay()
   await initScope()
   loadPatients()
 })
@@ -864,6 +882,7 @@ watch(() => currentDepart.departCode, (v) => {
 .crit-tag.vent { color: #1d4ed8; background: #dbeafe; }
 .crit-tag.vaso { color: #b91c1c; background: #fee2e2; }
 .crit-tag.crrt { color: #92400e; background: #fef3c7; }
+.crit-tag.ecmo { color: #7c3aed; background: #ede9fe; }
 
 /* ---- 视图切换（全部 / 感染风险 / 高危 / 待办）---- */
 .patient-views {

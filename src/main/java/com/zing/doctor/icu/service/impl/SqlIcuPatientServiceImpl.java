@@ -152,6 +152,14 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
             log.warn("工作台批量查询 CRRT 失败", e);
         }
 
+        Set<String> ecmoPatients = new HashSet<>();
+        try {
+            List<String> ecmo = icuPatientMapper.selectHandoverEcmoPatients(dept);
+            if (ecmo != null) ecmoPatients.addAll(ecmo);
+        } catch (Exception e) {
+            log.warn("工作台批量查询 ECMO 失败", e);
+        }
+
         Set<String> ventPatients = new HashSet<>();
         try {
             List<String> pids = new ArrayList<>();
@@ -175,6 +183,7 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
             String pid = p.getPatientId();
             p.setOnVasopressor(vasoPatients.contains(pid));
             p.setOnCrrt(crrtPatients.contains(pid));
+            p.setOnEcmo(ecmoPatients.contains(pid));
             p.setVentilated(ventPatients.contains(pid));
         }
     }

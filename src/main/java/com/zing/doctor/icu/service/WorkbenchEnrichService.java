@@ -461,7 +461,7 @@ public class WorkbenchEnrichService {
     /** 每个 patientId 取 score_time 最大的一条 APACHE II 记录（不返回 pdf_data 大字段）。 */
     private Map<String, Apache2ScoreRecord> latestApacheByPatient(List<String> patientIds) {
         QueryWrapper<Apache2ScoreRecord> qw = new QueryWrapper<>();
-        qw.select("patient_id", "total_score", "score_time")
+        qw.select("patient_id", "total_score", "mortality_rate", "score_time")
                 .in("patient_id", patientIds)
                 .eq("status", 1)
                 .orderByDesc("score_time");

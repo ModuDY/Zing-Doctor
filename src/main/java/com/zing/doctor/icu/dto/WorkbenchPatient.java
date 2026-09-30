@@ -47,6 +47,8 @@ public class WorkbenchPatient {
     private Boolean onVasopressor = false;
     /** 正在 CRRT（连续性肾脏替代治疗） */
     private Boolean onCrrt = false;
+    /** 正在 ECMO（体外膜肺氧合） */
+    private Boolean onEcmo = false;
 
     // ---- 评分 / 待办 ----
     /** 最近一次 SOFA 总分（0-24），未评过为 null */

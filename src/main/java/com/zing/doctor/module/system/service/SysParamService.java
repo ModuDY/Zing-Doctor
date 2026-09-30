@@ -45,6 +45,11 @@ public interface SysParamService {
     /** 评分待办取值二：入科满 24 小时且从未评分才计入 */
     String WORKBENCH_TODO_ADMIT_24H = "ADMIT_24H_NEVER";
 
+    /** 患者工作台评分显示类型（列表/床头卡展示 SOFA 还是 APACHE II） */
+    String KEY_WORKBENCH_SCORE_DISPLAY = "WORKBENCH_SCORE_DISPLAY";
+    String WORKBENCH_SCORE_SOFA = "SOFA";
+    String WORKBENCH_SCORE_APACHE2 = "APACHE2";
+
     /** 自动注册口令规则的两种取值 */
     String PWD_RULE_WORK_NO = "WORK_NO";
     String PWD_RULE_FIXED = "FIXED";

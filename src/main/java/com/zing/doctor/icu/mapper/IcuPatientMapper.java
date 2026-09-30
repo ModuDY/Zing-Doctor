@@ -492,6 +492,18 @@ public interface IcuPatientMapper {
     List<String> selectHandoverCrrtPatients(@Param("departCode") String departCode);
 
     /**
+     * 批量查询有ECMO记录（未撤机 is_end=0）的患者ID，用于总览卡片ECMO标记。
+     * 和详情 selectEcmoRecord 用同一张表 patient_ecmo_record，保持一致。
+     */
+    @Select("SELECT DISTINCT e.patient_id AS patient_id "
+            + "FROM \"zing_icu_db_prod\".\"patient_ecmo_record\" e "
+            + "INNER JOIN \"zing_icu_db_prod\".\"patient_info\" pi "
+            + "  ON pi.id = e.patient_id AND pi.del_flag = 0 AND pi.is_in_depart = 1 "
+            + "WHERE e.del_flag = 0 AND e.status = 1 AND e.is_end = 0 "
+            + "AND (#{departCode} = \'\' OR pi.depart_code = #{departCode})")
+    List<String> selectHandoverEcmoPatients(@Param("departCode") String departCode);
+
+    /**
      * 患者出科统计：按出科时间范围和科室查询已出科患者。
      * 字段：患者姓名、床号、住院号、入科诊断、入科时间、出科时间、出科诊断、出科转归、出院时间、主管医生。
      *

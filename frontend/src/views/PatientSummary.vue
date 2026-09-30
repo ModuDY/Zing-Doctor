@@ -68,8 +68,11 @@
                   <span :class="['support-chip', { on: patient.onCrrt }]">
                     {{ patient.onCrrt ? '● CRRT' : '○ CRRT' }}
                   </span>
+                  <span :class="['support-chip', { on: patient.onEcmo }]">
+                    {{ patient.onEcmo ? '● ECMO' : '○ ECMO' }}
+                  </span>
                 </div>
-                <div class="support-none" v-if="!patient.ventilated && !patient.onVasopressor && !patient.onCrrt">
+                <div class="support-none" v-if="!patient.ventilated && !patient.onVasopressor && !patient.onCrrt && !patient.onEcmo">
                   暂无生命支持
                 </div>
               </div>
@@ -199,9 +202,10 @@
                 <div class="card-kicker">LABS 24H</div>
                 <h3 class="card-title">24 小时检验</h3>
               </div>
-              <div class="labs-stats" v-if="patient.labs24h && patient.labs24h.dataStatus === 'FOUND'">
-                <span class="stat-abnormal">{{ patient.labs24h.abnormalCount }} 异常</span>
-                <span class="stat-normal">{{ patient.labs24h.normalCount }} 正常</span>
+              <div class="labs-summary" v-if="patient.labs24h && patient.labs24h.dataStatus === 'FOUND'">
+                <span class="labs-summary-item abnormal"><b>{{ patient.labs24h.abnormalCount }}</b> 异常</span>
+                <span class="labs-summary-divider"></span>
+                <span class="labs-summary-item normal"><b>{{ patient.labs24h.normalCount }}</b> 正常</span>
               </div>
             </div>
 
@@ -215,7 +219,10 @@
               <div v-else-if="!patient.labs24h.abnormalItems || patient.labs24h.abnormalItems.length === 0" class="block-empty">
                 窗口内无异常检验
               </div>
-              <div v-else class="labs-list">
+              <div v-else class="labs-table">
+                <div class="labs-table-head">
+                  <span>检验项目</span><span>结果</span><span>参考范围</span><span>时间</span>
+                </div>
                 <div
                   v-for="(item, idx) in patient.labs24h.abnormalItems"
                   :key="idx"
@@ -225,11 +232,11 @@
                   <div class="lab-result">
                     <span class="lab-value">{{ item.result }}</span>
                     <span class="lab-unit" v-if="item.unit">{{ item.unit }}</span>
-                    <span class="lab-trend" v-if="item.trend === 'UP'">↑</span>
-                    <span class="lab-trend down" v-else-if="item.trend === 'DOWN'">↓</span>
+                    <span class="lab-trend" v-if="item.trend === 'UP'">升</span>
+                    <span class="lab-trend down" v-else-if="item.trend === 'DOWN'">降</span>
                   </div>
-                  <div class="lab-ref" v-if="item.refRange">参考 {{ item.refRange }}</div>
-                  <div class="lab-time">{{ item.checkTime }}</div>
+                  <div class="lab-ref">{{ item.refRange || '—' }}</div>
+                  <div class="lab-time">{{ shortLabTime(item.checkTime) }}</div>
                 </div>
               </div>
             </template>
