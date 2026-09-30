@@ -1310,3 +1310,29 @@ SELECT page_code, frontend_path, status
 SELECT param_key, param_value, default_value FROM sys_param WHERE param_key = 'WORKBENCH_BED_SORT_MODE';
 -- 应返回 1 行；param_value 为空表示用默认值 numeric
 ```
+
+---
+
+### 2026-09-30 · 工作台 ECMO 标记与评分显示类型
+
+**涉及**
+
+- `WorkbenchPatient` 新增 `onEcmo`（Boolean）：正在 ECMO（未撤机 `is_end=0`）。
+  批量查一次 `patient_ecmo_record` 后回填，不为每个患者单独查；查询失败时置 false 并记 warn。
+- 列表「危重标记」列、床头卡、患者概览「生命支持」均加 ECMO 标签；危重计数与筛选纳入 ECMO。
+- 新系统参数 `WORKBENCH_SCORE_DISPLAY`（workbench 分组，select，默认 `SOFA`）：
+  列表与床头卡「评分」一格显示 SOFA 还是 APACHE II（≥10 / ≥25 分别标红）。
+  前端读不到时回退 SOFA。
+
+**升级脚本**
+
+- 达梦：`sql/43_workbench_score_display.sql`
+- MySQL/MariaDB：`sql/mysql/43_workbench_score_display.sql`
+- `WHERE NOT EXISTS` 幂等，可重复执行。ECMO 用的是既有表 `patient_ecmo_record`，无需建表。
+
+**升级后自检**
+
+```sql
+SELECT param_key, param_value, default_value FROM sys_param WHERE param_key = 'WORKBENCH_SCORE_DISPLAY';
+-- 应返回 1 行；param_value 为空表示用默认值 SOFA
+```

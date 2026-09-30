@@ -571,6 +571,7 @@ SQL
     39_sidebar_logo.sql
     40_qc_fact_def_seed.sql
     42_workbench_bed_sort_mode.sql
+    43_workbench_score_display.sql
     41_patient_summary_page.sql
     )
   for f in "${MAIN_SQL[@]}"; do
