@@ -805,17 +805,19 @@ public class HandoverServiceImpl implements HandoverService {
         boolean isRr = "oi_hxpl".equalsIgnoreCase(itemCode) || n.contains("呼吸频率") || n.contains("呼吸") ;
         boolean isSpo2 = "oi_spo2".equalsIgnoreCase(itemCode) || ((n.contains("血氧饱和") || upper.contains("SPO2")) && !n.contains("中心静脉"));
         boolean isTemp = "oi_tiwen".equalsIgnoreCase(itemCode)
-                || n.contains("体温") || n.contains("腋温") || n.contains("肛温")
-                || n.contains("口温") || n.contains("耳温") || n.contains("额温");
+                || "体温".equals(n) || "腋温".equals(n) || "肛温".equals(n)
+                || "口温".equals(n) || "耳温".equals(n) || "额温".equals(n);
 
         if (isTemp) {
+            // 体温值可能带测量方式文字（如"36.5 腋温"），提取数值部分，避免"腋温"两字混进展示
+            Double tempVal = parseDoubleOrNull(val);
+            String cleanTemp = tempVal != null ? fmtValue(tempVal) : val;
             if (isBlank(c.getTemp())) {
-                c.setTemp(val);
+                c.setTemp(cleanTemp);
                 c.setVitalTime(t);
             }
-            Double d = parseDoubleOrNull(val);
-            if (d != null) {
-                c.setMaxTemp(c.getMaxTemp() == null ? d : Math.max(c.getMaxTemp(), d));
+            if (tempVal != null) {
+                c.setMaxTemp(c.getMaxTemp() == null ? tempVal : Math.max(c.getMaxTemp(), tempVal));
             }
         } else if (isHr) {
             if (isBlank(c.getHr())) {
