@@ -571,6 +571,12 @@ export default {
       const match = String(t).match(/(\d{2}):(\d{2})(?::\d{2})?$/)
       return match ? `${match[1]}:${match[2]}` : String(t).slice(-5)
     },
+    shortLabTime(t) {
+      if (!t) return '—'
+      const value = String(t)
+      const match = value.match(/(\d{2})-(\d{2})\s+(\d{2}:\d{2})/)
+      return match ? `${match[2]}-${match[3]}` : value.replace('T', ' ').slice(-11)
+    },
     riskTagType(level) {
       if (level === '高风险') return 'danger'
       if (level === '中风险') return 'warning'
@@ -1070,49 +1076,70 @@ export default {
 }
 
 /* 24h 检验 */
-.labs-stats {
+.labs-summary {
   display: flex;
   gap: 10px;
   align-items: center;
 }
-.stat-abnormal {
+.labs-summary-item {
   font-size: 13px;
   font-weight: 700;
   color: #dc2626;
 }
-.stat-normal {
+.labs-summary-item.normal {
   font-size: 12px;
   color: #a8a29e;
 }
-.labs-list {
+.labs-table {
   display: flex;
   flex-direction: column;
   gap: 8px;
   max-height: 280px;
   overflow-y: auto;
 }
+.labs-table-head,
 .lab-item {
   display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto;
-  gap: 2px 12px;
-  padding: 8px 12px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(92px, .85fr) minmax(80px, .8fr) 62px;
+  align-items: center;
+  column-gap: 10px;
+}
+.labs-table-head {
+  min-height: 28px;
+  padding: 0 10px;
+  color: #a8a29e;
+  font-size: 10px;
+}
+.lab-item {
+  position: relative;
+  min-height: 48px;
+  padding: 7px 10px 7px 13px;
+  border-bottom: 1px solid #f5f5f4;
+  background: #fff;
+}
+.lab-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: #dc2626;
 }
 .lab-name {
   font-size: 13px;
   font-weight: 600;
   color: #1c1917;
-  grid-column: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .lab-result {
-  grid-column: 2;
-  grid-row: 1 / 3;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
 .lab-value {
   font-size: 16px;
@@ -1124,20 +1151,26 @@ export default {
   color: #78716c;
 }
 .lab-trend {
-  font-size: 14px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #fee2e2;
+  font-size: 10px;
   color: #dc2626;
   font-weight: 700;
 }
-.lab-trend.down { color: #2563eb; }
+.lab-trend.down { color: #2563eb; background: #dbeafe; }
 .lab-ref {
   font-size: 11px;
-  color: #a8a29e;
-  grid-column: 1;
+  color: #78716c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .lab-time {
   font-size: 11px;
   color: #a8a29e;
-  grid-column: 1;
+  text-align: right;
+  white-space: nowrap;
 }
 
 /* 培养药敏 */
