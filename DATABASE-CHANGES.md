@@ -1336,3 +1336,18 @@ SELECT param_key, param_value, default_value FROM sys_param WHERE param_key = 'W
 SELECT param_key, param_value, default_value FROM sys_param WHERE param_key = 'WORKBENCH_SCORE_DISPLAY';
 -- 应返回 1 行；param_value 为空表示用默认值 SOFA
 ```
+
+---
+
+### 2026-09-30 · 查房记录表 patient_doc_round_record（44）
+
+**背景**：查房记录是患者**日级**诊疗计划，与班次级的交班表 `patient_doc_handover_record` 分开存，否则交班内容被改后查房历史也跟着变、无法追溯。同一患者同一天只保留一份，保存时 Service 层自动覆盖更新。
+
+**44 号脚本（双库，幂等：DECLARE + COUNT 判断 `IF NOT EXISTS`）**
+
+- 达梦 `sql/44_patient_round_record.sql`：建表 + 序列 `SEQ_patient_doc_round_record` + 唯一索引 `idx_round_patient_date(patient_id, round_date)`
+- MySQL/MariaDB `sql/mysql/44_patient_round_record.sql`
+
+**列**：`main_problem` 今日主要问题、`infection_judgment` 感染判断、`respiratory_plan` 呼吸支持、`circulatory_plan` 循环支持、`renal_sedation_plan` 镇静镇痛/肾脏支持、`abx_plan` 抗菌药调整、`recheck_items` 今日复查、`treatment_goal` 治疗目标、`tomorrow_focus` 明日重点。
+
+**登记**：`install.sh`（三处数组）、`install-mariadb-debian.sh`、`build-delivery.ps1` 均已加入 `44_patient_round_record.sql`。

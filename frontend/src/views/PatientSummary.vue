@@ -68,12 +68,26 @@
                   <span :class="['support-chip', { on: patient.onCrrt }]">
                     {{ patient.onCrrt ? '● CRRT' : '○ CRRT' }}
                   </span>
-                  <span :class="['support-chip', { on: patient.onEcmo }]">
+                  <span
+                    :class="['support-chip', { on: patient.onEcmo, clickable: patient.onEcmo }]"
+                    @click="patient.onEcmo && (showEcmoDetail = !showEcmoDetail)"
+                  >
                     {{ patient.onEcmo ? '● ECMO' : '○ ECMO' }}
+                    <el-icon v-if="patient.onEcmo" class="chip-arrow" :class="{ expanded: showEcmoDetail }"><arrow-down /></el-icon>
                   </span>
                 </div>
                 <div class="support-none" v-if="!patient.ventilated && !patient.onVasopressor && !patient.onCrrt && !patient.onEcmo">
                   暂无生命支持
+                </div>
+                <div v-if="showEcmoDetail && patient.ecmoDetail" class="ecmo-detail">
+                  <div class="ecmo-detail-grid">
+                    <div class="ecmo-field"><label>模式</label><span>{{ patient.ecmoDetail.auxiliaryMode || '—' }}</span></div>
+                    <div class="ecmo-field"><label>开始时间</label><span>{{ formatTime(patient.ecmoDetail.startTime) }}</span></div>
+                    <div class="ecmo-field"><label>管路型号</label><span>{{ patient.ecmoDetail.pipelineModel || '—' }}</span></div>
+                    <div class="ecmo-field"><label>置管位置</label><span>{{ patient.ecmoDetail.place || '—' }}</span></div>
+                    <div class="ecmo-field"><label>运行时长</label><span>{{ patient.ecmoDetail.pipingDuration || '—' }}</span></div>
+                    <div class="ecmo-field"><label>当前次数</label><span>{{ patient.ecmoDetail.nowTimes || '—' }}</span></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -227,6 +241,8 @@
                   v-for="(item, idx) in patient.labs24h.abnormalItems"
                   :key="idx"
                   class="lab-item"
+                  :class="{ 'lab-item-expanded': expandedLabIdx === idx }"
+                  @click="expandedLabIdx = expandedLabIdx === idx ? -1 : idx"
                 >
                   <div class="lab-name">{{ item.itemName }}</div>
                   <div class="lab-result">
@@ -237,6 +253,20 @@
                   </div>
                   <div class="lab-ref">{{ item.refRange || '—' }}</div>
                   <div class="lab-time">{{ shortLabTime(item.checkTime) }}</div>
+                  <svg v-if="item.trendPoints && item.trendPoints.length > 1" class="lab-sparkline" viewBox="0 0 60 20" preserveAspectRatio="none">
+                    <polyline :points="sparklinePoints(item.trendPoints)" fill="none" stroke="#ea580c" stroke-width="1.5" />
+                  </svg>
+                  <div v-if="expandedLabIdx === idx && item.trendPoints && item.trendPoints.length" class="lab-trend-detail">
+                    <svg :viewBox="`0 0 ${item.trendPoints.length * 40} 80`" class="trend-chart">
+                      <polyline :points="trendChartPoints(item.trendPoints)" fill="none" stroke="#ea580c" stroke-width="2" />
+                      <circle v-for="(pt, pi) in item.trendPoints" :key="pi" :cx="pi * 40 + 20" :cy="trendChartY(pt.value, item.trendPoints)" r="3" fill="#ea580c" />
+                    </svg>
+                    <div class="trend-labels">
+                      <span v-for="(pt, pi) in item.trendPoints" :key="pi" class="trend-label">
+                        {{ shortLabTime(pt.time) }}<br/>{{ pt.value }}{{ item.unit }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </template>
@@ -305,6 +335,11 @@
                   <div class="ast-label">药敏摘要</div>
                   <div class="ast-text">{{ patient.culture.astSummary }}</div>
                 </div>
+                <div class="culture-full-btn" v-if="patient.culture.fullItems && patient.culture.fullItems.length">
+                  <el-button size="small" text type="primary" @click="showCultureReport = true">
+                    查看完整报告 ({{ patient.culture.fullItems.length }})
+                  </el-button>
+                </div>
               </template>
             </template>
           </div>
@@ -366,6 +401,102 @@
           </template>
         </div>
 
+        <!-- 今日查房记录 -->
+        <div class="summary-card round-card">
+          <div class="card-header">
+            <div>
+              <div class="card-kicker">DAILY ROUND</div>
+              <h3 class="card-title">今日查房记录</h3>
+            </div>
+            <div class="round-actions">
+              <el-button size="small" text @click="showRoundHistory = true" v-if="roundHistory.length > 0">
+                历史 ({{ roundHistory.length }})
+              </el-button>
+              <el-button size="small" type="primary" @click="saveRoundRecord" :loading="roundSaving">
+                {{ roundRecord.id ? '保存修改' : '保存查房' }}
+              </el-button>
+            </div>
+          </div>
+          <div class="round-form">
+            <div class="round-row">
+              <div class="round-field">
+                <label>今日主要问题</label>
+                <el-input v-model="roundRecord.mainProblem" type="textarea" :rows="2" placeholder="患者当前最主要的临床问题" />
+              </div>
+            </div>
+            <div class="round-row two-col">
+              <div class="round-field">
+                <label>感染判断</label>
+                <el-input v-model="roundRecord.infectionJudgment" type="textarea" :rows="2" placeholder="感染部位、依据、当前判断" />
+              </div>
+              <div class="round-field">
+                <label>抗菌药调整计划</label>
+                <el-input v-model="roundRecord.abxPlan" type="textarea" :rows="2" placeholder="继续/降阶/升阶/换药/停药及依据" />
+              </div>
+            </div>
+            <div class="round-row two-col">
+              <div class="round-field">
+                <label>呼吸支持计划</label>
+                <el-input v-model="roundRecord.respiratoryPlan" type="textarea" :rows="2" placeholder="通气模式、参数调整、撤机计划" />
+              </div>
+              <div class="round-field">
+                <label>循环支持计划</label>
+                <el-input v-model="roundRecord.circulatoryPlan" type="textarea" :rows="2" placeholder="血管活性药、液体管理、目标" />
+              </div>
+            </div>
+            <div class="round-row two-col">
+              <div class="round-field">
+                <label>镇静镇痛 / 肾脏支持</label>
+                <el-input v-model="roundRecord.renalSedationPlan" type="textarea" :rows="2" placeholder="镇静目标、RASS、CRRT调整" />
+              </div>
+              <div class="round-field">
+                <label>今日复查项目</label>
+                <el-input v-model="roundRecord.recheckItems" type="textarea" :rows="2" placeholder="检验、检查、培养等" />
+              </div>
+            </div>
+            <div class="round-row two-col">
+              <div class="round-field">
+                <label>治疗目标</label>
+                <el-input v-model="roundRecord.treatmentGoal" type="textarea" :rows="2" placeholder="今日治疗目标和预期终点" />
+              </div>
+              <div class="round-field">
+                <label>明日重点</label>
+                <el-input v-model="roundRecord.tomorrowFocus" type="textarea" :rows="2" placeholder="下一班/次日需要关注的问题" />
+              </div>
+            </div>
+            <div class="round-meta" v-if="roundRecord.updateTime">
+              最后修改：{{ roundRecord.updateBy || '—' }} · {{ formatTime(roundRecord.updateTime) }}
+            </div>
+          </div>
+        </div>
+
+        <!-- 临床时间线 -->
+        <div class="summary-card timeline-card">
+          <div class="card-header">
+            <div>
+              <div class="card-kicker">TIMELINE</div>
+              <h3 class="card-title">临床时间线</h3>
+            </div>
+            <el-button size="small" text @click="loadTimeline" :loading="timelineLoading">
+              <el-icon><refresh /></el-icon> 刷新
+            </el-button>
+          </div>
+          <div v-if="timeline.length" class="timeline-list">
+            <div v-for="(evt, i) in timeline" :key="i" class="timeline-item">
+              <div class="timeline-dot" :class="'dot-' + evt.type.toLowerCase()"></div>
+              <div class="timeline-content">
+                <div class="timeline-top">
+                  <span class="timeline-type" :class="'type-' + evt.type.toLowerCase()">{{ timelineTypeLabel(evt.type) }}</span>
+                  <span class="timeline-time">{{ shortTime(evt.time) }}</span>
+                </div>
+                <div class="timeline-title">{{ evt.title }}</div>
+                <div class="timeline-result" v-if="evt.result">{{ evt.result }}</div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="block-empty">暂无时间线事件</div>
+        </div>
+
         <!-- 底部：今日待办 + 快捷操作 左右分栏 -->
         <div class="summary-row bottom-row">
           <!-- 今日待办 -->
@@ -415,27 +546,65 @@
       </template>
     </div>
 
+    <!-- 查房历史弹窗 -->
+    <el-dialog v-model="showRoundHistory" title="查房历史" width="640px">
+      <div class="round-history-list" v-if="roundHistory.length">
+        <div v-for="item in roundHistory" :key="item.id" class="round-history-item" @click="loadRoundDate(item)">
+          <div class="round-history-date">{{ item.roundDate }}</div>
+          <div class="round-history-preview">{{ item.mainProblem || '（无主要问题记录）' }}</div>
+          <div class="round-history-meta">{{ item.updateBy || item.createBy || '—' }} · {{ formatTime(item.updateTime || item.createTime) }}</div>
+        </div>
+      </div>
+      <div v-else class="block-empty">暂无历史查房记录</div>
+    </el-dialog>
+
     <!-- 判定依据弹窗 -->
     <el-dialog v-model="showEvidence" title="感染判定依据" width="480px" class="evidence-dialog">
       <div class="evidence-content">{{ patient && patient.infectionEvidence }}</div>
+    </el-dialog>
+
+    <!-- 培养药敏完整报告弹窗 -->
+    <el-dialog v-model="showCultureReport" title="培养与药敏完整报告" width="640px" class="culture-report-dialog">
+      <div v-if="patient.culture && patient.culture.fullItems" class="culture-report-list">
+        <div
+          v-for="(item, idx) in patient.culture.fullItems"
+          :key="idx"
+          class="culture-report-row"
+        >
+          <div class="cr-time">{{ shortLabTime(item.checkTime) }}</div>
+          <div class="cr-name">{{ item.itemName }}</div>
+          <div class="cr-result">{{ item.result }}</div>
+        </div>
+      </div>
+      <div v-else class="block-empty">暂无数据</div>
     </el-dialog>
   </div>
 </template>
 
 <script>
 import { fetchPatientSummary } from '../api/workbench'
+import request from '../api/request'
 import { setCurrentPatient, clearCurrentPatient } from '../utils/patientContext'
-import { ArrowLeft, ArrowRight, Refresh } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, ArrowDown, Refresh } from '@element-plus/icons-vue'
 
 export default {
   name: 'PatientSummary',
-  components: { ArrowLeft, ArrowRight, Refresh },
+  components: { ArrowLeft, ArrowRight, ArrowDown, Refresh },
   data() {
     return {
       patient: null,
       loading: false,
       loadError: '',
-      showEvidence: false
+      showEvidence: false,
+      roundRecord: this.emptyRound(),
+      roundSaving: false,
+      roundHistory: [],
+      showRoundHistory: false,
+      timeline: [],
+      timelineLoading: false,
+      expandedLabIdx: -1,
+      showEcmoDetail: false,
+      showCultureReport: false
     }
   },
   computed: {
@@ -507,8 +676,132 @@ export default {
   },
   mounted() {
     this.loadSummary()
+    this.loadRoundRecord()
+    this.loadRoundHistory()
+    this.loadTimeline()
   },
   methods: {
+    emptyRound() {
+      return {
+        id: null, patientId: '', inHospitalNo: '', patientName: '', departCode: '',
+        roundDate: '', mainProblem: '', infectionJudgment: '', respiratoryPlan: '',
+        circulatoryPlan: '', renalSedationPlan: '', abxPlan: '', recheckItems: '',
+        treatmentGoal: '', tomorrowFocus: '', createBy: '', createTime: '',
+        updateBy: '', updateTime: ''
+      }
+    },
+    async loadRoundRecord() {
+      const patientId = this.$route.query.patientId
+      if (!patientId) return
+      try {
+        const data = await request.get('/api/round/record', { params: { patientId }, silentError: true })
+        if (data) {
+          this.roundRecord = { ...this.emptyRound(), ...data }
+        } else {
+          this.roundRecord = this.emptyRound()
+          this.roundRecord.patientId = patientId
+          this.roundRecord.inHospitalNo = this.$route.query.inHospitalNo || ''
+          this.roundRecord.patientName = this.$route.query.patientName || ''
+          this.roundRecord.departCode = this.$route.query.departCode || ''
+        }
+      } catch (e) { /* 查房记录加载失败不影响主页面 */ }
+    },
+    async loadRoundHistory() {
+      const patientId = this.$route.query.patientId
+      if (!patientId) return
+      try {
+        const data = await request.get('/api/round/history', { params: { patientId }, silentError: true })
+        this.roundHistory = Array.isArray(data) ? data : []
+      } catch (e) { this.roundHistory = [] }
+    },
+    async saveRoundRecord() {
+      if (!this.roundRecord.patientId) {
+        this.$message.warning('缺少患者信息')
+        return
+      }
+      this.roundSaving = true
+      try {
+        const saved = await request.post('/api/round/save', this.roundRecord)
+        if (saved) {
+          this.roundRecord = { ...this.emptyRound(), ...saved }
+          this.$message.success('查房记录已保存')
+          this.loadRoundHistory()
+        }
+      } catch (e) {
+        this.$message.error(e.message || '保存失败')
+      } finally {
+        this.roundSaving = false
+      }
+    },
+    loadRoundDate(item) {
+      // 点击历史记录时加载到编辑区
+      this.roundRecord = { ...this.emptyRound(), ...item }
+      this.showRoundHistory = false
+    },
+    async loadTimeline() {
+      const patientId = this.$route.query.patientId
+      if (!patientId) return
+      this.timelineLoading = true
+      try {
+        const data = await request.get(`/api/workbench/patients/${patientId}/timeline`, { silentError: true })
+        this.timeline = Array.isArray(data) ? data : []
+      } catch (e) {
+        this.timeline = []
+      } finally {
+        this.timelineLoading = false
+      }
+    },
+    timelineTypeLabel(type) {
+      const map = {
+        ADMISSION: '入科', SOFA: 'SOFA', APACHE2: 'APACHE II',
+        ABX_DECISION: '抗感染决策', ABX_REASSESSMENT: '抗菌药复评',
+        CULTURE: '培养报告', SEPSIS_BUNDLE: '脓毒症集束化',
+        PRONE: '俯卧位', ROUND: '查房记录'
+      }
+      return map[type] || type
+    },
+    shortTime(t) {
+      if (!t) return ''
+      const s = String(t)
+      const m = s.match(/(\d{2})-(\d{2})\s+(\d{2}:\d{2})/)
+      return m ? `${m[1]}-${m[2]} ${m[3]}` : s.slice(5, 16)
+    },
+    // 迷你趋势图（sparkline）：60x20 viewBox
+    sparklinePoints(points) {
+      if (!points || points.length < 2) return ''
+      const vals = points.map(p => parseFloat(p.value)).filter(v => !isNaN(v))
+      if (vals.length < 2) return ''
+      const min = Math.min(...vals), max = Math.max(...vals)
+      const range = max - min || 1
+      return points.map((p, i) => {
+        const x = (i / (points.length - 1)) * 60
+        const v = parseFloat(p.value)
+        const y = isNaN(v) ? 10 : 18 - ((v - min) / range) * 16
+        return `${x},${y}`
+      }).join(' ')
+    },
+    // 大趋势图：每个点40px宽
+    trendChartPoints(points) {
+      if (!points || points.length < 2) return ''
+      const vals = points.map(p => parseFloat(p.value)).filter(v => !isNaN(v))
+      if (vals.length < 2) return ''
+      const min = Math.min(...vals), max = Math.max(...vals)
+      const range = max - min || 1
+      return points.map((p, i) => {
+        const x = i * 40 + 20
+        const v = parseFloat(p.value)
+        const y = isNaN(v) ? 40 : 70 - ((v - min) / range) * 60
+        return `${x},${y}`
+      }).join(' ')
+    },
+    trendChartY(val, points) {
+      const vals = points.map(p => parseFloat(p.value)).filter(v => !isNaN(v))
+      if (vals.length < 2) return 40
+      const min = Math.min(...vals), max = Math.max(...vals)
+      const range = max - min || 1
+      const v = parseFloat(val)
+      return isNaN(v) ? 40 : 70 - ((v - min) / range) * 60
+    },
     async loadSummary() {
       const patientId = this.$route.query.patientId
       if (!patientId) {
@@ -821,6 +1114,36 @@ export default {
   color: #a8a29e;
   margin-top: 6px;
 }
+.support-chip.clickable { cursor: pointer; }
+.chip-arrow {
+  margin-left: 2px;
+  font-size: 10px;
+  transition: transform .2s;
+}
+.chip-arrow.expanded { transform: rotate(180deg); }
+.ecmo-detail {
+  margin-top: 10px;
+  padding: 10px;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 8px;
+}
+.ecmo-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px 16px;
+}
+.ecmo-field label {
+  display: block;
+  font-size: 11px;
+  color: #7c3aed;
+  margin-bottom: 2px;
+}
+.ecmo-field span {
+  font-size: 13px;
+  color: #1c1917;
+  font-weight: 500;
+}
 
 /* 评分 */
 .score-items {
@@ -1116,7 +1439,11 @@ export default {
   padding: 7px 10px 7px 13px;
   border-bottom: 1px solid #f5f5f4;
   background: #fff;
+  cursor: pointer;
+  transition: background .15s;
 }
+.lab-item:hover { background: #fff7ed; }
+.lab-item-expanded { background: #fff7ed; }
 .lab-item::before {
   content: '';
   position: absolute;
@@ -1135,6 +1462,40 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.lab-sparkline {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 50px;
+  height: 18px;
+  opacity: .7;
+}
+.lab-trend-detail {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+}
+.trend-chart {
+  width: 100%;
+  height: 80px;
+  display: block;
+}
+.trend-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+.trend-label {
+  font-size: 10px;
+  color: #78716c;
+  text-align: center;
+  flex: 1;
+  line-height: 1.3;
 }
 .lab-result {
   display: flex;
@@ -1213,6 +1574,36 @@ export default {
   color: #57534e;
   line-height: 1.5;
 }
+.culture-full-btn {
+  margin-top: 8px;
+  text-align: right;
+}
+.culture-report-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.culture-report-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 2fr;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f5f5f4;
+  align-items: start;
+}
+.cr-time {
+  font-size: 12px;
+  color: #78716c;
+}
+.cr-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1c1917;
+}
+.cr-result {
+  font-size: 13px;
+  color: #44403c;
+  word-break: break-all;
+}
 
 /* 脓毒症集束化 */
 .sepsis-card { margin-top: 16px; }
@@ -1270,6 +1661,99 @@ export default {
   color: #a8a29e;
   text-align: right;
 }
+
+/* 查房记录 */
+.round-card { margin-top: 16px; }
+.round-actions { display: flex; gap: 8px; align-items: center; }
+.round-form { margin-top: 12px; }
+.round-row { margin-bottom: 12px; }
+.round-row.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.round-field label {
+  display: block;
+  font-size: 12px;
+  color: #78716c;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.round-field :deep(.el-textarea__inner) {
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  resize: vertical;
+}
+.round-meta {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #a8a29e;
+  text-align: right;
+}
+.round-history-list { max-height: 480px; overflow-y: auto; }
+.round-history-item {
+  padding: 12px;
+  border-bottom: 1px solid #f5f5f4;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background .15s;
+}
+.round-history-item:hover { background: #fff7ed; }
+.round-history-date { font-size: 14px; font-weight: 600; color: #1c1917; margin-bottom: 4px; }
+.round-history-preview { font-size: 12px; color: #57534e; margin-bottom: 4px; line-height: 1.5; }
+.round-history-meta { font-size: 11px; color: #a8a29e; }
+
+/* 临床时间线 */
+.timeline-card { margin-top: 16px; }
+.timeline-list { margin-top: 12px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.timeline-item {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f5f5f4;
+  position: relative;
+}
+.timeline-item:last-child { border-bottom: none; }
+.timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+  background: #a8a29e;
+}
+.timeline-dot.dot-sofa { background: #2563eb; }
+.timeline-dot.dot-apache2 { background: #7c3aed; }
+.timeline-dot.dot-abx_decision { background: #ea580c; }
+.timeline-dot.dot-abx_reassessment { background: #f59e0b; }
+.timeline-dot.dot-sepsis_bundle { background: #dc2626; }
+.timeline-dot.dot-prone { background: #0891b2; }
+.timeline-dot.dot-round { background: #16a34a; }
+.timeline-dot.dot-culture { background: #db2777; }
+.timeline-dot.dot-admission { background: #44403c; }
+.timeline-content { flex: 1; min-width: 0; }
+.timeline-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+.timeline-type {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f5f5f4;
+  color: #57534e;
+}
+.timeline-type.type-sofa { background: #dbeafe; color: #1d4ed8; }
+.timeline-type.type-apache2 { background: #ede9fe; color: #6d28d9; }
+.timeline-type.type-abx_decision { background: #ffedd5; color: #c2410c; }
+.timeline-type.type-abx_reassessment { background: #fef3c7; color: #b45309; }
+.timeline-type.type-sepsis_bundle { background: #fee2e2; color: #b91c1c; }
+.timeline-type.type-prone { background: #cffafe; color: #0e7490; }
+.timeline-type.type-round { background: #dcfce7; color: #15803d; }
+.timeline-type.type-culture { background: #fce7f3; color: #be185d; }
+.timeline-time { font-size: 11px; color: #a8a29e; }
+.timeline-title { font-size: 13px; font-weight: 500; color: #1c1917; }
+.timeline-result { font-size: 12px; color: #57534e; margin-top: 2px; }
 
 /* 响应式 */
 @media (max-width: 1100px) {

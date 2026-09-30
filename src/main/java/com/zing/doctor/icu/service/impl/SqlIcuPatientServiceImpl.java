@@ -185,6 +185,26 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
             p.setOnCrrt(crrtPatients.contains(pid));
             p.setOnEcmo(ecmoPatients.contains(pid));
             p.setVentilated(ventPatients.contains(pid));
+            // 仅对 ECMO 患者查详情（避免 N+1，只查真正在 ECMO 的患者）
+            if (Boolean.TRUE.equals(p.getOnEcmo()) && pid != null && !pid.isEmpty()) {
+                try {
+                    Map<String, Object> ecmo = icuPatientMapper.selectEcmoRecord(pid);
+                    if (ecmo != null) {
+                        WorkbenchPatient.EcmoDetail detail = new WorkbenchPatient.EcmoDetail();
+                        detail.setStartTime(str(ecmo.get("start_time")));
+                        detail.setEndTime(str(ecmo.get("end_time")));
+                        detail.setIsEnd(parseInt(ecmo.get("is_end")));
+                        detail.setAuxiliaryMode(str(ecmo.get("auxiliary_mode")));
+                        detail.setPipelineModel(str(ecmo.get("pipeline_model")));
+                        detail.setPlace(str(ecmo.get("place")));
+                        detail.setPipingDuration(str(ecmo.get("piping_duration")));
+                        detail.setNowTimes(parseInt(ecmo.get("now_times")));
+                        p.setEcmoDetail(detail);
+                    }
+                } catch (Exception e) {
+                    log.warn("工作台查询 ECMO 详情失败(patientId={})", pid, e);
+                }
+            }
         }
     }
 

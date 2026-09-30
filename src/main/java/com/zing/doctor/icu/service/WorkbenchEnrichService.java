@@ -616,6 +616,16 @@ public class WorkbenchEnrichService {
                     List<Map<String, Object>> series = byItem.get(name);
                     if (series != null && series.size() >= 2) {
                         item.setTrend(judgeTrend(result, str(series.get(1).get("result"))));
+                        // 填充趋势数据点（按时间升序），用于前端折线图
+                        List<WorkbenchPatient.TrendPoint> points = new ArrayList<>();
+                        // series 已按 check_time 降序（SQL ORDER BY），反转后升序
+                        for (int j = series.size() - 1; j >= 0; j--) {
+                            Map<String, Object> pt = series.get(j);
+                            points.add(new WorkbenchPatient.TrendPoint(
+                                    str(pt.get("check_time")),
+                                    str(pt.get("result"))));
+                        }
+                        item.setTrendPoints(points);
                     }
                     if (isAbnormal) {
                         abnormal.add(item);
@@ -676,10 +686,15 @@ public class WorkbenchEnrichService {
                 // 3. 解析检出菌和药敏
                 List<String> organisms = new ArrayList<>();
                 List<String> astList = new ArrayList<>();
+                List<WorkbenchPatient.CultureItem> fullItems = new ArrayList<>();
                 boolean hasPathogen = false;
                 for (Map<String, Object> row : details) {
                     String itemName = str(row.get("item_name"));
                     String result = str(row.get("result"));
+                    String checkTime = str(row.get("check_time"));
+                    if (!result.isEmpty()) {
+                        fullItems.add(new WorkbenchPatient.CultureItem(itemName, result, checkTime));
+                    }
                     if (result.isEmpty()) continue;
                     if (itemName.contains("药敏")) {
                         if (astList.size() < 3) astList.add(result);
@@ -693,6 +708,7 @@ public class WorkbenchEnrichService {
                 }
                 culture.setOrganisms(organisms);
                 culture.setAstSummary(String.join("; ", astList));
+                culture.setFullItems(fullItems);
                 // 耐药风险：复用感染维度的判断（如果已有）
                 if (Boolean.TRUE.equals(p.getMdrRisk())) culture.setDrugResistanceRisk("MDR");
                 else if (Boolean.TRUE.equals(p.getMrsaRisk())) culture.setDrugResistanceRisk("MRSA");

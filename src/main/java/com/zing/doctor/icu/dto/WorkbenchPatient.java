@@ -49,6 +49,20 @@ public class WorkbenchPatient {
     private Boolean onCrrt = false;
     /** 正在 ECMO（体外膜肺氧合） */
     private Boolean onEcmo = false;
+    /** ECMO 详情（仅 onEcmo=true 时填充） */
+    private EcmoDetail ecmoDetail;
+
+    @Data
+    public static class EcmoDetail {
+        private String startTime;
+        private String endTime;
+        private Integer isEnd;
+        private String auxiliaryMode;
+        private String pipelineModel;
+        private String place;
+        private String pipingDuration;
+        private Integer nowTimes;
+    }
 
     // ---- 评分 / 待办 ----
     /** 最近一次 SOFA 总分（0-24），未评过为 null */
@@ -181,6 +195,16 @@ public class WorkbenchPatient {
         private String checkTime;
         /** UP / DOWN / FLAT / null（只有一个时间点时无法判断趋势） */
         private String trend;
+        /** 趋势数据点（按时间升序），用于前端画折线图 */
+        private List<TrendPoint> trendPoints = java.util.Collections.emptyList();
+    }
+
+    @Data
+    public static class TrendPoint {
+        private String time;
+        private String value;
+        public TrendPoint() {}
+        public TrendPoint(String time, String value) { this.time = time; this.value = value; }
     }
 
     /**
@@ -197,6 +221,21 @@ public class WorkbenchPatient {
         /** MDR / MRSA / 真菌风险 / null */
         private String drugResistanceRisk;
         private String astSummary;
+        /** 完整培养/药敏检验明细（按时间倒序），用于弹窗展示 */
+        private List<CultureItem> fullItems = java.util.Collections.emptyList();
+    }
+
+    @Data
+    public static class CultureItem {
+        private String itemName;
+        private String result;
+        private String checkTime;
+        public CultureItem() {}
+        public CultureItem(String itemName, String result, String checkTime) {
+            this.itemName = itemName;
+            this.result = result;
+            this.checkTime = checkTime;
+        }
     }
 
     /**
