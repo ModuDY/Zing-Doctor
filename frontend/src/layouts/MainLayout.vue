@@ -18,107 +18,107 @@
 
       <nav class="sidebar-nav">
         <router-link to="/page/patient-workbench" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">🧑‍⚕️</span>
+          <MedicalIcon name="patient" />
           <span class="nav-label">患者工作台</span>
         </router-link>
         <router-link to="/page/handover-board" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">📋</span>
+          <MedicalIcon name="handover" />
           <span class="nav-label">医生交班览表</span>
         </router-link>
         <router-link to="/page/discharge-stats" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">🚪</span>
+          <MedicalIcon name="bed" />
           <span class="nav-label">患者出科统计</span>
         </router-link>
         <router-link to="/page/abx-decision" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">💊</span>
+          <MedicalIcon name="pill" />
           <span class="nav-label">抗感染决策</span>
         </router-link>
         <router-link to="/page/abx-pkpd" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">⚗️</span>
+          <MedicalIcon name="trend" />
           <span class="nav-label">PK/PD 剂量优化</span>
         </router-link>
         <router-link to="/page/abx-ddd" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">📊</span>
+          <MedicalIcon name="bottle" />
           <span class="nav-label">使用强度分析</span>
         </router-link>
         <router-link to="/page/abx-mdro" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">🧫</span>
+          <MedicalIcon name="dish" />
           <span class="nav-label">细菌培养监测</span>
         </router-link>
 
         <div class="nav-divider">重症评分</div>
         <router-link to="/page/sofa-overview" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">📈</span>
+          <MedicalIcon name="trend" />
           <span class="nav-label">SOFA 评分总览</span>
         </router-link>
         <router-link to="/page/sofa-score" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">📝</span>
+          <MedicalIcon name="score" />
           <span class="nav-label">SOFA 评分</span>
         </router-link>
         <router-link to="/page/apache2-score" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">📋</span>
+          <MedicalIcon name="gauge" />
           <span class="nav-label">APACHE II 评分</span>
         </router-link>
         <router-link to="/page/apache2-overview" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">🩺</span>
+          <MedicalIcon name="board" />
           <span class="nav-label">APACHE II 总览</span>
         </router-link>
         <router-link to="/page/sepsis-bundle" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">⚡</span>
+          <MedicalIcon name="heart" />
           <span class="nav-label">脓毒症集束化治疗</span>
         </router-link>
         <router-link to="/page/ards-monitor" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">🫁</span>
+          <MedicalIcon name="lungs" />
           <span class="nav-label">ARDS 监测</span>
         </router-link>
         <router-link to="/page/ards-prone-list" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">🤸</span>
+          <MedicalIcon name="prone" />
           <span class="nav-label">ARDS 俯卧位记录</span>
         </router-link>
 
         <div class="nav-divider">质控中台</div>
         <router-link to="/page/quality-board" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">📊</span>
+          <MedicalIcon name="board" />
           <span class="nav-label">质控指标看板</span>
         </router-link>
         <router-link to="/page/quality-monthly" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">🗓️</span>
+          <MedicalIcon name="calendar" />
           <span class="nav-label">质控月度汇总</span>
         </router-link>
         <router-link to="/page/quality-config" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">🛠️</span>
+          <MedicalIcon name="tools" />
           <span class="nav-label">质控指标配置</span>
         </router-link>
 
         <div class="nav-divider">配置管理</div>
         <router-link to="/page/abx-ddd-config" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">💉</span>
+          <MedicalIcon name="bottle" />
           <span class="nav-label">DDD 值配置</span>
         </router-link>
         <router-link to="/page/abx-mdro-config" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">🔬</span>
+          <MedicalIcon name="taxonomy" />
           <span class="nav-label">细菌分类配置</span>
         </router-link>
         <router-link to="/page/abx-word-config" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">📝</span>
+          <MedicalIcon name="memo" />
           <span class="nav-label">抗菌词库配置</span>
         </router-link>
         <router-link to="/page/sofa-config" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">⚙️</span>
+          <MedicalIcon name="settings" />
           <span class="nav-label">SOFA 配置</span>
         </router-link>
         <router-link to="/page/ards-prone-config" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">⚙️</span>
+          <MedicalIcon name="mapping" />
           <span class="nav-label">俯卧位映射配置</span>
         </router-link>
 
         <div class="nav-divider">系统设置</div>
         <router-link to="/page/param-config" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">🔧</span>
+          <MedicalIcon name="settings" />
           <span class="nav-label">参数设置</span>
         </router-link>
         <router-link to="/page/system-check" class="nav-item" active-class="nav-active">
-          <span class="nav-icon">✅</span>
+          <MedicalIcon name="check" />
           <span class="nav-label">交付自检</span>
         </router-link>
       </nav>
@@ -154,6 +154,7 @@
 </template>
 
 <script>
+import { h } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { logout as logoutApi } from '../api/auth'
 import { getUser, isLoggedIn, clearSession } from '../utils/auth'
@@ -161,8 +162,42 @@ import { currentPatient, clearCurrentPatient, currentPatientLabel } from '../uti
 import { currentDepart, setCurrentDepart } from '../utils/departContext'
 import request from '../api/request'
 
+const MEDICAL_ICON_PATHS = {
+  patient: '<circle cx="12" cy="8" r="3"/><path d="M5 21c.5-4 2.8-6 7-6s6.5 2 7 6M19 4v6M16 7h6"/>',
+  handover: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h5M8 16h3M15 15l2 2 3-4"/>',
+  bed: '<path d="M4 18V8M4 15h16M7 15V9h5a3 3 0 0 1 3 3v3M4 20h16"/>',
+  pill: '<path d="M7 17 17 7a4 4 0 0 1 5.7 5.7l-10 10A4 4 0 0 1 7 17Z"/><path d="m10 14 5 5"/>',
+  bottle: '<path d="M8 3h8M9 3v4h6V3M7 7h10v14H7zM10 12h4M12 10v4"/>',
+  dish: '<path d="M4 9h16l-1 8a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3zM4 9c2 2 4-2 6 0s4 2 6 0 3 2 4 0"/><circle cx="9" cy="14" r="1"/><circle cx="14" cy="16" r="1"/>',
+  trend: '<path d="M4 19V5M4 19h17M7 15l3-4 3 2 5-7"/><circle cx="7" cy="15" r="1"/><circle cx="18" cy="6" r="1"/>',
+  score: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h4M8 15h2M12 15h4M8 19h8"/>',
+  gauge: '<path d="M4 17a8 8 0 1 1 16 0M12 17l4-6M6 20h12"/><circle cx="12" cy="17" r="1.5"/>',
+  heart: '<path d="M12 20S4 15.2 4 9.5A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8 2.5C20 15.2 12 20 12 20Z"/><path d="M3 12h3l2-4 3 8 2-4h3l2-3 2 3h2"/>',
+  lungs: '<path d="M12 5v14M12 9c-2-3-4-4-5-3-2 1-4 5-4 9 0 3 2 5 5 5 2 0 4-2 4-5M12 9c2-3 4-4 5-3 2 1 4 5 4 9 0 3-2 5-5 5-2 0-4-2-4-5"/>',
+  prone: '<circle cx="7" cy="9" r="2"/><path d="M9 10l6 2 4-2M10 13l-3 4M15 12l3 4M4 5a8 8 0 0 1 13-1M18 4l-1-3M18 4l3-1"/>',
+  board: '<rect x="3" y="4" width="18" height="15" rx="2"/><path d="M7 15l3-4 3 2 4-5M7 21h10"/>',
+  calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16M8 13h2M13 13h2M8 17h2"/>',
+  tools: '<path d="M14 6a4 4 0 0 0-5 5L4 16a2 2 0 1 0 3 3l5-5a4 4 0 0 0 5-5l-3 3-2-2zM17 16l4 4"/>',
+  taxonomy: '<circle cx="7" cy="7" r="2"/><circle cx="17" cy="7" r="2"/><circle cx="12" cy="17" r="2"/><path d="M9 7h6M8 9l3 6M16 9l-3 6"/>',
+  memo: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h5M8 16h8M15 12v4M13 14h4"/>',
+  mapping: '<circle cx="6" cy="7" r="2"/><circle cx="18" cy="17" r="2"/><path d="M8 7h4a4 4 0 0 1 4 4v4M16 17h-4a4 4 0 0 1-4-4V9"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.3 3h-4.6l-.3 2.7a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.3 2.7h4.6l.3-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2Z"/>',
+  check: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6zM8 12l2.5 2.5L16 9"/>'
+}
+
+const MedicalIcon = {
+  name: 'MedicalIcon',
+  props: { name: { type: String, required: true } },
+  render() {
+    return h('span', { class: 'nav-icon', 'aria-hidden': 'true' }, [
+      h('svg', { viewBox: '0 0 24 24', innerHTML: MEDICAL_ICON_PATHS[this.name] || MEDICAL_ICON_PATHS.memo })
+    ])
+  }
+}
+
 export default {
   name: 'MainLayout',
+  components: { MedicalIcon },
   data() {
     return {
       departs: [],
@@ -415,9 +450,29 @@ export default {
 }
 
 .nav-icon {
-  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 20px;
+  height: 20px;
+  color: #a8a29e;
   text-align: center;
+  flex: 0 0 20px;
+}
+
+.nav-icon svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nav-item:hover .nav-icon,
+.nav-active .nav-icon {
+  color: #c2410c;
 }
 
 .sidebar-footer {
