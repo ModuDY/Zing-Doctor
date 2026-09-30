@@ -24,7 +24,14 @@ param(
     [switch]$Build,
     [switch]$KeepDocs,
     [switch]$Sanitize,
-    [string]$OutDir
+    [string]$OutDir,
+    # 版本号默认自动升一个修订号（1.0.1 → 1.0.2）。
+    # -NoBump      用当前版本打包，不升号（重打同一个包时用）
+    # -BumpMinor   升次版本（1.0.1 → 1.1.0），新增功能/页面时用
+    # -BumpMajor   升主版本（1.0.1 → 2.0.0），破坏性变更时用
+    [switch]$NoBump,
+    [switch]$BumpMinor,
+    [switch]$BumpMajor
 )
 
 $ErrorActionPreference = 'Stop'
@@ -85,17 +92,55 @@ if (-not $env:JAVA_HOME) {
     if ($javaCmd) { $env:JAVA_HOME = Split-Path -Parent (Split-Path -Parent $javaCmd.Source) }
 }
 
-# ---------- 构建信息：写入 jar，供交付自检页核对 ----------
-# 版本取自 pom.xml，提交号取自当前 Git HEAD。取不到时保留 unknown，不伪造信息。
-$buildVersion = 'unknown'
-try {
-    [xml]$pom = Get-Content -Raw (Join-Path $root 'pom.xml')
-    if (-not [string]::IsNullOrWhiteSpace([string]$pom.project.version)) {
-        $buildVersion = ([string]$pom.project.version).Trim()
-    }
-} catch {
-    Write-Host '>>> 无法读取 pom.xml 版本，构建信息版本保留 unknown' -ForegroundColor Yellow
+# ---------- 版本号：默认打包即升一个修订号 ----------
+# 为什么必须自动升：包名已去掉日期（zing-doctor-deploy-v1.0.1-lite.zip），版本号是现场
+# 区分两个包的唯一依据。不升号就会出现「同名包、内容不同」—— 后打的把先打的覆盖掉，
+# 现场根本分不清手上的是哪一版，比带日期时更糟（至少日期能看出先后）。
+# 所以「打一次包 = 一个修订号」；pom.xml 是版本唯一真源（包名与包内 build-info 都取自它），
+# 必须写回文件，不能只改脚本里的变量。
+$pomPath = Join-Path $root 'pom.xml'
+$pomRaw = [IO.File]::ReadAllText($pomPath, [System.Text.Encoding]::UTF8)
+$versionBefore = 'unknown'
+# 只认 <artifactId>zing-doctor</artifactId> 之后的第一个 <version>：parent 里那个是 Spring Boot 版本
+if ($pomRaw -match '<artifactId>zing-doctor</artifactId>[\s\S]*?<version>([^<]+)</version>') {
+    $versionBefore = $matches[1].Trim()
 }
+# 打包前 pom 若已有未提交改动，最后就不自动提交（否则会把别人的改动一起提交进去）
+$prevEapV = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+$pomDirtyBefore = (& git -C $root diff --name-only -- pom.xml 2>$null)
+$ErrorActionPreference = $prevEapV
+
+$versionAfter = $versionBefore
+if (-not $NoBump -and $versionBefore -match '^(\d+)\.(\d+)\.(\d+)(.*)$') {
+    $maj = [int]$matches[1]; $min = [int]$matches[2]; $pat = [int]$matches[3]; $suf = $matches[4]
+    if ($BumpMajor) { $maj++; $min = 0; $pat = 0 }
+    elseif ($BumpMinor) { $min++; $pat = 0 }
+    else { $pat++ }
+    $versionAfter = "$maj.$min.$pat$suf"
+}
+$script:pomBackup = $null
+if ($versionAfter -ne $versionBefore) {
+    $pomNew = [regex]::Replace($pomRaw,
+        '(<artifactId>zing-doctor</artifactId>[\s\S]*?<version>)[^<]+(</version>)',
+        "`${1}$versionAfter`${2}", 1)
+    [IO.File]::WriteAllText($pomPath, $pomNew, (New-Object System.Text.UTF8Encoding($false)))
+    Write-Host (">>> 版本升级：v$versionBefore → v$versionAfter（已写入 pom.xml）") -ForegroundColor Cyan
+    # 打包中途失败要还原：否则版本号被"吃掉"却没产出包，下次打包就会跳号
+    $script:pomBackup = $pomRaw
+}
+
+trap {
+    if ($script:pomBackup) {
+        [IO.File]::WriteAllText($pomPath, $script:pomBackup, (New-Object System.Text.UTF8Encoding($false)))
+        Write-Host (">>> 打包未成功，已还原 pom.xml 版本号为 v" + $versionBefore) -ForegroundColor Yellow
+    }
+    break
+}
+
+# ---------- 构建信息：写入 jar，供交付自检页核对 ----------
+# 版本取自 pom.xml（上面刚升过号），提交号取自当前 Git HEAD。取不到时保留 unknown，不伪造信息。
+$buildVersion = $versionAfter
 $gitCommit = 'unknown'
 $prevEap = $ErrorActionPreference
 try {
@@ -507,6 +552,37 @@ Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 
 $size = [math]::Round((Get-Item $zip).Length / 1MB, 2)
 Write-Host (">>> 完成：" + $zip + " （" + $size + " MB）") -ForegroundColor Green
+
+# ---------- 版本号落库：自动提交 chore(release) ----------
+# 只提交 pom.xml 一个文件，且**不 push**（推送仍由人决定）。
+# 走到这里说明包已成功产出，版本号已经被这个包用掉了，必须落进仓库，
+# 否则下次打包又会从旧版本算起，产出同名包。
+if ($versionAfter -ne $versionBefore) {
+    if ($pomDirtyBefore) {
+        Write-Host '>>> pom.xml 在打包前就有未提交改动，跳过自动提交，请手工确认后再提交' -ForegroundColor Yellow
+    } else {
+        $bumpKind = if ($BumpMajor) { '主版本（major）' } elseif ($BumpMinor) { '次版本（minor）' } else { '修订号（patch）' }
+        $msg = "chore(release): 版本升级 v$versionBefore → v$versionAfter`n`n" +
+               "由 tools/build-delivery.ps1 打包时自动升$bumpKind，对应交付包 " +
+               "$(Split-Path $zip -Leaf)（gitCommit=$gitCommit）。`n" +
+               "包名不带日期，版本号是包的唯一标识，故每打一次包对应一个修订号。"
+        $msgFile = Join-Path $env:TEMP ('zing-release-' + [guid]::NewGuid().ToString('N').Substring(0, 8) + '.txt')
+        [IO.File]::WriteAllText($msgFile, $msg, (New-Object System.Text.UTF8Encoding($false)))
+        $prevEapC = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & git -C $root add pom.xml 2>$null | Out-Null
+        & git -C $root commit -F $msgFile --quiet 2>$null | Out-Null
+        $commitOk = ($LASTEXITCODE -eq 0)
+        $ErrorActionPreference = $prevEapC
+        Remove-Item $msgFile -Force -ErrorAction SilentlyContinue
+        if ($commitOk) {
+            $script:pomBackup = $null
+            Write-Host '>>> 已提交 chore(release)：pom.xml 版本升级（未推送，需推送请自行 git push）' -ForegroundColor Green
+        } else {
+            Write-Host '>>> 自动提交失败，请手工提交 pom.xml 的版本改动' -ForegroundColor Yellow
+        }
+    }
+}
 if (-not $Sanitize) {
     Write-Host '>>> 提示：包内仍为出厂默认口令（docker-compose.yml 的 DOCTOR_PASSWORD 与 jar 内 application.yml）。' -ForegroundColor Yellow
     Write-Host '    外发给院方前请加 -Sanitize 重新打包，或手工改成院方自己的口令。' -ForegroundColor Yellow
