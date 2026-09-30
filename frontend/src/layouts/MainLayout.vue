@@ -165,17 +165,17 @@ import request from '../api/request'
 const MEDICAL_ICON_PATHS = {
   patient: '<circle cx="12" cy="8" r="3"/><path d="M5 21c.5-4 2.8-6 7-6s6.5 2 7 6M19 4v6M16 7h6"/>',
   handover: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h5M8 16h3M15 15l2 2 3-4"/>',
-  bed: '<path d="M4 18V8M4 15h16M7 15V9h5a3 3 0 0 1 3 3v3M4 20h16"/>',
+  bed: '<path d="M3 18v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5M3 18h18M7 11V8a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3"/>',
   pill: '<path d="M7 17 17 7a4 4 0 0 1 5.7 5.7l-10 10A4 4 0 0 1 7 17Z"/><path d="m10 14 5 5"/>',
   bottle: '<path d="M8 3h8M9 3v4h6V3M7 7h10v14H7zM10 12h4M12 10v4"/>',
   dish: '<path d="M4 9h16l-1 8a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3zM4 9c2 2 4-2 6 0s4 2 6 0 3 2 4 0"/><circle cx="9" cy="14" r="1"/><circle cx="14" cy="16" r="1"/>',
   trend: '<path d="M4 19V5M4 19h17M7 15l3-4 3 2 5-7"/><circle cx="7" cy="15" r="1"/><circle cx="18" cy="6" r="1"/>',
-  score: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h4M8 15h2M12 15h4M8 19h8"/>',
+  score: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 12l2 2 4-4"/>',
   gauge: '<path d="M4 17a8 8 0 1 1 16 0M12 17l4-6M6 20h12"/><circle cx="12" cy="17" r="1.5"/>',
-  heart: '<path d="M12 20S4 15.2 4 9.5A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8 2.5C20 15.2 12 20 12 20Z"/><path d="M3 12h3l2-4 3 8 2-4h3l2-3 2 3h2"/>',
+  heart: '<path fill="currentColor" stroke="none" d="M12 20S4 15.2 4 9.5A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8 2.5C20 15.2 12 20 12 20Z"/><path d="M3 12h3l2-4 3 8 2-4h3l2-3 2 3h2"/>',
   lungs: '<path d="M12 5v14M12 9c-2-3-4-4-5-3-2 1-4 5-4 9 0 3 2 5 5 5 2 0 4-2 4-5M12 9c2-3 4-4 5-3 2 1 4 5 4 9 0 3-2 5-5 5-2 0-4-2-4-5"/>',
   prone: '<circle cx="7" cy="9" r="2"/><path d="M9 10l6 2 4-2M10 13l-3 4M15 12l3 4M4 5a8 8 0 0 1 13-1M18 4l-1-3M18 4l3-1"/>',
-  board: '<rect x="3" y="4" width="18" height="15" rx="2"/><path d="M7 15l3-4 3 2 4-5M7 21h10"/>',
+  board: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16M8 13h2M13 13h2M8 17h2"/>',
   tools: '<path d="M14 6a4 4 0 0 0-5 5L4 16a2 2 0 1 0 3 3l5-5a4 4 0 0 0 5-5l-3 3-2-2zM17 16l4 4"/>',
   taxonomy: '<circle cx="7" cy="7" r="2"/><circle cx="17" cy="7" r="2"/><circle cx="12" cy="17" r="2"/><path d="M9 7h6M8 9l3 6M16 9l-3 6"/>',
@@ -468,6 +468,11 @@ export default {
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+/* 圆点类元素实心填充，避免空心圈 */
+.nav-icon svg circle {
+  fill: currentColor;
+  stroke: none;
 }
 
 .nav-item:hover .nav-icon,
