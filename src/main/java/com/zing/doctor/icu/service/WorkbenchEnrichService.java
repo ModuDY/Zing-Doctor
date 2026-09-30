@@ -787,6 +787,52 @@ public class WorkbenchEnrichService {
         }
     }
 
+    /** 摘要页单患者体温趋势。工作台列表不调用，避免为每个患者增加明细查询。 */
+    public void enrichTemperatureTrend(List<WorkbenchPatient> patients) {
+        if (patients == null || patients.isEmpty()) return;
+        for (WorkbenchPatient p : patients) {
+            WorkbenchPatient.TemperatureTrend trend = new WorkbenchPatient.TemperatureTrend();
+            p.setTemperatureTrend(trend);
+            if (StrUtil.isBlank(p.getPatientId())) {
+                trend.setDataStatus("UNKNOWN");
+                continue;
+            }
+            try {
+                List<Map<String, Object>> rows = icuPatientMapper.selectTemperatureTrend(p.getPatientId());
+                if (rows == null || rows.isEmpty()) {
+                    trend.setDataStatus("EMPTY");
+                    continue;
+                }
+                List<WorkbenchPatient.TemperaturePoint> points = new ArrayList<>();
+                for (Map<String, Object> row : rows) {
+                    BigDecimal value = InfectionRules.parseDecimalValue(row.get("item_value"));
+                    if (value == null) continue;
+                    WorkbenchPatient.TemperaturePoint point = new WorkbenchPatient.TemperaturePoint();
+                    point.setTime(str(row.get("item_time")));
+                    point.setValue(value);
+                    points.add(point);
+                }
+                if (points.isEmpty()) {
+                    trend.setDataStatus("EMPTY");
+                    continue;
+                }
+                WorkbenchPatient.TemperaturePoint min = points.get(0);
+                WorkbenchPatient.TemperaturePoint max = points.get(0);
+                for (WorkbenchPatient.TemperaturePoint point : points) {
+                    if (point.getValue().compareTo(min.getValue()) < 0) min = point;
+                    if (point.getValue().compareTo(max.getValue()) > 0) max = point;
+                }
+                trend.setPoints(points);
+                trend.setMin(min);
+                trend.setMax(max);
+                trend.setDataStatus("FOUND");
+            } catch (Exception e) {
+                log.warn("患者摘要体温趋势查询失败(patientId={})", p.getPatientId(), e);
+                trend.setDataStatus("UNKNOWN");
+            }
+        }
+    }
+
     /** 解析 bundle JSON，返回 [completedCount, totalCount]。只统计 Boolean 类型的字段。 */
     private int[] countBundleItems(String json) {
         if (json == null || json.isEmpty()) return new int[]{0, 0};

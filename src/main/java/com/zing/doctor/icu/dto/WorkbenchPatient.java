@@ -121,6 +121,9 @@ public class WorkbenchPatient {
     /** 最近体温（℃），无记录为 null */
     private java.math.BigDecimal temperature;
 
+    /** 当前时间往前 24 小时的体温趋势；FOUND/EMPTY/UNKNOWN 三态不能混淆。 */
+    private TemperatureTrend temperatureTrend;
+
     /** 当前在用抗菌药的开始时间（最早一条） */
     private LocalDateTime abxStartTime;
 
@@ -129,6 +132,20 @@ public class WorkbenchPatient {
 
     /** 感染风险等级：高风险 / 中风险 / 低风险；非疑似感染时为 null */
     private String infectionRiskLevel;
+
+    @Data
+    public static class TemperatureTrend {
+        private String dataStatus = "UNKNOWN";
+        private List<TemperaturePoint> points = java.util.Collections.emptyList();
+        private TemperaturePoint min;
+        private TemperaturePoint max;
+    }
+
+    @Data
+    public static class TemperaturePoint {
+        private String time;
+        private java.math.BigDecimal value;
+    }
 
     // ---- 二期第一批：24h 检验 / 培养药敏 / 脓毒症集束化 ----
 

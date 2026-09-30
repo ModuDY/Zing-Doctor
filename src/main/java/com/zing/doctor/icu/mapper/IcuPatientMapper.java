@@ -395,6 +395,22 @@ public interface IcuPatientMapper {
             + ") WHERE ROWNUM <= 1")
     Map<String, Object> selectLatestTemperature(@Param("patientId") String patientId);
 
+    /** 患者当前时间往前 24 小时的体温记录，按采样时间升序返回。 */
+    @Select("SELECT * FROM ( "
+            + "  SELECT * FROM ( "
+            + "    SELECT r.item_time AS item_time, r.item_value AS item_value "
+            + "    FROM \"zing_icu_db_prod\".\"patient_observe_module_item_record\" r "
+            + "    INNER JOIN \"zing_icu_db_prod\".\"patient_observe_module_item\" i "
+            + "      ON i.patient_id = r.patient_id AND i.item_code = r.item_code "
+            + "     AND i.del_flag = 0 AND i.status = 1 "
+            + "    WHERE r.patient_id = #{patientId} AND r.del_flag = 0 AND r.status = 1 "
+            + "      AND i.item_name LIKE '%体温%' "
+            + "      AND r.item_time >= SYSDATE - 1 AND r.item_time <= SYSDATE "
+            + "    ORDER BY r.item_time DESC "
+            + "  ) WHERE ROWNUM <= 200 "
+            + ") ORDER BY item_time ASC")
+    List<Map<String, Object>> selectTemperatureTrend(@Param("patientId") String patientId);
+
     /** 患者执行中/未执行医嘱（抗菌药在 Java 端按关键词过滤；取最新 100 条） */
     @Select("SELECT * FROM ( "
             + "  SELECT name AS advice_name, freq_name AS freq_name, "

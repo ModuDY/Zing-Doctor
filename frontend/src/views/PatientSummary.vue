@@ -137,11 +137,31 @@
                 <span class="metric-label">WBC</span>
                 <span class="metric-value">{{ patient.wbc != null ? patient.wbc + ' ×10⁹/L' : '—' }}</span>
               </div>
-              <div class="metric">
-                <span class="metric-label">体温</span>
-                <span :class="['metric-value', { warn: patient.temperature != null && patient.temperature >= 38.3 }]">
-                  {{ patient.temperature != null ? patient.temperature + ' ℃' : '—' }}
-                </span>
+              <div class="metric temperature-metric">
+                <div class="temperature-head">
+                  <span class="metric-label">体温</span>
+                  <span :class="['metric-value', { warn: patient.temperature != null && patient.temperature >= 38.3 }]">
+                    {{ patient.temperature != null ? patient.temperature + ' ℃' : '—' }}
+                  </span>
+                </div>
+                <template v-if="temperatureChart">
+                  <svg class="temperature-chart" viewBox="0 0 220 62" role="img" aria-label="近24小时体温趋势">
+                    <line x1="4" y1="54" x2="216" y2="54" class="temperature-axis" />
+                    <polyline :points="temperatureChart.polyline" class="temperature-line" />
+                    <g v-for="point in temperatureChart.points" :key="point.key">
+                      <title>{{ point.time }} {{ point.value }} ℃</title>
+                      <circle :cx="point.x" :cy="point.y" :r="point.isExtreme ? 3.5 : 2" :class="['temperature-dot', { min: point.isMin, max: point.isMax }]" />
+                    </g>
+                    <text v-if="temperatureChart.min" :x="temperatureChart.min.x" :y="temperatureChart.min.labelY" text-anchor="middle" class="temperature-label min-label">低</text>
+                    <text v-if="temperatureChart.max" :x="temperatureChart.max.x" :y="temperatureChart.max.labelY" text-anchor="middle" class="temperature-label max-label">高</text>
+                  </svg>
+                  <div class="temperature-extremes">
+                    <span class="temperature-extreme min-extreme">低 {{ temperatureChart.min.value }} ℃ <small>{{ temperatureChart.min.time }}</small></span>
+                    <span class="temperature-extreme max-extreme">高 {{ temperatureChart.max.value }} ℃ <small>{{ temperatureChart.max.time }}</small></span>
+                  </div>
+                </template>
+                <span v-else-if="temperatureTrendUnknown" class="temperature-status">24 小时数据暂不可用</span>
+                <span v-else class="temperature-status">24 小时无体温记录</span>
               </div>
               <div class="metric">
                 <span class="metric-label">当前抗菌药</span>
@@ -422,6 +442,46 @@ export default {
         this.patient.sepsisBundle.dataStatus === 'NOT_APPLICABLE' ||
         this.patient.sepsisBundle.dataStatus === 'UNKNOWN'
     },
+    temperatureTrendUnknown() {
+      return !this.patient || !this.patient.temperatureTrend ||
+        this.patient.temperatureTrend.dataStatus === 'UNKNOWN'
+    },
+    temperatureChart() {
+      const trend = this.patient && this.patient.temperatureTrend
+      if (!trend || trend.dataStatus !== 'FOUND' || !trend.points || !trend.points.length) return null
+      const values = trend.points.map(point => Number(point.value)).filter(Number.isFinite)
+      if (!values.length) return null
+      const minValue = Math.min(...values)
+      const maxValue = Math.max(...values)
+      const range = Math.max(maxValue - minValue, 0.4)
+      const low = minValue - range * 0.15
+      const high = maxValue + range * 0.15
+      const left = 6
+      const width = 208
+      const top = 7
+      const height = 43
+      const points = trend.points.map((point, index) => {
+        const value = Number(point.value)
+        const x = trend.points.length === 1 ? 110 : left + width * index / (trend.points.length - 1)
+        const y = top + (high - value) / (high - low) * height
+        const isMin = value === minValue
+        const isMax = value === maxValue
+        return {
+          key: `${point.time}-${index}`,
+          x: Number(x.toFixed(2)),
+          y: Number(y.toFixed(2)),
+          value: Number(value.toFixed(1)),
+          time: this.shortTemperatureTime(point.time),
+          isMin,
+          isMax,
+          isExtreme: isMin || isMax,
+          labelY: isMin ? Math.max(y - 8, 8) : Math.min(y + 14, 60)
+        }
+      })
+      const min = points.find(point => point.isMin)
+      const max = points.find(point => point.isMax)
+      return { points, polyline: points.map(point => `${point.x},${point.y}`).join(' '), min, max }
+    },
     todoItems() {
       if (!this.patient || !this.patient.todos) return []
       const map = {
@@ -498,6 +558,11 @@ export default {
       } catch {
         return t
       }
+    },
+    shortTemperatureTime(t) {
+      if (!t) return '--:--'
+      const match = String(t).match(/(\d{2}):(\d{2})(?::\d{2})?$/)
+      return match ? `${match[1]}:${match[2]}` : String(t).slice(-5)
     },
     riskTagType(level) {
       if (level === '高风险') return 'danger'
@@ -814,6 +879,48 @@ export default {
 }
 .metric-value.warn { color: #dc2626; }
 .abx-value { font-weight: 500; }
+.temperature-metric { min-width: 0; }
+.temperature-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.temperature-chart {
+  display: block;
+  width: 100%;
+  max-width: 220px;
+  height: 62px;
+  margin: 4px 0 0;
+  overflow: visible;
+}
+.temperature-axis { stroke: #e7e5e4; stroke-width: 1; }
+.temperature-line {
+  fill: none;
+  stroke: #ea580c;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.temperature-dot { fill: #a8a29e; stroke: #fff; stroke-width: 1.5; }
+.temperature-dot.min { fill: #16a34a; }
+.temperature-dot.max { fill: #dc2626; }
+.temperature-label { font-size: 9px; font-weight: 700; }
+.min-label { fill: #15803d; }
+.max-label { fill: #b91c1c; }
+.temperature-extremes {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: -2px;
+  font-size: 10px;
+  line-height: 1.3;
+}
+.temperature-extreme { white-space: nowrap; }
+.temperature-extreme small { color: #a8a29e; font-size: 10px; }
+.min-extreme { color: #15803d; }
+.max-extreme { color: #b91c1c; }
+.temperature-status { font-size: 11px; color: #a8a29e; margin-top: 10px; }
 .infection-flags {
   display: flex;
   align-items: center;
