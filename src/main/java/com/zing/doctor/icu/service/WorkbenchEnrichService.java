@@ -595,30 +595,36 @@ public class WorkbenchEnrichService {
                     String name = str(row.get("item_name"));
                     byItem.computeIfAbsent(name, k -> new ArrayList<>()).add(row);
                 }
-                for (Map<String, Object> row : rows) {
-                    String name = str(row.get("item_name"));
-                    String result = str(row.get("result"));
-                    String unit = str(row.get("unit"));
-                    String low = str(row.get("low_value"));
-                    String high = str(row.get("height_value"));
-                    String limit = str(row.get("item_limit"));
-                    String alarm = str(row.get("alarm_flag"));
+                // 按项目分组展示：每个项目只取最新一条记录，趋势数据用所有时间点
+                for (Map.Entry<String, List<Map<String, Object>>> entry : byItem.entrySet()) {
+                    String name = entry.getKey();
+                    List<Map<String, Object>> series = entry.getValue();
+                    // series 已按 check_time 降序（SQL ORDER BY），最新的在最前
+                    Map<String, Object> latest = series.get(0);
+                    String result = str(latest.get("result"));
+                    String unit = str(latest.get("unit"));
+                    String low = str(latest.get("low_value"));
+                    String high = str(latest.get("height_value"));
+                    String limit = str(latest.get("item_limit"));
+                    String alarm = str(latest.get("alarm_flag"));
                     String refRange = !limit.isEmpty() ? limit :
                             (!low.isEmpty() && !high.isEmpty() ? low + "-" + high : "");
                     boolean isAbnormal = isAbnormal(result, low, high, alarm);
+                    // 统计正常记录数（该项目所有正常记录）
+                    if (!isAbnormal) {
+                        normalCount += series.size();
+                    }
                     WorkbenchPatient.LabItem item = new WorkbenchPatient.LabItem();
                     item.setItemName(name);
                     item.setResult(result);
                     item.setUnit(unit);
                     item.setRefRange(refRange);
-                    item.setCheckTime(str(row.get("check_time")));
+                    item.setCheckTime(str(latest.get("check_time")));
                     // 趋势：同一项目有多个时间点时判断
-                    List<Map<String, Object>> series = byItem.get(name);
-                    if (series != null && series.size() >= 2) {
+                    if (series.size() >= 2) {
                         item.setTrend(judgeTrend(result, str(series.get(1).get("result"))));
                         // 填充趋势数据点（按时间升序），用于前端折线图
                         List<WorkbenchPatient.TrendPoint> points = new ArrayList<>();
-                        // series 已按 check_time 降序（SQL ORDER BY），反转后升序
                         for (int j = series.size() - 1; j >= 0; j--) {
                             Map<String, Object> pt = series.get(j);
                             points.add(new WorkbenchPatient.TrendPoint(
@@ -629,8 +635,6 @@ public class WorkbenchEnrichService {
                     }
                     if (isAbnormal) {
                         abnormal.add(item);
-                    } else {
-                        normalCount++;
                     }
                 }
                 labs.setAbnormalItems(abnormal);
@@ -790,12 +794,19 @@ public class WorkbenchEnrichService {
                 if (h6[0] < h6[1]) pending.add("6H 集束化未完成(" + h6[0] + "/" + h6[1] + ")");
                 s.setPendingItems(pending);
 
-                // 状态
+                // 状态：全部完成=COMPLETED；记录时间+6h仍有未完成=OVERDUE；否则=IN_PROGRESS
                 boolean allDone = (h1[0] >= h1[1] && h3[0] >= h3[1] && h6[0] >= h6[1])
                         || (Integer.valueOf(1).equals(record.getBundle1hCompleted())
                             && Integer.valueOf(1).equals(record.getBundle3hCompleted())
                             && Integer.valueOf(1).equals(record.getBundle6hCompleted()));
-                s.setDataStatus(allDone ? "COMPLETED" : "IN_PROGRESS");
+                if (allDone) {
+                    s.setDataStatus("COMPLETED");
+                } else if (record.getCreateTime() != null
+                        && record.getCreateTime().plusHours(6).isBefore(LocalDateTime.now())) {
+                    s.setDataStatus("OVERDUE");
+                } else {
+                    s.setDataStatus("IN_PROGRESS");
+                }
             } catch (Exception e) {
                 log.warn("脓毒症 JSON 解析失败(inHospitalNo={})", p.getInHospitalNo(), e);
                 s.setDataStatus("UNKNOWN");

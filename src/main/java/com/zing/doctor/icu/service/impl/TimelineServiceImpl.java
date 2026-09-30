@@ -49,6 +49,7 @@ public class TimelineServiceImpl implements TimelineService {
 
     @Override
     public List<TimelineEvent> getPatientTimeline(String patientId) {
+        long start = System.currentTimeMillis();
         List<TimelineEvent> events = new ArrayList<>();
 
         try {
@@ -152,6 +153,12 @@ public class TimelineServiceImpl implements TimelineService {
         events.sort(Comparator.comparing(TimelineEvent::getTime, Comparator.nullsLast(Comparator.reverseOrder())));
         if (events.size() > 50) {
             events = events.subList(0, 50);
+        }
+        long cost = System.currentTimeMillis() - start;
+        if (cost > 500) {
+            log.warn("时间线聚合耗时较长: patientId={}, events={}, cost={}ms", patientId, events.size(), cost);
+        } else {
+            log.debug("时间线聚合完成: patientId={}, events={}, cost={}ms", patientId, events.size(), cost);
         }
         return events;
     }

@@ -124,8 +124,10 @@
           </div>
         </div>
 
-        <!-- 感染摘要 -->
-        <div class="summary-card infection-card">
+        <!-- 感染 + 24h检验 + 培养药敏 三列 -->
+        <div class="summary-row mid-row">
+          <!-- 感染摘要 -->
+          <div class="summary-card infection-card">
           <div class="card-header">
             <div>
               <div class="card-kicker">INFECTION</div>
@@ -207,14 +209,12 @@
           </template>
         </div>
 
-        <!-- 二期第一批：24h 检验 + 培养药敏 左右分栏 -->
-        <div class="summary-row mid-row">
           <!-- 24h 检验摘要 -->
           <div class="summary-card labs-card">
             <div class="card-header">
               <div>
                 <div class="card-kicker">LABS 24H</div>
-                <h3 class="card-title">24 小时检验</h3>
+                <h3 class="card-title">24 小时异常检验</h3>
               </div>
               <div class="labs-summary" v-if="patient.labs24h && patient.labs24h.dataStatus === 'FOUND'">
                 <span class="labs-summary-item abnormal"><b>{{ patient.labs24h.abnormalCount }}</b> 异常</span>
@@ -346,6 +346,8 @@
         </div>
 
         <!-- 脓毒症集束化状态 -->
+        <!-- 脓毒症 + 待办 + 快捷操作 三列 -->
+        <div class="summary-row bottom-row">
         <div :class="['summary-card', 'sepsis-card', { 'card-mini': sepsisIsEmpty }]" v-if="patient.sepsisBundle">
           <div class="card-header">
             <div>
@@ -494,11 +496,13 @@
               </div>
             </div>
           </div>
+          <div v-else-if="timelineError" class="block-empty">
+            时间线数据暂不可用
+            <el-button size="small" text type="primary" @click="loadTimeline" style="margin-left:8px">点击重试</el-button>
+          </div>
           <div v-else class="block-empty">暂无时间线事件</div>
         </div>
 
-        <!-- 底部：今日待办 + 快捷操作 左右分栏 -->
-        <div class="summary-row bottom-row">
           <!-- 今日待办 -->
           <div class="summary-card todo-card">
             <div class="card-header">
@@ -602,6 +606,7 @@ export default {
       showRoundHistory: false,
       timeline: [],
       timelineLoading: false,
+      timelineError: false,
       expandedLabIdx: -1,
       showEcmoDetail: false,
       showCultureReport: false
@@ -742,11 +747,13 @@ export default {
       const patientId = this.$route.query.patientId
       if (!patientId) return
       this.timelineLoading = true
+      this.timelineError = false
       try {
         const data = await request.get(`/api/workbench/patients/${patientId}/timeline`, { silentError: true })
         this.timeline = Array.isArray(data) ? data : []
       } catch (e) {
         this.timeline = []
+        this.timelineError = true
       } finally {
         this.timelineLoading = false
       }
@@ -942,15 +949,15 @@ export default {
 .summary-page {
   min-height: 100%;
   background: #f5f5f4;
-  padding: 20px 24px 40px;
+  padding: 12px 16px 24px;
 }
 
 /* 顶部栏 */
 .summary-header {
   display: flex;
   align-items: center;
-  gap: 20px;
-  margin-bottom: 18px;
+  gap: 16px;
+  margin-bottom: 10px;
 }
 .header-left { flex-shrink: 0; }
 .back-btn {
@@ -1007,29 +1014,29 @@ export default {
 .summary-card {
   background: #fff;
   border: 1px solid #e7e5e4;
-  border-radius: 10px;
-  padding: 18px 20px;
-  margin-bottom: 16px;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
 }
 .card-kicker {
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 1.5px;
+  letter-spacing: 1.2px;
   color: #a8a29e;
   text-transform: uppercase;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 .card-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: #1c1917;
-  margin: 0 0 14px 0;
+  margin: 0 0 10px 0;
 }
 .card-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 .card-header .card-title { margin-bottom: 0; }
 
@@ -1037,19 +1044,24 @@ export default {
 .top-row {
   display: grid;
   grid-template-columns: 1.5fr 1fr;
-  gap: 16px;
+  gap: 10px;
   margin-bottom: 0;
 }
 .top-row .summary-card { margin-bottom: 0; }
 
-/* 底部左右分栏：待办 + 快捷操作 */
+/* 底部：脓毒症 + 待办 + 快捷操作（第一行），查房 + 时间线（第二行） */
 .bottom-row {
   display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  gap: 16px;
-  margin-top: 16px;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
 }
 .bottom-row .summary-card { margin-bottom: 0; }
+.bottom-row .sepsis-card { order: 1; }
+.bottom-row .todo-card { order: 2; }
+.bottom-row .quick-card { order: 3; }
+.bottom-row .round-card { order: 4; }
+.bottom-row .timeline-card { order: 5; grid-column: span 2; }
 
 /* 患者概览 */
 .overview-body {
@@ -1124,8 +1136,8 @@ export default {
 .ecmo-detail {
   margin-top: 10px;
   padding: 10px;
-  background: #f5f3ff;
-  border: 1px solid #ddd6fe;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
   border-radius: 8px;
 }
 .ecmo-detail-grid {
@@ -1136,7 +1148,7 @@ export default {
 .ecmo-field label {
   display: block;
   font-size: 11px;
-  color: #7c3aed;
+  color: #ea580c;
   margin-bottom: 2px;
 }
 .ecmo-field span {
@@ -1347,9 +1359,9 @@ export default {
 /* 中间行：24h检验 + 培养药敏 */
 .mid-row {
   display: grid;
-  grid-template-columns: 1.3fr 1fr;
-  gap: 16px;
-  margin-top: 16px;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
 }
 .mid-row .summary-card { margin-bottom: 0; }
 
@@ -1606,7 +1618,7 @@ export default {
 }
 
 /* 脓毒症集束化 */
-.sepsis-card { margin-top: 16px; }
+.sepsis-card { }
 .sepsis-progress {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1663,7 +1675,7 @@ export default {
 }
 
 /* 查房记录 */
-.round-card { margin-top: 16px; }
+.round-card { }
 .round-actions { display: flex; gap: 8px; align-items: center; }
 .round-form { margin-top: 12px; }
 .round-row { margin-bottom: 12px; }
@@ -1701,7 +1713,7 @@ export default {
 .round-history-meta { font-size: 11px; color: #a8a29e; }
 
 /* 临床时间线 */
-.timeline-card { margin-top: 16px; }
+.timeline-card { }
 .timeline-list { margin-top: 12px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
 .timeline-item {
   display: flex;
