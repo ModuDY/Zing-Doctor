@@ -130,7 +130,12 @@ public class AntibioticReassessmentServiceImpl implements AntibioticReassessment
         record.setPatientNo(patientNo);
         record.setInHospitalNo(inHospitalNo);
         record.setDepartCode(departCode);
-        record.setReviewDueTime(LocalDateTime.now().plusHours(48));
+        // 暂无可靠的首次实际给药时间接口时，明确退化为“决策采纳时间”，不可伪装成给药时间。
+        LocalDateTime treatmentStart = LocalDateTime.now();
+        record.setTreatmentStartTime(treatmentStart);
+        record.setReviewOpenTime(treatmentStart.plusHours(48));
+        record.setReviewDueTime(treatmentStart.plusHours(72));
+        record.setTimeSource("DECISION_ACCEPTED");
         record.setReviewStatus(PENDING);
         record.setVoidFlag(0);
         reassessmentMapper.insert(record);

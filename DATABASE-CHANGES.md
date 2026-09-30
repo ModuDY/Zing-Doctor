@@ -1351,3 +1351,19 @@ SELECT param_key, param_value, default_value FROM sys_param WHERE param_key = 'W
 **列**：`main_problem` 今日主要问题、`infection_judgment` 感染判断、`respiratory_plan` 呼吸支持、`circulatory_plan` 循环支持、`renal_sedation_plan` 镇静镇痛/肾脏支持、`abx_plan` 抗菌药调整、`recheck_items` 今日复查、`treatment_goal` 治疗目标、`tomorrow_focus` 明日重点。
 
 **登记**：`install.sh`（三处数组）、`install-mariadb-debian.sh`、`build-delivery.ps1` 均已加入 `44_patient_round_record.sql`。
+
+---
+
+### 2026-09-30 · 抗菌药复评窗口升级 48→72h（45）
+
+**背景**：复评任务原先「创建后 48 小时即逾期」，过严。改为 **48～72 小时复评窗口**：
+计时起点（treatment_start_time）优先取首次实际给药时间，缺失时按决策/任务创建时间回填；
+窗口开放（review_open_time）= 起点后 48h，截止（review_due_time）= 起点后 72h。
+已有的 PENDING 记录批量回填，不冒充真实给药时间（time_source 标记来源）。
+
+**45 号脚本（双库，幂等）**
+
+- 达梦 `sql/45_antibiotic_reassessment_window.sql`：DECLARE+COUNT 判断，缺列才 ADD；回填已有 NULL 行；建唯一索引 `ux_abx_reassessment_decision(decision_record_id)`（一决策一条复评）。
+- MySQL/MariaDB `sql/mysql/45_antibiotic_reassessment_window.sql`：`ADD COLUMN/ADD UNIQUE KEY IF NOT EXISTS`（MariaDB 10.0.2+），可重复执行。
+
+**登记**：`install.sh`（三处数组）、`install-mariadb-debian.sh`、`build-delivery.ps1` 均已加 `45_antibiotic_reassessment_window.sql`。已在达梦真库验证首次执行与幂等复跑通过。

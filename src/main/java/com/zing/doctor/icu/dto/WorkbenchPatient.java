@@ -84,6 +84,10 @@ public class WorkbenchPatient {
     private Integer reassessmentCount = 0;
     /** 当前最早一条待复评任务的计划时间。 */
     private LocalDateTime reassessmentDueTime;
+    /** 48 小时复评窗口开放时间。 */
+    private LocalDateTime reassessmentOpenTime;
+    /** SCHEDULED / PENDING / OVERDUE；查询失败时由 reassessmentDataStatus 表达。 */
+    private String reassessmentStatus;
     /** FOUND 已完成查询；UNKNOWN 查询失败，不能解释为没有待复评。 */
     private String reassessmentDataStatus = "FOUND";
 

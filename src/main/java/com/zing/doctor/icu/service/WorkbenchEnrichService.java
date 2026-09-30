@@ -199,8 +199,11 @@ public class WorkbenchEnrichService {
                         patient.getPatientId(), Collections.emptyList());
                 patient.setReassessmentCount(tasks.size());
                 patient.setReassessmentDueTime(tasks.isEmpty() ? null : tasks.get(0).getReviewDueTime());
+                patient.setReassessmentOpenTime(tasks.isEmpty() ? null : tasks.get(0).getReviewOpenTime());
+                patient.setReassessmentStatus(tasks.isEmpty() ? null : tasks.get(0).getDisplayStatus());
                 patient.setReassessmentDataStatus("FOUND");
-                if (!tasks.isEmpty()) {
+                // 48 小时前只展示“未到复评时间”，不计入今日待办；进入窗口后才产生动作任务。
+                if (!tasks.isEmpty() && !"SCHEDULED".equals(tasks.get(0).getDisplayStatus())) {
                     List<String> todos = patient.getTodos() == null
                             ? new ArrayList<>() : new ArrayList<>(patient.getTodos());
                     if (!todos.contains("ABX_REASSESSMENT_PENDING")) {
@@ -801,8 +804,8 @@ public class WorkbenchEnrichService {
                             && Integer.valueOf(1).equals(record.getBundle6hCompleted()));
                 if (allDone) {
                     s.setDataStatus("COMPLETED");
-                } else if (record.getCreateTime() != null
-                        && record.getCreateTime().plusHours(6).isBefore(LocalDateTime.now())) {
+                } else if (record.getDiagnosisTime() != null
+                        && record.getDiagnosisTime().plusHours(6).isBefore(LocalDateTime.now())) {
                     s.setDataStatus("OVERDUE");
                 } else {
                     s.setDataStatus("IN_PROGRESS");

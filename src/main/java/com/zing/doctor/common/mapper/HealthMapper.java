@@ -22,7 +22,12 @@ public interface HealthMapper {
     @Select("SELECT 1")
     Integer pingIcu();
 
-    /** 第二阶段必须存在的复评表，用于现场升级自检。 */
-    @Select("SELECT COUNT(1) FROM \"zing_doctor_db_prod\".\"patient_doc_abx_reassessment\"")
+    /**
+     * 复评表及当前版本必需列。WHERE 1=0 不扫描业务数据，但缺任一列会直接失败，
+     * 避免只建了旧版表却被交付自检误报为 READY。
+     */
+    @Select("SELECT COUNT(\"treatment_start_time\") + COUNT(\"review_open_time\") "
+            + "+ COUNT(\"review_due_time\") + COUNT(\"time_source\") "
+            + "FROM \"zing_doctor_db_prod\".\"patient_doc_abx_reassessment\" WHERE 1 = 0")
     Integer checkReassessmentTable();
 }

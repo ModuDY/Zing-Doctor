@@ -273,7 +273,8 @@ if (Test-Path $myDir) {
         '40_qc_fact_def_seed.sql', '41_patient_summary_page.sql',
         '42_workbench_bed_sort_mode.sql',
         '43_workbench_score_display.sql',
-        '44_patient_round_record.sql')
+        '44_patient_round_record.sql',
+        '45_antibiotic_reassessment_window.sql')
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine('-- ============================================================')
     [void]$sb.AppendLine('-- zing-doctor MySQL/MariaDB 一次性初始化脚本（打包时自动合成，勿手工编辑）')

@@ -97,7 +97,7 @@ class AntibioticReassessmentServiceImplTest {
     }
 
     @Test
-    @DisplayName("新决策创建带 48 小时到期时间的待复评任务")
+    @DisplayName("新决策创建 48 至 72 小时复评窗口并标明时间来源")
     void createsPendingTask() {
         when(mapper.selectList(any(Wrapper.class))).thenReturn(Collections.emptyList());
         when(mapper.insert(any(AntibioticReassessment.class))).thenAnswer(invocation -> {
@@ -109,6 +109,11 @@ class AntibioticReassessmentServiceImplTest {
         assertEquals(10L, created.getDecisionRecordId());
         assertEquals(AntibioticReassessmentServiceImpl.PENDING, created.getReviewStatus());
         assertEquals(0, created.getVoidFlag());
+        assertNotNull(created.getTreatmentStartTime());
+        assertEquals(created.getTreatmentStartTime().plusHours(48), created.getReviewOpenTime());
+        assertEquals(created.getTreatmentStartTime().plusHours(72), created.getReviewDueTime());
+        assertEquals("DECISION_ACCEPTED", created.getTimeSource());
+        assertEquals("SCHEDULED", created.getDisplayStatus());
         assertNotNull(created.getReviewDueTime());
         verify(mapper).insert(created);
     }

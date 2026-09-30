@@ -156,8 +156,8 @@
             <template #default="{ row }">
               <span v-if="isReassessmentUnknown(row)" class="reassessment-unknown">复评状态未知</span>
               <template v-else-if="hasPendingReassessment(row)">
-                <div :class="['reassessment-line', { overdue: isReassessmentOverdue(row) }]">
-                  <span class="reassessment-badge">{{ isReassessmentOverdue(row) ? '已逾期' : '待复评' }}</span>
+                <div :class="['reassessment-line', { overdue: isReassessmentOverdue(row), scheduled: isReassessmentScheduled(row) }]">
+                  <span class="reassessment-badge">{{ reassessmentStatusLabel(row) }}</span>
                   <span v-if="Number(row.reassessmentCount) > 1">{{ row.reassessmentCount }} 项</span>
                 </div>
                 <div class="patient-sub">{{ reassessmentDueLabel(row) }}</div>
@@ -383,14 +383,23 @@ function hasPendingReassessment(p) {
 }
 
 function isReassessmentOverdue(p) {
-  if (!hasPendingReassessment(p) || !p.reassessmentDueTime) return false
-  const due = new Date(String(p.reassessmentDueTime).replace(' ', 'T')).getTime()
-  return Number.isFinite(due) && due < Date.now()
+  return String(p?.reassessmentStatus || '').toUpperCase() === 'OVERDUE'
+}
+
+function isReassessmentScheduled(p) {
+  return String(p?.reassessmentStatus || '').toUpperCase() === 'SCHEDULED'
+}
+
+function reassessmentStatusLabel(p) {
+  return isReassessmentScheduled(p) ? '未到复评时间' : (isReassessmentOverdue(p) ? '已逾期' : '待复评')
 }
 
 function reassessmentDueLabel(p) {
-  if (!p.reassessmentDueTime) return '计划时间未知'
-  return `计划 ${formatTime(p.reassessmentDueTime)}`
+  if (isReassessmentScheduled(p)) {
+    return p.reassessmentOpenTime ? `开放 ${formatTime(p.reassessmentOpenTime)}` : '开放时间未知'
+  }
+  if (!p.reassessmentDueTime) return '截止时间未知'
+  return `截止 ${formatTime(p.reassessmentDueTime)}`
 }
 
 /**
@@ -966,8 +975,10 @@ watch(() => currentDepart.departCode, (v) => {
 .todo-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 23px; height: 23px; padding: 0 7px; border-radius: 999px; color: #fff; background: #dc2626; font-size: 12px; font-weight: 700; cursor: pointer; }
 .reassessment-line { display: flex; align-items: center; gap: 6px; color: #92400e; font-size: 12px; font-weight: 600; }
 .reassessment-line.overdue { color: #b91c1c; }
+.reassessment-line.scheduled { color: #64748b; }
 .reassessment-badge { display: inline-flex; align-items: center; padding: 3px 7px; border-radius: 999px; background: #fff7ed; color: #c2410c; }
 .reassessment-line.overdue .reassessment-badge { background: #fef2f2; color: #b91c1c; }
+.reassessment-line.scheduled .reassessment-badge { background: #f1f5f9; color: #475569; }
 .reassessment-unknown { color: #b45309; font-size: 12px; font-weight: 600; }
 .reassessment-unknown-number { color: #b45309 !important; }
 .todo-popover { display: flex; flex-direction: column; gap: 6px; }

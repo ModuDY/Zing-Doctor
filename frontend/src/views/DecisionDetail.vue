@@ -96,11 +96,11 @@
         <div class="block-title reassessment-title">
           <span class="dot dot-orange"></span>抗感染 48～72 小时复评
           <template v-if="latestReassessment">
-            <el-tag :type="reassessmentTagType(latestReassessment.reviewStatus)" size="small" effect="plain">
-              {{ reassessmentStatusText(latestReassessment.reviewStatus) }}
+            <el-tag :type="reassessmentTagType(latestReassessment.displayStatus)" size="small" effect="plain">
+              {{ reassessmentStatusText(latestReassessment.displayStatus) }}
             </el-tag>
-            <span v-if="latestReassessment.reviewDueTime" class="due-text">
-              计划 {{ formatTime(latestReassessment.reviewDueTime) }}
+            <span v-if="latestReassessment.reviewOpenTime" class="due-text">
+              窗口 {{ formatTime(latestReassessment.reviewOpenTime) }} ～ {{ formatTime(latestReassessment.reviewDueTime) }}
             </span>
             <el-tag v-if="isOverdue(latestReassessment)" type="danger" size="small">已逾期</el-tag>
           </template>
@@ -109,10 +109,14 @@
                   :title="reassessmentLoadError" />
         <el-empty v-else-if="!reassessments.length" description="当前没有待复评任务；采纳新的抗感染决策后会自动生成" :image-size="54" />
         <template v-else>
-          <div v-if="latestReassessment && latestReassessment.reviewStatus === 'PENDING'" class="reassessment-form">
+          <el-alert v-if="latestReassessment && latestReassessment.displayStatus === 'SCHEDULED'"
+                    type="info" :closable="false" show-icon
+                    :title="`尚未进入建议复评窗口，${formatTime(latestReassessment.reviewOpenTime)} 后开放`" />
+          <div v-if="latestReassessment && latestReassessment.reviewStatus === 'PENDING' && latestReassessment.displayStatus !== 'SCHEDULED'" class="reassessment-form">
             <div class="reassessment-summary">
               <div><span>关联决策</span><strong>{{ formatTime(latestReassessment.createTime) }}</strong></div>
-              <div><span>任务状态</span><strong>{{ isOverdue(latestReassessment) ? '已超过计划时间' : '待复评' }}</strong></div>
+              <div><span>任务状态</span><strong>{{ isOverdue(latestReassessment) ? '已超过72小时窗口' : '48～72小时复评中' }}</strong></div>
+              <div><span>计时来源</span><strong>{{ reassessmentTimeSourceText(latestReassessment.timeSource) }}</strong></div>
               <div><span>原始方案</span><strong>{{ latestDecisionPlan || '—' }}</strong></div>
             </div>
             <el-form label-position="top">
@@ -180,7 +184,7 @@
             </el-table-column>
             <el-table-column label="状态" width="90">
               <template #default="{ row }">
-                <el-tag :type="reassessmentTagType(row.reviewStatus)" size="small">{{ reassessmentStatusText(row.reviewStatus) }}</el-tag>
+                <el-tag :type="reassessmentTagType(row.displayStatus)" size="small">{{ reassessmentStatusText(row.displayStatus) }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="动作" width="110">
@@ -439,16 +443,19 @@ export default {
       this.reassessmentForm.doctorName = picked ? picked.label : ''
     },
     reassessmentStatusText(status) {
-      return { PENDING: '待复评', COMPLETED: '已完成', SKIPPED: '已跳过', VOID: '已作废' }[status] || status || '—'
+      return { SCHEDULED: '未到复评时间', PENDING: '待复评', OVERDUE: '已逾期', COMPLETED: '已完成', SKIPPED: '已跳过', VOID: '已作废' }[status] || status || '—'
     },
     reassessmentTagType(status) {
-      return { PENDING: 'warning', COMPLETED: 'success', SKIPPED: 'info', VOID: 'danger' }[status] || 'info'
+      return { SCHEDULED: 'info', PENDING: 'warning', OVERDUE: 'danger', COMPLETED: 'success', SKIPPED: 'info', VOID: 'danger' }[status] || 'info'
+    },
+    reassessmentTimeSourceText(source) {
+      return source === 'FIRST_ADMINISTRATION' ? '首次实际给药时间' : (source === 'DECISION_ACCEPTED' ? '决策采纳时间（降级口径）' : '时间来源未知')
     },
     reassessmentActionText(action) {
       return { CONTINUE: '继续当前方案', DE_ESCALATE: '降阶梯', ESCALATE: '升阶梯', SWITCH: '换药', STOP: '停药', OTHER: '其他' }[action] || action || '—'
     },
     isOverdue(task) {
-      return task && task.reviewStatus === 'PENDING' && task.reviewDueTime && new Date(task.reviewDueTime).getTime() < Date.now()
+      return task && task.displayStatus === 'OVERDUE'
     },
     async completeReassessmentForm() {
       const task = this.latestReassessment
