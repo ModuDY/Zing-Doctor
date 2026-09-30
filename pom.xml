@@ -19,7 +19,7 @@
            patch 1.0.x —— 修 bug、样式、补页面注册、取数口径这类不影响接口的改动
            minor 1.x.0 —— 新增功能或页面（新评分模块、新外链能力等）
            major x.0.0 —— 破坏性变更（接口不兼容、库结构不向下兼容、历史重写） -->
-    <version>1.0.3</version>
+    <version>1.0.4</version>
     <name>zing-doctor</name>
     <description>医生决策系统（ICU 抗菌药物管理与临床决策）</description>
 
