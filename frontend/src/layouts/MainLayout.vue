@@ -190,7 +190,15 @@ const MedicalIcon = {
   props: { name: { type: String, required: true } },
   render() {
     return h('span', { class: 'nav-icon', 'aria-hidden': 'true' }, [
-      h('svg', { viewBox: '0 0 24 24', innerHTML: MEDICAL_ICON_PATHS[this.name] || MEDICAL_ICON_PATHS.memo })
+      h('svg', {
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: 'currentColor',
+        'stroke-width': '1.7',
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        innerHTML: MEDICAL_ICON_PATHS[this.name] || MEDICAL_ICON_PATHS.memo
+      })
     ])
   }
 }
@@ -460,7 +468,7 @@ export default {
   flex: 0 0 20px;
 }
 
-.nav-icon svg {
+.nav-icon :deep(svg) {
   width: 19px;
   height: 19px;
   fill: none;
