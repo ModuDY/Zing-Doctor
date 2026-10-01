@@ -29,73 +29,82 @@
       </el-empty>
 
       <template v-if="patient">
-        <!-- 患者信息条：诊断/主管医生/入科信息，窄条不占卡片高度 -->
-        <div class="patient-info-bar">
-          <div class="info-bar-item">
-            <span class="info-bar-label">年龄性别</span>
-            <span class="info-bar-value">{{ patient.age || '—' }}岁 · {{ patient.gender || '—' }}</span>
-          </div>
-          <div class="info-bar-item">
-            <span class="info-bar-label">科室</span>
-            <span class="info-bar-value">{{ patient.departName || patient.wardName || '—' }}</span>
-          </div>
-          <div class="info-bar-item">
-            <span class="info-bar-label">入科时间</span>
-            <span class="info-bar-value">{{ formatTime(patient.inDepartmentTime) }}</span>
-          </div>
-          <div class="info-bar-item" v-if="patient.attendingDoctor">
-            <span class="info-bar-label">主管医生</span>
-            <span class="info-bar-value">{{ patient.attendingDoctor }}</span>
-          </div>
-          <div class="info-bar-item diagnosis" v-if="patient.diagnosis">
-            <span class="info-bar-label">主要诊断</span>
-            <span class="info-bar-value" :title="patient.diagnosis">{{ patient.diagnosis }}</span>
-          </div>
-        </div>
-
-        <!-- 第一行：生命支持 | 关键评分 | 当前风险 -->
-        <div class="summary-row row-1">
-          <!-- 生命支持 -->
-          <div class="summary-card support-card">
-            <div class="card-kicker">LIFE SUPPORT</div>
-            <h3 class="card-title">生命支持</h3>
-            <div class="support-chips">
-              <span :class="['support-chip', { on: patient.ventilated }]">
-                {{ patient.ventilated ? '● 机械通气' : '○ 机械通气' }}
-              </span>
-              <span :class="['support-chip', { on: patient.onVasopressor }]">
-                {{ patient.onVasopressor ? '● 血管活性药' : '○ 血管活性药' }}
-              </span>
-              <span :class="['support-chip', { on: patient.onCrrt }]">
-                {{ patient.onCrrt ? '● CRRT' : '○ CRRT' }}
-              </span>
-              <span
-                :class="['support-chip', { on: patient.onEcmo, clickable: patient.onEcmo }]"
-                @click="patient.onEcmo && (showEcmoDetail = !showEcmoDetail)"
-              >
-                {{ patient.onEcmo ? '● ECMO' : '○ ECMO' }}
-                <el-icon v-if="patient.onEcmo" class="chip-arrow" :class="{ expanded: showEcmoDetail }"><arrow-down /></el-icon>
-              </span>
-            </div>
-            <div class="support-none" v-if="!patient.ventilated && !patient.onVasopressor && !patient.onCrrt && !patient.onEcmo">
-              暂无生命支持
-            </div>
-            <div v-if="showEcmoDetail && patient.ecmoDetail" class="ecmo-detail">
-              <div class="ecmo-detail-grid">
-                <div class="ecmo-field"><label>模式</label><span>{{ patient.ecmoDetail.auxiliaryMode || '—' }}</span></div>
-                <div class="ecmo-field"><label>开始时间</label><span>{{ formatTime(patient.ecmoDetail.startTime) }}</span></div>
-                <div class="ecmo-field"><label>管路型号</label><span>{{ patient.ecmoDetail.pipelineModel || '—' }}</span></div>
-                <div class="ecmo-field"><label>置管位置</label><span>{{ patient.ecmoDetail.place || '—' }}</span></div>
-                <div class="ecmo-field"><label>运行时长</label><span>{{ patient.ecmoDetail.pipingDuration || '—' }}</span></div>
-                <div class="ecmo-field"><label>当前次数</label><span>{{ patient.ecmoDetail.nowTimes || '—' }}</span></div>
+        <!-- 第一行：患者概览 + 评分 -->
+        <div class="summary-row top-row">
+          <!-- 患者概览：基本信息 + 生命支持 -->
+          <div class="summary-card overview-card">
+            <div class="card-kicker">PATIENT OVERVIEW</div>
+            <h3 class="card-title">患者概览</h3>
+            <div class="overview-body">
+              <!-- 基本信息：行式紧凑布局 -->
+              <div class="overview-info">
+                <div class="info-line">
+                  <span class="info-line-label">年龄性别</span>
+                  <span class="info-line-value">{{ patient.age || '—' }}岁 · {{ patient.gender || '—' }}</span>
+                </div>
+                <div class="info-line">
+                  <span class="info-line-label">科室</span>
+                  <span class="info-line-value">{{ patient.departName || patient.wardName || patient.departCode || '—' }}</span>
+                </div>
+                <div class="info-line">
+                  <span class="info-line-label">住院号</span>
+                  <span class="info-line-value">{{ patient.patientNo || '—' }}</span>
+                </div>
+                <div class="info-line">
+                  <span class="info-line-label">入科时间</span>
+                  <span class="info-line-value">{{ formatTime(patient.inDepartmentTime) }}</span>
+                </div>
+                <div class="info-line" v-if="patient.diagnosis">
+                  <span class="info-line-label">主要诊断</span>
+                  <span class="info-line-value diagnosis-text">{{ patient.diagnosis }}</span>
+                </div>
+                <div class="info-line" v-if="patient.attendingDoctor">
+                  <span class="info-line-label">主管医生</span>
+                  <span class="info-line-value">{{ patient.attendingDoctor }}</span>
+                </div>
+              </div>
+              <!-- 生命支持：紧凑标签 -->
+              <div class="overview-support">
+                <div class="support-label">生命支持</div>
+                <div class="support-chips">
+                  <span :class="['support-chip', { on: patient.ventilated }]">
+                    {{ patient.ventilated ? '● 机械通气' : '○ 机械通气' }}
+                  </span>
+                  <span :class="['support-chip', { on: patient.onVasopressor }]">
+                    {{ patient.onVasopressor ? '● 血管活性药' : '○ 血管活性药' }}
+                  </span>
+                  <span :class="['support-chip', { on: patient.onCrrt }]">
+                    {{ patient.onCrrt ? '● CRRT' : '○ CRRT' }}
+                  </span>
+                  <span
+                    :class="['support-chip', { on: patient.onEcmo, clickable: patient.onEcmo }]"
+                    @click="patient.onEcmo && (showEcmoDetail = !showEcmoDetail)"
+                  >
+                    {{ patient.onEcmo ? '● ECMO' : '○ ECMO' }}
+                    <el-icon v-if="patient.onEcmo" class="chip-arrow" :class="{ expanded: showEcmoDetail }"><arrow-down /></el-icon>
+                  </span>
+                </div>
+                <div class="support-none" v-if="!patient.ventilated && !patient.onVasopressor && !patient.onCrrt && !patient.onEcmo">
+                  暂无生命支持
+                </div>
+                <div v-if="showEcmoDetail && patient.ecmoDetail" class="ecmo-detail">
+                  <div class="ecmo-detail-grid">
+                    <div class="ecmo-field"><label>模式</label><span>{{ patient.ecmoDetail.auxiliaryMode || '—' }}</span></div>
+                    <div class="ecmo-field"><label>开始时间</label><span>{{ formatTime(patient.ecmoDetail.startTime) }}</span></div>
+                    <div class="ecmo-field"><label>管路型号</label><span>{{ patient.ecmoDetail.pipelineModel || '—' }}</span></div>
+                    <div class="ecmo-field"><label>置管位置</label><span>{{ patient.ecmoDetail.place || '—' }}</span></div>
+                    <div class="ecmo-field"><label>运行时长</label><span>{{ patient.ecmoDetail.pipingDuration || '—' }}</span></div>
+                    <div class="ecmo-field"><label>当前次数</label><span>{{ patient.ecmoDetail.nowTimes || '—' }}</span></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- 关键评分 -->
+          <!-- 评分 -->
           <div class="summary-card score-card">
             <div class="card-kicker">SCORES</div>
-            <h3 class="card-title">关键评分</h3>
+            <h3 class="card-title">最近评分</h3>
             <div class="score-items">
               <div class="score-item">
                 <div class="score-label">SOFA</div>
@@ -116,72 +125,118 @@
                   {{ apacheGradeText(patient.lastApacheScore) }}
                 </div>
                 <div class="score-mortality" v-if="patient.lastApacheMortality != null">
-                  死亡率 {{ patient.lastApacheMortality }}%
+                  预计死亡率 {{ patient.lastApacheMortality }}%
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- 当前风险：AKI + 感染 + 抗菌药合并 -->
-          <div class="summary-card risk-card">
-            <div class="card-kicker">CURRENT RISK</div>
-            <h3 class="card-title">当前风险</h3>
-            <!-- AKI -->
-            <div class="risk-section" v-if="patient.aki && patient.aki.dataStatus !== 'UNKNOWN'">
-              <div class="risk-section-head">
-                <span class="risk-section-label">肾功能 / AKI</span>
-                <el-tag :type="akiTagType(patient.aki)" size="small" effect="plain">{{ akiStatusText(patient.aki) }}</el-tag>
-              </div>
-              <div class="risk-metrics">
-                <span><b>{{ patient.aki.latestCreatinine || '—' }}</b> μmol/L</span>
-                <span class="risk-sep">|</span>
-                <span>48h <b :class="{ warn: patient.aki.creatinine48hDelta && parseFloat(patient.aki.creatinine48hDelta) >= 26.5 }">{{ patient.aki.creatinine48hDelta || '—' }}</b></span>
-                <span class="risk-sep">|</span>
-                <span>6h尿量 <b>{{ patient.aki.urine6hTotal || '—' }}</b> mL</span>
-              </div>
+          <!-- AKI：第一阶段只读识别，体重缺失时不做 kg 校正 -->
+          <div class="summary-card aki-card" v-if="patient.aki">
+            <div class="card-header">
+              <div><div class="card-kicker">KIDNEY FUNCTION</div><h3 class="card-title">肾功能与 AKI 风险</h3></div>
+              <el-tag :type="akiTagType(patient.aki)" size="small" effect="plain">{{ akiStatusText(patient.aki) }}</el-tag>
             </div>
-            <div class="risk-section" v-else-if="patient.aki && patient.aki.dataStatus === 'UNKNOWN'">
-              <div class="risk-section-head">
-                <span class="risk-section-label">肾功能 / AKI</span>
-                <el-tag type="info" size="small" effect="plain">数据暂不可用</el-tag>
+            <div v-if="patient.aki.dataStatus === 'UNKNOWN'" class="block-unknown">AKI数据暂不可用</div>
+            <template v-else>
+              <div class="aki-metrics">
+                <div><span>最新肌酐</span><b>{{ patient.aki.latestCreatinine || '—' }}</b><small>μmol/L</small></div>
+                <div><span>48h变化</span><b>{{ patient.aki.creatinine48hDelta || '—' }}</b><small>μmol/L</small></div>
+                <div><span>近6h尿量</span><b>{{ patient.aki.urine6hTotal || '—' }}</b><small>mL</small></div>
               </div>
-            </div>
-            <!-- 感染 -->
-            <div class="risk-section" v-if="patient.infectionDataStatus !== 'UNKNOWN'">
-              <div class="risk-section-head">
-                <span class="risk-section-label">感染</span>
-                <el-tag v-if="patient.suspectedInfection" type="danger" size="small">疑似感染</el-tag>
-                <el-tag v-else type="info" size="small" effect="plain">未发现</el-tag>
-              </div>
-              <div class="risk-metrics">
-                <span>PCT <b :class="{ warn: patient.pct != null && patient.pct >= 0.5 }">{{ patient.pct != null ? patient.pct : '—' }}</b></span>
-                <span class="risk-sep">|</span>
-                <span>WBC <b>{{ patient.wbc != null ? patient.wbc : '—' }}</b></span>
-                <span class="risk-sep">|</span>
-                <span>体温 <b :class="{ warn: patient.temperature != null && patient.temperature >= 38.3 }">{{ patient.temperature != null ? patient.temperature : '—' }}</b>℃</span>
-              </div>
-              <div class="risk-metrics" v-if="patient.currentAbx && patient.currentAbx.length">
-                <span class="risk-abx">抗菌药：{{ patient.currentAbx.join('、') }}</span>
-              </div>
-              <div class="risk-flags" v-if="patient.suspectedInfection && (patient.septicShock || patient.mrsaRisk || patient.mdrRisk || patient.fungalRisk)">
-                <el-tag v-if="patient.septicShock" type="danger" size="small" effect="dark">脓毒性休克</el-tag>
-                <el-tag v-if="patient.mrsaRisk" type="warning" size="small">MRSA</el-tag>
-                <el-tag v-if="patient.mdrRisk" type="warning" size="small">MDR</el-tag>
-                <el-tag v-if="patient.fungalRisk" type="info" size="small">真菌</el-tag>
-              </div>
-            </div>
-            <div class="risk-section" v-else>
-              <div class="risk-section-head">
-                <span class="risk-section-label">感染</span>
-                <el-tag type="warning" size="small" effect="plain">数据暂不可用</el-tag>
-              </div>
-            </div>
+              <div class="aki-detail">{{ patient.aki.basisText || '暂无判定依据' }}</div>
+              <div class="aki-note">{{ patient.aki.note || '尿量来源：ii_nl；累计窗口：最近6小时' }}</div>
+              <div class="aki-foot">基线 {{ patient.aki.baselineCreatinine || '—' }} μmol/L · 导尿管 {{ patient.aki.catheterPresent ? '在留' : '未确认' }}</div>
+            </template>
           </div>
         </div>
 
-        <!-- 第二行：24h异常检验（2/3） | 今日待办（1/3） -->
-        <div class="summary-row row-2">
-          <!-- 24h 异常检验 -->
+        <!-- 感染 + 24h检验 + 培养药敏 三列 -->
+        <div class="summary-row mid-row">
+          <!-- 感染摘要 -->
+          <div class="summary-card infection-card">
+          <div class="card-header">
+            <div>
+              <div class="card-kicker">INFECTION</div>
+              <h3 class="card-title">感染摘要</h3>
+            </div>
+            <el-tag v-if="patient.infectionDataStatus === 'UNKNOWN'" type="warning" size="small" effect="plain">
+              感染数据暂不可用
+            </el-tag>
+            <el-tag v-else-if="patient.suspectedInfection" type="danger" size="small">疑似感染</el-tag>
+            <el-tag v-else type="info" size="small" effect="plain">未发现疑似感染</el-tag>
+          </div>
+
+          <template v-if="patient.infectionDataStatus !== 'UNKNOWN'">
+            <div class="infection-metrics">
+              <div class="metric">
+                <span class="metric-label">感染类型</span>
+                <span class="metric-value">{{ patient.infectionType || '感染部位待明确' }}</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">PCT</span>
+                <span :class="['metric-value', { warn: patient.pct != null && patient.pct >= 0.5 }]">
+                  {{ patient.pct != null ? patient.pct + ' ng/mL' : '—' }}
+                </span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">WBC</span>
+                <span class="metric-value">{{ patient.wbc != null ? patient.wbc + ' ×10⁹/L' : '—' }}</span>
+              </div>
+              <div class="metric temperature-metric">
+                <div class="temperature-head">
+                  <span class="metric-label">体温</span>
+                  <span :class="['metric-value', { warn: patient.temperature != null && patient.temperature >= 38.3 }]">
+                    {{ patient.temperature != null ? patient.temperature + ' ℃' : '—' }}
+                  </span>
+                </div>
+                <template v-if="temperatureChart">
+                  <svg class="temperature-chart" viewBox="0 0 220 62" role="img" aria-label="近24小时体温趋势">
+                    <line x1="4" y1="54" x2="216" y2="54" class="temperature-axis" />
+                    <polyline :points="temperatureChart.polyline" class="temperature-line" />
+                    <g v-for="point in temperatureChart.points" :key="point.key">
+                      <title>{{ point.time }} {{ point.value }} ℃</title>
+                      <circle :cx="point.x" :cy="point.y" :r="point.isExtreme ? 3.5 : 2" :class="['temperature-dot', { min: point.isMin, max: point.isMax }]" />
+                    </g>
+                    <text v-if="temperatureChart.min" :x="temperatureChart.min.x" :y="temperatureChart.min.labelY" text-anchor="middle" class="temperature-label min-label">低</text>
+                    <text v-if="temperatureChart.max" :x="temperatureChart.max.x" :y="temperatureChart.max.labelY" text-anchor="middle" class="temperature-label max-label">高</text>
+                  </svg>
+                  <div class="temperature-extremes">
+                    <span class="temperature-extreme min-extreme">低 {{ temperatureChart.min.value }} ℃ <small>{{ temperatureChart.min.time }}</small></span>
+                    <span class="temperature-extreme max-extreme">高 {{ temperatureChart.max.value }} ℃ <small>{{ temperatureChart.max.time }}</small></span>
+                  </div>
+                </template>
+                <span v-else-if="temperatureTrendUnknown" class="temperature-status">24 小时数据暂不可用</span>
+                <span v-else class="temperature-status">24 小时无体温记录</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">当前抗菌药</span>
+                <span class="metric-value abx-value">
+                  {{ patient.currentAbx && patient.currentAbx.length ? patient.currentAbx.join('、') : '无' }}
+                </span>
+              </div>
+              <div class="metric" v-if="patient.abxStartTime">
+                <span class="metric-label">用药开始</span>
+                <span class="metric-value">{{ formatTime(patient.abxStartTime) }}</span>
+              </div>
+            </div>
+
+            <div class="infection-flags" v-if="patient.suspectedInfection">
+              <el-tag v-if="patient.septicShock" type="danger" size="small" effect="dark">脓毒性休克</el-tag>
+              <el-tag v-if="patient.mrsaRisk" type="warning" size="small">MRSA 风险</el-tag>
+              <el-tag v-if="patient.mdrRisk" type="warning" size="small">MDR 风险</el-tag>
+              <el-tag v-if="patient.fungalRisk" type="info" size="small">真菌风险</el-tag>
+              <el-tag :type="riskTagType(patient.infectionRiskLevel)" size="small" effect="plain">
+                风险等级：{{ patient.infectionRiskLevel || '未评估' }}
+              </el-tag>
+              <el-button link type="primary" size="small" v-if="patient.infectionEvidence" @click="showEvidence = true">
+                查看判定依据
+              </el-button>
+            </div>
+          </template>
+        </div>
+
+          <!-- 24h 检验摘要 -->
           <div class="summary-card labs-card">
             <div class="card-header">
               <div>
@@ -194,10 +249,17 @@
                 <span class="labs-summary-item normal"><b>{{ patient.labs24h.normalCount }}</b> 正常</span>
               </div>
             </div>
+
             <template v-if="patient.labs24h">
-              <div v-if="patient.labs24h.dataStatus === 'EMPTY'" class="block-empty">窗口内无检验记录</div>
-              <div v-else-if="patient.labs24h.dataStatus === 'UNKNOWN'" class="block-unknown">数据暂不可用</div>
-              <div v-else-if="!patient.labs24h.abnormalItems || patient.labs24h.abnormalItems.length === 0" class="block-empty">窗口内无异常检验</div>
+              <div v-if="patient.labs24h.dataStatus === 'EMPTY'" class="block-empty">
+                窗口内无检验记录
+              </div>
+              <div v-else-if="patient.labs24h.dataStatus === 'UNKNOWN'" class="block-unknown">
+                数据暂不可用
+              </div>
+              <div v-else-if="!patient.labs24h.abnormalItems || patient.labs24h.abnormalItems.length === 0" class="block-empty">
+                窗口内无异常检验
+              </div>
               <div v-else class="labs-table">
                 <div class="labs-table-head">
                   <span>检验项目</span><span>结果</span><span>参考范围</span><span>时间</span>
@@ -237,6 +299,244 @@
             </template>
           </div>
 
+          <!-- 培养与药敏摘要 -->
+          <div :class="['summary-card', 'culture-card', { 'card-mini': cultureIsEmpty }]">
+            <div class="card-header">
+              <div>
+                <div class="card-kicker">CULTURE</div>
+                <h3 class="card-title">培养与药敏</h3>
+              </div>
+              <template v-if="patient.culture">
+                <el-tag
+                  :type="cultureTagType(patient.culture.dataStatus)"
+                  size="small"
+                  effect="plain"
+                >
+                  {{ cultureStatusText(patient.culture.dataStatus) }}
+                </el-tag>
+              </template>
+            </div>
+
+            <div v-if="cultureIsEmpty" class="mini-hint">
+              {{ patient.culture && patient.culture.dataStatus === 'UNKNOWN' ? '数据暂不可用' : '近期无培养送检' }}
+            </div>
+
+            <template v-else-if="patient.culture">
+              <div class="culture-meta">
+                <div class="meta-row">
+                  <span class="meta-label">标本</span>
+                  <span class="meta-val">{{ patient.culture.latestSpecimen || '—' }}</span>
+                </div>
+                <div class="meta-row">
+                  <span class="meta-label">采样时间</span>
+                  <span class="meta-val">{{ patient.culture.sampleTime || '—' }}</span>
+                </div>
+                <div class="meta-row" v-if="patient.culture.reportTime">
+                  <span class="meta-label">报告时间</span>
+                  <span class="meta-val">{{ patient.culture.reportTime }}</span>
+                </div>
+              </div>
+              <div v-if="patient.culture.dataStatus === 'PENDING'" class="block-pending">
+                已送检，等待报告
+              </div>
+              <template v-else>
+                <div class="culture-organisms" v-if="patient.culture.organisms && patient.culture.organisms.length">
+                  <div class="org-label">检出菌</div>
+                  <div class="org-list">
+                    <el-tag
+                      v-for="(org, i) in patient.culture.organisms"
+                      :key="i"
+                      type="danger"
+                      size="small"
+                      effect="plain"
+                    >{{ org }}</el-tag>
+                  </div>
+                </div>
+                <div v-else class="block-empty">未检出致病菌</div>
+                <div class="culture-risk" v-if="patient.culture.drugResistanceRisk">
+                  <el-tag :type="cultureRiskType(patient.culture.drugResistanceRisk)" size="small">
+                    {{ patient.culture.drugResistanceRisk }}
+                  </el-tag>
+                </div>
+                <div class="culture-ast" v-if="patient.culture.astSummary">
+                  <div class="ast-label">药敏摘要</div>
+                  <div class="ast-text">{{ patient.culture.astSummary }}</div>
+                </div>
+                <div class="culture-full-btn" v-if="patient.culture.fullItems && patient.culture.fullItems.length">
+                  <el-button size="small" text type="primary" @click="showCultureReport = true">
+                    查看完整报告 ({{ patient.culture.fullItems.length }})
+                  </el-button>
+                </div>
+              </template>
+            </template>
+          </div>
+        </div>
+
+        <!-- 脓毒症集束化状态 -->
+        <!-- 脓毒症 + 待办 + 快捷操作 三列 -->
+        <div class="summary-row bottom-row">
+        <div :class="['summary-card', 'sepsis-card', { 'card-mini': sepsisIsEmpty }]" v-if="patient.sepsisBundle">
+          <div class="card-header">
+            <div>
+              <div class="card-kicker">SEPSIS BUNDLE</div>
+              <h3 class="card-title">脓毒症集束化</h3>
+            </div>
+            <el-tag
+              :type="sepsisTagType(patient.sepsisBundle.dataStatus)"
+              size="small"
+              effect="plain"
+            >
+              {{ sepsisStatusText(patient.sepsisBundle.dataStatus) }}
+            </el-tag>
+          </div>
+
+          <div v-if="sepsisIsEmpty" class="mini-hint">
+            {{ patient.sepsisBundle.dataStatus === 'UNKNOWN' ? '数据暂不可用' : '暂无脓毒症集束化评估记录' }}
+          </div>
+
+          <template v-else>
+            <div class="sepsis-progress">
+              <div class="bundle-col">
+                <div class="bundle-label">1 小时</div>
+                <div class="bundle-bar-wrap">
+                  <div class="bundle-bar" :style="{ width: bundlePercent(patient.sepsisBundle.h1Completed, patient.sepsisBundle.h1Total) }"></div>
+                </div>
+                <div class="bundle-count">{{ patient.sepsisBundle.h1Completed }}/{{ patient.sepsisBundle.h1Total }}</div>
+              </div>
+              <div class="bundle-col">
+                <div class="bundle-label">3 小时</div>
+                <div class="bundle-bar-wrap">
+                  <div class="bundle-bar" :style="{ width: bundlePercent(patient.sepsisBundle.h3Completed, patient.sepsisBundle.h3Total) }"></div>
+                </div>
+                <div class="bundle-count">{{ patient.sepsisBundle.h3Completed }}/{{ patient.sepsisBundle.h3Total }}</div>
+              </div>
+              <div class="bundle-col">
+                <div class="bundle-label">6 小时</div>
+                <div class="bundle-bar-wrap">
+                  <div class="bundle-bar" :style="{ width: bundlePercent(patient.sepsisBundle.h6Completed, patient.sepsisBundle.h6Total) }"></div>
+                </div>
+                <div class="bundle-count">{{ patient.sepsisBundle.h6Completed }}/{{ patient.sepsisBundle.h6Total }}</div>
+              </div>
+            </div>
+            <div class="sepsis-pending" v-if="patient.sepsisBundle.pendingItems && patient.sepsisBundle.pendingItems.length">
+              <div class="pending-label">未完成项</div>
+              <div class="pending-list">
+                <span v-for="(p, i) in patient.sepsisBundle.pendingItems" :key="i" class="pending-tag">{{ p }}</span>
+              </div>
+            </div>
+            <div class="sepsis-record-time" v-if="patient.sepsisBundle.recordTime">
+              最近评估：{{ patient.sepsisBundle.recordTime }}
+            </div>
+          </template>
+        </div>
+
+        <!-- 今日查房记录 -->
+        <div class="summary-card round-card">
+          <div class="card-header">
+            <div>
+              <div class="card-kicker">DAILY ROUND</div>
+              <h3 class="card-title">今日查房记录</h3>
+            </div>
+            <div class="round-actions">
+              <el-button size="small" text @click="showRoundHistory = true" v-if="roundHistory.length > 0">
+                历史 ({{ roundHistory.length }})
+              </el-button>
+              <el-button size="small" type="danger" plain @click="deleteRoundRecord" v-if="roundRecord.id" :loading="roundDeleting">
+                删除
+              </el-button>
+              <el-button size="small" type="primary" @click="saveRoundRecord" :loading="roundSaving">
+                {{ roundRecord.id ? '保存修改' : '保存查房' }}
+              </el-button>
+            </div>
+          </div>
+          <div class="round-form">
+            <div class="round-row">
+              <div class="round-field">
+                <label>今日主要问题</label>
+                <el-input v-model="roundRecord.mainProblem" type="textarea" :rows="2" placeholder="患者当前最主要的临床问题" />
+              </div>
+            </div>
+            <div class="round-row two-col">
+              <div class="round-field">
+                <label>感染判断</label>
+                <el-input v-model="roundRecord.infectionJudgment" type="textarea" :rows="2" placeholder="感染部位、依据、当前判断" />
+              </div>
+              <div class="round-field">
+                <label>抗菌药调整计划</label>
+                <el-input v-model="roundRecord.abxPlan" type="textarea" :rows="2" placeholder="继续/降阶/升阶/换药/停药及依据" />
+              </div>
+            </div>
+            <div class="round-row two-col">
+              <div class="round-field">
+                <label>呼吸支持计划</label>
+                <el-input v-model="roundRecord.respiratoryPlan" type="textarea" :rows="2" placeholder="通气模式、参数调整、撤机计划" />
+              </div>
+              <div class="round-field">
+                <label>循环支持计划</label>
+                <el-input v-model="roundRecord.circulatoryPlan" type="textarea" :rows="2" placeholder="血管活性药、液体管理、目标" />
+              </div>
+            </div>
+            <div class="round-row two-col">
+              <div class="round-field">
+                <label>镇静镇痛 / 肾脏支持</label>
+                <el-input v-model="roundRecord.renalSedationPlan" type="textarea" :rows="2" placeholder="镇静目标、RASS、CRRT调整" />
+              </div>
+              <div class="round-field">
+                <label>今日复查项目</label>
+                <el-input v-model="roundRecord.recheckItems" type="textarea" :rows="2" placeholder="检验、检查、培养等" />
+              </div>
+            </div>
+            <div class="round-row two-col">
+              <div class="round-field">
+                <label>治疗目标</label>
+                <el-input v-model="roundRecord.treatmentGoal" type="textarea" :rows="2" placeholder="今日治疗目标和预期终点" />
+              </div>
+              <div class="round-field">
+                <label>明日重点</label>
+                <el-input v-model="roundRecord.tomorrowFocus" type="textarea" :rows="2" placeholder="下一班/次日需要关注的问题" />
+              </div>
+            </div>
+            <div class="round-meta" v-if="roundRecord.updateTime">
+              最后修改：{{ roundRecord.updateBy || '—' }} · {{ formatTime(roundRecord.updateTime) }}
+            </div>
+          </div>
+        </div>
+
+        <!-- 临床时间线 -->
+        <div class="summary-card timeline-card">
+          <div class="card-header">
+            <div>
+              <div class="card-kicker">TIMELINE</div>
+              <h3 class="card-title">临床时间线</h3>
+            </div>
+            <el-button size="small" text @click="loadTimeline" :loading="timelineLoading">
+              <el-icon><refresh /></el-icon> 刷新
+            </el-button>
+          </div>
+          <div v-if="timelinePartial && timelineFailedSources.length" class="timeline-partial-tip">
+            <el-icon><warning /></el-icon>
+            部分模块数据暂不可用：{{ timelineFailedSources.map(s => timelineTypeLabel(s)).join('、') }}
+          </div>
+          <div v-if="timeline.length" class="timeline-list">
+            <div v-for="(evt, i) in timeline" :key="i" class="timeline-item">
+              <div class="timeline-dot" :class="'dot-' + evt.type.toLowerCase()"></div>
+              <div class="timeline-content">
+                <div class="timeline-top">
+                  <span class="timeline-type" :class="'type-' + evt.type.toLowerCase()">{{ timelineTypeLabel(evt.type) }}</span>
+                  <span class="timeline-time">{{ shortTime(evt.time) }}</span>
+                </div>
+                <div class="timeline-title">{{ evt.title }}</div>
+                <div class="timeline-result" v-if="evt.result">{{ evt.result }}</div>
+              </div>
+            </div>
+          </div>
+          <div v-else-if="timelineError" class="block-empty">
+            时间线数据暂不可用
+            <el-button size="small" text type="primary" @click="loadTimeline" style="margin-left:8px">点击重试</el-button>
+          </div>
+          <div v-else class="block-empty">暂无时间线事件</div>
+        </div>
+
           <!-- 今日待办 -->
           <div class="summary-card todo-card">
             <div class="card-header">
@@ -263,246 +563,26 @@
             </div>
             <div v-else class="todo-empty">今日无待办事项</div>
           </div>
-        </div>
 
-        <!-- 快捷操作栏：横向，不占卡片高度 -->
-        <div class="quick-actions-bar">
-          <span class="qac-label">快捷入口</span>
-          <el-button type="primary" size="small" @click="jump('/page/abx-decision')">抗感染决策</el-button>
-          <el-button size="small" @click="jump('/page/abx-pkpd')">PK/PD 剂量</el-button>
-          <el-button size="small" @click="jump('/page/sofa-score')">SOFA 评分</el-button>
-          <el-button size="small" @click="jump('/page/apache2-score')">APACHE II</el-button>
-          <el-button size="small" @click="jump('/page/sepsis-bundle')">脓毒症集束化</el-button>
-          <el-button size="small" @click="jump('/page/ards-monitor')">ARDS 监测</el-button>
-          <el-button size="small" @click="jump('/page/ards-prone-list')">俯卧位记录</el-button>
-          <span class="qac-divider"></span>
-          <el-button size="small" @click="showRoundPanel = true">
-            <el-icon><edit /></el-icon> 查房记录
-          </el-button>
-          <el-button size="small" @click="showTimelinePanel = true">
-            <el-icon><clock /></el-icon> 临床时间线
-          </el-button>
-        </div>
-
-        <!-- 次屏折叠区：培养药敏 + 脓毒症 + 体温趋势 -->
-        <div class="secondary-section">
-          <div class="secondary-header" @click="showSecondary = !showSecondary">
-            <span class="secondary-title">更多临床数据</span>
-            <el-icon class="secondary-arrow" :class="{ expanded: showSecondary }"><arrow-down /></el-icon>
-          </div>
-          <div v-show="showSecondary" class="secondary-content">
-            <div class="summary-row row-3">
-              <!-- 培养与药敏 -->
-              <div :class="['summary-card', 'culture-card', { 'card-mini': cultureIsEmpty }]">
-                <div class="card-header">
-                  <div>
-                    <div class="card-kicker">CULTURE</div>
-                    <h3 class="card-title">培养与药敏</h3>
-                  </div>
-                  <template v-if="patient.culture">
-                    <el-tag :type="cultureTagType(patient.culture.dataStatus)" size="small" effect="plain">
-                      {{ cultureStatusText(patient.culture.dataStatus) }}
-                    </el-tag>
-                  </template>
-                </div>
-                <div v-if="cultureIsEmpty" class="mini-hint">
-                  {{ patient.culture && patient.culture.dataStatus === 'UNKNOWN' ? '数据暂不可用' : '近期无培养送检' }}
-                </div>
-                <template v-else-if="patient.culture">
-                  <div class="culture-meta">
-                    <div class="meta-row">
-                      <span class="meta-label">标本</span>
-                      <span class="meta-val">{{ patient.culture.latestSpecimen || '—' }}</span>
-                    </div>
-                    <div class="meta-row">
-                      <span class="meta-label">采样时间</span>
-                      <span class="meta-val">{{ patient.culture.sampleTime || '—' }}</span>
-                    </div>
-                    <div class="meta-row" v-if="patient.culture.reportTime">
-                      <span class="meta-label">报告时间</span>
-                      <span class="meta-val">{{ patient.culture.reportTime }}</span>
-                    </div>
-                  </div>
-                  <div v-if="patient.culture.dataStatus === 'PENDING'" class="block-pending">已送检，等待报告</div>
-                  <template v-else>
-                    <div class="culture-organisms" v-if="patient.culture.organisms && patient.culture.organisms.length">
-                      <div class="org-label">检出菌</div>
-                      <div class="org-list">
-                        <el-tag v-for="(org, i) in patient.culture.organisms" :key="i" type="danger" size="small" effect="plain">{{ org }}</el-tag>
-                      </div>
-                    </div>
-                    <div v-else class="block-empty">未检出致病菌</div>
-                    <div class="culture-risk" v-if="patient.culture.drugResistanceRisk">
-                      <el-tag :type="cultureRiskType(patient.culture.drugResistanceRisk)" size="small">{{ patient.culture.drugResistanceRisk }}</el-tag>
-                    </div>
-                    <div class="culture-ast" v-if="patient.culture.astSummary">
-                      <div class="ast-label">药敏摘要</div>
-                      <div class="ast-text">{{ patient.culture.astSummary }}</div>
-                    </div>
-                    <div class="culture-full-btn" v-if="patient.culture.fullItems && patient.culture.fullItems.length">
-                      <el-button size="small" text type="primary" @click="showCultureReport = true">查看完整报告 ({{ patient.culture.fullItems.length }})</el-button>
-                    </div>
-                  </template>
-                </template>
-              </div>
-
-              <!-- 脓毒症集束化 -->
-              <div :class="['summary-card', 'sepsis-card', { 'card-mini': sepsisIsEmpty }]" v-if="patient.sepsisBundle">
-                <div class="card-header">
-                  <div>
-                    <div class="card-kicker">SEPSIS BUNDLE</div>
-                    <h3 class="card-title">脓毒症集束化</h3>
-                  </div>
-                  <el-tag :type="sepsisTagType(patient.sepsisBundle.dataStatus)" size="small" effect="plain">
-                    {{ sepsisStatusText(patient.sepsisBundle.dataStatus) }}
-                  </el-tag>
-                </div>
-                <div v-if="sepsisIsEmpty" class="mini-hint">
-                  {{ patient.sepsisBundle.dataStatus === 'UNKNOWN' ? '数据暂不可用' : '暂无脓毒症集束化评估记录' }}
-                </div>
-                <template v-else>
-                  <div class="sepsis-progress">
-                    <div class="bundle-col">
-                      <div class="bundle-label">1 小时</div>
-                      <div class="bundle-bar-wrap"><div class="bundle-bar" :style="{ width: bundlePercent(patient.sepsisBundle.h1Completed, patient.sepsisBundle.h1Total) }"></div></div>
-                      <div class="bundle-count">{{ patient.sepsisBundle.h1Completed }}/{{ patient.sepsisBundle.h1Total }}</div>
-                    </div>
-                    <div class="bundle-col">
-                      <div class="bundle-label">3 小时</div>
-                      <div class="bundle-bar-wrap"><div class="bundle-bar" :style="{ width: bundlePercent(patient.sepsisBundle.h3Completed, patient.sepsisBundle.h3Total) }"></div></div>
-                      <div class="bundle-count">{{ patient.sepsisBundle.h3Completed }}/{{ patient.sepsisBundle.h3Total }}</div>
-                    </div>
-                    <div class="bundle-col">
-                      <div class="bundle-label">6 小时</div>
-                      <div class="bundle-bar-wrap"><div class="bundle-bar" :style="{ width: bundlePercent(patient.sepsisBundle.h6Completed, patient.sepsisBundle.h6Total) }"></div></div>
-                      <div class="bundle-count">{{ patient.sepsisBundle.h6Completed }}/{{ patient.sepsisBundle.h6Total }}</div>
-                    </div>
-                  </div>
-                  <div class="sepsis-pending" v-if="patient.sepsisBundle.pendingItems && patient.sepsisBundle.pendingItems.length">
-                    <div class="pending-label">未完成项</div>
-                    <div class="pending-list">
-                      <span v-for="(p, i) in patient.sepsisBundle.pendingItems" :key="i" class="pending-tag">{{ p }}</span>
-                    </div>
-                  </div>
-                  <div class="sepsis-record-time" v-if="patient.sepsisBundle.recordTime">最近评估：{{ patient.sepsisBundle.recordTime }}</div>
-                </template>
-              </div>
-
-              <!-- 体温趋势 -->
-              <div class="summary-card temp-card">
-                <div class="card-kicker">TEMPERATURE 24H</div>
-                <h3 class="card-title">体温趋势</h3>
-                <div class="temp-current">
-                  当前 <b :class="{ warn: patient.temperature != null && patient.temperature >= 38.3 }">{{ patient.temperature != null ? patient.temperature + ' ℃' : '—' }}</b>
-                </div>
-                <template v-if="temperatureChart">
-                  <svg class="temperature-chart" viewBox="0 0 220 62" role="img" aria-label="近24小时体温趋势">
-                    <line x1="4" y1="54" x2="216" y2="54" class="temperature-axis" />
-                    <polyline :points="temperatureChart.polyline" class="temperature-line" />
-                    <g v-for="point in temperatureChart.points" :key="point.key">
-                      <title>{{ point.time }} {{ point.value }} ℃</title>
-                      <circle :cx="point.x" :cy="point.y" :r="point.isExtreme ? 3.5 : 2" :class="['temperature-dot', { min: point.isMin, max: point.isMax }]" />
-                    </g>
-                  </svg>
-                  <div class="temperature-extremes">
-                    <span class="temperature-extreme min-extreme">低 {{ temperatureChart.min.value }}℃ <small>{{ temperatureChart.min.time }}</small></span>
-                    <span class="temperature-extreme max-extreme">高 {{ temperatureChart.max.value }}℃ <small>{{ temperatureChart.max.time }}</small></span>
-                  </div>
-                </template>
-                <span v-else-if="temperatureTrendUnknown" class="temperature-status">24 小时数据暂不可用</span>
-                <span v-else class="temperature-status">24 小时无体温记录</span>
-              </div>
+          <!-- 快捷操作 -->
+          <div class="summary-card actions-card">
+            <div class="card-kicker">QUICK ACTIONS</div>
+            <h3 class="card-title">快捷操作</h3>
+            <div class="action-grid">
+              <el-button type="primary" @click="jump('/page/abx-decision')" class="action-btn primary-action">
+                抗感染决策
+              </el-button>
+              <el-button @click="jump('/page/abx-pkpd')" class="action-btn">PK/PD 剂量</el-button>
+              <el-button @click="jump('/page/sofa-score')" class="action-btn">SOFA 评分</el-button>
+              <el-button @click="jump('/page/apache2-score')" class="action-btn">APACHE II</el-button>
+              <el-button @click="jump('/page/sepsis-bundle')" class="action-btn">脓毒症集束化</el-button>
+              <el-button @click="jump('/page/ards-monitor')" class="action-btn">ARDS 监测</el-button>
+              <el-button @click="jump('/page/ards-prone-list')" class="action-btn">俯卧位记录</el-button>
             </div>
           </div>
         </div>
       </template>
     </div>
-
-    <!-- 查房记录抽屉 -->
-    <el-drawer v-model="showRoundPanel" title="今日查房记录" size="560px" direction="rtl">
-      <div class="round-drawer-content">
-        <div class="round-drawer-actions">
-          <el-button size="small" text @click="showRoundHistory = true" v-if="roundHistory.length > 0">历史 ({{ roundHistory.length }})</el-button>
-          <el-button size="small" type="danger" plain @click="deleteRoundRecord" v-if="roundRecord.id" :loading="roundDeleting">删除</el-button>
-          <el-button size="small" type="primary" @click="saveRoundRecord" :loading="roundSaving">{{ roundRecord.id ? '保存修改' : '保存查房' }}</el-button>
-        </div>
-        <div class="round-form">
-          <div class="round-row">
-            <div class="round-field">
-              <label>今日主要问题</label>
-              <el-input v-model="roundRecord.mainProblem" type="textarea" :rows="2" placeholder="患者当前最主要的临床问题" />
-            </div>
-          </div>
-          <div class="round-row two-col">
-            <div class="round-field">
-              <label>感染判断</label>
-              <el-input v-model="roundRecord.infectionJudgment" type="textarea" :rows="2" placeholder="感染部位、依据、当前判断" />
-            </div>
-            <div class="round-field">
-              <label>抗菌药调整计划</label>
-              <el-input v-model="roundRecord.abxPlan" type="textarea" :rows="2" placeholder="继续/降阶/升阶/换药/停药及依据" />
-            </div>
-          </div>
-          <div class="round-row two-col">
-            <div class="round-field">
-              <label>呼吸支持计划</label>
-              <el-input v-model="roundRecord.respiratoryPlan" type="textarea" :rows="2" placeholder="通气模式、参数调整、撤机计划" />
-            </div>
-            <div class="round-field">
-              <label>循环支持计划</label>
-              <el-input v-model="roundRecord.circulatoryPlan" type="textarea" :rows="2" placeholder="血管活性药、液体管理、目标" />
-            </div>
-          </div>
-          <div class="round-row two-col">
-            <div class="round-field">
-              <label>镇静镇痛 / 肾脏支持</label>
-              <el-input v-model="roundRecord.renalSedationPlan" type="textarea" :rows="2" placeholder="镇静目标、RASS、CRRT调整" />
-            </div>
-            <div class="round-field">
-              <label>今日复查项目</label>
-              <el-input v-model="roundRecord.recheckItems" type="textarea" :rows="2" placeholder="检验、检查、培养等" />
-            </div>
-          </div>
-          <div class="round-row two-col">
-            <div class="round-field">
-              <label>治疗目标</label>
-              <el-input v-model="roundRecord.treatmentGoal" type="textarea" :rows="2" placeholder="今日治疗目标和预期终点" />
-            </div>
-            <div class="round-field">
-              <label>明日重点</label>
-              <el-input v-model="roundRecord.tomorrowFocus" type="textarea" :rows="2" placeholder="下一班/次日需要关注的问题" />
-            </div>
-          </div>
-          <div class="round-meta" v-if="roundRecord.updateTime">最后修改：{{ roundRecord.updateBy || '—' }} · {{ formatTime(roundRecord.updateTime) }}</div>
-        </div>
-      </div>
-    </el-drawer>
-
-    <!-- 临床时间线抽屉 -->
-    <el-drawer v-model="showTimelinePanel" title="临床时间线" size="480px" direction="rtl" @open="loadTimeline">
-      <div v-if="timelinePartial && timelineFailedSources.length" class="timeline-partial-tip">
-        <el-icon><warning /></el-icon>
-        部分模块数据暂不可用：{{ timelineFailedSources.map(s => timelineTypeLabel(s)).join('、') }}
-      </div>
-      <div v-if="timeline.length" class="timeline-list">
-        <div v-for="(evt, i) in timeline" :key="i" class="timeline-item">
-          <div class="timeline-dot" :class="'dot-' + evt.type.toLowerCase()"></div>
-          <div class="timeline-content">
-            <div class="timeline-top">
-              <span class="timeline-type" :class="'type-' + evt.type.toLowerCase()">{{ timelineTypeLabel(evt.type) }}</span>
-              <span class="timeline-time">{{ shortTime(evt.time) }}</span>
-            </div>
-            <div class="timeline-title">{{ evt.title }}</div>
-            <div class="timeline-result" v-if="evt.result">{{ evt.result }}</div>
-          </div>
-        </div>
-      </div>
-      <div v-else-if="timelineError" class="block-empty">
-        时间线数据暂不可用
-        <el-button size="small" text type="primary" @click="loadTimeline" style="margin-left:8px">点击重试</el-button>
-      </div>
-      <div v-else class="block-empty">暂无时间线事件</div>
-    </el-drawer>
 
     <!-- 查房历史弹窗 -->
     <el-dialog v-model="showRoundHistory" title="查房历史" width="640px">
@@ -544,11 +624,11 @@ import { fetchPatientSummary } from '../api/workbench'
 import request from '../api/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { setCurrentPatient, clearCurrentPatient } from '../utils/patientContext'
-import { ArrowLeft, ArrowRight, ArrowDown, Refresh, Warning, Edit, Clock } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, ArrowDown, Refresh, Warning } from '@element-plus/icons-vue'
 
 export default {
   name: 'PatientSummary',
-  components: { ArrowLeft, ArrowRight, ArrowDown, Refresh, Warning, Edit, Clock },
+  components: { ArrowLeft, ArrowRight, ArrowDown, Refresh, Warning },
   data() {
     return {
       patient: null,
@@ -567,9 +647,6 @@ export default {
       timelineFailedSources: [],
       expandedLabIdx: -1,
       showEcmoDetail: false,
-      showRoundPanel: false,
-      showTimelinePanel: false,
-      showSecondary: true,
       showCultureReport: false
     }
   },
@@ -976,79 +1053,78 @@ export default {
 .summary-page {
   min-height: 100%;
   background: #f5f5f4;
-  padding-bottom: 24px;
+  padding: 12px 16px 24px;
 }
 
-/* 顶部 header */
+/* 顶部栏 */
 .summary-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 14px 20px 10px;
-  background: #fff;
-  border-bottom: 1px solid #e7e5e4;
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  gap: 16px;
+  margin-bottom: 10px;
 }
-.header-left { display: flex; align-items: center; gap: 12px; }
-.back-btn { color: #78716c; font-size: 13px; }
-.header-patient { display: flex; align-items: baseline; gap: 14px; }
-.patient-name { font-size: 20px; font-weight: 600; color: #1c1917; margin: 0; }
-.patient-meta { display: flex; align-items: center; gap: 10px; }
-.meta-item { font-size: 13px; color: #78716c; }
-.bed-pill { background: #fff7ed; color: #ea580c; padding: 2px 10px; border-radius: 10px; font-weight: 500; }
-.stay-badge { background: #fef3c7; color: #92400e; padding: 2px 10px; border-radius: 10px; font-weight: 500; }
-
-.summary-body { padding: 12px 20px 0; }
-.load-error { padding: 60px 0; }
-
-/* 患者信息条 */
-.patient-info-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0;
-  background: #fff;
-  border: 1px solid #e7e5e4;
-  border-radius: 8px;
-  padding: 8px 16px;
-  margin-bottom: 12px;
-  font-size: 12.5px;
+.header-left { flex-shrink: 0; }
+.back-btn {
+  font-size: 14px;
+  color: #57534e;
+  padding: 6px 0;
 }
-.info-bar-item {
+.back-btn:hover { color: #ea580c; }
+.header-patient { flex: 1; min-width: 0; }
+.patient-name {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1c1917;
+  margin: 0 0 6px 0;
+  line-height: 1.2;
+}
+.patient-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 14px 2px 0;
-  margin-right: 14px;
-  border-right: 1px solid #f0eeed;
-}
-.info-bar-item:last-child { border-right: none; }
-.info-bar-item.diagnosis { flex: 1; min-width: 200px; border-right: none; }
-.info-bar-label { color: #a8a29e; white-space: nowrap; }
-.info-bar-value { color: #44403c; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* 行布局 */
-.summary-row {
-  display: grid;
   gap: 12px;
-  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
-.row-1 { grid-template-columns: 1fr 1fr 1.2fr; }
-.row-2 { grid-template-columns: 2fr 1fr; }
-.row-3 { grid-template-columns: 1fr 1fr 1fr; }
+.meta-item {
+  font-size: 13px;
+  color: #57534e;
+}
+.bed-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: #fff7ed;
+  color: #c2410c;
+  font-weight: 600;
+  font-size: 12px;
+}
+.stay-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #ea580c;
+  color: #fff;
+  font-weight: 600;
+  font-size: 12px;
+}
+.header-right { flex-shrink: 0; }
 
-/* 卡片基础 */
+/* 主体 */
+.summary-body { min-height: 300px; }
+.load-error { padding: 60px 0; }
+
+/* 卡片通用 */
 .summary-card {
   background: #fff;
   border: 1px solid #e7e5e4;
   border-radius: 8px;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
+  padding: 12px 14px;
+  margin-bottom: 10px;
 }
 .card-kicker {
   font-size: 10px;
+  font-weight: 700;
   letter-spacing: 1.2px;
   color: #a8a29e;
   text-transform: uppercase;
@@ -1056,364 +1132,336 @@ export default {
 }
 .card-title {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: #1c1917;
   margin: 0 0 10px 0;
 }
 .card-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
 }
 .card-header .card-title { margin-bottom: 0; }
 
-/* 生命支持 */
-.support-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.support-chip {
+/* 第一行两列：患者概览 + 评分 */
+.top-row {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1.1fr;
+  gap: 10px;
+  margin-bottom: 0;
+}
+.top-row .summary-card { margin-bottom: 0; }
+
+/* 底部：脓毒症 + 待办 + 快捷操作（第一行），查房 + 时间线（第二行） */
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+.bottom-row .summary-card { margin-bottom: 0; }
+.bottom-row .sepsis-card { order: 1; }
+.bottom-row .todo-card { order: 2; }
+.bottom-row .quick-card { order: 3; }
+.bottom-row .round-card { order: 4; }
+.bottom-row .timeline-card { order: 5; grid-column: span 2; }
+
+/* 患者概览 */
+.overview-body {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.overview-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.info-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+}
+.info-line-label {
+  color: #a8a29e;
   font-size: 12px;
-  padding: 3px 10px;
-  border-radius: 12px;
+  min-width: 56px;
+  flex-shrink: 0;
+}
+.info-line-value {
+  color: #292524;
+  font-weight: 600;
+}
+.diagnosis-text {
+  font-weight: 500;
+  line-height: 1.5;
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.overview-support {
+  flex: 1;
+  min-width: 0;
+}
+.overview-support .support-label {
+  font-size: 11px;
+  color: #a8a29e;
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.support-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.support-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
   background: #f5f5f4;
   color: #a8a29e;
   border: 1px solid #e7e5e4;
 }
 .support-chip.on {
   background: #fff7ed;
-  color: #ea580c;
-  border-color: #fed7aa;
-  font-weight: 500;
+  color: #c2410c;
+  border-color: #fdba74;
+  font-weight: 600;
+}
+.support-none {
+  font-size: 12px;
+  color: #a8a29e;
+  margin-top: 6px;
 }
 .support-chip.clickable { cursor: pointer; }
-.chip-arrow { margin-left: 2px; font-size: 10px; transition: transform 0.2s; }
+.chip-arrow {
+  margin-left: 2px;
+  font-size: 10px;
+  transition: transform .2s;
+}
 .chip-arrow.expanded { transform: rotate(180deg); }
-.support-none { font-size: 12px; color: #a8a29e; margin-top: 8px; }
-
-/* ECMO 详情 */
 .ecmo-detail {
   margin-top: 10px;
   padding: 10px;
-  background: #fafaf9;
-  border-radius: 6px;
-  border: 1px solid #f0eeed;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
 }
 .ecmo-detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 6px 12px;
+  gap: 8px 16px;
 }
-.ecmo-field { display: flex; flex-direction: column; font-size: 11.5px; }
-.ecmo-field label { color: #a8a29e; }
-.ecmo-field span { color: #44403c; font-weight: 500; }
+.ecmo-field label {
+  display: block;
+  font-size: 11px;
+  color: #ea580c;
+  margin-bottom: 2px;
+}
+.ecmo-field span {
+  font-size: 13px;
+  color: #1c1917;
+  font-weight: 500;
+}
 
 /* 评分 */
 .score-items {
   display: flex;
-  align-items: stretch;
-  gap: 0;
-  flex: 1;
-}
-.score-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  text-align: center;
+  gap: 20px;
 }
-.score-label { font-size: 12px; color: #78716c; margin-bottom: 4px; }
-.score-value { font-size: 32px; font-weight: 700; color: #ea580c; line-height: 1.1; }
-.score-value.score-na { font-size: 18px; color: #a8a29e; font-weight: 400; }
-.score-grade { font-size: 11px; margin-top: 4px; padding: 1px 8px; border-radius: 8px; }
-.score-grade.grade-low { background: #dcfce7; color: #166534; }
-.score-grade.grade-mid { background: #fef3c7; color: #92400e; }
-.score-grade.grade-high { background: #fee2e2; color: #991b1b; }
-.score-grade.grade-na { background: #f5f5f4; color: #a8a29e; }
-.score-divider { width: 1px; background: #f0eeed; margin: 4px 0; }
-.score-mortality { font-size: 11px; color: #dc2626; margin-top: 4px; font-weight: 500; }
-
-/* 当前风险 */
-.risk-section { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #fafaf9; }
-.risk-section:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
-.risk-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-.risk-section-label { font-size: 12.5px; font-weight: 600; color: #44403c; }
-.risk-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
+.score-item { text-align: center; flex: 1; }
+.score-label {
   font-size: 12px;
   color: #78716c;
+  margin-bottom: 6px;
 }
-.risk-metrics b { color: #1c1917; font-weight: 600; }
-.risk-metrics b.warn { color: #dc2626; }
-.risk-sep { color: #d6d3d1; }
-.risk-abx { color: #ea580c; font-weight: 500; font-size: 11.5px; }
-.risk-flags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-
-/* 24h 检验 */
-.labs-summary { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.labs-summary-item { color: #78716c; }
-.labs-summary-item b { font-size: 15px; font-weight: 700; }
-.labs-summary-item.abnormal b { color: #dc2626; }
-.labs-summary-item.normal b { color: #16a34a; }
-.labs-summary-divider { width: 1px; height: 14px; background: #e7e5e4; }
-
-.labs-table {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 220px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+.score-value {
+  font-size: 36px;
+  font-weight: 800;
+  color: #ea580c;
+  line-height: 1;
+  margin-bottom: 6px;
 }
-.labs-table:hover { scrollbar-color: #d6d3d1 transparent; }
-.labs-table::-webkit-scrollbar { width: 4px; }
-.labs-table::-webkit-scrollbar-track { background: transparent; }
-.labs-table::-webkit-scrollbar-thumb { background: transparent; border-radius: 2px; }
-.labs-table:hover::-webkit-scrollbar-thumb { background: #d6d3d1; }
-
-.labs-table-head {
-  display: grid;
-  grid-template-columns: minmax(70px, 1.4fr) minmax(90px, .9fr) minmax(75px, .75fr) 58px;
-  gap: 8px;
+.score-value.score-na {
+  font-size: 18px;
+  font-weight: 500;
+  color: #a8a29e;
+}
+.score-grade {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.score-grade.grade-low { background: #dcfce7; color: #166534; }
+.score-grade.grade-mid { background: #fef3c7; color: #92400e; }
+.score-grade.grade-high { background: #ffedd5; color: #c2410c; }
+.score-grade.grade-critical { background: #fee2e2; color: #991b1b; }
+.score-mortality {
   font-size: 11px;
   color: #a8a29e;
-  padding: 0 4px 4px;
-  border-bottom: 1px solid #f0eeed;
-  position: sticky;
-  top: 0;
-  background: #fff;
+  margin-top: 4px;
 }
-.lab-item {
+.score-divider {
+  width: 1px;
+  height: 48px;
+  background: #e7e5e4;
+}
+
+/* 感染摘要 */
+.infection-metrics {
   display: grid;
-  grid-template-columns: minmax(70px, 1.4fr) minmax(90px, .9fr) minmax(75px, .75fr) 58px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 20px;
+  margin-bottom: 14px;
+}
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.metric-label {
+  font-size: 11px;
+  color: #a8a29e;
+}
+.metric-value {
+  font-size: 14px;
+  color: #292524;
+  font-weight: 600;
+}
+.metric-value.warn { color: #dc2626; }
+.abx-value { font-weight: 500; }
+.temperature-metric { min-width: 0; }
+.temperature-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.temperature-chart {
+  display: block;
+  width: 100%;
+  max-width: 220px;
+  height: 62px;
+  margin: 4px 0 0;
+  overflow: visible;
+}
+.temperature-axis { stroke: #e7e5e4; stroke-width: 1; }
+.temperature-line {
+  fill: none;
+  stroke: #ea580c;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.temperature-dot { fill: #a8a29e; stroke: #fff; stroke-width: 1.5; }
+.temperature-dot.min { fill: #16a34a; }
+.temperature-dot.max { fill: #dc2626; }
+.temperature-label { font-size: 9px; font-weight: 700; }
+.min-label { fill: #15803d; }
+.max-label { fill: #b91c1c; }
+.temperature-extremes {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: -2px;
+  font-size: 10px;
+  line-height: 1.3;
+}
+.temperature-extreme { white-space: nowrap; }
+.temperature-extreme small { color: #a8a29e; font-size: 10px; }
+.min-extreme { color: #15803d; }
+.max-extreme { color: #b91c1c; }
+.temperature-status { font-size: 11px; color: #a8a29e; margin-top: 10px; }
+.infection-flags {
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 4px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.15s;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid #f5f5f4;
 }
-.lab-item:hover { background: #fafaf9; }
-.lab-item-expanded { background: #fff7ed; }
-.lab-name { font-size: 12.5px; color: #1c1917; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lab-result { display: flex; align-items: center; gap: 3px; }
-.lab-value { font-size: 13px; font-weight: 600; color: #dc2626; }
-.lab-unit { font-size: 11px; color: #a8a29e; }
-.lab-trend { font-size: 10px; background: #fee2e2; color: #dc2626; padding: 0 4px; border-radius: 3px; }
-.lab-trend.down { background: #dbeafe; color: #2563eb; }
-.lab-ref { font-size: 11px; color: #a8a29e; }
-.lab-time { font-size: 11px; color: #a8a29e; }
-.lab-sparkline { width: 50px; height: 16px; margin-left: auto; }
-
-.lab-trend-detail {
-  grid-column: 1 / -1;
-  padding: 8px;
-  background: #fafaf9;
-  border-radius: 4px;
-  margin-top: -2px;
-}
-.trend-chart { width: 100%; height: 60px; }
-.trend-labels { display: flex; justify-content: space-around; margin-top: 4px; }
-.trend-label { font-size: 10px; color: #78716c; text-align: center; }
 
 /* 待办 */
 .todo-badge { margin-right: 4px; }
-.todo-list { display: flex; flex-direction: column; gap: 2px; }
+.todo-list { display: flex; flex-direction: column; gap: 8px; }
 .todo-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 6px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.todo-item:hover { background: #fafaf9; }
-.todo-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.todo-dot.urgent { background: #dc2626; }
-.todo-dot.warning { background: #f59e0b; }
-.todo-dot.info { background: #3b82f6; }
-.todo-content { flex: 1; min-width: 0; }
-.todo-text { font-size: 13px; color: #1c1917; font-weight: 500; }
-.todo-sub { font-size: 11px; color: #a8a29e; margin-top: 1px; }
-.todo-arrow { color: #d6d3d1; font-size: 12px; }
-.todo-empty { font-size: 13px; color: #a8a29e; text-align: center; padding: 20px 0; }
-
-/* 快捷操作栏 */
-.quick-actions-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  background: #fff;
-  border: 1px solid #e7e5e4;
+  gap: 12px;
+  padding: 10px 14px;
   border-radius: 8px;
-  padding: 8px 16px;
-  margin-bottom: 12px;
-}
-.qac-label { font-size: 12px; color: #a8a29e; font-weight: 500; margin-right: 4px; }
-.qac-divider { width: 1px; height: 18px; background: #e7e5e4; margin: 0 4px; }
-
-/* 次屏折叠区 */
-.secondary-section {
-  background: #fff;
-  border: 1px solid #e7e5e4;
-  border-radius: 8px;
-  overflow: hidden;
-  margin-bottom: 12px;
-}
-.secondary-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
+  background: #fafaf9;
+  border: 1px solid #f5f5f4;
   cursor: pointer;
-  user-select: none;
+  transition: background .15s;
 }
-.secondary-header:hover { background: #fafaf9; }
-.secondary-title { font-size: 13px; font-weight: 600; color: #78716c; }
-.secondary-arrow { color: #a8a29e; transition: transform 0.2s; font-size: 12px; }
-.secondary-arrow.expanded { transform: rotate(180deg); }
-.secondary-content { padding: 0 12px 12px; }
-.secondary-content .summary-row { margin-bottom: 0; }
-
-/* 培养 */
-.culture-meta { display: flex; flex-direction: column; gap: 4px; }
-.meta-row { display: flex; justify-content: space-between; font-size: 12px; }
-.meta-label { color: #a8a29e; }
-.meta-val { color: #44403c; font-weight: 500; }
-.org-label { font-size: 11px; color: #a8a29e; margin: 8px 0 4px; }
-.org-list { display: flex; flex-wrap: wrap; gap: 4px; }
-.culture-risk { margin-top: 8px; }
-.ast-label { font-size: 11px; color: #a8a29e; margin: 8px 0 4px; }
-.ast-text { font-size: 12px; color: #44403c; line-height: 1.5; }
-.culture-full-btn { margin-top: 8px; }
-
-/* 脓毒症 */
-.sepsis-progress { display: flex; gap: 12px; margin-bottom: 8px; }
-.bundle-col { flex: 1; text-align: center; }
-.bundle-label { font-size: 11px; color: #78716c; margin-bottom: 4px; }
-.bundle-bar-wrap { height: 6px; background: #f5f5f4; border-radius: 3px; overflow: hidden; }
-.bundle-bar { height: 100%; background: linear-gradient(90deg, #fb923c, #ea580c); border-radius: 3px; transition: width 0.3s; }
-.bundle-count { font-size: 12px; font-weight: 600; color: #44403c; margin-top: 3px; }
-.pending-label { font-size: 11px; color: #a8a29e; margin-bottom: 4px; }
-.pending-list { display: flex; flex-wrap: wrap; gap: 4px; }
-.pending-tag { font-size: 11px; background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 8px; }
-.sepsis-record-time { font-size: 11px; color: #a8a29e; margin-top: 8px; }
-
-/* 体温趋势 */
-.temp-current { font-size: 13px; color: #44403c; margin-bottom: 8px; }
-.temp-current b { font-size: 20px; font-weight: 700; color: #1c1917; }
-.temp-current b.warn { color: #dc2626; }
-.temperature-chart { width: 100%; height: 50px; }
-.temperature-axis { stroke: #e7e5e4; stroke-width: 1; }
-.temperature-line { fill: none; stroke: #ea580c; stroke-width: 2; }
-.temperature-dot { fill: #ea580c; }
-.temperature-dot.min { fill: #3b82f6; }
-.temperature-dot.max { fill: #dc2626; }
-.temperature-extremes { display: flex; justify-content: space-between; margin-top: 4px; }
-.temperature-extreme { font-size: 11px; color: #78716c; }
-.temperature-extreme small { color: #a8a29e; margin-left: 2px; }
-.temperature-status { font-size: 12px; color: #a8a29e; }
-
-/* 状态块 */
-.block-empty { font-size: 12px; color: #a8a29e; text-align: center; padding: 16px 0; }
-.block-unknown { font-size: 12px; color: #f59e0b; text-align: center; padding: 16px 0; }
-.block-pending { font-size: 12px; color: #f59e0b; text-align: center; padding: 12px 0; background: #fffbeb; border-radius: 4px; }
-.mini-hint { font-size: 12px; color: #a8a29e; text-align: center; padding: 16px 0; }
-.card-mini { padding: 10px 16px; }
-
-/* 查房抽屉 */
-.round-drawer-content { padding: 0 4px; }
-.round-drawer-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #f0eeed;
-}
-.round-form { display: flex; flex-direction: column; gap: 10px; }
-.round-row { display: flex; gap: 12px; }
-.round-row.two-col .round-field { flex: 1; }
-.round-field { display: flex; flex-direction: column; gap: 4px; }
-.round-field label { font-size: 12px; color: #78716c; font-weight: 500; }
-.round-meta { font-size: 11px; color: #a8a29e; margin-top: 4px; }
-
-/* 时间线 */
-.timeline-partial-tip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #f59e0b;
-  background: #fffbeb;
-  padding: 6px 10px;
-  border-radius: 4px;
-  margin-bottom: 8px;
-}
-.timeline-list { display: flex; flex-direction: column; gap: 0; }
-.timeline-item {
-  display: flex;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid #fafaf9;
-  position: relative;
-}
-.timeline-item:last-child { border-bottom: none; }
-.timeline-dot {
+.todo-item:hover { background: #fff7ed; border-color: #fed7aa; }
+.todo-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  margin-top: 4px;
   flex-shrink: 0;
 }
-.timeline-dot.dot-round { background: #22c55e; }
-.timeline-dot.dot-sofa { background: #3b82f6; }
-.timeline-dot.dot-apache { background: #8b5cf6; }
-.timeline-dot.dot-antibiotic { background: #ea580c; }
-.timeline-dot.dot-culture { background: #ec4899; }
-.timeline-dot.dot-sepsis { background: #dc2626; }
-.timeline-dot.dot-ards { background: #06b6d4; }
-.timeline-dot.dot-prone { background: #14b8a6; }
-.timeline-content { flex: 1; min-width: 0; }
-.timeline-top { display: flex; justify-content: space-between; align-items: center; }
-.timeline-type { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 4px; }
-.timeline-type.type-round { background: #dcfce7; color: #166534; }
-.timeline-type.type-sofa { background: #dbeafe; color: #1e40af; }
-.timeline-type.type-apache { background: #ede9fe; color: #5b21b6; }
-.timeline-type.type-antibiotic { background: #ffedd5; color: #9a3412; }
-.timeline-type.type-culture { background: #fce7f3; color: #9d174d; }
-.timeline-type.type-sepsis { background: #fee2e2; color: #991b1b; }
-.timeline-type.type-ards { background: #cffafe; color: #155e75; }
-.timeline-type.type-prone { background: #ccfbf1; color: #115e59; }
-.timeline-time { font-size: 11px; color: #a8a29e; }
-.timeline-title { font-size: 13px; color: #1c1917; font-weight: 500; margin-top: 3px; }
-.timeline-result { font-size: 12px; color: #78716c; margin-top: 2px; }
-
-/* 查房历史弹窗 */
-.round-history-list { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
-.round-history-item {
-  padding: 10px 12px;
-  border: 1px solid #e7e5e4;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.15s;
+.todo-dot.orange { background: #ea580c; }
+.todo-dot.red { background: #dc2626; }
+.todo-content { flex: 1; min-width: 0; }
+.todo-text {
+  font-size: 14px;
+  color: #292524;
+  font-weight: 500;
 }
-.round-history-item:hover { background: #fafaf9; border-color: #fed7aa; }
-.round-history-date { font-size: 13px; font-weight: 600; color: #1c1917; }
-.round-history-preview { font-size: 12px; color: #78716c; margin-top: 4px; line-height: 1.5; }
-.round-history-meta { font-size: 11px; color: #a8a29e; margin-top: 4px; }
+.todo-sub {
+  font-size: 12px;
+  color: #a8a29e;
+  margin-top: 2px;
+}
+.todo-arrow { color: #a8a29e; font-size: 14px; }
+.todo-empty {
+  text-align: center;
+  padding: 10px;
+  color: #a8a29e;
+  font-size: 13px;
+}
 
-/* 判定依据弹窗 */
+/* 快捷操作 */
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.action-btn {
+  width: 100%;
+  height: 40px;
+  font-size: 13px;
+}
+.primary-action {
+  font-weight: 600;
+  background-color: #ea580c !important;
+  border-color: #ea580c !important;
+  color: #fff !important;
+}
+.primary-action:hover {
+  background-color: #c2410c !important;
+  border-color: #c2410c !important;
+  color: #fff !important;
+}
+.primary-action:focus {
+  background-color: #ea580c !important;
+  border-color: #ea580c !important;
+  color: #fff !important;
+}
+
+/* 依据弹窗 */
 .evidence-content {
   font-size: 13px;
   color: #44403c;
@@ -1421,29 +1469,470 @@ export default {
   white-space: pre-wrap;
 }
 
-/* 培养报告弹窗 */
-.culture-report-list { display: flex; flex-direction: column; gap: 4px; max-height: 400px; overflow-y: auto; }
+/* 中间行：24h检验 + 培养药敏 */
+.mid-row {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+.mid-row .summary-card { margin-bottom: 0; }
+
+.aki-card { min-width: 0; display: flex; flex-direction: column; }
+.aki-card .card-header { margin-bottom: 8px; }
+.aki-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 8px; }
+.aki-metrics > div { padding: 7px 6px; border-radius: 6px; background: #f8fafc; text-align: center; }
+.aki-metrics span, .aki-metrics small { display: block; color: #94a3b8; font-size: 10px; }
+.aki-metrics b { display: inline-block; margin: 3px 0 1px; color: #334155; font-size: 16px; line-height: 1.2; }
+.aki-detail { color: #475569; font-size: 11px; line-height: 1.5; }
+.aki-note { margin-top: 6px; color: #b45309; font-size: 10px; line-height: 1.4; }
+.aki-foot { margin-top: auto; padding-top: 6px; border-top: 1px solid #f1f5f9; color: #94a3b8; font-size: 10px; }
+
+/* 通用空状态 */
+.block-empty {
+  padding: 20px 0;
+  text-align: center;
+  color: #a8a29e;
+  font-size: 13px;
+}
+.block-unknown {
+  padding: 20px 0;
+  text-align: center;
+  color: #d97706;
+  font-size: 13px;
+}
+.block-pending {
+  padding: 12px 14px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  color: #b45309;
+  font-size: 13px;
+  text-align: center;
+  margin-top: 10px;
+}
+
+/* 空状态折叠卡片 */
+.card-mini {
+  padding: 12px 20px;
+}
+.card-mini .card-header {
+  margin-bottom: 0;
+}
+.card-mini .card-title {
+  margin-bottom: 0;
+  font-size: 14px;
+}
+.card-mini .card-kicker {
+  margin-bottom: 2px;
+}
+.mini-hint {
+  font-size: 12px;
+  color: #a8a29e;
+  margin-top: 6px;
+  padding-left: 2px;
+}
+
+/* 24h 检验 */
+.labs-summary {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.labs-summary-item {
+  font-size: 13px;
+  font-weight: 700;
+  color: #dc2626;
+}
+.labs-summary-item.normal {
+  font-size: 12px;
+  color: #a8a29e;
+}
+.labs-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.labs-table:hover {
+  scrollbar-color: #d6d3d1 transparent;
+}
+.labs-table::-webkit-scrollbar {
+  width: 4px;
+}
+.labs-table::-webkit-scrollbar-track {
+  background: transparent;
+}
+.labs-table::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+  transition: background 0.2s;
+}
+.labs-table:hover::-webkit-scrollbar-thumb {
+  background: #d6d3d1;
+}
+.labs-table-head,
+.lab-item {
+  display: grid;
+  grid-template-columns: minmax(70px, 1.4fr) minmax(90px, .9fr) minmax(75px, .75fr) 58px;
+  align-items: center;
+  column-gap: 8px;
+}
+.labs-table-head {
+  min-height: 28px;
+  padding: 0 10px;
+  color: #a8a29e;
+  font-size: 10px;
+}
+.lab-item {
+  position: relative;
+  min-height: 48px;
+  padding: 7px 10px 7px 13px;
+  border-bottom: 1px solid #f5f5f4;
+  background: #fff;
+  cursor: pointer;
+  transition: background .15s;
+}
+.lab-item:hover { background: #fff7ed; }
+.lab-item-expanded { background: #fff7ed; }
+.lab-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: #dc2626;
+}
+.lab-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1c1917;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lab-sparkline {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 50px;
+  height: 18px;
+  opacity: .7;
+}
+.lab-trend-detail {
+  margin: -4px 10px 8px 13px;
+  padding: 10px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+}
+.trend-chart {
+  width: 100%;
+  height: 80px;
+  display: block;
+}
+.trend-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+.trend-label {
+  font-size: 10px;
+  color: #78716c;
+  text-align: center;
+  flex: 1;
+  line-height: 1.3;
+}
+.lab-result {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.lab-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #dc2626;
+}
+.lab-unit {
+  font-size: 11px;
+  color: #78716c;
+}
+.lab-trend {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #fee2e2;
+  font-size: 10px;
+  color: #dc2626;
+  font-weight: 700;
+}
+.lab-trend.down { color: #2563eb; background: #dbeafe; }
+.lab-ref {
+  font-size: 11px;
+  color: #78716c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lab-time {
+  font-size: 11px;
+  color: #a8a29e;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 培养药敏 */
+.culture-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.meta-label { color: #a8a29e; }
+.meta-val { color: #292524; font-weight: 500; }
+.culture-organisms { margin-bottom: 10px; }
+.org-label {
+  font-size: 11px;
+  color: #a8a29e;
+  margin-bottom: 6px;
+}
+.org-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.culture-risk { margin-bottom: 10px; }
+.culture-ast {
+  padding-top: 10px;
+  border-top: 1px solid #f5f5f4;
+}
+.ast-label {
+  font-size: 11px;
+  color: #a8a29e;
+  margin-bottom: 4px;
+}
+.ast-text {
+  font-size: 12px;
+  color: #57534e;
+  line-height: 1.5;
+}
+.culture-full-btn {
+  margin-top: 8px;
+  text-align: right;
+}
+.culture-report-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
 .culture-report-row {
   display: grid;
   grid-template-columns: 100px 1fr 2fr;
-  gap: 10px;
-  padding: 6px 8px;
-  border-bottom: 1px solid #fafaf9;
-  font-size: 12px;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f5f5f4;
+  align-items: start;
 }
-.cr-time { color: #a8a29e; }
-.cr-name { color: #44403c; font-weight: 500; }
-.cr-result { color: #1c1917; }
+.cr-time {
+  font-size: 12px;
+  color: #78716c;
+}
+.cr-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1c1917;
+}
+.cr-result {
+  font-size: 13px;
+  color: #44403c;
+  word-break: break-all;
+}
+
+/* 脓毒症集束化 */
+.sepsis-card { }
+.sepsis-progress {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 14px;
+}
+.bundle-col { text-align: center; }
+.bundle-label {
+  font-size: 12px;
+  color: #78716c;
+  margin-bottom: 6px;
+}
+.bundle-bar-wrap {
+  height: 8px;
+  background: #f5f5f4;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.bundle-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #fb923c, #ea580c);
+  border-radius: 4px;
+  transition: width .3s;
+}
+.bundle-count {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1c1917;
+}
+.sepsis-pending { margin-bottom: 10px; }
+.pending-label {
+  font-size: 11px;
+  color: #a8a29e;
+  margin-bottom: 6px;
+}
+.pending-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pending-tag {
+  padding: 3px 10px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #c2410c;
+}
+.sepsis-record-time {
+  font-size: 11px;
+  color: #a8a29e;
+  text-align: right;
+}
+
+/* 查房记录 */
+.round-card { }
+.round-actions { display: flex; gap: 8px; align-items: center; }
+.round-form { margin-top: 12px; }
+.round-row { margin-bottom: 12px; }
+.round-row.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.round-field label {
+  display: block;
+  font-size: 12px;
+  color: #78716c;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.round-field :deep(.el-textarea__inner) {
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  resize: vertical;
+}
+.round-meta {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #a8a29e;
+  text-align: right;
+}
+.round-history-list { max-height: 480px; overflow-y: auto; }
+.round-history-item {
+  padding: 12px;
+  border-bottom: 1px solid #f5f5f4;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background .15s;
+}
+.round-history-item:hover { background: #fff7ed; }
+.round-history-date { font-size: 14px; font-weight: 600; color: #1c1917; margin-bottom: 4px; }
+.round-history-preview { font-size: 12px; color: #57534e; margin-bottom: 4px; line-height: 1.5; }
+.round-history-meta { font-size: 11px; color: #a8a29e; }
+
+/* 临床时间线 */
+.timeline-card { }
+.timeline-partial-tip {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.timeline-list { margin-top: 12px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.timeline-item {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f5f5f4;
+  position: relative;
+}
+.timeline-item:last-child { border-bottom: none; }
+.timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+  background: #a8a29e;
+}
+.timeline-dot.dot-sofa { background: #2563eb; }
+.timeline-dot.dot-apache2 { background: #7c3aed; }
+.timeline-dot.dot-abx_decision { background: #ea580c; }
+.timeline-dot.dot-abx_reassessment { background: #f59e0b; }
+.timeline-dot.dot-sepsis_bundle { background: #dc2626; }
+.timeline-dot.dot-prone { background: #0891b2; }
+.timeline-dot.dot-round { background: #16a34a; }
+.timeline-dot.dot-culture { background: #db2777; }
+.timeline-dot.dot-admission { background: #44403c; }
+.timeline-content { flex: 1; min-width: 0; }
+.timeline-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+.timeline-type {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f5f5f4;
+  color: #57534e;
+}
+.timeline-type.type-sofa { background: #dbeafe; color: #1d4ed8; }
+.timeline-type.type-apache2 { background: #ede9fe; color: #6d28d9; }
+.timeline-type.type-abx_decision { background: #ffedd5; color: #c2410c; }
+.timeline-type.type-abx_reassessment { background: #fef3c7; color: #b45309; }
+.timeline-type.type-sepsis_bundle { background: #fee2e2; color: #b91c1c; }
+.timeline-type.type-prone { background: #cffafe; color: #0e7490; }
+.timeline-type.type-round { background: #dcfce7; color: #15803d; }
+.timeline-type.type-culture { background: #fce7f3; color: #be185d; }
+.timeline-time { font-size: 11px; color: #a8a29e; }
+.timeline-title { font-size: 13px; font-weight: 500; color: #1c1917; }
+.timeline-result { font-size: 12px; color: #57534e; margin-top: 2px; }
 
 /* 响应式 */
-@media (max-width: 1200px) {
-  .row-1 { grid-template-columns: 1fr 1fr; }
-  .row-1 .risk-card { grid-column: 1 / -1; }
-  .row-3 { grid-template-columns: 1fr 1fr; }
+@media (max-width: 1100px) {
+  .top-row { grid-template-columns: 1fr; }
+  .mid-row { grid-template-columns: 1fr; }
+  .bottom-row { grid-template-columns: 1fr; }
+  .infection-metrics { grid-template-columns: repeat(2, 1fr); }
+  .sepsis-progress { grid-template-columns: 1fr; gap: 12px; }
 }
-@media (max-width: 768px) {
-  .row-1, .row-2, .row-3 { grid-template-columns: 1fr; }
-  .patient-info-bar { flex-direction: column; gap: 4px; }
-  .info-bar-item { border-right: none; padding: 0; }
+@media (max-width: 700px) {
+  .summary-page { padding: 14px; }
+  .infection-metrics { grid-template-columns: 1fr; }
+  .action-grid { grid-template-columns: 1fr; }
+  .patient-name { font-size: 20px; }
 }
 </style>
