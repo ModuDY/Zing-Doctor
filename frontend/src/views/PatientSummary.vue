@@ -422,6 +422,9 @@
               <el-button size="small" text @click="showRoundHistory = true" v-if="roundHistory.length > 0">
                 历史 ({{ roundHistory.length }})
               </el-button>
+              <el-button size="small" type="danger" plain @click="deleteRoundRecord" v-if="roundRecord.id" :loading="roundDeleting">
+                删除
+              </el-button>
               <el-button size="small" type="primary" @click="saveRoundRecord" :loading="roundSaving">
                 {{ roundRecord.id ? '保存修改' : '保存查房' }}
               </el-button>
@@ -615,6 +618,7 @@ export default {
       showEvidence: false,
       roundRecord: this.emptyRound(),
       roundSaving: false,
+      roundDeleting: false,
       roundHistory: [],
       showRoundHistory: false,
       timeline: [],
@@ -751,6 +755,34 @@ export default {
         ElMessage.error(e.message || '保存失败')
       } finally {
         this.roundSaving = false
+      }
+    },
+    async deleteRoundRecord() {
+      if (!this.roundRecord.id) {
+        ElMessage.warning('当前无记录可删除')
+        return
+      }
+      try {
+        await this.$confirm('确定删除今日查房记录？删除后可在历史中查看（逻辑删除）。', '删除确认', {
+          confirmButtonText: '删除',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+      } catch (e) {
+        return // 用户取消
+      }
+      this.roundDeleting = true
+      try {
+        await request.delete('/round/record', {
+          params: { patientId: this.roundRecord.patientId, roundDate: this.roundRecord.roundDate }
+        })
+        this.roundRecord = this.emptyRound()
+        ElMessage.success('查房记录已删除')
+        this.loadRoundHistory()
+      } catch (e) {
+        ElMessage.error(e.message || '删除失败')
+      } finally {
+        this.roundDeleting = false
       }
     },
     loadRoundDate(item) {

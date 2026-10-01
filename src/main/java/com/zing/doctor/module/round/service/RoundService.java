@@ -23,4 +23,10 @@ public interface RoundService {
      * 不存在则新建
      */
     RoundRecord save(RoundRecord record);
+
+    /**
+     * 逻辑删除指定患者指定日期的查房记录（status=0）。
+     * 返回被删除的记录数，0 表示没有找到记录。
+     */
+    int deleteByDate(String patientId, LocalDate roundDate);
 }

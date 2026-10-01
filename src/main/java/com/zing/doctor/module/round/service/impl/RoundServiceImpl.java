@@ -83,4 +83,21 @@ public class RoundServiceImpl implements RoundService {
             return record;
         }
     }
+
+    @Override
+    public int deleteByDate(String patientId, LocalDate roundDate) {
+        String operator = OperatorContext.current();
+        LocalDateTime now = LocalDateTime.now();
+        RoundRecord existing = getByDate(patientId, roundDate);
+        if (existing == null) {
+            return 0;
+        }
+        existing.setStatus(0);
+        existing.setUpdateBy(operator);
+        existing.setUpdateTime(now);
+        int rows = roundRecordMapper.updateById(existing);
+        log.info("查房记录删除: id={}, patientId={}, roundDate={}, operator={}",
+                existing.getId(), patientId, roundDate, operator);
+        return rows;
+    }
 }

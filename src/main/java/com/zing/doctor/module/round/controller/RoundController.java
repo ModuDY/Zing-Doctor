@@ -92,6 +92,25 @@ public class RoundController {
     }
 
     /**
+     * 删除指定患者指定日期的查房记录（逻辑删除 status=0）。
+     * roundDate 不传时默认今天。
+     */
+    @DeleteMapping("/record")
+    public Result<Void> deleteRecord(
+            @RequestParam String patientId,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate roundDate,
+            HttpServletRequest request) {
+        Result<Void> check = checkPatientPermission(patientId, request);
+        if (check != null) return Result.fail(check.getMessage());
+        if (roundDate == null) roundDate = LocalDate.now();
+        int rows = roundService.deleteByDate(patientId, roundDate);
+        if (rows == 0) {
+            return Result.fail("该日期无查房记录");
+        }
+        return Result.ok();
+    }
+
+    /**
      * 校验患者科室权限。返回 null 表示通过，返回 Result 表示有权限错误。
      */
     private Result<Void> checkPatientPermission(String patientId, HttpServletRequest request) {
