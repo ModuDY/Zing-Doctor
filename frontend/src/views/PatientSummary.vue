@@ -130,23 +130,6 @@
               </div>
             </div>
           </div>
-        </div>
-
-        <!-- 感染 + 24h检验 + 培养药敏 三列 -->
-        <div class="summary-row mid-row">
-          <!-- 感染摘要 -->
-          <div class="summary-card infection-card">
-          <div class="card-header">
-            <div>
-              <div class="card-kicker">INFECTION</div>
-              <h3 class="card-title">感染摘要</h3>
-            </div>
-            <el-tag v-if="patient.infectionDataStatus === 'UNKNOWN'" type="warning" size="small" effect="plain">
-              感染数据暂不可用
-            </el-tag>
-            <el-tag v-else-if="patient.suspectedInfection" type="danger" size="small">疑似感染</el-tag>
-            <el-tag v-else type="info" size="small" effect="plain">未发现疑似感染</el-tag>
-          </div>
 
           <!-- AKI：第一阶段只读识别，体重缺失时不做 kg 校正 -->
           <div class="summary-card aki-card" v-if="patient.aki">
@@ -165,6 +148,23 @@
               <div class="aki-note">{{ patient.aki.note || '尿量来源：ii_nl；累计窗口：最近6小时' }}</div>
               <div class="aki-foot">基线 {{ patient.aki.baselineCreatinine || '—' }} μmol/L · 导尿管 {{ patient.aki.catheterPresent ? '在留' : '未确认' }}</div>
             </template>
+          </div>
+        </div>
+
+        <!-- 感染 + 24h检验 + 培养药敏 三列 -->
+        <div class="summary-row mid-row">
+          <!-- 感染摘要 -->
+          <div class="summary-card infection-card">
+          <div class="card-header">
+            <div>
+              <div class="card-kicker">INFECTION</div>
+              <h3 class="card-title">感染摘要</h3>
+            </div>
+            <el-tag v-if="patient.infectionDataStatus === 'UNKNOWN'" type="warning" size="small" effect="plain">
+              感染数据暂不可用
+            </el-tag>
+            <el-tag v-else-if="patient.suspectedInfection" type="danger" size="small">疑似感染</el-tag>
+            <el-tag v-else type="info" size="small" effect="plain">未发现疑似感染</el-tag>
           </div>
 
           <template v-if="patient.infectionDataStatus !== 'UNKNOWN'">
@@ -1147,7 +1147,7 @@ export default {
 /* 第一行两列：患者概览 + 评分 */
 .top-row {
   display: grid;
-  grid-template-columns: 1.5fr 1fr;
+  grid-template-columns: 1.6fr 1fr 1.1fr;
   gap: 10px;
   margin-bottom: 0;
 }
@@ -1478,14 +1478,15 @@ export default {
 }
 .mid-row .summary-card { margin-bottom: 0; }
 
-.aki-card { min-width: 0; }
-.aki-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0 10px; }
-.aki-metrics > div { padding: 9px; border-radius: 7px; background: #f8fafc; }
-.aki-metrics span, .aki-metrics small { display: block; color: #94a3b8; font-size: 11px; }
-.aki-metrics b { display: inline-block; margin: 4px 3px 2px 0; color: #334155; font-size: 18px; }
-.aki-detail { color: #475569; font-size: 12px; line-height: 1.6; }
-.aki-note { margin-top: 8px; color: #b45309; font-size: 11px; line-height: 1.5; }
-.aki-foot { margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9; color: #94a3b8; font-size: 11px; }
+.aki-card { min-width: 0; display: flex; flex-direction: column; }
+.aki-card .card-header { margin-bottom: 8px; }
+.aki-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0 8px; }
+.aki-metrics > div { padding: 7px 6px; border-radius: 6px; background: #f8fafc; text-align: center; }
+.aki-metrics span, .aki-metrics small { display: block; color: #94a3b8; font-size: 10px; }
+.aki-metrics b { display: inline-block; margin: 3px 0 1px; color: #334155; font-size: 16px; line-height: 1.2; }
+.aki-detail { color: #475569; font-size: 11px; line-height: 1.5; }
+.aki-note { margin-top: 6px; color: #b45309; font-size: 10px; line-height: 1.4; }
+.aki-foot { margin-top: auto; padding-top: 6px; border-top: 1px solid #f1f5f9; color: #94a3b8; font-size: 10px; }
 
 /* 通用空状态 */
 .block-empty {
