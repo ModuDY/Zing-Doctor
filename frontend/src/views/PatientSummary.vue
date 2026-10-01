@@ -237,25 +237,25 @@
                 <div class="labs-table-head">
                   <span>检验项目</span><span>结果</span><span>参考范围</span><span>时间</span>
                 </div>
-                <div
-                  v-for="(item, idx) in patient.labs24h.abnormalItems"
-                  :key="idx"
-                  class="lab-item"
-                  :class="{ 'lab-item-expanded': expandedLabIdx === idx }"
-                  @click="expandedLabIdx = expandedLabIdx === idx ? -1 : idx"
-                >
-                  <div class="lab-name">{{ item.itemName }}</div>
-                  <div class="lab-result">
-                    <span class="lab-value">{{ item.result }}</span>
-                    <span class="lab-unit" v-if="item.unit">{{ item.unit }}</span>
-                    <span class="lab-trend" v-if="item.trend === 'UP'">升</span>
-                    <span class="lab-trend down" v-else-if="item.trend === 'DOWN'">降</span>
+                <template v-for="(item, idx) in patient.labs24h.abnormalItems" :key="idx">
+                  <div
+                    class="lab-item"
+                    :class="{ 'lab-item-expanded': expandedLabIdx === idx }"
+                    @click="expandedLabIdx = expandedLabIdx === idx ? -1 : idx"
+                  >
+                    <div class="lab-name">{{ item.itemName }}</div>
+                    <div class="lab-result">
+                      <span class="lab-value">{{ item.result }}</span>
+                      <span class="lab-unit" v-if="item.unit">{{ item.unit }}</span>
+                      <span class="lab-trend" v-if="item.trend === 'UP'">升</span>
+                      <span class="lab-trend down" v-else-if="item.trend === 'DOWN'">降</span>
+                    </div>
+                    <div class="lab-ref">{{ item.refRange || '—' }}</div>
+                    <div class="lab-time">{{ shortLabTime(item.checkTime) }}</div>
+                    <svg v-if="item.trendPoints && item.trendPoints.length > 1" class="lab-sparkline" viewBox="0 0 60 20" preserveAspectRatio="none">
+                      <polyline :points="sparklinePoints(item.trendPoints)" fill="none" stroke="#ea580c" stroke-width="1.5" />
+                    </svg>
                   </div>
-                  <div class="lab-ref">{{ item.refRange || '—' }}</div>
-                  <div class="lab-time">{{ shortLabTime(item.checkTime) }}</div>
-                  <svg v-if="item.trendPoints && item.trendPoints.length > 1" class="lab-sparkline" viewBox="0 0 60 20" preserveAspectRatio="none">
-                    <polyline :points="sparklinePoints(item.trendPoints)" fill="none" stroke="#ea580c" stroke-width="1.5" />
-                  </svg>
                   <div v-if="expandedLabIdx === idx && item.trendPoints && item.trendPoints.length" class="lab-trend-detail">
                     <svg :viewBox="`0 0 ${item.trendPoints.length * 40} 80`" class="trend-chart" preserveAspectRatio="none">
                       <polyline :points="trendChartPoints(item.trendPoints)" fill="none" stroke="#ea580c" stroke-width="2" />
@@ -267,7 +267,7 @@
                       </span>
                     </div>
                   </div>
-                </div>
+                </template>
               </div>
             </template>
           </div>
@@ -592,6 +592,7 @@
 <script>
 import { fetchPatientSummary } from '../api/workbench'
 import request from '../api/request'
+import { ElMessage } from 'element-plus'
 import { setCurrentPatient, clearCurrentPatient } from '../utils/patientContext'
 import { ArrowLeft, ArrowRight, ArrowDown, Refresh, Warning } from '@element-plus/icons-vue'
 
@@ -705,7 +706,7 @@ export default {
       const patientId = this.$route.query.patientId
       if (!patientId) return
       try {
-        const data = await request.get('/api/round/record', { params: { patientId }, silentError: true })
+        const data = await request.get('/round/record', { params: { patientId }, silentError: true })
         if (data) {
           this.roundRecord = { ...this.emptyRound(), ...data }
         } else {
@@ -721,25 +722,25 @@ export default {
       const patientId = this.$route.query.patientId
       if (!patientId) return
       try {
-        const data = await request.get('/api/round/history', { params: { patientId }, silentError: true })
+        const data = await request.get('/round/history', { params: { patientId }, silentError: true })
         this.roundHistory = Array.isArray(data) ? data : []
       } catch (e) { this.roundHistory = [] }
     },
     async saveRoundRecord() {
       if (!this.roundRecord.patientId) {
-        this.$message.warning('缺少患者信息')
+        ElMessage.warning('缺少患者信息')
         return
       }
       this.roundSaving = true
       try {
-        const saved = await request.post('/api/round/save', this.roundRecord)
+        const saved = await request.post('/round/save', this.roundRecord)
         if (saved) {
           this.roundRecord = { ...this.emptyRound(), ...saved }
-          this.$message.success('查房记录已保存')
+          ElMessage.success('查房记录已保存')
           this.loadRoundHistory()
         }
       } catch (e) {
-        this.$message.error(e.message || '保存失败')
+        ElMessage.error(e.message || '保存失败')
       } finally {
         this.roundSaving = false
       }
@@ -757,7 +758,7 @@ export default {
       this.timelinePartial = false
       this.timelineFailedSources = []
       try {
-        const data = await request.get(`/api/workbench/patients/${patientId}/timeline`, { silentError: true })
+        const data = await request.get(`/workbench/patients/${patientId}/timeline`, { silentError: true })
         if (data && Array.isArray(data.events)) {
           this.timeline = data.events
           this.timelinePartial = data.dataStatus === 'PARTIAL'
@@ -1501,12 +1502,12 @@ export default {
   opacity: .7;
 }
 .lab-trend-detail {
-  grid-column: 1 / -1;
-  margin-top: 8px;
-  padding: 8px;
-  background: #fff;
+  margin: -4px 10px 8px 13px;
+  padding: 10px;
+  background: #fff7ed;
   border: 1px solid #fed7aa;
-  border-radius: 6px;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
 }
 .trend-chart {
   width: 100%;
