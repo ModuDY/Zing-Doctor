@@ -1554,6 +1554,25 @@ export default {
   gap: 8px;
   max-height: 280px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.labs-table:hover {
+  scrollbar-color: #d6d3d1 transparent;
+}
+.labs-table::-webkit-scrollbar {
+  width: 4px;
+}
+.labs-table::-webkit-scrollbar-track {
+  background: transparent;
+}
+.labs-table::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+  transition: background 0.2s;
+}
+.labs-table:hover::-webkit-scrollbar-thumb {
+  background: #d6d3d1;
 }
 .labs-table-head,
 .lab-item {
