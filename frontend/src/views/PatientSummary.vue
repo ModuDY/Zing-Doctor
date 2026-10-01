@@ -148,6 +148,25 @@
             <el-tag v-else type="info" size="small" effect="plain">未发现疑似感染</el-tag>
           </div>
 
+          <!-- AKI：第一阶段只读识别，体重缺失时不做 kg 校正 -->
+          <div class="summary-card aki-card" v-if="patient.aki">
+            <div class="card-header">
+              <div><div class="card-kicker">KIDNEY FUNCTION</div><h3 class="card-title">肾功能与 AKI 风险</h3></div>
+              <el-tag :type="akiTagType(patient.aki)" size="small" effect="plain">{{ akiStatusText(patient.aki) }}</el-tag>
+            </div>
+            <div v-if="patient.aki.dataStatus === 'UNKNOWN'" class="block-unknown">AKI数据暂不可用</div>
+            <template v-else>
+              <div class="aki-metrics">
+                <div><span>最新肌酐</span><b>{{ patient.aki.latestCreatinine || '—' }}</b><small>μmol/L</small></div>
+                <div><span>48h变化</span><b>{{ patient.aki.creatinine48hDelta || '—' }}</b><small>μmol/L</small></div>
+                <div><span>近6h尿量</span><b>{{ patient.aki.urine6hTotal || '—' }}</b><small>mL</small></div>
+              </div>
+              <div class="aki-detail">{{ patient.aki.basisText || '暂无判定依据' }}</div>
+              <div class="aki-note">{{ patient.aki.note || '尿量来源：ii_nl；累计窗口：最近6小时' }}</div>
+              <div class="aki-foot">基线 {{ patient.aki.baselineCreatinine || '—' }} μmol/L · 导尿管 {{ patient.aki.catheterPresent ? '在留' : '未确认' }}</div>
+            </template>
+          </div>
+
           <template v-if="patient.infectionDataStatus !== 'UNKNOWN'">
             <div class="infection-metrics">
               <div class="metric">
@@ -986,6 +1005,16 @@ export default {
       if (!total || total <= 0) return '0%'
       return Math.min(100, Math.round((completed / total) * 100)) + '%'
     },
+    akiStatusText(aki) {
+      if (!aki || aki.dataStatus === 'UNKNOWN') return '不可用'
+      return { NO_DATA: '数据不足', SCREENING: '观察中', POSSIBLE: '疑似AKI', STAGE_1: 'AKI 1期', STAGE_2: 'AKI 2期', STAGE_3: 'AKI 3期' }[aki.status] || '观察中'
+    },
+    akiTagType(aki) {
+      if (!aki || aki.dataStatus === 'UNKNOWN') return 'warning'
+      if (aki.status === 'POSSIBLE' || String(aki.status || '').startsWith('STAGE')) return 'danger'
+      if (aki.status === 'SCREENING') return 'warning'
+      return 'info'
+    },
     sofaGradeText(score) {
       if (score == null) return '—'
       if (score <= 6) return '轻度'
@@ -1448,6 +1477,15 @@ export default {
   margin-top: 10px;
 }
 .mid-row .summary-card { margin-bottom: 0; }
+
+.aki-card { min-width: 0; }
+.aki-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0 10px; }
+.aki-metrics > div { padding: 9px; border-radius: 7px; background: #f8fafc; }
+.aki-metrics span, .aki-metrics small { display: block; color: #94a3b8; font-size: 11px; }
+.aki-metrics b { display: inline-block; margin: 4px 3px 2px 0; color: #334155; font-size: 18px; }
+.aki-detail { color: #475569; font-size: 12px; line-height: 1.6; }
+.aki-note { margin-top: 8px; color: #b45309; font-size: 11px; line-height: 1.5; }
+.aki-foot { margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9; color: #94a3b8; font-size: 11px; }
 
 /* 通用空状态 */
 .block-empty {

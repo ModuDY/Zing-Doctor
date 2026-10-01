@@ -863,6 +863,63 @@ public class WorkbenchEnrichService {
         }
     }
 
+    /** 第一阶段 AKI 只读识别：体重缺失时不进行 mL/kg/h 诊断判定。 */
+    public void enrichAki(List<WorkbenchPatient> patients) {
+        if (patients == null || patients.isEmpty()) return;
+        for (WorkbenchPatient p : patients) {
+            WorkbenchPatient.AkiSummary aki = new WorkbenchPatient.AkiSummary();
+            p.setAki(aki);
+            try {
+                List<Map<String, Object>> cr = icuPatientMapper.selectAkiCreatinine(p.getInHospitalNo());
+                List<Map<String, Object>> urine = icuPatientMapper.selectAkiUrine6h(p.getPatientId(),
+                        LocalDateTime.now().minusHours(6).toString(), LocalDateTime.now().toString());
+                BigDecimal base = null, latest = null; LocalDateTime baseTime = null, latestTime = null; int count = 0;
+                for (Map<String, Object> row : (cr == null ? Collections.<Map<String, Object>>emptyList() : cr)) {
+                    BigDecimal v = InfectionRules.parseDecimalValue(row.get("result")); LocalDateTime t = akiTime(row.get("check_time"));
+                    if (v == null || t == null) continue; count++;
+                    if (base == null) { base = v; baseTime = t; }
+                    if (latestTime == null || t.isAfter(latestTime)) { latest = v; latestTime = t; }
+                }
+                aki.setCreatinineCount(count); aki.setBaselineCreatinine(number(base)); aki.setBaselineTime(text(baseTime));
+                aki.setLatestCreatinine(number(latest)); aki.setLatestTime(text(latestTime));
+                BigDecimal total = BigDecimal.ZERO; int urineCount = 0;
+                for (Map<String, Object> row : (urine == null ? Collections.<Map<String, Object>>emptyList() : urine)) {
+                    BigDecimal v = InfectionRules.parseDecimalValue(row.get("item_value")); if (v != null) { total = total.add(v); urineCount++; }
+                }
+                if (urineCount > 0) aki.setUrine6hTotal(number(total));
+                Map<String, Object> catheter = icuPatientMapper.selectCatheterByPatient(p.getPatientId(),
+                        LocalDateTime.now().minusHours(6).toString(), LocalDateTime.now().toString());
+                aki.setCatheterPresent(catheter != null && InfectionRules.parseDecimalValue(catheter.get("cnt")) != null
+                        && InfectionRules.parseDecimalValue(catheter.get("cnt")).compareTo(BigDecimal.ZERO) > 0);
+                aki.setWeight(p.getWeight() == null ? null : number(p.getWeight()));
+                aki.setWeightAdjusted(p.getWeight() != null && p.getWeight().compareTo(BigDecimal.ZERO) > 0);
+                boolean possible = false; StringBuilder basis = new StringBuilder();
+                if (base != null && latest != null && latestTime != null && baseTime != null) {
+                    BigDecimal delta = latest.subtract(base); aki.setCreatinine48hDelta(number(delta));
+                    if (!latestTime.isBefore(LocalDateTime.now().minusHours(48)) && delta.compareTo(new BigDecimal("26.5")) >= 0) { possible = true; basis.append("48小时肌酐升高≥26.5 μmol/L"); }
+                    if (base.compareTo(BigDecimal.ZERO) > 0) {
+                        BigDecimal ratio = latest.divide(base, 2, java.math.RoundingMode.HALF_UP); aki.setCreatinine7dRatio(ratio.toPlainString());
+                        if (!latestTime.isBefore(LocalDateTime.now().minusDays(7)) && ratio.compareTo(new BigDecimal("1.5")) >= 0) { possible = true; if (basis.length() > 0) basis.append("；"); basis.append("7天肌酐达到基线1.5倍"); }
+                    }
+                }
+                aki.setDataStatus(count == 0 && urineCount == 0 ? "EMPTY" : "FOUND");
+                aki.setStatus(possible ? "POSSIBLE" : (count > 0 || urineCount > 0 ? "SCREENING" : "NO_DATA"));
+                aki.setStatusText(possible ? "疑似满足AKI标准" : (count > 0 || urineCount > 0 ? "观察中" : "数据不足"));
+                aki.setBasisText(basis.length() == 0 ? "当前未发现满足肌酐标准的证据" : basis.toString());
+                if (p.getWeight() == null) aki.setNote("体重缺失，未进行尿量 mL/kg/h 校正；尿量仅作原始累计展示。");
+            } catch (Exception e) { log.warn("患者摘要 AKI 查询失败(patientId={})", p.getPatientId(), e); aki.setDataStatus("UNKNOWN"); aki.setStatusText("数据暂不可用"); }
+        }
+    }
+
+    private String number(BigDecimal value) { return value == null ? null : value.stripTrailingZeros().toPlainString(); }
+    private String text(LocalDateTime value) { return value == null ? null : value.toString(); }
+    private LocalDateTime akiTime(Object value) {
+        if (value == null) return null;
+        if (value instanceof java.sql.Timestamp) return ((java.sql.Timestamp) value).toLocalDateTime();
+        if (value instanceof LocalDateTime) return (LocalDateTime) value;
+        try { return LocalDateTime.parse(String.valueOf(value).replace(' ', 'T')); } catch (Exception e) { return null; }
+    }
+
     /** 解析 bundle JSON，返回 [completedCount, totalCount]。只统计 Boolean 类型的字段。 */
     private int[] countBundleItems(String json) {
         if (json == null || json.isEmpty()) return new int[]{0, 0};

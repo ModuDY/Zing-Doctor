@@ -96,6 +96,7 @@ public class PatientWorkbenchController {
         workbenchEnrichService.enrichCulture(list);
         workbenchEnrichService.enrichSepsisBundle(list);
         workbenchEnrichService.enrichTemperatureTrend(list);
+        workbenchEnrichService.enrichAki(list);
         return Result.ok(patient);
     }
 

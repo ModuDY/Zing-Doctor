@@ -39,6 +39,8 @@ public class WorkbenchPatient {
     private String bedNo;
     private LocalDateTime inDepartmentTime;
     private Long icuDays;
+    /** patient_info.weight；为空时不得进行按体重校正的尿量判定。 */
+    private java.math.BigDecimal weight;
     /** 主要诊断（来自 ICU patient_info.diagnosis_content） */
     private String diagnosis;
     /** 主管医生（来自 ICU patient_info.charge_doctor_name） */
@@ -181,6 +183,33 @@ public class WorkbenchPatient {
 
     /** 脓毒症集束化状态摘要 */
     private SepsisBundleSummary sepsisBundle;
+
+    /** 第一阶段：只读 AKI 识别结果；不等同于医嘱或诊断结论。 */
+    private AkiSummary aki;
+
+    @Data
+    public static class AkiSummary {
+        /** FOUND / EMPTY / UNKNOWN */
+        private String dataStatus = "UNKNOWN";
+        /** NO_DATA / SCREENING / POSSIBLE / STAGE_1 / STAGE_2 / STAGE_3 */
+        private String status = "NO_DATA";
+        private String statusText = "数据不足";
+        private String basisText;
+        private Integer creatinineCount = 0;
+        private String baselineCreatinine;
+        private String baselineTime;
+        private String latestCreatinine;
+        private String latestTime;
+        private String creatinineUnit = "μmol/L";
+        private String creatinine48hDelta;
+        private String creatinine7dRatio;
+        private String urine6hTotal;
+        private String urine6hUnit = "mL";
+        private Boolean catheterPresent;
+        private String weight;
+        private Boolean weightAdjusted;
+        private String note;
+    }
 
     /**
      * 24 小时检验摘要。

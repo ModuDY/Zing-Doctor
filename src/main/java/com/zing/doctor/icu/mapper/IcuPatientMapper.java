@@ -370,6 +370,26 @@ public interface IcuPatientMapper {
                                                      @Param("startTime") String startTime,
                                                      @Param("endTime") String endTime);
 
+    /** AKI：近14天肌酐，名称允许带*等前缀；单患者查询，避免全院 GROUP BY。 */
+    @Select("SELECT li.lis_item_name AS item_name, li.lis_item_result AS result, "
+            + "li.lis_item_unit AS unit, li.check_time AS check_time "
+            + "FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li "
+            + "WHERE li.in_hospital_no = #{inHospitalNo} AND li.del_flag = 0 "
+            + "AND li.lis_item_result IS NOT NULL AND li.lis_item_result <> '' "
+            + "AND li.lis_item_name LIKE '%肌酐%' "
+            + "AND li.check_time >= SYSDATE - 14 ORDER BY li.check_time ASC")
+    List<Map<String, Object>> selectAkiCreatinine(@Param("inHospitalNo") String inHospitalNo);
+
+    /** AKI：近6小时尿量，ii_nl为重症系统确认的尿量项目编码。 */
+    @Select("SELECT r.item_value AS item_value, r.item_unit AS item_unit, r.item_time AS item_time "
+            + "FROM \"zing_icu_db_prod\".\"patient_io_module_item_record\" r "
+            + "WHERE r.patient_id = #{patientId} AND r.del_flag = 0 AND r.status = 1 "
+            + "AND r.item_code = 'ii_nl' AND r.item_time >= #{startTime} "
+            + "AND r.item_time < #{endTime} ORDER BY r.item_time ASC")
+    List<Map<String, Object>> selectAkiUrine6h(@Param("patientId") String patientId,
+                                                @Param("startTime") String startTime,
+                                                @Param("endTime") String endTime);
+
     /**
      * 查培养类报告头（患者摘要培养状态判断用）。
      * 用于区分「未送检」和「已送检未出报告」：有报告头=已送检，无报告头=未送检。
@@ -1173,7 +1193,7 @@ public interface IcuPatientMapper {
     /**
      * 尿量（按患者）：固定 item_code='ii_nl'。
      */
-    @Select("SELECT r.item_value AS item_value, r.item_time AS item_time "
+    @Select("SELECT r.item_value AS item_value, r.item_unit AS item_unit, r.item_time AS item_time "
             + "FROM \"zing_icu_db_prod\".\"patient_io_module_item_record\" r "
             + "WHERE r.del_flag = 0 AND r.status = 1 "
             + "AND r.item_code = \'ii_nl\' "
