@@ -279,6 +279,7 @@ import { fetchAssessment, fetchAssessmentByNo, saveDecision, updateDecision, del
 import LabTrendChart from './LabTrendChart.vue'
 import '../styles/abx-theme.css'
 import { markWorkbenchRefresh } from '../utils/patientContext'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 export default {
   name: 'DecisionDetail',
@@ -460,12 +461,12 @@ export default {
     async completeReassessmentForm() {
       const task = this.latestReassessment
       if (!task || task.reviewStatus !== 'PENDING') return
-      if (!this.reassessmentForm.decisionAction) return this.$message.warning('请选择复评动作')
-      if (!this.reassessmentForm.doctorName) return this.$message.warning('请先选择复评医生')
+      if (!this.reassessmentForm.decisionAction) return ElMessage.warning('请选择复评动作')
+      if (!this.reassessmentForm.doctorName) return ElMessage.warning('请先选择复评医生')
       this.reassessmentSaving = true
       try {
         await completeReassessment({ id: task.id, ...this.reassessmentForm })
-        this.$message.success('复评已保存')
+        ElMessage.success('复评已保存')
         markWorkbenchRefresh('antibiotic-reassessment-saved')
         await this.loadReassessments()
       } finally {
@@ -475,12 +476,12 @@ export default {
     async skipReassessmentForm() {
       const task = this.latestReassessment
       if (!task || task.reviewStatus !== 'PENDING') return
-      if (!this.reassessmentForm.doctorName) return this.$message.warning('请先选择复评医生')
-      if (!this.reassessmentForm.remark) return this.$message.warning('跳过复评时请填写原因')
+      if (!this.reassessmentForm.doctorName) return ElMessage.warning('请先选择复评医生')
+      if (!this.reassessmentForm.remark) return ElMessage.warning('跳过复评时请填写原因')
       this.reassessmentSaving = true
       try {
         await skipReassessment({ id: task.id, ...this.reassessmentForm })
-        this.$message.success('已跳过本次复评，并保留原因')
+        ElMessage.success('已跳过本次复评，并保留原因')
         markWorkbenchRefresh('antibiotic-reassessment-saved')
         await this.loadReassessments()
       } finally {
@@ -490,7 +491,7 @@ export default {
     async submit(status) {
       // 保存/修改前必须选择医生姓名，避免产生无责任人的脏记录
       if (!this.doctorName) {
-        this.$message.warning('请先选择医生姓名后再保存')
+        ElMessage.warning('请先选择医生姓名后再保存')
         return
       }
       this.saving = true
@@ -503,7 +504,7 @@ export default {
             doctorName: this.doctorName,
             doctorId: this.doctorId
           })
-          this.$message.success('决策已更新')
+          ElMessage.success('决策已更新')
           markWorkbenchRefresh('antibiotic-decision-saved')
           this.cancelEdit()
         } else {
@@ -514,7 +515,7 @@ export default {
             doctorName: this.doctorName,
             doctorId: this.doctorId
           })
-          this.$message.success('决策已保存')
+          ElMessage.success('决策已保存')
           markWorkbenchRefresh('antibiotic-decision-saved')
         }
         this.records = await fetchRecords(this.patientId)
@@ -545,14 +546,14 @@ export default {
     },
     /** 删除历史记录 */
     onDelete(row) {
-      this.$confirm(`确认删除 ${this.formatTime(row.createTime)} 的决策记录？删除后不可恢复。`, '删除确认', {
+      ElMessageBox.confirm(`确认删除 ${this.formatTime(row.createTime)} 的决策记录？删除后不可恢复。`, '删除确认', {
         type: 'warning',
         confirmButtonText: '删除',
         cancelButtonText: '取消',
         customClass: 'abx-overlay'
       }).then(async () => {
         await deleteDecision(row.id)
-        this.$message.success('已删除')
+        ElMessage.success('已删除')
         markWorkbenchRefresh('antibiotic-decision-deleted')
         if (this.editingId === row.id) {
           this.cancelEdit()

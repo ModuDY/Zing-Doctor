@@ -127,6 +127,7 @@
 <script>
 import axios from 'axios'
 import { Search as SearchIcon, Plus, Refresh } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 export default {
   name: 'PkpdKnowledgeConfig',
@@ -176,7 +177,7 @@ export default {
         const { data } = await axios.get('/api/antibiotic/pkpd-knowledge/list')
         this.list = data.data || []
       } catch (e) {
-        this.$message.error('加载失败: ' + (e.response?.data?.message || e.message))
+        ElMessage.error('加载失败: ' + (e.response?.data?.message || e.message))
       } finally { this.loading = false }
     },
     filterList() {},
@@ -192,35 +193,35 @@ export default {
     openAdd() { this.form = this.emptyForm(); this.editing = false; this.dialogVisible = true },
     openEdit(row) { this.form = { ...row }; this.editing = true; this.dialogVisible = true },
     async save() {
-      if (!this.form.drugName || !this.form.drugName.trim()) { this.$message.warning('药品通用名不能为空'); return }
-      if (!this.form.pkpdType) { this.$message.warning('PK/PD类型不能为空'); return }
+      if (!this.form.drugName || !this.form.drugName.trim()) { ElMessage.warning('药品通用名不能为空'); return }
+      if (!this.form.pkpdType) { ElMessage.warning('PK/PD类型不能为空'); return }
       this.saving = true
       try {
         if (this.editing) {
           await axios.put('/api/antibiotic/pkpd-knowledge', this.form)
-          this.$message.success('更新成功')
+          ElMessage.success('更新成功')
         } else {
           await axios.post('/api/antibiotic/pkpd-knowledge', this.form)
-          this.$message.success('新增成功')
+          ElMessage.success('新增成功')
         }
         this.dialogVisible = false
         this.loadList()
       } catch (e) {
-        this.$message.error('保存失败: ' + (e.response?.data?.message || e.message))
+        ElMessage.error('保存失败: ' + (e.response?.data?.message || e.message))
       } finally { this.saving = false }
     },
     async toggleStatus(row) {
       row.status = row.status === 1 ? 0 : 1
       try { await axios.put('/api/antibiotic/pkpd-knowledge', row) }
-      catch (e) { row.status = row.status === 1 ? 0 : 1; this.$message.error('操作失败') }
+      catch (e) { row.status = row.status === 1 ? 0 : 1; ElMessage.error('操作失败') }
     },
     async remove(row) {
       try {
-        await this.$confirm(`确认删除「${row.drugName}」？`, '删除确认', { type: 'warning' })
+        await ElMessageBox.confirm(`确认删除「${row.drugName}」？`, '删除确认', { type: 'warning' })
         await axios.delete(`/api/antibiotic/pkpd-knowledge/${row.id}`)
-        this.$message.success('删除成功')
+        ElMessage.success('删除成功')
         this.loadList()
-      } catch (e) { if (e !== 'cancel') this.$message.error('删除失败') }
+      } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败') }
     }
   }
 }
