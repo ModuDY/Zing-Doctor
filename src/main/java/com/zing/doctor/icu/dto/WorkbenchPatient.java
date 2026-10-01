@@ -39,6 +39,10 @@ public class WorkbenchPatient {
     private String bedNo;
     private LocalDateTime inDepartmentTime;
     private Long icuDays;
+    /** 主要诊断（来自 ICU patient_info.diagnosis_content） */
+    private String diagnosis;
+    /** 主管医生（来自 ICU patient_info.charge_doctor_name） */
+    private String attendingDoctor;
 
     // ---- 危重标签（批量查询填充，默认 false）----
     /** 机械通气（有呼吸机参数记录） */

@@ -150,9 +150,7 @@ public class TimelineServiceImpl implements TimelineService {
             for (RoundRecord r : roundMapper.selectList(roundQw)) {
                 LocalDateTime time = r.getUpdateTime() != null ? r.getUpdateTime() :
                         LocalDateTime.of(r.getRoundDate() != null ? r.getRoundDate() : LocalDate.now(), LocalTime.MIN);
-                String preview = r.getMainProblem() != null && !r.getMainProblem().isEmpty()
-                        ? r.getMainProblem().length() > 40 ? r.getMainProblem().substring(0, 40) + "..." : r.getMainProblem()
-                        : "已记录";
+                String preview = buildRoundPreview(r);
                 events.add(new TimelineEvent(time, "ROUND", "查房记录", preview, "DOCTOR_INPUT"));
             }
         } catch (Exception e) {
@@ -180,5 +178,49 @@ public class TimelineServiceImpl implements TimelineService {
         } else {
             return TimelineResponse.partial(events, failedSources);
         }
+    }
+
+    /**
+     * 构建查房记录摘要：主要问题 + 已填写的关键字段
+     */
+    private String buildRoundPreview(RoundRecord r) {
+        StringBuilder sb = new StringBuilder();
+        if (r.getMainProblem() != null && !r.getMainProblem().isEmpty()) {
+            String mp = r.getMainProblem();
+            sb.append(mp.length() > 30 ? mp.substring(0, 30) + "..." : mp);
+        }
+        int filled = 0;
+        StringBuilder extras = new StringBuilder();
+        if (r.getInfectionJudgment() != null && !r.getInfectionJudgment().isEmpty()) {
+            filled++;
+            if (extras.length() > 0) extras.append("｜");
+            extras.append("感染").append(truncate(r.getInfectionJudgment(), 15));
+        }
+        if (r.getAbxPlan() != null && !r.getAbxPlan().isEmpty()) {
+            filled++;
+            if (extras.length() > 0) extras.append("｜");
+            extras.append("抗菌药").append(truncate(r.getAbxPlan(), 15));
+        }
+        if (r.getRespiratoryPlan() != null && !r.getRespiratoryPlan().isEmpty()) filled++;
+        if (r.getCirculatoryPlan() != null && !r.getCirculatoryPlan().isEmpty()) filled++;
+        if (r.getRenalSedationPlan() != null && !r.getRenalSedationPlan().isEmpty()) filled++;
+        if (r.getRecheckItems() != null && !r.getRecheckItems().isEmpty()) filled++;
+        if (r.getTreatmentGoal() != null && !r.getTreatmentGoal().isEmpty()) filled++;
+        if (r.getTomorrowFocus() != null && !r.getTomorrowFocus().isEmpty()) filled++;
+
+        if (extras.length() > 0) {
+            if (sb.length() > 0) sb.append("｜");
+            sb.append(extras);
+        }
+        if (filled > 0) {
+            if (sb.length() > 0) sb.append("｜");
+            sb.append("共").append(filled + 1).append("项");
+        }
+        return sb.length() > 0 ? sb.toString() : "已记录";
+    }
+
+    private String truncate(String s, int max) {
+        if (s == null) return "";
+        return s.length() > max ? s.substring(0, max) + "..." : s;
     }
 }

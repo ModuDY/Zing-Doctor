@@ -70,6 +70,7 @@ public interface IcuPatientMapper {
             "         pi.age AS age, pi.gender AS gender, pi.depart_code AS depart_code, ",
             "         pi.depart_name AS depart_name, pi.ward_name AS ward_name, pi.bed_code AS bed_no, ",
             "         pi.in_depart_time AS in_depart_time, ",
+            "         pi.charge_doctor_name AS charge_doctor_name, ",
             "         ROW_NUMBER() OVER (PARTITION BY pi.in_hospital_no ORDER BY pi.in_depart_time DESC) AS rn ",
             "    FROM \"zing_icu_db_prod\".\"patient_info\" pi ",
             "   WHERE pi.is_in_depart = 1 AND pi.del_flag = 0 ",

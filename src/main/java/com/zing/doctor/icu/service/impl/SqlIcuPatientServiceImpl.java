@@ -114,6 +114,27 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         patient.setInDepartmentTime(admittedAt);
         patient.setIcuDays(admittedAt == null ? null
                 : Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(admittedAt.toLocalDate(), LocalDateTime.now().toLocalDate()) + 1));
+        patient.setAttendingDoctor(str(row.get("charge_doctor_name")));
+        // 诊断取专门的诊断表，最新3个拼接
+        try {
+            List<Map<String, Object>> diagnoses = icuPatientMapper.selectDiagnoses(patientId);
+            if (diagnoses != null && !diagnoses.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                int count = 0;
+                for (Map<String, Object> d : diagnoses) {
+                    String name = str(d.get("diag_name"));
+                    if (!name.isEmpty()) {
+                        if (sb.length() > 0) sb.append("、");
+                        sb.append(name);
+                        count++;
+                        if (count >= 3) break;
+                    }
+                }
+                patient.setDiagnosis(sb.length() > 0 ? sb.toString() : null);
+            }
+        } catch (Exception e) {
+            log.warn("查询患者诊断表失败 patientId={}", patientId, e);
+        }
         return patient;
     }
 

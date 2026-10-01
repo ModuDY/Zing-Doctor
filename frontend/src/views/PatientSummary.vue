@@ -54,6 +54,14 @@
                   <span class="info-line-label">入科时间</span>
                   <span class="info-line-value">{{ formatTime(patient.inDepartmentTime) }}</span>
                 </div>
+                <div class="info-line" v-if="patient.diagnosis">
+                  <span class="info-line-label">主要诊断</span>
+                  <span class="info-line-value diagnosis-text">{{ patient.diagnosis }}</span>
+                </div>
+                <div class="info-line" v-if="patient.attendingDoctor">
+                  <span class="info-line-label">主管医生</span>
+                  <span class="info-line-value">{{ patient.attendingDoctor }}</span>
+                </div>
               </div>
               <!-- 生命支持：紧凑标签 -->
               <div class="overview-support">
@@ -559,7 +567,7 @@
       <div class="round-history-list" v-if="roundHistory.length">
         <div v-for="item in roundHistory" :key="item.id" class="round-history-item" @click="loadRoundDate(item)">
           <div class="round-history-date">{{ item.roundDate }}</div>
-          <div class="round-history-preview">{{ item.mainProblem || '（无主要问题记录）' }}</div>
+          <div class="round-history-preview">{{ roundPreview(item) }}</div>
           <div class="round-history-meta">{{ item.updateBy || item.createBy || '—' }} · {{ formatTime(item.updateTime || item.createTime) }}</div>
         </div>
       </div>
@@ -749,6 +757,24 @@ export default {
       // 点击历史记录时加载到编辑区
       this.roundRecord = { ...this.emptyRound(), ...item }
       this.showRoundHistory = false
+    },
+    roundPreview(item) {
+      const parts = []
+      if (item.mainProblem) {
+        parts.push(item.mainProblem.length > 40 ? item.mainProblem.substring(0, 40) + '...' : item.mainProblem)
+      }
+      if (item.infectionJudgment) {
+        parts.push('感染：' + (item.infectionJudgment.length > 20 ? item.infectionJudgment.substring(0, 20) + '...' : item.infectionJudgment))
+      }
+      if (item.abxPlan) {
+        parts.push('抗菌药：' + (item.abxPlan.length > 20 ? item.abxPlan.substring(0, 20) + '...' : item.abxPlan))
+      }
+      let filled = 0
+      ;['respiratoryPlan', 'circulatoryPlan', 'renalSedationPlan', 'recheckItems', 'treatmentGoal', 'tomorrowFocus'].forEach(f => {
+        if (item[f]) filled++
+      })
+      if (filled > 0) parts.push(`另有${filled}项`)
+      return parts.length ? parts.join('｜') : '（无主要问题记录）'
     },
     async loadTimeline() {
       const patientId = this.$route.query.patientId
@@ -1107,6 +1133,15 @@ export default {
 .info-line-value {
   color: #292524;
   font-weight: 600;
+}
+.diagnosis-text {
+  font-weight: 500;
+  line-height: 1.5;
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .overview-support {
   flex: 1;
