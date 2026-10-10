@@ -359,9 +359,16 @@ export default {
         this.cam = data.cam || this.cam
         // 写入全局患者上下文，侧边栏切到其他单患者页时患者不丢
         setCurrentPatient(data.patient)
-        await this.$nextTick()
-        this.renderAllCharts()
+        // 画图与模板重渲染单独隔离：即使某个量表图 echarts 渲染抛错，
+        // 已返回的统计卡/明细数据仍正常展示，不再整页白屏；同时打印完整堆栈便于定位。
+        try {
+          await this.$nextTick()
+          this.renderAllCharts()
+        } catch (chartErr) {
+          console.error('[SedationMonitor] 图表渲染失败（数据已正常加载）', chartErr)
+        }
       } catch (e) {
+        console.error('[SedationMonitor] loadData failed', e)
         this.loadError = e.message || '网络异常'
       } finally {
         this.loading = false
@@ -407,9 +414,13 @@ export default {
       return (block.points || []).some((p) => p.score != null)
     },
     renderAllCharts() {
-      this.renderScale('nrs')
-      this.renderScale('cpot')
-      this.renderScale('rass')
+      ;['nrs', 'cpot', 'rass'].forEach((k) => {
+        try {
+          this.renderScale(k)
+        } catch (e) {
+          console.error('[SedationMonitor] renderScale ' + k + ' failed', e)
+        }
+      })
     },
     renderScale(key) {
       const block = this[key]
