@@ -30,3 +30,53 @@ export function fetchDepartScope() {
 export function fetchPatientSummary(patientId) {
   return request.get(`/workbench/patients/${patientId}/summary`, { silentError: true })
 }
+
+/**
+ * 单患者镇痛镇静监测（只读）：一次批量返回 NRS / CPOT / RASS / CAM-ICU。
+ *
+ * 二选一：
+ * @param {string} patientId 患者ID
+ * @param {object} [options]
+ * @param {number} [options.hours=24] 快捷回溯小时数（后端限制 1~720=30天）；与 start/end 互斥
+ * @param {string} [options.start] 自定义窗口开始（含），ISO yyyy-MM-ddTHH:mm:ss
+ * @param {string} [options.end]   自定义窗口结束（不含），ISO；与 start 同时提供，最长30天
+ * 数据来自重症系统正式评分文书 doc 三表，不与 observe 镜像合并。
+ */
+export function fetchSedationMonitor(patientId, options = {}) {
+  const params = {}
+  if (options.start && options.end) {
+    params.start = options.start
+    params.end = options.end
+  } else {
+    params.hours = options.hours || 24
+  }
+  return request.get(`/workbench/patients/${patientId}/sedation`, {
+    params,
+    silentError: true
+  })
+}
+
+/**
+ * 单患者急性脑损伤 / 神经功能监测（只读）：一次批量返回
+ * 急性脑损伤诊断识别 + GCS（E/V/M，插管记 T）+ 神志 + 双侧瞳孔 + ICP。
+ *
+ * @param {string} patientId 患者ID
+ * @param {object} [options]
+ * @param {number} [options.hours=24] 快捷回溯小时数（1~720=30天）；与 start/end 互斥
+ * @param {string} [options.start] 自定义窗口开始（含），ISO yyyy-MM-ddTHH:mm:ss
+ * @param {string} [options.end]   自定义窗口结束（不含），ISO；最长30天
+ * GCS 来自正式评分文书，神志/瞳孔/ICP 来自重症系统监测评估记录。
+ */
+export function fetchNeuroMonitor(patientId, options = {}) {
+  const params = {}
+  if (options.start && options.end) {
+    params.start = options.start
+    params.end = options.end
+  } else {
+    params.hours = options.hours || 24
+  }
+  return request.get(`/workbench/patients/${patientId}/neuro`, {
+    params,
+    silentError: true
+  })
+}

@@ -236,7 +236,7 @@ public interface IcuPatientMapper {
             + "  <foreach collection='patientIds' item='pid' open='(' separator=',' close=')'>"
             + "    #{pid}"
             + "  </foreach>"
-            + "  AND i.item_name LIKE '%体温%' "
+            + "  AND i.item_name LIKE '%体温%' AND i.item_name NOT LIKE '%来源%' "
             + ") t WHERE t.rn = 1"
             + "</script>")
     List<Map<String, Object>> selectLatestTemperatureByPatientIds(@Param("patientIds") List<String> patientIds);
@@ -396,7 +396,7 @@ public interface IcuPatientMapper {
      * 识别口径：patient_info_lis.lis_name 含「培养」。
      */
     @Select("SELECT l.lis_code AS lis_code, l.lis_name AS report_name, "
-            + "l.lis_short_name AS speciman, l.receive_time AS receive_time, "
+            + "l.lis_short_name AS speciman, "
             + "l.report_time AS report_time, l.sample_time AS sample_time "
             + "FROM \"zing_icu_db_prod\".\"patient_info_lis\" l "
             + "WHERE l.in_hospital_no = #{inHospitalNo} AND l.del_flag = 0 "
@@ -411,7 +411,7 @@ public interface IcuPatientMapper {
             + "  INNER JOIN \"zing_icu_db_prod\".\"patient_observe_module_item\" i "
             + "    ON i.patient_id = r.patient_id AND i.item_code = r.item_code AND i.del_flag = 0 AND i.status = 1 "
             + "  WHERE r.patient_id = #{patientId} AND r.del_flag = 0 AND r.status = 1 "
-            + "    AND i.item_name LIKE '%体温%' "
+            + "    AND i.item_name LIKE '%体温%' AND i.item_name NOT LIKE '%来源%' "
             + "  ORDER BY r.item_time DESC "
             + ") WHERE ROWNUM <= 1")
     Map<String, Object> selectLatestTemperature(@Param("patientId") String patientId);
@@ -425,7 +425,7 @@ public interface IcuPatientMapper {
             + "      ON i.patient_id = r.patient_id AND i.item_code = r.item_code "
             + "     AND i.del_flag = 0 AND i.status = 1 "
             + "    WHERE r.patient_id = #{patientId} AND r.del_flag = 0 AND r.status = 1 "
-            + "      AND i.item_name LIKE '%体温%' "
+            + "      AND i.item_name LIKE '%体温%' AND i.item_name NOT LIKE '%来源%' "
             + "      AND r.item_time >= SYSDATE - 1 AND r.item_time <= SYSDATE "
             + "    ORDER BY r.item_time DESC "
             + "  ) WHERE ROWNUM <= 200 "

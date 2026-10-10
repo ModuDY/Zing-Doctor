@@ -50,11 +50,16 @@ public class RoundServiceImpl implements RoundService {
             record.setRoundDate(LocalDate.now());
         }
 
-        // 同一患者同一天只保留一份：查已有记录
-        RoundRecord existing = getByDate(record.getPatientId(), record.getRoundDate());
+        // 同一患者同一天只保留一份：查已有记录（含已删除，避免唯一索引冲突）
+        QueryWrapper<RoundRecord> qw = new QueryWrapper<>();
+        qw.eq("patient_id", record.getPatientId())
+                .eq("round_date", record.getRoundDate())
+                .last("LIMIT 1");
+        RoundRecord existing = roundRecordMapper.selectOne(qw);
 
         if (existing != null) {
-            // 更新：保留 createBy/createTime，只更新业务字段和 updateBy/updateTime
+            // 更新：保留 createBy/createTime，恢复 status=1（可能之前被逻辑删除），更新业务字段
+            existing.setStatus(1);
             existing.setMainProblem(record.getMainProblem());
             existing.setInfectionJudgment(record.getInfectionJudgment());
             existing.setRespiratoryPlan(record.getRespiratoryPlan());

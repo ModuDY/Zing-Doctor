@@ -209,16 +209,14 @@
                 <span v-else-if="temperatureTrendUnknown" class="temperature-status">24 小时数据暂不可用</span>
                 <span v-else class="temperature-status">24 小时无体温记录</span>
               </div>
-              <div class="metric">
-                <span class="metric-label">当前抗菌药</span>
-                <span class="metric-value abx-value">
-                  {{ patient.currentAbx && patient.currentAbx.length ? patient.currentAbx.join('、') : '无' }}
-                </span>
-              </div>
               <div class="metric" v-if="patient.abxStartTime">
                 <span class="metric-label">用药开始</span>
                 <span class="metric-value">{{ formatTime(patient.abxStartTime) }}</span>
               </div>
+            </div>
+            <div class="abx-full-row" v-if="patient.currentAbx && patient.currentAbx.length">
+              <span class="metric-label">当前抗菌药</span>
+              <span class="metric-value abx-value">{{ patient.currentAbx.join('、') }}</span>
             </div>
 
             <div class="infection-flags" v-if="patient.suspectedInfection">
@@ -293,6 +291,9 @@
                         {{ shortLabTime(pt.time) }}<br/>{{ pt.value }}{{ item.unit }}
                       </span>
                     </div>
+                  </div>
+                  <div v-else-if="expandedLabIdx === idx" class="lab-trend-detail lab-trend-empty">
+                    暂无趋势数据（24小时内仅单次检测）
                   </div>
                 </template>
               </div>
@@ -578,6 +579,8 @@
               <el-button @click="jump('/page/sepsis-bundle')" class="action-btn">脓毒症集束化</el-button>
               <el-button @click="jump('/page/ards-monitor')" class="action-btn">ARDS 监测</el-button>
               <el-button @click="jump('/page/ards-prone-list')" class="action-btn">俯卧位记录</el-button>
+              <el-button @click="jump('/page/sedation-monitor')" class="action-btn">镇痛镇静监测</el-button>
+              <el-button @click="jump('/page/neuro-monitor')" class="action-btn">神经功能监测</el-button>
             </div>
           </div>
         </div>
@@ -1340,6 +1343,17 @@ export default {
 }
 .metric-value.warn { color: #dc2626; }
 .abx-value { font-weight: 500; }
+.abx-full-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #fff7ed;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+.abx-full-row .metric-label { flex-shrink: 0; }
+.abx-full-row .abx-value { font-size: 13px; line-height: 1.5; word-break: break-all; }
 .temperature-metric { min-width: 0; }
 .temperature-head {
   display: flex;
@@ -1613,9 +1627,8 @@ export default {
   font-weight: 600;
   color: #1c1917;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.3;
+  word-break: break-all;
 }
 .lab-sparkline {
   position: absolute;
@@ -1633,6 +1646,12 @@ export default {
   border: 1px solid #fed7aa;
   border-top: none;
   border-radius: 0 0 6px 6px;
+}
+.lab-trend-empty {
+  text-align: center;
+  color: #a8a29e;
+  font-size: 12px;
+  padding: 12px;
 }
 .trend-chart {
   width: 100%;
@@ -1825,9 +1844,9 @@ export default {
 .round-field label {
   display: block;
   font-size: 12px;
-  color: #78716c;
+  color: #44403c;
   margin-bottom: 4px;
-  font-weight: 500;
+  font-weight: 600;
 }
 .round-field :deep(.el-textarea__inner) {
   font-size: 13px;

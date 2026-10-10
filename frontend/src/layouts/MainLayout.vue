@@ -75,6 +75,14 @@
           <MedicalIcon name="prone" />
           <span class="nav-label">ARDS 俯卧位记录</span>
         </router-link>
+        <router-link to="/page/sedation-monitor" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="sedation" />
+          <span class="nav-label">镇痛镇静监测</span>
+        </router-link>
+        <router-link to="/page/neuro-monitor" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="neuro" />
+          <span class="nav-label">神经功能监测</span>
+        </router-link>
 
         <div class="nav-divider">质控中台</div>
         <router-link to="/page/quality-board" class="nav-item" active-class="nav-active">
@@ -182,7 +190,9 @@ const MEDICAL_ICON_PATHS = {
   memo: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h5M8 16h8M15 12v4M13 14h4"/>',
   mapping: '<circle cx="6" cy="7" r="2"/><circle cx="18" cy="17" r="2"/><path d="M8 7h4a4 4 0 0 1 4 4v4M16 17h-4a4 4 0 0 1-4-4V9"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.3 3h-4.6l-.3 2.7a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.3 2.7h4.6l.3-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2Z"/>',
-  check: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6zM8 12l2.5 2.5L16 9"/>'
+  check: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6zM8 12l2.5 2.5L16 9"/>',
+  sedation: '<path d="M20.5 13.5A8.5 8.5 0 1 1 10.5 3.5a6.8 6.8 0 0 0 10 10Z"/><path d="M17 4.5l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6Z" />',
+  neuro: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.2"/><path d="M12 1.5v2M12 20.5v2M1.5 12h2M20.5 12h2"/>'
 }
 
 const MedicalIcon = {

@@ -172,6 +172,18 @@ const routes = [
     meta: { title: 'ARDS 俯卧位数据映射配置' }
   },
   {
+    path: '/page/sedation-monitor',
+    name: 'sedationMonitor',
+    component: () => import('../views/SedationMonitor.vue'),
+    meta: { title: '镇痛镇静监测' }
+  },
+  {
+    path: '/page/neuro-monitor',
+    name: 'neuroMonitor',
+    component: () => import('../views/NeuroMonitor.vue'),
+    meta: { title: '神经功能监测' }
+  },
+  {
     path: '/page/quality-board',
     name: 'qualityBoard',
     component: () => import('../views/QualityBoard.vue'),
@@ -231,6 +243,8 @@ const PATIENT_PAGES = new Set([
   '/page/sofa-score',
   '/page/apache2-score',
   '/page/sepsis-bundle',
+  '/page/sedation-monitor',
+  '/page/neuro-monitor',
   // 俯卧位「列表」跟随：它会拿住院号去填搜索框，等于只看该患者的记录 ——
   // 使用者要的正是这个。但必须连入科时间一起给：新建记录时后端靠
   // (住院号 + 入科时间) 定位到哪一次入科，只有住院号会退化成「最近一次入科」，
