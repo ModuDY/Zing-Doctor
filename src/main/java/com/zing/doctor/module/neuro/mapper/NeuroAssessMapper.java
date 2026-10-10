@@ -1,5 +1,6 @@
 package com.zing.doctor.module.neuro.mapper;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -21,6 +22,7 @@ import java.util.Map;
  * <p>全部查询强制带 patient_id（doc 主表无 (patient_id,doc_code,record_time) 复合索引），
  * 不提供全院 / 全时间窗扫描入口。
  */
+@DS("icu")
 @Mapper
 public interface NeuroAssessMapper {
 

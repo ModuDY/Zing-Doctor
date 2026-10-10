@@ -426,6 +426,7 @@ export default {
         await this.$nextTick()
         this.renderAllCharts()
       } catch (e) {
+        console.error('[NeuroMonitor] loadData failed', e)
         this.loadError = e.message || '网络异常'
       } finally {
         this.loading = false
@@ -464,10 +465,18 @@ export default {
 
     // ---------------- 图表 ----------------
     renderAllCharts() {
-      this.renderGcs()
-      this.renderConsciousness()
-      this.renderIcp()
-      this.renderPupils()
+      // 单个图表渲染失败只影响该图，绝不让整页掉进致命空态（数据已取到）
+      const safe = (name, fn) => {
+        try {
+          fn()
+        } catch (e) {
+          console.error(`[NeuroMonitor] 图表渲染失败: ${name}`, e)
+        }
+      }
+      safe('gcs', () => this.renderGcs())
+      safe('consciousness', () => this.renderConsciousness())
+      safe('icp', () => this.renderIcp())
+      safe('pupils', () => this.renderPupils())
     },
     baseGrid() {
       return { left: 34, right: 14, top: 14, bottom: 22 }
