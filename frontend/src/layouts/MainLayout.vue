@@ -90,6 +90,11 @@
           <span class="nav-label">神经功能监测</span>
         </router-link>
 
+        <div class="nav-divider">科室管理</div>
+        <router-link to="/page/department-cockpit" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="board" />
+          <span class="nav-label">科室驾驶舱</span>
+        </router-link>
         <div class="nav-divider">质控中台</div>
         <router-link to="/page/quality-board" class="nav-item" active-class="nav-active">
           <MedicalIcon name="board" />

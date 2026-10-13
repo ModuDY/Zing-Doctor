@@ -50,6 +50,22 @@ export function fetchDischargedPatients(departCode, keyword, limit = 300) {
 }
 
 /**
+ * 科室驾驶舱今日快照 + 近 N 天流转（只读）。
+ *
+ * 科室边界由后端按账号授权收敛（不信任前端传的 departCode），这里只把当前选中科室带上。
+ *
+ * @param {string} [departCode] 科室编码（org_code）
+ * @param {number} [days=30] 流转趋势天数，1~90
+ * @returns {Promise<object>} CockpitSnapshot：各区块独立带 dataStatus
+ *   （OK / EMPTY / PENDING_SOURCE / UNKNOWN），单块失败不影响其它块
+ */
+export function fetchCockpitSummary(departCode, days = 30) {
+  const params = { days }
+  if (departCode) params.departCode = departCode
+  return request.get('/department-cockpit/summary', { params, silentError: true })
+}
+
+/**
  * 单患者镇痛镇静监测（只读）：一次批量返回 NRS / CPOT / RASS / CAM-ICU。
  *
  * 二选一：

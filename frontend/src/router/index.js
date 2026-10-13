@@ -36,6 +36,12 @@ const routes = [
     meta: { title: '历史患者' }
   },
   {
+    path: '/page/department-cockpit',
+    name: 'departmentCockpit',
+    component: () => import('../views/DepartmentCockpit.vue'),
+    meta: { title: '科室驾驶舱' }
+  },
+  {
     path: '/page/abx-patient-list',
     name: 'patientList',
     // 已并入患者工作台的「感染风险」视图，不再有独立页面。

@@ -60,6 +60,18 @@ public interface IcuPatientService {
     }
 
     /**
+     * 某科室当前器官支持患者数（按患者去重），供科室驾驶舱快照复用工作台口径。
+     *
+     * <p>与工作台 {@code enrichCrisisFlags} 用的是同一批查询，保证"工作台看到的危重标记"
+     * 与"驾驶舱看到的危重数"对得上 —— 两个页面各算一套，数字就会互相矛盾。
+     *
+     * @return key：ventilated / crrt / ecmo / vasopressor（当前使用中的患者数）；查不到时为 0
+     */
+    default java.util.Map<String, Integer> countOrganSupport(String departCode) {
+        return java.util.Collections.emptyMap();
+    }
+
+    /**
      * 疑似感染/脓毒症患者列表。
      *
      * @param departCode 科室编码（{@code sys_depart.org_code}）；null / 空 / "ALL" 表示不限科室。

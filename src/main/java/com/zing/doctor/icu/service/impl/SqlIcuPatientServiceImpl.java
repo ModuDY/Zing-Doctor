@@ -180,6 +180,68 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         return patient;
     }
 
+    @Override
+    public Map<String, Integer> countOrganSupport(String departCode) {
+        Map<String, Integer> out = new java.util.LinkedHashMap<>();
+        out.put("ventilated", 0);
+        out.put("vasopressor", 0);
+        out.put("crrt", 0);
+        out.put("ecmo", 0);
+        String dept = (departCode == null || departCode.isEmpty()) ? "" : departCode;
+
+        // 血管活性药 / CRRT / ECMO：直接复用工作台那批查询，保证两个页面数字一致
+        try {
+            List<Map<String, Object>> vaso = icuPatientMapper.selectHandoverVasopressor(dept);
+            Set<String> s = new HashSet<>();
+            if (vaso != null) {
+                for (Map<String, Object> r : vaso) {
+                    String pid = str(r.get("patient_id"));
+                    if (!pid.isEmpty()) s.add(pid);
+                }
+            }
+            out.put("vasopressor", s.size());
+        } catch (Exception e) {
+            log.warn("驾驶舱-血管活性药计数失败 dept={}", dept, e);
+        }
+        try {
+            List<String> crrt = icuPatientMapper.selectHandoverCrrtPatients(dept);
+            if (crrt != null) out.put("crrt", new HashSet<>(crrt).size());
+        } catch (Exception e) {
+            log.warn("驾驶舱-CRRT计数失败 dept={}", dept, e);
+        }
+        try {
+            List<String> ecmo = icuPatientMapper.selectHandoverEcmoPatients(dept);
+            if (ecmo != null) out.put("ecmo", new HashSet<>(ecmo).size());
+        } catch (Exception e) {
+            log.warn("驾驶舱-ECMO计数失败 dept={}", dept, e);
+        }
+        // 呼吸机：与 enrichCrisisFlags 一样要先有在科患者 id 列表（selectLatestVentilatorParams 按 id 查）
+        try {
+            List<Map<String, Object>> inpatients = icuPatientMapper.selectInpatients(dept);
+            List<String> pids = new ArrayList<>();
+            if (inpatients != null) {
+                for (Map<String, Object> r : inpatients) {
+                    String pid = str(r.get("patient_id"));
+                    if (!pid.isEmpty()) pids.add(pid);
+                }
+            }
+            if (!pids.isEmpty()) {
+                List<Map<String, Object>> vent = icuPatientMapper.selectLatestVentilatorParams(pids);
+                Set<String> s = new HashSet<>();
+                if (vent != null) {
+                    for (Map<String, Object> r : vent) {
+                        String pid = str(r.get("patient_id"));
+                        if (!pid.isEmpty()) s.add(pid);
+                    }
+                }
+                out.put("ventilated", s.size());
+            }
+        } catch (Exception e) {
+            log.warn("驾驶舱-呼吸机计数失败 dept={}", dept, e);
+        }
+        return out;
+    }
+
     /**
      * 危重标签批量回填：机械通气 / 血管活性药 / CRRT。
      *
