@@ -241,10 +241,12 @@ export default {
     loggedIn() {
       return isLoggedIn()
     },
-    /** 外链访问（URL 带 extToken 或 departCode）：科室由第三方系统指定，不显示全局切换下拉 */
+    /** 外链访问（URL 带 extToken 免登录令牌）：科室由第三方系统指定，不显示全局切换下拉。
+     *  注意：业务页 URL 普遍带 departCode 作为在科上下文（患者摘要/评分页等），
+     *  不能把它当外链标志，否则从这些页切回工作台会误隐藏科室下拉。 */
     isExternalLink() {
       const q = new URLSearchParams(window.location.search)
-      return !!(q.get('extToken') || q.get('departCode'))
+      return !!q.get('extToken')
     },
     userName() {
       // 优先展示第三方/外链传入的姓名；没有时退回登录账号，兼顾两种访问方式
