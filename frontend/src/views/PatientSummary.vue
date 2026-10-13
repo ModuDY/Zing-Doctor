@@ -581,6 +581,7 @@
               <el-button @click="jump('/page/ards-prone-list')" class="action-btn">俯卧位记录</el-button>
               <el-button @click="jump('/page/sedation-monitor')" class="action-btn">镇痛镇静监测</el-button>
               <el-button @click="jump('/page/neuro-monitor')" class="action-btn">神经功能监测</el-button>
+              <el-button @click="jump('/page/nutrition-monitor')" class="action-btn">营养支持分析</el-button>
             </div>
           </div>
         </div>

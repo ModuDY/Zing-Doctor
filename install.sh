@@ -191,6 +191,7 @@ FULL_SQL=(
     "43_workbench_score_display.sql"
     "44_patient_round_record.sql"
     "45_antibiotic_reassessment_window.sql"
+    "46_nutrition_formula.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -247,6 +248,7 @@ FULL_SQL_JDBC=(
     "43_workbench_score_display.sql"
     "44_patient_round_record.sql"
     "45_antibiotic_reassessment_window.sql"
+    "46_nutrition_formula.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -321,6 +323,7 @@ INCREMENTAL_SQL=(
     "43_workbench_score_display.sql"
     "44_patient_round_record.sql"
     "45_antibiotic_reassessment_window.sql"
+    "46_nutrition_formula.sql"
 )
 
 # ---------- JDBC 初始化工具 classpath ----------

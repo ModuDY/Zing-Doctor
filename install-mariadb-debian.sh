@@ -574,6 +574,7 @@ SQL
     43_workbench_score_display.sql
     44_patient_round_record.sql
     45_antibiotic_reassessment_window.sql
+    46_nutrition_formula.sql
     41_patient_summary_page.sql
     )
   for f in "${MAIN_SQL[@]}"; do

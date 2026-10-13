@@ -71,8 +71,8 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
         fillFlow(s, departCode, flowStart, todayEnd, range, today);
         // 本月首日：质控按月周期（MONTH periodStart），与质控中台同一周期边界
         String monthStart = today.withDayOfMonth(1).atTime(0, 0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        String scoreStart = today.minusDays(29L).atTime(0, 0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        fillScores(s, departCode, scoreStart, todayEnd);
+        // 评分分布与流转图使用同一趋势窗口；当前快照和本月质控仍保持各自明确的周期。
+        fillScores(s, departCode, flowStart, todayEnd);
         fillQualityCards(s, departCode, monthStart);
         fillNotes(s);
         return s;
@@ -203,6 +203,7 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
             int crrt = support.getOrDefault("crrt", 0);
             int ecmo = support.getOrDefault("ecmo", 0);
             s.setVentilatedCount(CockpitSnapshot.SnapshotBlock.of(vent));
+            s.setVasopressorCount(CockpitSnapshot.SnapshotBlock.of(vaso));
             s.setCrrtCount(CockpitSnapshot.SnapshotBlock.of(crrt));
             s.setEcmoCount(CockpitSnapshot.SnapshotBlock.of(ecmo));
 
@@ -226,6 +227,7 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
             s.setCriticalCount(CockpitSnapshot.SnapshotBlock.unknown("危重统计失败"));
             s.setCriticalRatio(CockpitSnapshot.SnapshotBlock.unknown("危重统计失败"));
             s.setVentilatedCount(CockpitSnapshot.SnapshotBlock.unknown("机械通气统计失败"));
+            s.setVasopressorCount(CockpitSnapshot.SnapshotBlock.unknown("血管活性药统计失败"));
             s.setCrrtCount(CockpitSnapshot.SnapshotBlock.unknown("CRRT 统计失败"));
             s.setEcmoCount(CockpitSnapshot.SnapshotBlock.unknown("ECMO 统计失败"));
         }

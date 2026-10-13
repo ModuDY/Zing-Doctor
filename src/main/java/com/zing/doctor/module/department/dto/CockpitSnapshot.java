@@ -46,6 +46,9 @@ public class CockpitSnapshot {
     /** 当前机械通气患者数 */
     private SnapshotBlock<Integer> ventilatedCount;
 
+    /** 当前使用血管活性药患者数 */
+    private SnapshotBlock<Integer> vasopressorCount;
+
     /** 当前 CRRT 患者数 */
     private SnapshotBlock<Integer> crrtCount;
 

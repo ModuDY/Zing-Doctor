@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   zing-doctor 交付包打包脚本（Windows / PowerShell）
 
@@ -274,7 +274,8 @@ if (Test-Path $myDir) {
         '42_workbench_bed_sort_mode.sql',
         '43_workbench_score_display.sql',
         '44_patient_round_record.sql',
-        '45_antibiotic_reassessment_window.sql')
+        '45_antibiotic_reassessment_window.sql',
+        '46_nutrition_formula.sql')
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine('-- ============================================================')
     [void]$sb.AppendLine('-- zing-doctor MySQL/MariaDB 一次性初始化脚本（打包时自动合成，勿手工编辑）')
