@@ -30,12 +30,15 @@ public interface NeuroAssessMapper {
      * 患者全部有效诊断（按诊断时间倒序），用于急性脑损伤 ICD-10 识别。
      * 不按展示时间窗裁剪（脑损伤常为入院 / 入科诊断，可能早于趋势窗口）。
      */
-    @Select("SELECT * FROM (SELECT d.diag_code AS diag_code, d.diag_name AS diag_name, "
+    @Select("<script>"
+            + "SELECT * FROM (SELECT d.diag_code AS diag_code, d.diag_name AS diag_name, "
             + "d.diag_type_name AS diag_type_name, d.diag_kind_name AS diag_kind_name, "
             + "d.diag_time AS diag_time "
             + "FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d "
             + "WHERE d.patient_id = #{patientId} AND d.del_flag = 0 AND d.status = 1 "
-            + "ORDER BY d.diag_time DESC) WHERE ROWNUM <= 200")
+            + "AND d.diag_name IS NOT NULL "
+            + "ORDER BY d.diag_time DESC) WHERE ROWNUM &lt;= 200"
+            + "</script>")
     List<Map<String, Object>> selectDiagnoses(@Param("patientId") String patientId);
 
     /**
