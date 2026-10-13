@@ -117,8 +117,7 @@ public interface IcuPatientMapper {
      */
     @Select({"<script>",
             "SELECT * FROM (",
-            "  SELECT y.* FROM (",
-            "    SELECT t.* FROM (",
+            "  SELECT t.* FROM (",
             "      SELECT pi.id AS patient_id, pi.in_hospital_no AS in_hospital_no, pi.name AS name, ",
             "         pi.age AS age, pi.gender AS gender, pi.depart_code AS depart_code, ",
             "         pi.depart_name AS depart_name, pi.ward_name AS ward_name, pi.bed_code AS bed_no, ",
@@ -134,11 +133,12 @@ public interface IcuPatientMapper {
             "    <if test=\"keyword != null and keyword != ''\">",
             "       AND (pi.name LIKE '%' || #{keyword} || '%' OR pi.in_hospital_no LIKE '%' || #{keyword} || '%') ",
             "    </if>",
-            "    ) t ",
-            "    WHERE t.rn = 1 ORDER BY t.out_depart_time DESC",
-            "  ) y ",
-            "  WHERE ROWNUM &lt;= #{limit}",
-            ")",
+            "  ) t ",
+            "  WHERE t.rn = 1 ORDER BY t.out_depart_time DESC",
+            ") y ",
+            // ROWNUM 必须落在最外层：达梦对「三层嵌套的内层」里的 ROWNUM 会直接语法报错
+            // （即使 ROWNUM <= 5 字面量也一样），两层结构才可用 —— 与 ArdsProneDataMapper 一致。
+            "WHERE ROWNUM &lt;= #{limit}",
             "</script>"})
     List<Map<String, Object>> selectDischargedPatients(@Param("departCode") String departCode,
                                                       @Param("keyword") String keyword,
