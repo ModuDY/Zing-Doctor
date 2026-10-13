@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * APACHE II 评分记录 Mapper
@@ -33,4 +34,26 @@ public interface Apache2ScoreRecordMapper extends BaseMapper<Apache2ScoreRecord>
     @Select("SELECT \"id\", \"pdf_data\" AS \"pdfData\", \"pdf_name\" AS \"pdfName\" "
             + "FROM \"zing_doctor_db_prod\".\"patient_doc_apache2_score_record\" WHERE \"id\" = #{id}")
     Apache2ScoreRecord selectPdfById(@Param("id") Long id);
+
+    /**
+     * 科室周期内每个患者的最新一条有效 APACHE II 总分（驾驶舱分布用）。
+     *
+     * <p>按住院号去重：分布的统计单位是「患者」而非「评分次数」（docs/23 §E）。
+     * 另取 {@code mortality_rate}（预测病死率），前端单独标注为「预测值」，
+     * 不与实际病死率（quality_30）混用。
+     */
+    @Select({"<script>",
+            "SELECT t.* FROM (",
+            "  SELECT s.\"in_hospital_no\" AS in_hospital_no, s.\"total_score\" AS total_score,",
+            "         s.\"mortality_rate\" AS mortality_rate,",
+            "         ROW_NUMBER() OVER (PARTITION BY s.\"in_hospital_no\" ORDER BY s.\"score_time\" DESC) AS rn",
+            "    FROM \"zing_doctor_db_prod\".\"patient_doc_apache2_score_record\" s",
+            "   WHERE s.\"status\" = 1 AND s.\"total_score\" IS NOT NULL",
+            "     AND s.\"score_time\" &gt;= #{start} AND s.\"score_time\" &lt; #{end}",
+            "   <if test=\"departCode != null and departCode != ''\">AND s.\"depart_code\" = #{departCode}</if>",
+            ") t WHERE t.rn = 1",
+            "</script>"})
+    List<Map<String, Object>> selectLatestPerEpisode(@Param("departCode") String departCode,
+                                                     @Param("start") String start,
+                                                     @Param("end") String end);
 }

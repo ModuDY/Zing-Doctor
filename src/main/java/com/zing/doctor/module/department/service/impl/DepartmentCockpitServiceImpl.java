@@ -2,9 +2,13 @@ package com.zing.doctor.module.department.service.impl;
 
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.service.IcuPatientService;
+import com.zing.doctor.module.apache2.mapper.Apache2ScoreRecordMapper;
 import com.zing.doctor.module.department.dto.CockpitSnapshot;
 import com.zing.doctor.module.department.mapper.DepartmentCockpitMapper;
 import com.zing.doctor.module.department.service.DepartmentCockpitService;
+import com.zing.doctor.module.sofa.mapper.SofaScoreRecordMapper;
+import com.zing.doctor.quality.entity.QualityMetricResult;
+import com.zing.doctor.quality.service.QualityQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -46,6 +50,9 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
     private final DepartmentCockpitMapper cockpitMapper;
     private final IcuPatientMapper icuPatientMapper;
     private final IcuPatientService icuPatientService;
+    private final SofaScoreRecordMapper sofaMapper;
+    private final Apache2ScoreRecordMapper apache2Mapper;
+    private final QualityQueryService qualityQueryService;
 
     @Override
     public CockpitSnapshot snapshot(String departCode, int days) {
@@ -62,8 +69,111 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
 
         fillTodaySnapshot(s, departCode, todayStart, todayEnd);
         fillFlow(s, departCode, flowStart, todayEnd, range, today);
+        // 本月首日：质控按月周期（MONTH periodStart），与质控中台同一周期边界
+        String monthStart = today.withDayOfMonth(1).atTime(0, 0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        String scoreStart = today.minusDays(29L).atTime(0, 0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        fillScores(s, departCode, scoreStart, todayEnd);
+        fillQualityCards(s, departCode, monthStart);
         fillNotes(s);
         return s;
+    }
+
+    // ---------------- C/E. 评分分布 + 质控指标卡 ----------------
+
+    /** SOFA 分桶（与临床惯例及参考系统一致）：0-4 / 5-8 / 9-12 / 13-16 / 17-20 / 21-24 */
+    private static final int[][] SOFA_BUCKETS = {{0, 5}, {5, 9}, {9, 13}, {13, 17}, {17, 21}, {21, 25}};
+
+    /** APACHE II 分桶：0-14 / 15-19 / 20-24 / 25-30（总分范围 0~30） */
+    private static final int[][] APACHE2_BUCKETS = {{0, 15}, {15, 20}, {20, 25}, {25, 31}};
+
+    private void fillScores(CockpitSnapshot s, String departCode, String scoreStart, String scoreEnd) {
+        s.setSofaDist(scoreDist(departCode,
+                () -> sofaMapper.selectLatestPerEpisode(departCode, scoreStart, scoreEnd),
+                "total_score", SOFA_BUCKETS, "SOFA"));
+        s.setApache2Dist(scoreDist(departCode,
+                () -> apache2Mapper.selectLatestPerEpisode(departCode, scoreStart, scoreEnd),
+                "total_score", APACHE2_BUCKETS, "APACHE II"));
+    }
+
+    private CockpitSnapshot.SnapshotBlock<List<CockpitSnapshot.ScoreBucket>> scoreDist(
+            String departCode,
+            java.util.function.Supplier<List<Map<String, Object>>> query,
+            String scoreKey, int[][] buckets, String label) {
+        try {
+            List<Map<String, Object>> rows = query.get();
+            int[] counts = new int[buckets.length];
+            int total = 0;
+            if (rows != null) {
+                for (Map<String, Object> r : rows) {
+                    Integer score = intOrNull(r.get(scoreKey));
+                    if (score == null) {
+                        continue;
+                    }
+                    for (int i = 0; i < buckets.length; i++) {
+                        if (score >= buckets[i][0] && score < buckets[i][1]) {
+                            counts[i]++;
+                            total++;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (total == 0) {
+                return CockpitSnapshot.SnapshotBlock.of(null, "EMPTY", "周期内无" + label + "评分记录");
+            }
+            List<CockpitSnapshot.ScoreBucket> list = new ArrayList<>();
+            for (int i = 0; i < buckets.length; i++) {
+                String tag = buckets[i][1] > buckets[i][0] + 1
+                        ? buckets[i][0] + "-" + (buckets[i][1] - 1)
+                        : String.valueOf(buckets[i][0]);
+                list.add(new CockpitSnapshot.ScoreBucket(tag, counts[i]));
+            }
+            return CockpitSnapshot.SnapshotBlock.of(list);
+        } catch (Exception e) {
+            log.warn("驾驶舱-{}分布查询失败 departCode={}", label, departCode, e);
+            return CockpitSnapshot.SnapshotBlock.unknown(label + "分布查询失败");
+        }
+    }
+
+    /**
+     * 质控指标卡：直接读质控中台的计算结果（{@code quality_metric_result} 表），
+     * 驾驶舱不重算 —— 这是 docs/23 §4.2 的复用原则。取不到 / 不可算时原样标状态。
+     *
+     * <p>集束化只展示「完成人数」绝对值：完成率的分母（感染性休克病例识别口径、
+     * 无记录是否算未完成）尚未与院方确认，方案 F 节明确口径定清前不出"率"。
+     */
+    private void fillQualityCards(CockpitSnapshot s, String departCode, String monthStart) {
+        try {
+            List<CockpitSnapshot.QualityCard> cards = new ArrayList<>();
+            cards.add(qualityCard("quality_30", monthStart, departCode));
+            cards.add(qualityCard("quality_22", monthStart, departCode));
+            cards.add(qualityCard("quality_34", monthStart, departCode));
+            cards.add(qualityCard("quality_9", monthStart, departCode));
+            cards.add(qualityCard("quality_419", monthStart, departCode));
+            s.setQualityCards(CockpitSnapshot.SnapshotBlock.of(cards));
+        } catch (Exception e) {
+            log.warn("驾驶舱-质控指标查询失败 departCode={}", departCode, e);
+            s.setQualityCards(CockpitSnapshot.SnapshotBlock.unknown("质控指标查询失败（引擎未启用或连接异常）"));
+        }
+    }
+
+    private CockpitSnapshot.QualityCard qualityCard(String code, String monthStart, String departCode) {
+        QualityMetricResult r = qualityQueryService.findResult(code, LocalDateTime.parse(monthStart), departCode);
+        if (r == null) {
+            return CockpitSnapshot.QualityCard.pending(code, code, "本月暂无质控计算结果（引擎未跑或未配置）");
+        }
+        CockpitSnapshot.QualityCard c = new CockpitSnapshot.QualityCard();
+        c.setCode(code);
+        c.setName(r.getMetricName() != null ? r.getMetricName() : code);
+        c.setUnit(r.getUnit());
+        c.setCalcStatus(r.getCalcStatus() != null ? r.getCalcStatus() : "NO_DATA");
+        c.setNote(r.getErrorMsg());
+        if (r.getMetricValue() != null && "OK".equals(c.getCalcStatus())) {
+            c.setValue(r.getMetricValue().doubleValue());
+        }
+        c.setNumerator(r.getNumerator() == null ? null : r.getNumerator().doubleValue());
+        c.setDenominator(r.getDenominator() == null ? null : r.getDenominator().doubleValue());
+        return c;
     }
 
     // ---------------- B. 今日快照 ----------------
@@ -246,6 +356,9 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
         s.getNotes().add("入科 / 出科：按入出科时间自然日聚合，左闭右开区间，与出科统计一致");
         s.getNotes().add("平均 ICU 住院日：仅统计区间内已出科患者，在科者住院日仍在增长不计入");
         s.getNotes().add("床位使用率：待接床位数据源，暂不计算");
+        s.getNotes().add("评分分布：统计单位是「患者」（每患者取周期内最新一条有效评分），非评分次数");
+        s.getNotes().add("APACHE II 预测病死率单独标注为预测值，不与实际病死率（quality_30）混用");
+        s.getNotes().add("集束化展示完成人数绝对值：完成率分母口径（病例识别/无记录规则）待院方确认后开放");
     }
 
     // ---------------- 工具 ----------------
@@ -299,6 +412,20 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
             return new BigDecimal(String.valueOf(value)).intValue();
         } catch (NumberFormatException e) {
             return 0;
+        }
+    }
+
+    private static Integer intOrNull(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return new BigDecimal(String.valueOf(value)).intValue();
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 }

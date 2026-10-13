@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * SOFA 评分记录 Mapper（主库 doctor）。
@@ -36,4 +37,27 @@ public interface SofaScoreRecordMapper extends BaseMapper<SofaScoreRecord> {
     @Select("SELECT \"id\", \"pdf_data\" AS \"pdfData\", \"pdf_name\" AS \"pdfName\" "
             + "FROM \"zing_doctor_db_prod\".\"patient_doc_sofa_score_record\" WHERE \"id\" = #{id}")
     SofaScoreRecord selectPdfById(@Param("id") Long id);
+
+    /**
+     * 科室周期内每个患者的最新一条有效 SOFA 总分（驾驶舱分布用）。
+     *
+     * <p><b>为什么按住院号去重</b>：方案 docs/23 §E 明确分布的统计单位是「患者」
+     * 而非「评分次数」—— 高频复评患者（一天评三次）按记录算会把分布整体拉偏。
+     * ROW_NUMBER 取每住院号最新一条，一次批量取回，Java 端只做分桶。
+     *
+     * <p>departCode 为空串 = 全院（与 IcuPatientMapper 的空串处理一致）。
+     */
+    @Select({"<script>",
+            "SELECT t.* FROM (",
+            "  SELECT s.\"in_hospital_no\" AS in_hospital_no, s.\"total_score\" AS total_score,",
+            "         ROW_NUMBER() OVER (PARTITION BY s.\"in_hospital_no\" ORDER BY s.\"score_time\" DESC) AS rn",
+            "    FROM \"zing_doctor_db_prod\".\"patient_doc_sofa_score_record\" s",
+            "   WHERE s.\"status\" = 1 AND s.\"total_score\" IS NOT NULL",
+            "     AND s.\"score_time\" &gt;= #{start} AND s.\"score_time\" &lt; #{end}",
+            "   <if test=\"departCode != null and departCode != ''\">AND s.\"depart_code\" = #{departCode}</if>",
+            ") t WHERE t.rn = 1",
+            "</script>"})
+    List<Map<String, Object>> selectLatestPerEpisode(@Param("departCode") String departCode,
+                                                     @Param("start") String start,
+                                                     @Param("end") String end);
 }

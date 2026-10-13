@@ -66,8 +66,58 @@ public class CockpitSnapshot {
     /** 平均住院日参与统计的患者数（已出科者） */
     private Integer avgStayPatientCount;
 
+    // ---------------- C/E. 质控指标与评分分布（阶段2） ----------------
+
+    /** SOFA 分值分布（每患者取周期内最新一条，按患者计数） */
+    private SnapshotBlock<List<ScoreBucket>> sofaDist;
+
+    /** APACHE II 分值分布（同上；预测病死率单列，不与实际病死率合并） */
+    private SnapshotBlock<List<ScoreBucket>> apache2Dist;
+
+    /** 质控指标卡（病死率 / 48h 重返 / 集束化完成人数，复用质控中台结果） */
+    private SnapshotBlock<List<QualityCard>> qualityCards;
+
     /** 快照口径说明，前端展示在"口径说明"入口里 */
     private List<String> notes = new ArrayList<>();
+
+    /** 分值分布桶：区间标签 + 患者数 */
+    @Data
+    public static class ScoreBucket {
+        private String label;
+        private int count;
+
+        public ScoreBucket() {}
+
+        public ScoreBucket(String label, int count) {
+            this.label = label;
+            this.count = count;
+        }
+    }
+
+    /** 质控指标卡：复用质控中台的计算结果，驾驶舱不重算 */
+    @Data
+    public static class QualityCard {
+        private String code;
+        private String name;
+        private String unit;
+        /** 指标值；PENDING_SOURCE / NO_DATA 时为 null */
+        private Double value;
+        /** 分子 / 分母（率类指标展示用，COUNT 类分母为 null） */
+        private Double numerator;
+        private Double denominator;
+        /** 质控引擎状态：OK / PLACEHOLDER / PENDING_SOURCE / MANUAL / NO_DATA / ERROR */
+        private String calcStatus;
+        private String note;
+
+        public static QualityCard pending(String code, String name, String note) {
+            QualityCard c = new QualityCard();
+            c.code = code;
+            c.name = name;
+            c.calcStatus = "PENDING_SOURCE";
+            c.note = note;
+            return c;
+        }
+    }
 
     /** 单个数据区块：值 + 状态 */
     @Data

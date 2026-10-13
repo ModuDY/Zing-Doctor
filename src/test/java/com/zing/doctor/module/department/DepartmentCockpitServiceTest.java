@@ -2,9 +2,12 @@ package com.zing.doctor.module.department;
 
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.service.IcuPatientService;
+import com.zing.doctor.module.apache2.mapper.Apache2ScoreRecordMapper;
 import com.zing.doctor.module.department.dto.CockpitSnapshot;
 import com.zing.doctor.module.department.mapper.DepartmentCockpitMapper;
 import com.zing.doctor.module.department.service.impl.DepartmentCockpitServiceImpl;
+import com.zing.doctor.module.sofa.mapper.SofaScoreRecordMapper;
+import com.zing.doctor.quality.service.QualityQueryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -59,7 +62,9 @@ class DepartmentCockpitServiceTest {
         cockpitMapper = mock(DepartmentCockpitMapper.class);
         icuPatientMapper = mock(IcuPatientMapper.class);
         icuPatientService = mock(IcuPatientService.class);
-        service = new DepartmentCockpitServiceImpl(cockpitMapper, icuPatientMapper, icuPatientService);
+        service = new DepartmentCockpitServiceImpl(cockpitMapper, icuPatientMapper, icuPatientService,
+                mock(SofaScoreRecordMapper.class), mock(Apache2ScoreRecordMapper.class),
+                mock(QualityQueryService.class));
     }
 
     private Map<String, Object> snapshotRow(int in, int todayIn, int todayOut) {
