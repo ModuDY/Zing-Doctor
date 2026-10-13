@@ -288,6 +288,12 @@ const PATIENT_PAGES = new Set([
   '/page/sedation-monitor',
   '/page/neuro-monitor',
   '/page/nutrition-monitor',
+  // 方案25 阶段1 的四个患者级分析页（docs/25 §1/§2）：全部需要 patientId，
+  // 注册进 PATIENT_PAGES 后，侧栏菜单点击会自动带上当前患者上下文
+  '/page/vital-signs',
+  '/page/fluid-balance',
+  '/page/lab-liver',
+  '/page/lab-coag',
   // 俯卧位「列表」跟随：它会拿住院号去填搜索框，等于只看该患者的记录 ——
   // 使用者要的正是这个。但必须连入科时间一起给：新建记录时后端靠
   // (住院号 + 入科时间) 定位到哪一次入科，只有住院号会退化成「最近一次入科」，

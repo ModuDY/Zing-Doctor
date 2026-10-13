@@ -181,6 +181,11 @@
                     <el-dropdown-item command="/page/sepsis-bundle">脓毒症集束化</el-dropdown-item>
                     <el-dropdown-item command="/page/ards-prone-record">ARDS 俯卧位</el-dropdown-item>
                     <el-dropdown-item command="/page/abx-pkpd">PK/PD 剂量</el-dropdown-item>
+                    <el-dropdown-item command="/page/vital-signs">生命体征趋势</el-dropdown-item>
+                    <el-dropdown-item command="/page/fluid-balance">体液平衡分析</el-dropdown-item>
+                    <el-dropdown-item command="/page/lab-liver">肝功能趋势</el-dropdown-item>
+                    <el-dropdown-item command="/page/lab-coag">凝血功能趋势</el-dropdown-item>
+                    <el-dropdown-item command="/page/nutrition-monitor">营养支持分析</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
@@ -229,6 +234,11 @@
                     <el-dropdown-item command="/page/sepsis-bundle">脓毒症集束化</el-dropdown-item>
                     <el-dropdown-item command="/page/ards-prone-record">ARDS 俯卧位</el-dropdown-item>
                     <el-dropdown-item command="/page/abx-pkpd">PK/PD 剂量</el-dropdown-item>
+                    <el-dropdown-item command="/page/vital-signs">生命体征趋势</el-dropdown-item>
+                    <el-dropdown-item command="/page/fluid-balance">体液平衡分析</el-dropdown-item>
+                    <el-dropdown-item command="/page/lab-liver">肝功能趋势</el-dropdown-item>
+                    <el-dropdown-item command="/page/lab-coag">凝血功能趋势</el-dropdown-item>
+                    <el-dropdown-item command="/page/nutrition-monitor">营养支持分析</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>

@@ -128,7 +128,10 @@ public class VitalsServiceImpl implements VitalsService {
         }
 
         resp.setRecordCount(resp.getRecords().size());
-        for (VitalsResponse.Series s : resp.getSeries()) {
+        // 状态设置必须遍历 byKey（而不是 resp.getSeries()）：
+        // Series 对象此时还在 byKey 里，漏掉 addAll 会让接口返回空 series
+        // —— 表现就是页面只有原始记录表、所有趋势图消失（浏览器实测踩过）。
+        for (VitalsResponse.Series s : byKey.values()) {
             if (!s.getPoints().isEmpty()) {
                 s.setDataStatus("AVAILABLE");
             } else {
@@ -136,6 +139,7 @@ public class VitalsServiceImpl implements VitalsService {
                 s.setNote("窗口内无记录");
             }
         }
+        resp.getSeries().addAll(byKey.values());
         return resp;
     }
 
