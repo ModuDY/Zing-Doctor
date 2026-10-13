@@ -32,6 +32,24 @@ export function fetchPatientSummary(patientId) {
 }
 
 /**
+ * 已出科（历史）患者列表，按出科时间倒序。
+ *
+ * 工作台只列在科患者，出科后就从列表消失 —— 医生想复查某个病人的监测、文书、
+ * 查房记录时没有入口，这个接口补这个缺口。
+ *
+ * @param {string} [departCode] 科室边界（org_code）；不传按后端权限口径（管理员=全院）
+ * @param {string} [keyword] 姓名或住院号关键字
+ * @param {number} [limit=300] 条数上限，后端再封顶 500
+ * @returns {Promise<Array>} WorkbenchPatient 基础信息（含 outDepartmentTime / inDepart）
+ */
+export function fetchDischargedPatients(departCode, keyword, limit = 300) {
+  const params = { limit }
+  if (departCode) params.departCode = departCode
+  if (keyword) params.keyword = keyword
+  return request.get('/workbench/patients/history', { params, silentError: true })
+}
+
+/**
  * 单患者镇痛镇静监测（只读）：一次批量返回 NRS / CPOT / RASS / CAM-ICU。
  *
  * 二选一：

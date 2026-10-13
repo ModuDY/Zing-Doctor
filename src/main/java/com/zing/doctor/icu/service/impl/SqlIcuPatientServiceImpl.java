@@ -96,9 +96,43 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
     @Override
     public WorkbenchPatient getWorkbenchPatient(String patientId) {
         Map<String, Object> row = icuPatientMapper.selectInpatientById(patientId);
-        if (row == null) {
-            return null;
+        return row == null ? null : mapWorkbenchPatient(row, patientId);
+    }
+
+    @Override
+    public WorkbenchPatient getWorkbenchPatientAny(String patientId) {
+        Map<String, Object> row = icuPatientMapper.selectInpatientByIdAny(patientId);
+        return row == null ? null : mapWorkbenchPatient(row, patientId);
+    }
+
+    @Override
+    public List<WorkbenchPatient> listDischargedPatients(String departCode, String keyword, int limit) {
+        String kw = keyword == null ? null : keyword.trim();
+        // 空白关键字规范成 null：避免 SQL 里拼出 LIKE '%%' 把全院历史患者都捞一遍
+        if (kw != null && kw.isEmpty()) {
+            kw = null;
         }
+        List<Map<String, Object>> rows =
+                icuPatientMapper.selectDischargedPatients(departCode, kw, limit);
+        List<WorkbenchPatient> list = new ArrayList<>();
+        if (rows == null) {
+            return list;
+        }
+        for (Map<String, Object> row : rows) {
+            // 历史列表不逐个查诊断表：一次几十上百行的 N+1 没必要，医生要的是「谁出科了、什么时候」
+            list.add(mapWorkbenchPatient(row, null));
+        }
+        return list;
+    }
+
+    /**
+     * patient_info 行 → WorkbenchPatient。
+     *
+     * <p>{@code queryDiagnoses} 传 null 表示跳过诊断拼接（历史患者列表用，避免 N+1）。
+     * 出科时间 / 在科标记只在 {@code selectInpatientByIdAny} 与历史列表查询里带这两个列，
+     * 在科口径的 {@code selectInpatientById} 不查它们，故此处按「取不到就留空」处理。
+     */
+    private WorkbenchPatient mapWorkbenchPatient(Map<String, Object> row, String patientIdForDiagnosis) {
         WorkbenchPatient patient = new WorkbenchPatient();
         patient.setInHospitalNo(str(row.get("in_hospital_no")));
         patient.setPatientId(str(row.get("patient_id")));
@@ -116,25 +150,32 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         patient.setIcuDays(admittedAt == null ? null
                 : Math.max(1, java.time.temporal.ChronoUnit.DAYS.between(admittedAt.toLocalDate(), LocalDateTime.now().toLocalDate()) + 1));
         patient.setAttendingDoctor(str(row.get("charge_doctor_name")));
+        // 出科信息：在科口径查询不返回这两列，取不到时保持 null / 默认在科
+        LocalDateTime outAt = toLocalDateTime(row.get("out_depart_time"));
+        patient.setOutDepartmentTime(outAt);
+        Object inDepart = row.get("is_in_depart");
+        patient.setInDepart(inDepart == null || "1".equals(str(inDepart)) || "true".equalsIgnoreCase(str(inDepart)));
         // 诊断取专门的诊断表，最新3个拼接
-        try {
-            List<Map<String, Object>> diagnoses = icuPatientMapper.selectDiagnoses(patientId);
-            if (diagnoses != null && !diagnoses.isEmpty()) {
-                StringBuilder sb = new StringBuilder();
-                int count = 0;
-                for (Map<String, Object> d : diagnoses) {
-                    String name = str(d.get("diag_name"));
-                    if (!name.isEmpty()) {
-                        if (sb.length() > 0) sb.append("、");
-                        sb.append(name);
-                        count++;
-                        if (count >= 3) break;
+        if (patientIdForDiagnosis != null) {
+            try {
+                List<Map<String, Object>> diagnoses = icuPatientMapper.selectDiagnoses(patientIdForDiagnosis);
+                if (diagnoses != null && !diagnoses.isEmpty()) {
+                    StringBuilder sb = new StringBuilder();
+                    int count = 0;
+                    for (Map<String, Object> d : diagnoses) {
+                        String name = str(d.get("diag_name"));
+                        if (!name.isEmpty()) {
+                            if (sb.length() > 0) sb.append("、");
+                            sb.append(name);
+                            count++;
+                            if (count >= 3) break;
+                        }
                     }
+                    patient.setDiagnosis(sb.length() > 0 ? sb.toString() : null);
                 }
-                patient.setDiagnosis(sb.length() > 0 ? sb.toString() : null);
+            } catch (Exception e) {
+                log.warn("查询患者诊断表失败 patientId={}", patientIdForDiagnosis, e);
             }
-        } catch (Exception e) {
-            log.warn("查询患者诊断表失败 patientId={}", patientId, e);
         }
         return patient;
     }

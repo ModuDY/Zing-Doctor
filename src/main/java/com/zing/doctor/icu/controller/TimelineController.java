@@ -36,9 +36,10 @@ public class TimelineController {
     public Result<TimelineResponse> getTimeline(@PathVariable String patientId,
                                                     HttpServletRequest request) {
         // 权限校验：先查患者所属科室
-        WorkbenchPatient patient = icuPatientService.getWorkbenchPatient(patientId);
+        // 只读场景放开已出科患者：时间线是回顾病史的主要入口，出科后仍应可查
+        WorkbenchPatient patient = icuPatientService.getWorkbenchPatientAny(patientId);
         if (patient == null) {
-            return Result.fail("患者不存在或已出科");
+            return Result.fail("患者不存在");
         }
         String allowed = departScopeService.resolveQueryDepart(
                 currentUsername(request), patient.getDepartCode());

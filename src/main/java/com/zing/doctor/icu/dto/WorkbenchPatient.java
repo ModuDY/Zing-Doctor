@@ -38,6 +38,17 @@ public class WorkbenchPatient {
     private String wardName;
     private String bedNo;
     private LocalDateTime inDepartmentTime;
+
+    /**
+     * 出科时间；在科患者为 null。
+     *
+     * <p>用于历史患者（已出科）查阅：原先患者基础信息只查在科（is_in_depart=1），
+     * 出科后连基础信息都取不到，医生无法出院后复盘 / 死亡病例讨论。
+     */
+    private LocalDateTime outDepartmentTime;
+
+    /** 是否在科（true 在科 / false 已出科）。历史患者列表据此打标签，前端也用它提示只读。 */
+    private Boolean inDepart;
     private Long icuDays;
     /** patient_info.weight；为空时不得进行按体重校正的尿量判定。 */
     private java.math.BigDecimal weight;

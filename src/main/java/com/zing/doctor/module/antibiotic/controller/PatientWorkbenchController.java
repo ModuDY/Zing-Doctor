@@ -65,6 +65,29 @@ public class PatientWorkbenchController {
     }
 
     /**
+     * 已出科（历史）患者列表，按出科时间倒序 —— 「历史患者」查阅入口用。
+     *
+     * <p>与 {@link #patients} 的差别：那条只列在科（is_in_depart=1），出科后患者就从工作台消失，
+     * 医生想复查某个病人的监测、文书、查房记录就没入口了。本接口补这个缺口。
+     *
+     * <p>只返回基础信息（姓名/住院号/性别年龄/科室/床位/入出科时间/主管医生），不跑诊断、
+     * 检验、微生物等关联查询 —— 历史患者可能很多，逐个 enrich 会把打开历史页变成全院级大查询。
+     * 需要详情再看患者时走 {@code /patients/{patientId}/summary}。
+     *
+     * <p>科室边界同样过 {@link UserDepartScopeService#resolveQueryDepart}，不因是历史数据就放开。
+     */
+    @GetMapping("/patients/history")
+    public Result<List<WorkbenchPatient>> dischargedPatients(
+            @RequestParam(required = false) String departCode,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false, defaultValue = "300") int limit,
+            HttpServletRequest request) {
+        String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+        int max = Math.max(1, Math.min(limit, 500));
+        return Result.ok(icuPatientService.listDischargedPatients(allowed, keyword, max));
+    }
+
+    /**
      * 单患者诊疗摘要：把工作台列表的 enrich 流水线收敛到一个患者上。
      *
      * <p>与 {@link #patients} 的区别是输入从「科室」变成「患者」：先按 patientId 取基础信息
@@ -77,9 +100,10 @@ public class PatientWorkbenchController {
     @GetMapping("/patients/{patientId}/summary")
     public Result<WorkbenchPatient> summary(@PathVariable String patientId,
                                             HttpServletRequest request) {
-        WorkbenchPatient patient = icuPatientService.getWorkbenchPatient(patientId);
+        // 只读场景放开已出科患者：出院后复盘、死亡病例讨论也要能看得到诊疗摘要
+        WorkbenchPatient patient = icuPatientService.getWorkbenchPatientAny(patientId);
         if (patient == null) {
-            return Result.fail("患者不存在或已出科");
+            return Result.fail("患者不存在");
         }
         String allowed = departScopeService.resolveQueryDepart(
                 currentUsername(request), patient.getDepartCode());

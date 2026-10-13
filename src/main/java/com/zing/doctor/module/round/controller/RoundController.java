@@ -45,7 +45,7 @@ public class RoundController {
             @RequestParam String patientId,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate roundDate,
             HttpServletRequest request) {
-        Result<Void> check = checkPatientPermission(patientId, request);
+        Result<Void> check = checkReadPermission(patientId, request);
         if (check != null) return Result.fail(check.getMessage());
         if (roundDate == null) roundDate = LocalDate.now();
         RoundRecord record = roundService.getByDate(patientId, roundDate);
@@ -58,7 +58,7 @@ public class RoundController {
     @GetMapping("/history")
     public Result<List<RoundRecord>> listHistory(@RequestParam String patientId,
                                                   HttpServletRequest request) {
-        Result<Void> check = checkPatientPermission(patientId, request);
+        Result<Void> check = checkReadPermission(patientId, request);
         if (check != null) return Result.fail(check.getMessage());
         List<RoundRecord> list = roundService.listHistory(patientId);
         return Result.ok(list);
@@ -111,7 +111,29 @@ public class RoundController {
     }
 
     /**
-     * 校验患者科室权限。返回 null 表示通过，返回 Result 表示有权限错误。
+     * 校验患者科室权限（只读口径，允许已出科患者）。
+     * 返回 null 表示通过，返回 Result 表示有权限错误。
+     *
+     * <p>查房记录是诊疗过程的一部分，出院后回看同样要看得到，所以只读接口不限在科。
+     */
+    private Result<Void> checkReadPermission(String patientId, HttpServletRequest request) {
+        WorkbenchPatient patient = icuPatientService.getWorkbenchPatientAny(patientId);
+        if (patient == null) {
+            return Result.fail("患者不存在");
+        }
+        String allowed = departScopeService.resolveQueryDepart(
+                currentUsername(request), patient.getDepartCode());
+        if (allowed == null) {
+            return Result.fail("无该患者科室权限");
+        }
+        return null;
+    }
+
+    /**
+     * 校验患者科室权限（写入口口径，仅限在科患者）。
+     *
+     * <p>保存 / 删除查房记录必须走在科口径：已出科的是历史病历，不该再往里写新数据，
+     * 也不该删——真要更正历史记录，应走病案更正流程而不是随手改。
      */
     private Result<Void> checkPatientPermission(String patientId, HttpServletRequest request) {
         WorkbenchPatient patient = icuPatientService.getWorkbenchPatient(patientId);

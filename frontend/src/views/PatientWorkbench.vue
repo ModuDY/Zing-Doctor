@@ -23,7 +23,8 @@
         <span class="extra-item"><b>{{ stats.critical }}</b> 危重</span>
         <span class="extra-sep"></span>
         <span class="extra-item"><b>{{ stats.avgDays }}</b> 天均</span>
-          <el-button size="small" :icon="Refresh" :loading="loading" @click="loadPatients" style="margin-left:8px">刷新</el-button>
+          <el-button size="small" :icon="Clock" @click="goHistory" style="margin-left:8px">历史患者</el-button>
+          <el-button size="small" :icon="Refresh" :loading="loading" @click="loadPatients">刷新</el-button>
       </div>
       </div>
       <!-- 科室不再在本页切换：统一用左侧栏顶部的全局科室上下文。
@@ -266,7 +267,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Refresh, Search, ArrowDown } from '@element-plus/icons-vue'
+import { Refresh, Search, ArrowDown, Clock } from '@element-plus/icons-vue'
 import { externalParam } from '../utils/external'
 import '../styles/quality-theme.css'
 import { fetchInpatients, fetchDepartScope } from '../api/workbench'
@@ -429,6 +430,16 @@ function viewCount(key) {
 function switchView(key) {
   patientView.value = normalizeView(key)
   router.replace({ path: route.path, query: { ...route.query, view: patientView.value } })
+}
+
+/**
+ * 打开历史患者（已出科）列表。
+ *
+ * 工作台只列在科患者，出科后就从列表消失 —— 医生出院后复盘、死亡病例讨论时没有入口，
+ * 这里补一个。沿用工作台的科室上下文，历史页与本页同一科室权限边界。
+ */
+function goHistory() {
+  router.push({ path: '/page/history-patients', query: { ...route.query } })
 }
 
 function riskClass(level) {

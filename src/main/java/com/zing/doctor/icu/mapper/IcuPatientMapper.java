@@ -81,6 +81,70 @@ public interface IcuPatientMapper {
     Map<String, Object> selectInpatientById(@Param("patientId") String patientId);
 
     /**
+     * 单患者基础信息，<b>含已出科</b>（历史患者查阅用）。
+     *
+     * <p>与 {@link #selectInpatientById} 的唯一差别：不限定 {@code is_in_depart = 1}。
+     * 医生需要出院后复盘、死亡病例讨论时，能打开历史患者的监测与文书；而写操作
+     * （保存查房记录等）仍必须走在科口径 {@link #selectInpatientById}，避免往历史病历写新数据。
+     *
+     * <p>排序 {@code is_in_depart DESC, in_depart_time DESC}：同一住院号多次入科（转科）时
+     * 优先给在科那次；都已出科则给最近一次住院记录。
+     */
+    @Select({"<script>",
+            "SELECT t.* FROM (",
+            "  SELECT pi.id AS patient_id, pi.in_hospital_no AS in_hospital_no, pi.name AS name, ",
+            "         pi.age AS age, pi.gender AS gender, pi.depart_code AS depart_code, ",
+            "         pi.depart_name AS depart_name, pi.ward_name AS ward_name, pi.bed_code AS bed_no, ",
+            "         pi.in_depart_time AS in_depart_time, pi.out_depart_time AS out_depart_time, ",
+            "         pi.is_in_depart AS is_in_depart, ",
+            "         pi.charge_doctor_name AS charge_doctor_name, pi.weight AS weight, ",
+            "         ROW_NUMBER() OVER (PARTITION BY pi.in_hospital_no ",
+            "           ORDER BY pi.is_in_depart DESC, pi.in_depart_time DESC) AS rn ",
+            "    FROM \"zing_icu_db_prod\".\"patient_info\" pi ",
+            "   WHERE pi.del_flag = 0 ",
+            "     AND pi.id = #{patientId} ",
+            ") t ",
+            "WHERE t.rn = 1",
+            "</script>"})
+    Map<String, Object> selectInpatientByIdAny(@Param("patientId") String patientId);
+
+    /**
+     * 已出科（历史）患者列表，按出科时间倒序。
+     *
+     * <p>供「历史患者」查阅入口用：只查基础信息，不跑诊断 / 检验 / 微生物等关联查询，
+     * 避免打开历史页就触发全院级大查询。{@code keyword} 匹配姓名或住院号（可空）。
+     * {@code departCode} 为空 / "ALL" 表示不限科室。返回行数由 limit 控制（默认上限 300）。
+     */
+    @Select({"<script>",
+            "SELECT * FROM (",
+            "  SELECT y.* FROM (",
+            "    SELECT t.* FROM (",
+            "      SELECT pi.id AS patient_id, pi.in_hospital_no AS in_hospital_no, pi.name AS name, ",
+            "         pi.age AS age, pi.gender AS gender, pi.depart_code AS depart_code, ",
+            "         pi.depart_name AS depart_name, pi.ward_name AS ward_name, pi.bed_code AS bed_no, ",
+            "         pi.in_depart_time AS in_depart_time, pi.out_depart_time AS out_depart_time, ",
+            "         pi.charge_doctor_name AS charge_doctor_name, ",
+            "         ROW_NUMBER() OVER (PARTITION BY pi.in_hospital_no ",
+            "           ORDER BY pi.in_depart_time DESC) AS rn ",
+            "      FROM \"zing_icu_db_prod\".\"patient_info\" pi ",
+            "     WHERE pi.del_flag = 0 AND pi.is_in_depart = 0 AND pi.out_depart_time IS NOT NULL ",
+            "    <if test=\"departCode != null and departCode != '' and departCode != 'ALL'\">",
+            "       AND pi.depart_code = #{departCode} ",
+            "    </if>",
+            "    <if test=\"keyword != null and keyword != ''\">",
+            "       AND (pi.name LIKE '%' || #{keyword} || '%' OR pi.in_hospital_no LIKE '%' || #{keyword} || '%') ",
+            "    </if>",
+            "    ) t ",
+            "    WHERE t.rn = 1 ORDER BY t.out_depart_time DESC",
+            "  ) y ",
+            "  WHERE ROWNUM &lt;= #{limit}",
+            ")",
+            "</script>"})
+    List<Map<String, Object>> selectDischargedPatients(@Param("departCode") String departCode,
+                                                      @Param("keyword") String keyword,
+                                                      @Param("limit") int limit);
+
+    /**
      * 取一个账号在重症系统里被授权的科室（org_code + 名称），用于工作台的科室边界。
      *
      * <p>授权取自 {@code sys_user_depart} —— 这是真正的多科室授权表。实测 542 个有授权

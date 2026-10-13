@@ -44,9 +44,10 @@ public class NeuroMonitorController {
                                               @RequestParam(required = false) String start,
                                               @RequestParam(required = false) String end,
                                               HttpServletRequest request) {
-        WorkbenchPatient patient = icuPatientService.getWorkbenchPatient(patientId);
+        // 只读场景放开已出科患者：出院后复盘、死亡病例讨论也要能看得到历史监测
+        WorkbenchPatient patient = icuPatientService.getWorkbenchPatientAny(patientId);
         if (patient == null) {
-            return Result.fail("患者不存在或已出科");
+            return Result.fail("患者不存在");
         }
         String allowed = departScopeService.resolveQueryDepart(
                 currentUsername(request), patient.getDepartCode());

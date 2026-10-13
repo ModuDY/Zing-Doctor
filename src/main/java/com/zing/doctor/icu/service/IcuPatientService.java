@@ -34,6 +34,32 @@ public interface IcuPatientService {
     }
 
     /**
+     * 单患者工作台基础信息，<b>含已出科</b>（历史患者查阅用）。
+     *
+     * <p>与 {@link #getWorkbenchPatient} 的差别只有「是否限定在科」：本方法不限 is_in_depart，
+     * 供<b>只读</b>场景使用（诊疗摘要、神经监测、镇静镇静监测、时间线、查房历史），
+     * 让医生能出院后复盘、死亡病例讨论。
+     *
+     * <p><b>写操作不要用本方法</b>：保存 / 删除查房记录等仍必须走
+     * {@link #getWorkbenchPatient}（在科口径），避免往已出科的历史病历里写新数据。
+     * 未找到（不存在 / 已删除）返回 null。
+     */
+    default WorkbenchPatient getWorkbenchPatientAny(String patientId) {
+        return getWorkbenchPatient(patientId);
+    }
+
+    /**
+     * 已出科（历史）患者列表，按出科时间倒序，供「历史患者」查阅入口。
+     *
+     * @param departCode 科室编码；null / 空 / "ALL" 表示不限科室。调用方须先做科室授权校验。
+     * @param keyword    姓名或住院号关键字，可空。
+     * @param limit      返回条数上限，防止全院历史患者一次性拉全量。
+     */
+    default List<WorkbenchPatient> listDischargedPatients(String departCode, String keyword, int limit) {
+        return java.util.Collections.emptyList();
+    }
+
+    /**
      * 疑似感染/脓毒症患者列表。
      *
      * @param departCode 科室编码（{@code sys_depart.org_code}）；null / 空 / "ALL" 表示不限科室。

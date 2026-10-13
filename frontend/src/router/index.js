@@ -30,6 +30,12 @@ const routes = [
     meta: { title: '患者诊疗摘要' }
   },
   {
+    path: '/page/history-patients',
+    name: 'historyPatients',
+    component: () => import('../views/HistoryPatients.vue'),
+    meta: { title: '历史患者' }
+  },
+  {
     path: '/page/abx-patient-list',
     name: 'patientList',
     // 已并入患者工作台的「感染风险」视图，不再有独立页面。
