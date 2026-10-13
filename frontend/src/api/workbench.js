@@ -91,6 +91,30 @@ export function fetchSedationMonitor(patientId, options = {}) {
 }
 
 /**
+ * 单患者营养支持分析（只读）：按医嘱实际给入量（逐小时明细）× 配方密度，
+ * 估算肠内/肠外能量(kcal)与蛋白质(g)。
+ *
+ * @param {string} patientId 患者ID
+ * @param {object} [options]
+ * @param {number} [options.hours=24] 快捷回溯小时数（1~720）；与 start/end 互斥
+ * @param {string} [options.start] 自定义起 yyyy-MM-ddTHH:mm:ss
+ * @param {string} [options.end]   自定义止 yyyy-MM-ddTHH:mm:ss
+ */
+export function fetchNutritionMonitor(patientId, options = {}) {
+  const params = {}
+  if (options.start && options.end) {
+    params.start = options.start
+    params.end = options.end
+  } else {
+    params.hours = options.hours || 24
+  }
+  return request.get(`/workbench/patients/${patientId}/nutrition`, {
+    params,
+    silentError: true
+  })
+}
+
+/**
  * 单患者急性脑损伤 / 神经功能监测（只读）：一次批量返回
  * 急性脑损伤诊断识别 + GCS（E/V/M，插管记 T）+ 神志 + 双侧瞳孔 + ICP。
  *
@@ -113,4 +137,34 @@ export function fetchNeuroMonitor(patientId, options = {}) {
     params,
     silentError: true
   })
+}
+
+/**
+ * 生命体征趋势（docs/25 §1）：HR/RR/SpO₂/血压/体温，多指标趋势 + 原始记录。
+ * @param {string} patientId
+ * @param {number} [hours=24] 1~168
+ */
+export function fetchVitals(patientId, hours = 24) {
+  return request.get(`/vitals/patients/${patientId}`, { params: { hours }, silentError: true })
+}
+
+/**
+ * 检验趋势（肝功能 liver / 凝血 coag，docs/25 §4/§5）。
+ * 按项目名称匹配（生产库存在同一项目多编码），返回分组序列 + 明细。
+ * @param {string} patientId
+ * @param {'liver'|'coag'} type
+ * @param {number} [hours=168] 1~720
+ */
+export function fetchLabTrend(patientId, type = 'liver', hours = 168) {
+  return request.get(`/lab-trend/patients/${patientId}`, { params: { type, hours }, silentError: true })
+}
+
+/**
+ * 体液平衡（docs/25 §2）：出量/尿量/医嘱入量/其他入量四来源分列。
+ * 刻意不含净平衡合计数（来源去重未经证明）。
+ * @param {string} patientId
+ * @param {number} [hours=24] 1~72
+ */
+export function fetchFluidBalance(patientId, hours = 24) {
+  return request.get(`/fluid-balance/patients/${patientId}`, { params: { hours }, silentError: true })
 }

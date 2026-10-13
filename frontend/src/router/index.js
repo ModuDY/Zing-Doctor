@@ -36,6 +36,30 @@ const routes = [
     meta: { title: '历史患者' }
   },
   {
+    path: '/page/vital-signs',
+    name: 'vitalSigns',
+    component: () => import('../views/VitalSigns.vue'),
+    meta: { title: '生命体征趋势' }
+  },
+  {
+    path: '/page/fluid-balance',
+    name: 'fluidBalance',
+    component: () => import('../views/FluidBalance.vue'),
+    meta: { title: '体液平衡分析' }
+  },
+  {
+    path: '/page/lab-liver',
+    name: 'labLiver',
+    component: () => import('../views/LabTrend.vue'),
+    meta: { title: '肝功能趋势' }
+  },
+  {
+    path: '/page/lab-coag',
+    name: 'labCoag',
+    component: () => import('../views/LabTrend.vue'),
+    meta: { title: '凝血功能趋势' }
+  },
+  {
     path: '/page/department-cockpit',
     name: 'departmentCockpit',
     component: () => import('../views/DepartmentCockpit.vue'),
@@ -196,6 +220,12 @@ const routes = [
     meta: { title: '神经功能监测' }
   },
   {
+    path: '/page/nutrition-monitor',
+    name: 'nutritionMonitor',
+    component: () => import('../views/NutritionMonitor.vue'),
+    meta: { title: '营养支持分析' }
+  },
+  {
     path: '/page/quality-board',
     name: 'qualityBoard',
     component: () => import('../views/QualityBoard.vue'),
@@ -257,6 +287,7 @@ const PATIENT_PAGES = new Set([
   '/page/sepsis-bundle',
   '/page/sedation-monitor',
   '/page/neuro-monitor',
+  '/page/nutrition-monitor',
   // 俯卧位「列表」跟随：它会拿住院号去填搜索框，等于只看该患者的记录 ——
   // 使用者要的正是这个。但必须连入科时间一起给：新建记录时后端靠
   // (住院号 + 入科时间) 定位到哪一次入科，只有住院号会退化成「最近一次入科」，

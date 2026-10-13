@@ -89,8 +89,28 @@
           <MedicalIcon name="neuro" />
           <span class="nav-label">神经功能监测</span>
         </router-link>
+        <router-link to="/page/nutrition-monitor" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="sedation" />
+          <span class="nav-label">营养支持分析</span>
+        </router-link>
 
-        <div class="nav-divider">科室管理</div>
+                <div class="nav-divider">临床分析</div>
+        <router-link to="/page/vital-signs" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="trend" />
+          <span class="nav-label">生命体征趋势</span>
+        </router-link>
+        <router-link to="/page/fluid-balance" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="mapping" />
+          <span class="nav-label">体液平衡分析</span>
+        </router-link>
+        <router-link to="/page/lab-liver" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="taxonomy" />
+          <span class="nav-label">肝功能趋势</span>
+        </router-link>
+        <router-link to="/page/lab-coag" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="taxonomy" />
+          <span class="nav-label">凝血功能趋势</span>
+        </router-link><div class="nav-divider">科室管理</div>
         <router-link to="/page/department-cockpit" class="nav-item" active-class="nav-active">
           <MedicalIcon name="board" />
           <span class="nav-label">科室驾驶舱</span>

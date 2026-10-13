@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -52,6 +53,9 @@ class DepartmentCockpitServiceTest {
     private DepartmentCockpitMapper cockpitMapper;
     private IcuPatientMapper icuPatientMapper;
     private IcuPatientService icuPatientService;
+    private SofaScoreRecordMapper sofaMapper;
+    private Apache2ScoreRecordMapper apache2Mapper;
+    private QualityQueryService qualityQueryService;
     private DepartmentCockpitServiceImpl service;
 
     private static final String DAY_FMT = "yyyy-MM-dd";
@@ -62,9 +66,11 @@ class DepartmentCockpitServiceTest {
         cockpitMapper = mock(DepartmentCockpitMapper.class);
         icuPatientMapper = mock(IcuPatientMapper.class);
         icuPatientService = mock(IcuPatientService.class);
+        sofaMapper = mock(SofaScoreRecordMapper.class);
+        apache2Mapper = mock(Apache2ScoreRecordMapper.class);
+        qualityQueryService = mock(QualityQueryService.class);
         service = new DepartmentCockpitServiceImpl(cockpitMapper, icuPatientMapper, icuPatientService,
-                mock(SofaScoreRecordMapper.class), mock(Apache2ScoreRecordMapper.class),
-                mock(QualityQueryService.class));
+                sofaMapper, apache2Mapper, qualityQueryService);
     }
 
     private Map<String, Object> snapshotRow(int in, int todayIn, int todayOut) {
@@ -113,16 +119,17 @@ class DepartmentCockpitServiceTest {
     void criticalCountIsUnionNotSum() {
         when(cockpitMapper.selectTodaySnapshot(anyString(), anyString(), anyString())).thenReturn(snapshotRow(50, 5, 7));
         // countOrganSupport 与四个 mapper 必须是同一口径（真实环境同源），mock 值保持一致：
-        // 患者 A 上 ECMO+CRRT、患者 B 上呼吸机、无人用血管活性药
+        // 患者 A 上 ECMO+CRRT+血管活性药、患者 B 上呼吸机
         Map<String, Integer> support = new HashMap<>();
         support.put("ventilated", 1);
-        support.put("vasopressor", 0);
+        support.put("vasopressor", 1);
         support.put("crrt", 1);
         support.put("ecmo", 1);
         when(icuPatientService.countOrganSupport(anyString())).thenReturn(support);
         when(icuPatientMapper.selectAllDepartments()).thenReturn(Collections.emptyList());
-        // 患者 A 同时上 ECMO 与 CRRT；患者 B 上呼吸机
-        when(icuPatientMapper.selectHandoverVasopressor(anyString())).thenReturn(Collections.emptyList());
+        // 患者 A 同时上 ECMO、CRRT 和血管活性药；患者 B 上呼吸机
+        when(icuPatientMapper.selectHandoverVasopressor(anyString())).thenReturn(
+                Collections.singletonList(row("A")));
         when(icuPatientMapper.selectHandoverCrrtPatients(anyString())).thenReturn(Collections.singletonList("A"));
         when(icuPatientMapper.selectHandoverEcmoPatients(anyString())).thenReturn(Collections.singletonList("A"));
         when(icuPatientMapper.selectInpatients(anyString())).thenReturn(
@@ -138,6 +145,7 @@ class DepartmentCockpitServiceTest {
         assertEquals(1, s.getCrrtCount().getValue());
         assertEquals(1, s.getEcmoCount().getValue());
         assertEquals(1, s.getVentilatedCount().getValue());
+        assertEquals(1, s.getVasopressorCount().getValue());
         // 比例 = 2/50
         assertEquals(0.04, s.getCriticalRatio().getValue(), 0.0001);
     }
@@ -232,7 +240,29 @@ class DepartmentCockpitServiceTest {
         assertEquals(7, s.getDailyFlow().getValue().size());
         assertEquals("OK", s.getVentilatedCount().getStatus());
         assertEquals(3, s.getVentilatedCount().getValue());
+        assertEquals("OK", s.getVasopressorCount().getStatus());
+        assertEquals(2, s.getVasopressorCount().getValue());
         assertFalse(s.getNotes().isEmpty(), "口径说明必须随快照返回，前端要在页面上展示");
+    }
+
+    @Test
+    @DisplayName("评分分布与用户选择的趋势窗口保持一致")
+    void scoreDistributionUsesSelectedRange() {
+        when(cockpitMapper.selectTodaySnapshot(anyString(), anyString(), anyString()))
+                .thenReturn(snapshotRow(10, 1, 1));
+        when(icuPatientService.countOrganSupport(anyString())).thenReturn(Collections.emptyMap());
+        when(icuPatientMapper.selectAllDepartments()).thenReturn(Collections.emptyList());
+        when(cockpitMapper.selectDailyInCount(anyString(), anyString(), anyString())).thenReturn(Collections.emptyList());
+        when(cockpitMapper.selectDailyOutCount(anyString(), anyString(), anyString())).thenReturn(Collections.emptyList());
+        when(cockpitMapper.selectAvgStayDays(anyString(), anyString(), anyString()))
+                .thenReturn(Collections.singletonMap("patient_count", 0));
+
+        service.snapshot("20010231", 7);
+
+        String expectedStart = LocalDate.now().minusDays(6).atTime(0, 0)
+                .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        verify(sofaMapper).selectLatestPerEpisode(eq("20010231"), eq(expectedStart), anyString());
+        verify(apache2Mapper).selectLatestPerEpisode(eq("20010231"), eq(expectedStart), anyString());
     }
 
     @Test

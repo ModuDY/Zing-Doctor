@@ -965,6 +965,39 @@ public interface IcuPatientMapper {
                                                         @Param("endTime") String endTime);
 
     /**
+     * 生命体征趋势：按患者 + 一组 item_code + 时间窗查观察记录（患者级配置表取名）。
+     *
+     * <p>生命体征模块（docs/25 §1）用：HR/RR/SpO₂/血压/体温的编码已核实齐全，但既有方法
+     * 要么不限项目（selectObserveRecords 全量）、要么按名称 LIKE（体温），没有
+     * 「按编码组 + 时间窗」的形态，故新增。编码由调用方传入，Java 端不猜。
+     *
+     * <p>血压分无创（oi_wcssy / oi_wcszy / oi_pjy）与有创（oi_ycssy / oi_ycszy / oi_ycpjy）
+     * 两套，调用方按来源分别传、分别展示，不合并。
+     *
+     * <p>时间参数传 ISO 字符串（达梦可与 TIMESTAMP 比较）；ROWNUM 在最外层截断防呆
+     * （达梦不允许 ROWNUM 落在三层嵌套内层，这是踩过的坑）。
+     */
+    @Select({"<script>",
+            "SELECT * FROM (",
+            "  SELECT r.item_code AS item_code, r.item_value AS item_value, r.item_time AS item_time,",
+            "         r.record_staff_name AS staff_name, i.item_name AS item_name",
+            "    FROM \"zing_icu_db_prod\".\"patient_observe_module_item_record\" r",
+            "    INNER JOIN \"zing_icu_db_prod\".\"patient_observe_module_item\" i",
+            "      ON i.patient_id = r.patient_id AND i.item_code = r.item_code",
+            "     AND i.del_flag = 0 AND i.status = 1",
+            "   WHERE r.patient_id = #{patientId} AND r.del_flag = 0 AND r.status = 1",
+            "     AND r.item_time &gt;= #{startTime} AND r.item_time &lt; #{endTime}",
+            "     AND r.item_code IN ",
+            "     <foreach collection='itemCodes' item='code' open='(' separator=',' close=')'>#{code}</foreach>",
+            "   ORDER BY r.item_time ASC",
+            ") WHERE ROWNUM &lt;= 2000",
+            "</script>"})
+    List<Map<String, Object>> selectVitalsByCodes(@Param("patientId") String patientId,
+                                                  @Param("itemCodes") List<String> itemCodes,
+                                                  @Param("startTime") String startTime,
+                                                  @Param("endTime") String endTime);
+
+    /**
      * 按lis_item_name列表查询动脉血气分析结果（APACHE II评分用：PH值、氧分压PaO2、二氧化碳分压PaCO2）。
      * 关联 patient_info_lis（动脉血+血气分析）→ patient_info_lis_item，按check_time倒序。
      */
