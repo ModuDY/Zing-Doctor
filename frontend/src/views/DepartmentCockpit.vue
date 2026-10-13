@@ -102,7 +102,7 @@
 <script>
 import { ElMessage } from 'element-plus'
 import { Refresh, Warning, InfoFilled } from '@element-plus/icons-vue'
-import echarts from 'echarts'
+import * as echarts from '../utils/echarts'
 import { fetchCockpitSummary } from '../api/workbench'
 import { currentDepart } from '../utils/departContext'
 import StatCard from '../components/StatCard.vue'
