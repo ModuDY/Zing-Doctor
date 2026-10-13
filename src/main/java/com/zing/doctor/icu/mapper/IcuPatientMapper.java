@@ -1378,7 +1378,11 @@ public interface IcuPatientMapper {
             + "  OR pa.name LIKE '%肾上腺素%' OR pa.name LIKE '%间羟胺%' "
             + "  OR pa.name LIKE '%多巴酚丁胺%' OR pa.name LIKE '%血管加压素%' "
             + "  OR pa.name LIKE '%垂体后叶%' OR pa.name LIKE '%特利加压素%') "
-            + "AND pi.depart_code = #{departCode} "
+            // departCode 为空串 = 全院，必须显式放行：这里原来只写 pi.depart_code = #{departCode}，
+            // 空串匹配不到任何科室，导致「全院」视图下血管活性药查询恒返回 0 条 ——
+            // 工作台的血管活性药标记全变成 false、驾驶舱危重数被低估。
+            // 与 selectHandoverCrrtPatients / selectHandoverEcmoPatients 的空串处理保持一致。
+            + "AND (#{departCode} = '' OR pi.depart_code = #{departCode}) "
             + "ORDER BY pa.start_time DESC")
     List<Map<String, Object>> selectHandoverVasopressor(@Param("departCode") String departCode);
 
