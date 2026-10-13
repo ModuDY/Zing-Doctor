@@ -21,6 +21,8 @@
           <MedicalIcon name="patient" />
           <span class="nav-label">患者工作台</span>
         </router-link>
+
+        <div class="nav-divider">交班与出科</div>
         <router-link to="/page/handover-board" class="nav-item" active-class="nav-active">
           <MedicalIcon name="handover" />
           <span class="nav-label">医生交班览表</span>
@@ -29,6 +31,8 @@
           <MedicalIcon name="bed" />
           <span class="nav-label">患者出科统计</span>
         </router-link>
+
+        <div class="nav-divider">抗感染</div>
         <router-link to="/page/abx-decision" class="nav-item" active-class="nav-active">
           <MedicalIcon name="pill" />
           <span class="nav-label">抗感染决策</span>
@@ -37,16 +41,16 @@
           <MedicalIcon name="trend" />
           <span class="nav-label">PK/PD 剂量优化</span>
         </router-link>
-        <router-link to="/page/abx-ddd" class="nav-item" active-class="nav-active">
-          <MedicalIcon name="bottle" />
-          <span class="nav-label">使用强度分析</span>
-        </router-link>
         <router-link to="/page/abx-mdro" class="nav-item" active-class="nav-active">
           <MedicalIcon name="dish" />
           <span class="nav-label">细菌培养监测</span>
         </router-link>
+        <router-link to="/page/abx-ddd" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="bottle" />
+          <span class="nav-label">使用强度分析</span>
+        </router-link>
 
-        <div class="nav-divider">重症评分</div>
+        <div class="nav-divider">评分评估</div>
         <router-link to="/page/sofa-overview" class="nav-item" active-class="nav-active">
           <MedicalIcon name="trend" />
           <span class="nav-label">SOFA 评分总览</span>
@@ -55,14 +59,16 @@
           <MedicalIcon name="score" />
           <span class="nav-label">SOFA 评分</span>
         </router-link>
-        <router-link to="/page/apache2-score" class="nav-item" active-class="nav-active">
-          <MedicalIcon name="gauge" />
-          <span class="nav-label">APACHE II 评分</span>
-        </router-link>
         <router-link to="/page/apache2-overview" class="nav-item" active-class="nav-active">
           <MedicalIcon name="board" />
           <span class="nav-label">APACHE II 总览</span>
         </router-link>
+        <router-link to="/page/apache2-score" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="gauge" />
+          <span class="nav-label">APACHE II 评分</span>
+        </router-link>
+
+        <div class="nav-divider">脏器支持与监护</div>
         <router-link to="/page/sepsis-bundle" class="nav-item" active-class="nav-active">
           <MedicalIcon name="heart" />
           <span class="nav-label">脓毒症集束化治疗</span>

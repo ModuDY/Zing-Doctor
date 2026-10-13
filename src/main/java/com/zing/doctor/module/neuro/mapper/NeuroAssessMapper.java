@@ -67,7 +67,8 @@ public interface NeuroAssessMapper {
      * score_json_value 为 TEXT，CAST 成 VARCHAR 取出；item1=E 睁眼、item2/item21=V 言语、
      * item3=M 运动；插管 / 气切时 item21="VT"、totalScore 形如 {@code 1+VT+2}（言语不可评，记 3T）。
      */
-    @Select("SELECT * FROM (SELECT r.record_time AS record_time, "
+    @Select("<script>"
+            + "SELECT * FROM (SELECT r.record_time AS record_time, "
             + "r.record_staff_name AS staff_name, r.is_audit AS is_audit, "
             + "s.score_value AS score_value, CAST(s.score_json_value AS VARCHAR(4000)) AS score_json "
             + "FROM \"zing_icu_db_prod\".\"patient_doc_record\" r "
@@ -75,7 +76,8 @@ public interface NeuroAssessMapper {
             + "  ON s.doc_record_id = r.id AND s.del_flag = 0 "
             + "WHERE r.patient_id = #{patientId} AND r.del_flag = 0 AND r.doc_code = 'Z_ICU_GCS' "
             + "AND r.record_time &gt;= #{startTime} AND r.record_time &lt; #{endTime} "
-            + "ORDER BY r.record_time ASC) WHERE ROWNUM &lt;= 1000")
+            + "ORDER BY r.record_time ASC) WHERE ROWNUM &lt;= 1000"
+            + "</script>")
     List<Map<String, Object>> selectGcsDoc(@Param("patientId") String patientId,
                                            @Param("startTime") String startTime,
                                            @Param("endTime") String endTime);
