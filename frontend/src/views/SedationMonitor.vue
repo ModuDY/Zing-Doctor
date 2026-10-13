@@ -429,11 +429,19 @@ export default {
       const pts = (block.points || []).filter((p) => p.score != null)
       if (!pts.length) return
       const meta = SCALE_META[key]
-      let chart = this.charts[key]
-      if (!chart) {
-        chart = echarts.getInstanceByDom(el) || echarts.init(el)
-        this.charts[key] = chart
-      }
+      // 同 NeuroMonitor.getChart：charts[key] 里的实例可能绑在已被替换的旧节点上
+      // （切换时间范围会重建图表区 DOM），对旧实例 setOption 会在 echarts 内部抛
+      //「reading 'getAxis'」，结果是坐标轴与 tooltip 停留在旧数据、悬浮无反应。
+      // 以 getInstanceByDom 的结果为准，节点换了就重新 init 并 dispose 旧实例。
+      const attached = echarts.getInstanceByDom(el)
+      const chart = attached || echarts.init(el)
+      this.charts[key] = chart
+      // clear() 必须在 setOption 之前：切换时间范围时数据没变、DOM 也没重建，
+      // 但上一轮 setOption 留下的 axis/series 关联会坏掉，导致本次渲染抛
+      //「Cannot read properties of undefined (reading 'getAxis')」/「reading 'type'」
+      // —— 表现为坐标轴和 tooltip 停留在旧数据、鼠标悬浮无反应。
+      // clear() 后再 setOption，等价于 notMerge 但不触发组件重建的内部问题。
+      chart.clear()
       const seriesData = pts.map((p, idx) => ({
         value: [this.toDate(p.time), p.score],
         point: p,
@@ -460,7 +468,9 @@ export default {
         },
         xAxis: {
           type: 'time',
-          axisLabel: { color: '#a8a29e', fontSize: 10, formatter: (v) => this.fmtShort(v) },
+          // hideOverlap + interval:auto：窗口拉长（如近7天/30天而数据只有入科这两天）时
+          // 标签会挤成一团糊住图表轴，让 echarts 自动稀疏 / 隐藏重叠标签
+          axisLabel: { color: '#a8a29e', fontSize: 10, hideOverlap: true, interval: 'auto', formatter: (v) => this.fmtShort(v) },
           axisLine: { lineStyle: { color: '#e7e5e4' } },
           splitLine: { show: false },
           axisTick: { show: false }
@@ -487,7 +497,7 @@ export default {
             data: [{ yAxis: 0, lineStyle: { color: '#d6d3d1', type: 'dashed', width: 1 } }]
           } : undefined
         }]
-      }, true)
+      })
       chart.resize()
     },
 

@@ -484,18 +484,23 @@ export default {
     timeAxis() {
       return {
         type: 'time',
-        axisLabel: { color: '#a8a29e', fontSize: 10, formatter: (v) => this.fmtShort(v) },
+        // hideOverlap + interval:auto：窗口拉长（如近7天/30天而数据只有入科这两天）时
+          // 标签会挤成一团糊住图表轴，让 echarts 自动稀疏 / 隐藏重叠标签
+          axisLabel: { color: '#a8a29e', fontSize: 10, hideOverlap: true, interval: 'auto', formatter: (v) => this.fmtShort(v) },
         axisLine: { lineStyle: { color: '#e7e5e4' } },
         splitLine: { show: false },
         axisTick: { show: false }
       }
     },
     getChart(key, el) {
-      let chart = this.charts[key]
-      if (!chart) {
-        chart = echarts.getInstanceByDom(el) || echarts.init(el)
-        this.charts[key] = chart
-      }
+      // 每次以当前 DOM 上的实例为准，避免 charts[key] 里缓存的是绑定在旧节点上的实例
+      const chart = echarts.getInstanceByDom(el) || echarts.init(el)
+      this.charts[key] = chart
+      // clear() 必须在 setOption 之前：切换时间范围时数据没变、DOM 也没重建，但上一轮
+      // setOption 留下的 axis/series 关联会坏掉，导致本次渲染抛
+      //「Cannot read properties of undefined (reading 'getAxis')」/「reading 'type'」
+      // —— 表现为坐标轴与 tooltip 停留在旧数据、鼠标悬浮无反应。
+      chart.clear()
       return chart
     },
     renderGcs() {
@@ -541,7 +546,7 @@ export default {
           symbol: 'circle',
           lineStyle: { width: 2, color: '#ea580c' }
         }]
-      }, true)
+      })
       chart.resize()
     },
     renderConsciousness() {
@@ -586,7 +591,7 @@ export default {
           symbol: 'circle',
           lineStyle: { width: 2, color: '#57534e' }
         }]
-      }, true)
+      })
       chart.resize()
     },
     renderIcp() {
@@ -630,7 +635,7 @@ export default {
           lineStyle: { width: 2, color: '#7c3aed' },
           itemStyle: { color: '#7c3aed' }
         }]
-      }, true)
+      })
       chart.resize()
     },
     renderPupils() {
@@ -689,7 +694,7 @@ export default {
             lineStyle: { width: 2, color: '#78716c' }, itemStyle: { color: '#78716c' }
           }
         ]
-      }, true)
+      })
       chart.resize()
     },
 
