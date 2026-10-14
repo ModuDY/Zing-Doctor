@@ -1,6 +1,8 @@
 package com.zing.doctor.quality.controller;
 
 import com.zing.doctor.common.Result;
+import com.zing.doctor.external.ExternalLinkInterceptor;
+import com.zing.doctor.icu.service.UserDepartScopeService;
 import com.zing.doctor.quality.config.QualityConfigGuard;
 import com.zing.doctor.quality.dto.PeriodRange;
 import com.zing.doctor.quality.entity.QualityCalcRun;
@@ -47,12 +49,14 @@ public class QualityController {
     private final QualityIndexSyncService indexSyncService;
     private final QualityCountRuleService countRuleService;
     private final QualityConfigGuard configGuard;
+    private final UserDepartScopeService departScopeService;
 
     public QualityController(QualityQueryService queryService, QualityCalcService calcService,
                              QualityMonthlyService monthlyService, QualityExportService exportService,
                              QualityIndexSyncService indexSyncService,
                              QualityCountRuleService countRuleService,
-                             QualityConfigGuard configGuard) {
+                             QualityConfigGuard configGuard,
+                             UserDepartScopeService departScopeService) {
         this.queryService = queryService;
         this.calcService = calcService;
         this.monthlyService = monthlyService;
@@ -60,6 +64,13 @@ public class QualityController {
         this.indexSyncService = indexSyncService;
         this.countRuleService = countRuleService;
         this.configGuard = configGuard;
+        this.departScopeService = departScopeService;
+    }
+
+    /** 当前登录账号；外链免登录返回 null（与驾驶舱/患者工作台同一取法）。 */
+    private static String currentUsername(HttpServletRequest request) {
+        Object u = request.getAttribute(ExternalLinkInterceptor.ATTR_LOGIN_USER);
+        return u == null ? null : String.valueOf(u);
     }
 
     /**
@@ -69,9 +80,11 @@ public class QualityController {
     @GetMapping("/overview")
     public Result<Map<String, Object>> overview(@RequestParam(required = false) String periodType,
                                                 @RequestParam(required = false) String periodStart,
-                                                @RequestParam(required = false) String departCode) {
+                                                @RequestParam(required = false) String departCode,
+                                                HttpServletRequest request) {
         try {
-            return Result.ok(queryService.overview(periodType, periodStart, departCode));
+            String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+            return Result.ok(queryService.overview(periodType, periodStart, allowed));
         } catch (Exception e) {
             log.error("[质控] 看板查询失败", e);
             return Result.fail("查询失败: " + e.getMessage());
@@ -94,9 +107,11 @@ public class QualityController {
     public Result<List<Map<String, Object>>> rules(@RequestParam(required = false) String periodType,
                                                    @RequestParam(required = false) String periodStart,
                                                    @RequestParam(required = false) String departCode,
-                                                   @RequestParam(required = false) boolean includeHidden) {
+                                                   @RequestParam(required = false) boolean includeHidden,
+                                                   HttpServletRequest request) {
         try {
-            return Result.ok(countRuleService.list(periodType, periodStart, departCode, includeHidden));
+            String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+            return Result.ok(countRuleService.list(periodType, periodStart, allowed, includeHidden));
         } catch (Exception e) {
             log.error("[质控] 指标规则查询失败", e);
             return Result.fail("查询失败: " + e.getMessage());
@@ -143,10 +158,12 @@ public class QualityController {
                                                   @RequestParam(required = false) String targetDirection,
                                                   @RequestParam(required = false) String periodType,
                                                   @RequestParam(required = false) String periodStart,
-                                                  @RequestParam(required = false) String departCode) {
+                                                  @RequestParam(required = false) String departCode,
+                                                  HttpServletRequest request) {
         try {
+            String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
             return Result.ok(countRuleService.saveTarget(ruleId, targetValue, warningValue,
-                    targetDirection, periodType, periodStart, departCode));
+                    targetDirection, periodType, periodStart, allowed));
         } catch (Exception e) {
             log.error("[质控] 指标目标值配置失败: ruleId={}", ruleId, e);
             return Result.fail("保存失败: " + e.getMessage());
@@ -167,7 +184,8 @@ public class QualityController {
                                                 @RequestParam(required = false) String departCode,
                                                 HttpServletRequest request) {
         try {
-            return Result.ok(countRuleService.calcRule(ruleId, periodType, periodStart, departCode,
+            String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+            return Result.ok(countRuleService.calcRule(ruleId, periodType, periodStart, allowed,
                     configGuard.operator(request)));
         } catch (Exception e) {
             log.error("[质控] 单指标计算失败: ruleId={}", ruleId, e);
@@ -179,9 +197,11 @@ public class QualityController {
     @GetMapping("/metric")
     public Result<Map<String, Object>> metric(@RequestParam String code,
                                               @RequestParam(required = false) String periodStart,
-                                              @RequestParam(required = false) String departCode) {
+                                              @RequestParam(required = false) String departCode,
+                                              HttpServletRequest request) {
         try {
-            return Result.ok(queryService.metricDetail(code, periodStart, departCode));
+            String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+            return Result.ok(queryService.metricDetail(code, periodStart, allowed));
         } catch (Exception e) {
             log.error("[质控] 指标详情失败: code={}", code, e);
             return Result.fail("查询失败: " + e.getMessage());
@@ -196,8 +216,10 @@ public class QualityController {
                                      @RequestParam(required = false, defaultValue = "false")
                                      Boolean includeExcluded,
                                      @RequestParam(required = false) String view,
+                                     HttpServletRequest request,
                                      HttpServletResponse response) {
-        exportService.exportPatients(response, code, periodStart, departCode,
+        String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+        exportService.exportPatients(response, code, periodStart, allowed,
                 Boolean.TRUE.equals(includeExcluded), view);
     }
 
@@ -229,12 +251,40 @@ public class QualityController {
                                                 @RequestParam(required = false) String departCode,
                                                 @RequestParam(required = false, defaultValue = "false")
                                                 Boolean includeExcluded,
-                                                @RequestParam(required = false) String view) {
+                                                @RequestParam(required = false) String view,
+                                                HttpServletRequest request) {
         try {
-            return Result.ok(queryService.patients(code, periodStart, departCode,
+            String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+            return Result.ok(queryService.patients(code, periodStart, allowed,
                     Boolean.TRUE.equals(includeExcluded), view));
         } catch (Exception e) {
             log.error("[质控] 患者明细失败: code={}", code, e);
+            return Result.fail("查询失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 患者月度质控指标：某位患者在某月命中 / 触发了哪些质控指标。
+     *
+     * <p>与 {@code /metric/patients} 方向相反（人 → 指标），用于患者质控档案与查房复核。
+     * 逐条指标扫描取数，首次查询可能较慢（事实层未物化时要先建表），
+     * 因此前端超时放宽到分钟级，结果在服务端缓存 5 分钟。
+     *
+     * @param inHospitalNo 住院号（推荐：patientId 在多次入科之间会变）
+     * @param patientId    患者 ID（住院号为空时使用）
+     * @param periodStart  周期 yyyy / yyyy-MM，缺省为上个月
+     */
+    @GetMapping("/patient/metrics")
+    public Result<Map<String, Object>> patientMetrics(@RequestParam(required = false) String inHospitalNo,
+                                                      @RequestParam(required = false) String patientId,
+                                                      @RequestParam(required = false) String periodStart,
+                                                      @RequestParam(required = false) String departCode,
+                                                      HttpServletRequest request) {
+        try {
+            String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+            return Result.ok(queryService.patientMetrics(inHospitalNo, patientId, periodStart, allowed));
+        } catch (Exception e) {
+            log.error("[质控] 患者月度指标失败: no={}, patientId={}", inHospitalNo, patientId, e);
             return Result.fail("查询失败: " + e.getMessage());
         }
     }
@@ -293,7 +343,9 @@ public class QualityController {
             PeriodRange range = PeriodRange.of(periodType, periodStart);
             LocalDateTime s = startTime == null ? range.getStart() : parse(startTime, range.getStart());
             LocalDateTime e = endTime == null ? range.getEnd() : parse(endTime, range.getEnd());
-            String dept = departCode == null ? "ALL" : departCode;
+            // 权限收敛：普通账号不能借重算绕过科室边界；管理员/外链放行。
+            String dept = departScopeService.resolveQueryDepart(currentUsername(request),
+                    departCode == null || departCode.trim().isEmpty() ? "ALL" : departCode.trim());
             // 重算会把该周期的结果覆盖掉，属于需要留痕的高危动作：谁在什么时候重算了哪个月，
             // 必须能查。操作人同样由服务端解析，不接受前端传值。
             String operator = configGuard.operator(request);
@@ -339,7 +391,7 @@ public class QualityController {
                                                     HttpServletRequest request) {
         try {
             PeriodRange range = PeriodRange.of(periodType, periodStart);
-            String dept = departCode == null || departCode.trim().isEmpty() ? "ALL" : departCode.trim();
+            String dept = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
             return Result.ok(calcService.recalcOne(code, range.getPeriodType(),
                     range.getStart(), range.getEnd(), dept, configGuard.operator(request)));
         } catch (Exception e) {
@@ -364,12 +416,13 @@ public class QualityController {
                                               HttpServletRequest request) {
         try {
             PeriodRange range = PeriodRange.of(periodType, periodStart);
+            String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
             // 操作人由服务端解析（X-Operator 头 → 登录令牌反解的姓名 → 外链 realname → 默认值），
             // 不接受前端传值：能伪造的审计字段等于没有审计。
             // 原先这里是 @RequestParam 默认 "manual" —— 那是动作类型不是人名，
             // 结果「谁录的这个数」永远查不出来，而上报时这正是必答题。
             return Result.ok(calcService.saveManual(code, range.getPeriodType(),
-                    range.getStart(), range.getEnd(), departCode, value,
+                    range.getStart(), range.getEnd(), allowed, value,
                     configGuard.operator(request), note));
         } catch (IllegalArgumentException e) {
             log.warn("[质控] 人工录入校验未通过: code={} value={} msg={}", code, value, e.getMessage());
@@ -391,9 +444,11 @@ public class QualityController {
     public Result<Map<String, Object>> monthly(@RequestParam Integer year,
                                                @RequestParam(required = false) String departCode,
                                                @RequestParam(required = false, defaultValue = "false")
-                                               Boolean showAtoms) {
+                                               Boolean showAtoms,
+                                               HttpServletRequest request) {
         try {
-            return Result.ok(monthlyService.view(year, departCode, Boolean.TRUE.equals(showAtoms)));
+            String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+            return Result.ok(monthlyService.view(year, allowed, Boolean.TRUE.equals(showAtoms)));
         } catch (Exception e) {
             log.error("[质控] 月度汇总查询失败: year={}", year, e);
             return Result.fail("查询失败: " + e.getMessage());
@@ -403,9 +458,11 @@ public class QualityController {
     /** 重建某年月度汇总宽表。 */
     @PostMapping("/monthly/rebuild")
     public Result<Map<String, Object>> rebuildMonthly(@RequestParam Integer year,
-                                                      @RequestParam(required = false) String departCode) {
+                                                      @RequestParam(required = false) String departCode,
+                                                      HttpServletRequest request) {
         try {
-            return Result.ok(monthlyService.rebuild(year, departCode));
+            String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+            return Result.ok(monthlyService.rebuild(year, allowed));
         } catch (Exception e) {
             log.error("[质控] 月度汇总重建失败: year={}", year, e);
             return Result.fail("重建失败: " + e.getMessage());
@@ -435,8 +492,10 @@ public class QualityController {
     @GetMapping("/export")
     public void export(@RequestParam Integer year,
                        @RequestParam(required = false) String departCode,
+                       HttpServletRequest request,
                        HttpServletResponse response) {
-        exportService.exportYear(response, year, departCode);
+        String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+        exportService.exportYear(response, year, allowed);
     }
 
     private LocalDateTime parse(String text, LocalDateTime def) {

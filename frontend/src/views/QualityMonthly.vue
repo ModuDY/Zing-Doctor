@@ -39,6 +39,14 @@
         <el-button :loading="rebuilding" @click="doRebuild">
           <el-icon><Cpu /></el-icon> 重建汇总
         </el-button>
+        <!--
+          打印预览：清单要求「所见即所得的打印 + 可调整打印参数」。
+          预览窗口里就是最终打印件（同一份 DOM），导出 PDF 与打印都走它，
+          避免「屏幕上排好的版、打印出来变样」。
+        -->
+        <el-button :disabled="!rows.length" @click="openPrintPreview">
+          <el-icon><Printer /></el-icon> 打印预览
+        </el-button>
         <el-button type="primary" :loading="exporting" :disabled="!rows.length" @click="doExport">
           <el-icon><Download /></el-icon> 导出 Excel
         </el-button>
@@ -208,13 +216,136 @@
         </el-table-column>
       </el-table>
     </div>
+
+    <!--
+      打印预览（所见即所得）：预览里的 DOM 就是打印件本身 ——
+      「导出 PDF」对它截图、「打印」把它的 HTML 原样写进打印窗口，
+      因此屏幕上排成什么样，纸上/PDF 里就是什么样。
+    -->
+    <el-dialog
+      v-model="printVisible"
+      title="打印预览 · 质控指标月度监汇表"
+      width="96%"
+      top="3vh"
+      class="qb-overlay"
+      :close-on-click-modal="false"
+    >
+      <div class="print-params">
+        <span class="pp-label">纸张方向</span>
+        <el-radio-group v-model="printOrientation" size="small">
+          <el-radio-button label="landscape">A4 横向</el-radio-button>
+          <el-radio-button label="portrait">A4 纵向</el-radio-button>
+        </el-radio-group>
+        <span class="pp-label">每页行数</span>
+        <el-input-number
+          v-model="printRowsPerPage"
+          :min="10"
+          :max="60"
+          :step="2"
+          size="small"
+          controls-position="right"
+          style="width: 104px"
+        />
+        <el-checkbox v-model="printAtoms" size="small">含分子 / 分母子行</el-checkbox>
+        <el-checkbox v-model="printChart" size="small">附年度趋势图</el-checkbox>
+        <span class="pp-hint">共 {{ printPages.length }} 页 · 每页 {{ printRowsPerPage }} 行</span>
+      </div>
+
+      <div class="print-scroll">
+        <div
+          ref="printDocRef"
+          class="print-doc"
+          :class="printOrientation === 'portrait' ? 'is-portrait' : 'is-landscape'"
+        >
+          <div v-for="(page, pi) in printPages" :key="pi" class="doc-page">
+            <div class="doc-head">
+              <div class="doc-title">质控指标月度监汇表</div>
+              <div class="doc-sub">
+                {{ year }} 年度 · {{ departLabel }} · 生成时间 {{ generatedAt }}
+              </div>
+            </div>
+            <img
+              v-if="printChart && pi === 0 && chartImage"
+              class="doc-chart"
+              :src="chartImage"
+              alt="年度趋势"
+            />
+            <table class="doc-table">
+              <thead>
+                <tr>
+                  <th class="c-name">指标名称</th>
+                  <th class="c-type">类型</th>
+                  <th class="c-unit">单位</th>
+                  <th v-for="h in header" :key="h" class="c-num">{{ h }}</th>
+                  <th class="c-sum">全年合计</th>
+                  <template v-if="isLandscape">
+                    <th class="c-q">Q1</th>
+                    <th class="c-q">Q2</th>
+                    <th class="c-q">Q3</th>
+                    <th class="c-q">Q4</th>
+                    <th class="c-q">月均</th>
+                    <th class="c-q">最高月</th>
+                    <th class="c-q">最低月</th>
+                  </template>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in page" :key="row.docKey" :class="{ 'is-atom': row.isChild }">
+                  <td class="c-name">
+                    <span v-if="row.isChild" class="indent">└ </span>{{ row.name }}
+                  </td>
+                  <td class="c-type">{{ row.isChild ? row.roleLabel || '原子项' : '指标' }}</td>
+                  <td class="c-unit">{{ row.unit || '' }}</td>
+                  <td v-for="(h, i) in header" :key="h" class="c-num">
+                    {{ num(row.months ? row.months[i] : null, row.precision) }}
+                  </td>
+                  <td class="c-sum">{{ num(row.yearTotal, row.precision) }}</td>
+                  <template v-if="isLandscape">
+                    <td class="c-q">{{ num(row.q1, row.precision) }}</td>
+                    <td class="c-q">{{ num(row.q2, row.precision) }}</td>
+                    <td class="c-q">{{ num(row.q3, row.precision) }}</td>
+                    <td class="c-q">{{ num(row.q4, row.precision) }}</td>
+                    <td class="c-q">{{ num(row.yearAvg, row.precision) }}</td>
+                    <td class="c-q">{{ row.maxMonth ? row.maxMonth + '月' : '—' }}</td>
+                    <td class="c-q">{{ row.minMonth ? row.minMonth + '月' : '—' }}</td>
+                  </template>
+                </tr>
+              </tbody>
+            </table>
+            <div class="doc-foot">
+              <span>数据来源：质控指标中台（{{ departLabel }} · {{ year }}）</span>
+              <span>第 {{ pi + 1 }} / {{ printPages.length }} 页</span>
+            </div>
+          </div>
+
+          <el-empty v-if="!printPages.length" description="无可打印的指标数据" />
+        </div>
+      </div>
+
+      <template #footer>
+        <span class="pp-foot-hint">季度、月均与极值月的完整数值可在「导出 Excel」中查看</span>
+        <el-button @click="printVisible = false">关闭</el-button>
+        <el-button :loading="pdfExporting" :disabled="!printPages.length" @click="downloadPdf">
+          <el-icon><Download /></el-icon> 导出 PDF
+        </el-button>
+        <el-button
+          type="primary"
+          :disabled="!printPages.length"
+          @click="doPrint"
+        >
+          <el-icon><Printer /></el-icon> 打印
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, Cpu, Download, Grid, CircleCheck, Collection, View } from '@element-plus/icons-vue'
+import { Refresh, Cpu, Download, Printer, Grid, CircleCheck, Collection, View } from '@element-plus/icons-vue'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 import { externalParam } from '../utils/external'
 import { currentDepart } from '../utils/departContext'
 import '../styles/quality-theme.css'
@@ -507,6 +638,169 @@ onBeforeUnmount(() => {
     chart = null
   }
 })
+
+// ============================================================================
+// 打印 / PDF（清单：所见即所得打印 + 可调打印参数；导出 Excel、PDF）
+//
+// 为什么预览里自己排一份 DOM，而不是直接打印 el-table：
+//   1) 表格设了 max-height，屏上只渲染可见行，直接打印会丢掉后面几十条指标；
+//   2) 固定列（fixed="left"）打印时会与滚动区重叠，出现重影列。
+// 所以打印件由这里重新分页渲染：页眉（标题 + 年度科室 + 生成时间）、可选趋势图、
+// 每页重复表头、页脚带页码 —— 纸质报表本来也该是这个样子。
+// ============================================================================
+const printVisible = ref(false)
+const printOrientation = ref('landscape')
+const printRowsPerPage = ref(26)
+const printAtoms = ref(true)
+const printChart = ref(true)
+const pdfExporting = ref(false)
+const printDocRef = ref(null)
+const generatedAt = ref('')
+const chartImage = ref('')
+
+const isLandscape = computed(() => printOrientation.value === 'landscape')
+
+/**
+ * 打印件的数据行：指标行 +（可选）它的分子 / 分母子行。
+ *
+ * 与 Excel 导出「月度汇总」sheet 同一口径（子行用 └ 缩进），
+ * 否则会出现「纸上和导出文件对不上」这类要花半天核对的问题。
+ */
+const printRows = computed(() => {
+  const list = []
+  for (const r of displayRows.value) {
+    list.push({ ...r, docKey: String(r.rowKey || r.code), isChild: false })
+    if (!printAtoms.value) continue
+    for (const c of r.children || []) {
+      list.push({
+        ...c,
+        docKey: String(r.rowKey || r.code) + '::' + String(c.code || c.name),
+        isChild: true
+      })
+    }
+  }
+  return list
+})
+
+/** 按「每页行数」切页。分页必须落在行边界上，否则一行会被纸张裁成两半 */
+const printPages = computed(() => {
+  const size = Math.max(1, Number(printRowsPerPage.value) || 26)
+  const all = printRows.value
+  const pages = []
+  for (let i = 0; i < all.length; i += size) pages.push(all.slice(i, i + size))
+  return pages
+})
+
+function openPrintPreview() {
+  if (!rows.value.length) return
+  generatedAt.value = new Date().toLocaleString('zh-CN', { hour12: false })
+  chartImage.value = currentChartImage()
+  printVisible.value = true
+}
+
+/** 取屏幕上趋势图的位图：纸面带图，避免「图上有的、纸上没有」 */
+function currentChartImage() {
+  try {
+    if (!chart) return ''
+    return chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#ffffff' })
+  } catch (e) {
+    console.warn('趋势图导出失败:', e.message || e)
+    return ''
+  }
+}
+
+function docFileName(ext) {
+  return `质控指标月度监汇表_${year.value}_${departLabel.value}.${ext}`
+}
+
+/** 逐页截图 → 每页一张 A4（横向 297×210 / 纵向 210×297），行不跨页截断 */
+async function downloadPdf() {
+  const pages = printDocRef.value ? printDocRef.value.querySelectorAll('.doc-page') : []
+  if (!pages.length) return
+  pdfExporting.value = true
+  try {
+    const pdf = new jsPDF('l', 'mm', 'a4')
+    const landscape = isLandscape.value
+    const pageW = landscape ? 297 : 210
+    const pageH = landscape ? 210 : 297
+    const margin = 6
+    for (let i = 0; i < pages.length; i++) {
+      const canvas = await html2canvas(pages[i], {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      })
+      const maxW = pageW - margin * 2
+      const maxH = pageH - margin * 2
+      let imgW = maxW
+      let imgH = (canvas.height * imgW) / canvas.width
+      if (imgH > maxH) {
+        imgH = maxH
+        imgW = (canvas.width * imgH) / canvas.height
+      }
+      if (i > 0) pdf.addPage()
+      pdf.addImage(
+        canvas.toDataURL('image/jpeg', 0.9),
+        'JPEG',
+        (pageW - imgW) / 2,
+        margin,
+        imgW,
+        imgH
+      )
+    }
+    pdf.save(docFileName('pdf'))
+    ElMessage.success(`已导出 PDF（${pages.length} 页）`)
+  } catch (e) {
+    ElMessage.error('导出 PDF 失败：' + (e.message || e))
+  } finally {
+    pdfExporting.value = false
+  }
+}
+
+/**
+ * 浏览器打印：把预览件的 HTML 写进新窗口，并带上当前页面的样式表。
+ *
+ * 带样式表而不是另手写一份 CSS：手写的那份必然与屏幕样式漂移，
+ * 「所见即所得」就成了一句空话。scoped 样式的属性选择器在克隆节点上照样命中。
+ */
+function doPrint() {
+  const el = printDocRef.value
+  if (!el) return
+  const w = window.open('', '_blank')
+  if (!w) {
+    ElMessage.warning('浏览器拦截了打印窗口，请允许本站弹窗后重试')
+    return
+  }
+  const size = isLandscape.value ? 'A4 landscape' : 'A4 portrait'
+  const doc = w.document
+  doc.write(
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' +
+      docFileName('pdf') +
+      '</title></head><body></body></html>'
+  )
+  doc.close()
+  // 整份样式表克隆过去（含 scoped），保证纸面与屏幕一致
+  document.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => {
+    doc.head.appendChild(node.cloneNode(true))
+  })
+  const extra = doc.createElement('style')
+  extra.textContent = `
+    @page { size: ${size}; margin: 8mm; }
+    body { margin: 0; background: #fff; }
+    .print-scroll { max-height: none !important; overflow: visible !important; padding: 0 !important; background: #fff !important; }
+    .doc-page { border: none !important; margin: 0 !important; page-break-after: always; break-after: page; }
+    .doc-page:last-child { page-break-after: auto; break-after: auto; }
+    .doc-chart { max-height: 62mm; }
+  `
+  doc.head.appendChild(extra)
+  const host = doc.createElement('div')
+  host.className = 'print-doc ' + (isLandscape.value ? 'is-landscape' : 'is-portrait')
+  host.innerHTML = el.innerHTML
+  doc.body.appendChild(host)
+  w.focus()
+  setTimeout(() => w.print(), 400)
+}
 </script>
 
 <style scoped>
@@ -718,5 +1012,200 @@ onBeforeUnmount(() => {
   .metric-cards {
     grid-template-columns: 1fr;
   }
+}
+
+/* ===================================================================
+   打印预览 / PDF（一份 DOM 同时供给屏幕预览、jsPDF 截图与浏览器打印）
+   =================================================================== */
+.print-params {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.pp-label {
+  font-size: 13px;
+  color: #78716c;
+}
+
+.pp-hint {
+  font-size: 12px;
+  color: #a8a29e;
+  margin-left: auto;
+}
+
+.pp-foot-hint {
+  float: left;
+  font-size: 12px;
+  color: #a8a29e;
+  line-height: 32px;
+}
+
+.print-scroll {
+  max-height: 68vh;
+  overflow: auto;
+  background: #f5f5f4;
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.print-doc {
+  width: 1122px;
+  margin: 0 auto;
+}
+
+.print-doc.is-portrait {
+  width: 794px;
+}
+
+/* 一页 = 一张 A4（96dpi：横向 1122×793、纵向 794×1123）。
+   行高与「每页行数」匹配，行边界落在分页处，不会出现被裁成两半的行。 */
+.doc-page {
+  position: relative;
+  width: 1122px;
+  min-height: 793px;
+  padding: 20px 22px 34px;
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1px solid #e7e5e4;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  color: #1c1917;
+}
+
+.is-portrait .doc-page {
+  width: 794px;
+  min-height: 1123px;
+  padding: 24px 18px 34px;
+}
+
+.doc-head {
+  border-bottom: 2px solid #f97316;
+  padding-bottom: 7px;
+  margin-bottom: 10px;
+}
+
+.doc-title {
+  font-size: 19px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+.doc-sub {
+  font-size: 11px;
+  color: #78716c;
+  text-align: center;
+  margin-top: 4px;
+}
+
+.doc-chart {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  margin: 0 0 10px;
+}
+
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 11px;
+}
+
+.doc-table th,
+.doc-table td {
+  border: 1px solid #d6d3d1;
+  padding: 3px 4px;
+  line-height: 1.35;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.doc-table th {
+  background: #f5f5f4;
+  font-weight: 600;
+  text-align: center;
+}
+
+.doc-table tr.is-atom td {
+  background: #fafaf9;
+  color: #57534e;
+}
+
+.doc-table .indent {
+  color: #a8a29e;
+}
+
+/* 列宽写死而非自适应：24 列的表在 A4 上必须精确分配，否则数值列会被挤到换行 */
+.c-name {
+  width: 230px;
+  text-align: left;
+}
+
+.c-type {
+  width: 40px;
+  text-align: center;
+}
+
+.c-unit {
+  width: 32px;
+  text-align: center;
+}
+
+.c-num {
+  width: 36px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.c-sum {
+  width: 54px;
+  text-align: right;
+  font-weight: 700;
+}
+
+.c-q {
+  width: 36px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 纵向纸张放不下「类型 / 单位 / 季度」这些辅助列，只留指标名称 + 12 个月 + 全年合计 */
+.is-portrait .c-type,
+.is-portrait .c-unit {
+  display: none;
+}
+
+.is-portrait .c-name {
+  width: 240px;
+}
+
+.is-portrait .c-num {
+  width: 42px;
+}
+
+.is-portrait .c-sum {
+  width: 62px;
+}
+
+.doc-foot {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #a8a29e;
+}
+
+.is-portrait .doc-foot {
+  left: 18px;
+  right: 18px;
 }
 </style>

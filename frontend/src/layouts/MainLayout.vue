@@ -124,6 +124,10 @@
           <MedicalIcon name="calendar" />
           <span class="nav-label">质控月度汇总</span>
         </router-link>
+        <router-link to="/page/quality-patient-monthly" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="calendar" />
+          <span class="nav-label">患者月度质控</span>
+        </router-link>
         <router-link to="/page/quality-config" class="nav-item" active-class="nav-active">
           <MedicalIcon name="tools" />
           <span class="nav-label">质控指标配置</span>

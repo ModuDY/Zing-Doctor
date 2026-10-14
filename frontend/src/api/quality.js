@@ -110,6 +110,24 @@ export function exportQualityMetricPatients(code, params) {
   })
 }
 
+/**
+ * 患者月度质控指标：某位患者在某月触发 / 命中了哪些质控项。
+ *
+ * 与 fetchQualityMetricPatients 的方向相反 —— 那是「指标 → 患者」，
+ * 这里是「患者 → 指标」，用于患者质控档案与查房复核。
+ *
+ * 后端要逐条指标扫一遍事实层再筛出该患者，首次查询可能到分钟级
+ * （事实层尚未物化时要先建表），因此超时放宽到 5 分钟；
+ * silentError 交给页面给出带上下文的提示（「首次查询较慢」这类话只有页面说得清）。
+ */
+export function fetchQualityPatientMetrics(params) {
+  return request.get('/quality/patient/metrics', {
+    params,
+    silentError: true,
+    timeout: 300000
+  })
+}
+
 /** 覆盖率报告：可算 / 空壳 / 待接数据源的承诺清单 */
 export function fetchQualityCoverage() {
   return request.get('/quality/coverage')

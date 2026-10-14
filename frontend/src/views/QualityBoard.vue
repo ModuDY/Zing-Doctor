@@ -12,6 +12,8 @@
           <el-option label="按月" value="MONTH" />
           <el-option label="按季" value="QUARTER" />
           <el-option label="按年" value="YEAR" />
+          <!-- 自定义区间：清单要求「支持自定义时间范围的数据筛选和比较分析」 -->
+          <el-option label="自定义" value="CUSTOM" />
         </el-select>
 
         <el-date-picker
@@ -34,7 +36,7 @@
           popper-class="qb-popper"
           @change="loadOverview"
         />
-        <template v-else>
+        <template v-else-if="periodType === 'QUARTER'">
           <el-date-picker
             v-model="quarterYear"
             type="year"
@@ -53,6 +55,33 @@
           >
             <el-option v-for="q in 4" :key="q" :label="`Q${q}`" :value="q" />
           </el-select>
+        </template>
+        <!--
+          自定义区间：后端 PeriodRange 的 CUSTOM 分支接收 yyyy-MM-dd，
+          起止都传日期而非时间戳，避免「选到 15 号却漏掉当天数据」这类半年后才被发现的偏差。
+        -->
+        <template v-else>
+          <el-date-picker
+            v-model="customStart"
+            type="date"
+            placeholder="开始日期"
+            value-format="YYYY-MM-DD"
+            :clearable="false"
+            style="width: 150px"
+            popper-class="qb-popper"
+            @change="loadOverview"
+          />
+          <span class="range-sep">至</span>
+          <el-date-picker
+            v-model="customEnd"
+            type="date"
+            placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+            :clearable="false"
+            style="width: 150px"
+            popper-class="qb-popper"
+            @change="loadOverview"
+          />
         </template>
 
         <el-select
@@ -77,6 +106,14 @@
       </div>
 
       <div class="filter-right">
+        <!--
+          实时性：清单要求「数据始终保持最新」。后台按日重算之外，
+          这里给一个可关的自动刷新（默认开、5 分钟一次）——
+          质控科常把看板挂在墙上，手动刷新没人记得点。
+        -->
+        <el-tooltip placement="bottom" content="每 5 分钟自动刷新一次本页数据">
+          <el-checkbox v-model="autoRefresh" size="small" class="auto-refresh">自动刷新</el-checkbox>
+        </el-tooltip>
         <el-button :loading="rulesSyncing" @click="doSyncRules">
           <el-icon><Download /></el-icon> 同步指标规则
         </el-button>
@@ -85,6 +122,12 @@
         </el-button>
         <el-button :loading="syncing" @click="doSync">
           <el-icon><Download /></el-icon> 同步字典
+        </el-button>
+        <el-button :loading="exportingBoard" @click="doExportBoard">
+          <el-icon><Download /></el-icon> 导出 Excel
+        </el-button>
+        <el-button @click="openPrintPreview">
+          <el-icon><Printer /></el-icon> 打印预览
         </el-button>
       </div>
     </div>
@@ -130,6 +173,8 @@
             达标 {{ targetSummary.ok }}/{{ targetSummary.judged }} 条<template
               v-if="targetSummary.fail > 0"> · 未达标 {{ targetSummary.fail }}</template>
           </span>
+          <!-- 数据新鲜度：没有这一行，没人分得清「指标是 0」和「三天没算过」 -->
+          <span class="ov-tag">最后刷新 {{ lastRefreshed || '—' }}</span>
         </div>
       </div>
 
@@ -219,11 +264,22 @@
               </el-checkbox>
             </div>
 
-            <el-table :data="rules" stripe border size="small" max-height="620">
+            <el-table :data="sortedRules" stripe border size="small" max-height="620">
               <!-- 序号随当前列表顺序编号，对着清单核对条数时用 -->
               <el-table-column type="index" label="序号" width="62" align="center" />
               <el-table-column label="指标名称" min-width="300">
                 <template #default="{ row }">
+                  <!--
+                    关注（置顶）：清单要求「自定义布局、关键指标突出显示」。
+                    本页布局由域分组决定，可调整的空间在于「哪些指标排在最前」——
+                    用星标把科室最关心的几条钉在列表顶部，选择存在本机（不走后端，不干扰别人）。
+                  -->
+                  <span
+                    class="fav-star"
+                    :class="{ 'is-on': isFav(row) }"
+                    :title="isFav(row) ? '取消关注' : '关注并置顶该指标'"
+                    @click.stop="toggleFav(row)"
+                  >{{ isFav(row) ? '★' : '☆' }}</span>
                   <span>{{ row.countName }}</span>
                   <el-tooltip v-if="row.remark" placement="top" :content="row.remark">
                     <span class="remark-dot">?</span>
@@ -992,13 +1048,131 @@
         <el-button type="primary" :loading="targetSaving" @click="doSaveTarget">保存</el-button>
       </template>
     </el-dialog>
+    <!--
+      打印预览（首页统计结果）：预览件即打印件 —— 「导出 PDF」对它截图，
+      「打印」把它的 HTML 原样写进打印窗口，屏幕上什么样、纸上就什么样。
+    -->
+    <el-dialog
+      v-model="printVisible"
+      title="打印预览 · 质控指标看板"
+      width="96%"
+      top="3vh"
+      class="qb-overlay"
+      :close-on-click-modal="false"
+    >
+      <div class="print-params">
+        <span class="pp-label">纸张方向</span>
+        <el-radio-group v-model="printOrientation" size="small">
+          <el-radio-button label="landscape">A4 横向</el-radio-button>
+          <el-radio-button label="portrait">A4 纵向</el-radio-button>
+        </el-radio-group>
+        <span class="pp-label">每页行数</span>
+        <el-input-number
+          v-model="printRowsPerPage"
+          :min="10"
+          :max="60"
+          :step="2"
+          size="small"
+          controls-position="right"
+          style="width: 104px"
+        />
+        <el-checkbox v-model="printAtoms" size="small">含分子 / 分母</el-checkbox>
+        <span class="pp-hint">共 {{ printPages.length }} 页 · 周期 {{ periodRangeText }}</span>
+      </div>
+
+      <div class="print-scroll">
+        <div
+          ref="printDocRef"
+          class="print-doc"
+          :class="isLandscape ? 'is-landscape' : 'is-portrait'"
+        >
+          <div v-for="(page, pi) in printPages" :key="pi" class="doc-page board-page">
+            <div class="doc-head">
+              <div class="doc-title">质控指标看板</div>
+              <div class="doc-sub">
+                {{ periodRangeText }} · 科室 {{ deptName(departCode) }} · 生成时间 {{ generatedAt }}
+              </div>
+            </div>
+
+            <!-- 总览只在第一页出现：每页重复一遍，纸面上会像是被复制过的错误 -->
+            <table v-if="pi === 0" class="doc-summary">
+              <tbody>
+                <tr>
+                  <td class="ds-cell">
+                    <span class="ds-label">指标总数</span>
+                    <span class="ds-value">{{ ruleSummary.total }}</span>
+                  </td>
+                  <td class="ds-cell">
+                    <span class="ds-label">本期已出数</span>
+                    <span class="ds-value ok">{{ ruleSummary.ok }}（{{ ruleSummary.okRate }}%）</span>
+                  </td>
+                  <td class="ds-cell">
+                    <span class="ds-label">本期无数据</span>
+                    <span class="ds-value warn">{{ ruleSummary.noData }}</span>
+                  </td>
+                  <td class="ds-cell">
+                    <span class="ds-label">未出数（含空壳）</span>
+                    <span class="ds-value muted">{{ ruleSummary.pending }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <table class="doc-table">
+              <thead>
+                <tr>
+                  <th class="bc-name">指标名称</th>
+                  <th v-if="printAtoms" class="bc-atom">分子</th>
+                  <th v-if="printAtoms" class="bc-atom">分母</th>
+                  <th class="bc-num">本期值</th>
+                  <th class="bc-unit">单位</th>
+                  <th class="bc-tag">达标</th>
+                  <th class="bc-tag">状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in page" :key="row.ruleId || row.countName">
+                  <td class="bc-name">{{ row.countName }}</td>
+                  <td v-if="printAtoms" class="bc-atom">{{ cellText(row.numeratorValue) }}</td>
+                  <td v-if="printAtoms" class="bc-atom">{{ cellText(row.denominatorValue) }}</td>
+                  <td class="bc-num">{{ cellText(row.value) }}</td>
+                  <td class="bc-unit">{{ row.displayUnit || '' }}</td>
+                  <td class="bc-tag">{{ judgeText(row.judge) }}</td>
+                  <td class="bc-tag">{{ calcTag(row.calcStatus).label }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="doc-foot">
+              <span>数据来源：质控指标中台（quality_count_rule）</span>
+              <span>第 {{ pi + 1 }} / {{ printPages.length }} 页</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <span class="pp-foot-hint">
+          首页统计与指标明细一并输出；需要逐月数值请到「质控月度汇总」页导出
+        </span>
+        <el-button @click="printVisible = false">关闭</el-button>
+        <el-button :loading="pdfExporting" :disabled="!printPages.length" @click="downloadPdf">
+          <el-icon><Download /></el-icon> 导出 PDF
+        </el-button>
+        <el-button type="primary" :disabled="!printPages.length" @click="doPrint">
+          <el-icon><Printer /></el-icon> 打印
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, Cpu, Download, Grid, CircleCheck, WarningFilled, Hide } from '@element-plus/icons-vue'
+import { Refresh, Cpu, Download, Printer, Grid, CircleCheck, WarningFilled, Hide } from '@element-plus/icons-vue'
+import * as XLSX from 'xlsx'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 import { externalParam } from '../utils/external'
 import { currentDepart } from '../utils/departContext'
 import '../styles/quality-theme.css'
@@ -1131,16 +1305,22 @@ const extDepartCode = externalParam('departCode')
 const departCode = ref(extDepartCode || currentDepart.departCode)
 const departments = ref([])
 
-/** 周期起始（后端 PeriodRange.of 支持 yyyy-MM / yyyy） */
+/** 周期起始（后端 PeriodRange.of 支持 yyyy / yyyy-MM / yyyy-MM-dd） */
 const periodStart = computed(() => {
   if (periodType.value === 'MONTH') return monthValue.value
   if (periodType.value === 'YEAR') return yearValue.value
+  if (periodType.value === 'CUSTOM') return customStart.value
   const m = (Number(quarter.value) - 1) * 3 + 1
   return `${quarterYear.value}-${String(m).padStart(2, '0')}`
 })
 
 /** 根据当前所选周期，实时推算「起 ~ 止」显示文本（与后端 PeriodRange.of 口径一致，左闭右开显示时 end 回退 1 秒）。 */
 const periodRangeText = computed(() => {
+  // 自定义区间直接显示所选起止：使用者选的就是「业务上的那两天」，
+  // 再做一次左闭右开换算只会让页面上显示的日子和选的日子对不上
+  if (periodType.value === 'CUSTOM') {
+    return `${customStart.value || '—'} ~ ${customEnd.value || '—'}`
+  }
   const ps = periodStart.value
   let start, end
   if (periodType.value === 'YEAR') {
@@ -1161,6 +1341,10 @@ function onPeriodTypeChange() {
   if (periodType.value === 'MONTH' && !monthValue.value) monthValue.value = lastMonth()
   if (periodType.value === 'YEAR' && !yearValue.value) yearValue.value = thisYear()
   if (periodType.value === 'QUARTER' && !quarterYear.value) quarterYear.value = thisYear()
+  if (periodType.value === 'CUSTOM') {
+    if (!customStart.value) customStart.value = defaultCustomStart()
+    if (!customEnd.value) customEnd.value = isoDate(new Date())
+  }
   loadOverview()
 }
 
@@ -1250,6 +1434,9 @@ const ruleSummary = computed(() => {
  * 这样在「质控指标」Tab（不加载 overview）下总览也始终能说清是哪段时间、哪个科室。
  */
 const ovPeriod = computed(() => {
+  if (periodType.value === 'CUSTOM') {
+    return { start: customStart.value, end: customEnd.value, dept: deptName(departCode.value) }
+  }
   const now = new Date()
   let year = now.getFullYear()
   let startMonth
@@ -1294,6 +1481,7 @@ async function loadOverviewData() {
     })
     Object.assign(overview, res || {})
     activeDomains.value = (res && res.groups ? res.groups : []).map((g) => g.domain)
+    markRefreshed()
   } catch (e) {
     console.warn('质控看板加载失败:', e.message || e)
   } finally {
@@ -1386,6 +1574,7 @@ async function loadRules() {
       includeHidden: showHiddenRules.value
     })
     rules.value = Array.isArray(res) ? res : []
+    markRefreshed()
   } catch (e) {
     console.warn('指标规则加载失败:', e.message || e)
   } finally {
@@ -2011,10 +2200,297 @@ function stopCalc() {
   calcClock = null
 }
 
+// ============================================================================
+// 自定义时间区间 / 关注置顶 / 自动刷新 / 导出与打印
+//
+// 这一段是「质控首页」几项验收能力的落点：
+//   1) 自定义时间范围（清单：支持自定义时间范围的数据筛选和比较分析）
+//   2) 关键指标突出显示（清单：自定义布局与关键指标突出显示）
+//   3) 统计结果多格式导出、所见即所得打印、数据实时更新
+// ============================================================================
+
+function isoDate(d) {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+/** 自定义区间默认值取「上月 1 日 ~ 今天」：比留空更接近第一次打开时的预期 */
+function defaultCustomStart() {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() - 1)
+  return isoDate(d)
+}
+
+const customStart = ref(defaultCustomStart())
+const customEnd = ref(isoDate(new Date()))
+
+// ---------------- 数据新鲜度：最后刷新时间 + 自动刷新 ----------------
+const lastRefreshed = ref('')
+const autoRefresh = ref(true)
+let refreshTimer = null
+
+function markRefreshed() {
+  lastRefreshed.value = new Date().toLocaleString('zh-CN', { hour12: false })
+}
+
+/**
+ * 自动刷新：默认开、5 分钟一次。
+ *
+ * 质控科常把看板常挂在大屏上，靠人记得点「刷新」等于不刷新；
+ * 但要留开关 —— 计算批次正在跑时频繁拉取会与后台抢数据库连接。
+ */
+function refreshAll() {
+  loadRules()
+  if (activeTab.value !== 'rules') loadOverviewData()
+}
+
+function startAutoRefresh() {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+  if (!autoRefresh.value) return
+  refreshTimer = setInterval(refreshAll, 5 * 60 * 1000)
+}
+
+// ---------------- 关注置顶（自定义布局） ----------------
+const FAV_KEY = 'quality.favRules'
+const favRules = ref(loadFavs())
+
+function loadFavs() {
+  try {
+    const raw = localStorage.getItem(FAV_KEY)
+    const arr = raw ? JSON.parse(raw) : []
+    return Array.isArray(arr) ? arr.map(String) : []
+  } catch (e) {
+    return []
+  }
+}
+
+function favKey(row) {
+  return String(row.ruleId || row.countName || '')
+}
+
+function isFav(row) {
+  return favRules.value.includes(favKey(row))
+}
+
+function toggleFav(row) {
+  const key = favKey(row)
+  if (!key) return
+  favRules.value = isFav(row)
+    ? favRules.value.filter((k) => k !== key)
+    : [...favRules.value, key]
+  try {
+    localStorage.setItem(FAV_KEY, JSON.stringify(favRules.value))
+  } catch (e) {
+    console.warn('关注列表保存失败:', e.message || e)
+  }
+}
+
+/** 关注的排最前，其余保持后端顺序 —— 后端顺序本身是业务口径，不能打乱 */
+const sortedRules = computed(() => {
+  if (!favRules.value.length) return rules.value
+  const fav = []
+  const rest = []
+  for (const r of rules.value) (isFav(r) ? fav : rest).push(r)
+  return [...fav, ...rest]
+})
+
+// ---------------- 导出 Excel（首页统计结果） ----------------
+const exportingBoard = ref(false)
+
+function cellText(v) {
+  return isBlank(v) ? '—' : num(v)
+}
+
+function judgeText(judge) {
+  const t = judgeTag(judge)
+  return t ? t.label : '—'
+}
+
+/**
+ * 导出首页当前视角：总览统计 + 指标明细（分子 / 分母 / 本期值 / 达标 / 状态）。
+ *
+ * 用前端 xlsx 而不是后端流式导出：首页的值是「规则 + 本期结果」的组装视图，
+ * 后端已有一套按年导出的月度报表，为看板再单开一套导出 SQL
+ * 只会多一处口径漂移的来源（两处数字不一致时最难解释）。
+ */
+function doExportBoard() {
+  if (!rules.value.length) {
+    ElMessage.warning('当前没有可导出的指标')
+    return
+  }
+  exportingBoard.value = true
+  try {
+    const wb = XLSX.utils.book_new()
+    const summary = [
+      ['质控指标看板导出'],
+      ['统计周期', periodRangeText.value],
+      ['科室', deptName(departCode.value)],
+      ['导出时间', new Date().toLocaleString('zh-CN', { hour12: false })],
+      [],
+      ['指标总数', ruleSummary.value.total],
+      ['本期已出数', ruleSummary.value.ok],
+      ['本期无数据', ruleSummary.value.noData],
+      ['未出数（含空壳）', ruleSummary.value.pending],
+      ['计算异常', ruleSummary.value.error]
+    ]
+    const ws1 = XLSX.utils.aoa_to_sheet(summary)
+    ws1['!cols'] = [{ wch: 20 }, { wch: 32 }]
+    XLSX.utils.book_append_sheet(wb, ws1, '总览')
+
+    const head = ['序号', '指标名称', '分子', '分母', '本期值', '单位',
+      '目标值', '预警值', '达标', '计算状态', '口径待确认']
+    const rows = sortedRules.value.map((r, i) => [
+      i + 1,
+      r.countName,
+      isBlank(r.numeratorValue) ? '' : Number(r.numeratorValue),
+      isBlank(r.denominatorValue) ? '' : Number(r.denominatorValue),
+      isBlank(r.value) ? '' : Number(r.value),
+      r.displayUnit || '',
+      isBlank(r.targetValue) ? '' : Number(r.targetValue),
+      isBlank(r.warningValue) ? '' : Number(r.warningValue),
+      judgeText(r.judge),
+      calcTag(r.calcStatus).label,
+      r.pendingConfirm ? '是' : '否'
+    ])
+    const ws2 = XLSX.utils.aoa_to_sheet([head, ...rows])
+    ws2['!cols'] = [{ wch: 6 }, { wch: 46 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+      { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 12 }]
+    XLSX.utils.book_append_sheet(wb, ws2, '指标明细')
+
+    XLSX.writeFile(wb, docFileName('xlsx'))
+    ElMessage.success('导出成功')
+  } catch (e) {
+    ElMessage.error('导出失败：' + (e.message || e))
+  } finally {
+    exportingBoard.value = false
+  }
+}
+
+// ---------------- 打印预览 / PDF ----------------
+const printVisible = ref(false)
+const printOrientation = ref('landscape')
+const printRowsPerPage = ref(26)
+const printAtoms = ref(true)
+const pdfExporting = ref(false)
+const printDocRef = ref(null)
+const generatedAt = ref('')
+
+const isLandscape = computed(() => printOrientation.value === 'landscape')
+
+/** 按「每页行数」切页：分页必须落在行边界，否则一行会被纸张裁成两半 */
+const printPages = computed(() => {
+  const size = Math.max(1, Number(printRowsPerPage.value) || 26)
+  const all = sortedRules.value
+  const pages = []
+  for (let i = 0; i < all.length; i += size) pages.push(all.slice(i, i + size))
+  return pages
+})
+
+function openPrintPreview() {
+  if (!rules.value.length) {
+    ElMessage.warning('当前没有可打印的指标')
+    return
+  }
+  generatedAt.value = new Date().toLocaleString('zh-CN', { hour12: false })
+  printVisible.value = true
+}
+
+function docFileName(ext) {
+  return `质控指标看板_${periodStart.value}_${deptName(departCode.value)}.${ext}`
+}
+
+/** 逐页截图 → 每页一张 A4（横向 297×210 / 纵向 210×297），行不跨页截断 */
+async function downloadPdf() {
+  const pages = printDocRef.value ? printDocRef.value.querySelectorAll('.doc-page') : []
+  if (!pages.length) return
+  pdfExporting.value = true
+  try {
+    const pdf = new jsPDF('l', 'mm', 'a4')
+    const landscape = isLandscape.value
+    const pageW = landscape ? 297 : 210
+    const pageH = landscape ? 210 : 297
+    const margin = 6
+    for (let i = 0; i < pages.length; i++) {
+      const canvas = await html2canvas(pages[i], {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      })
+      const maxW = pageW - margin * 2
+      const maxH = pageH - margin * 2
+      let imgW = maxW
+      let imgH = (canvas.height * imgW) / canvas.width
+      if (imgH > maxH) {
+        imgH = maxH
+        imgW = (canvas.width * imgH) / canvas.height
+      }
+      if (i > 0) pdf.addPage()
+      pdf.addImage(
+        canvas.toDataURL('image/jpeg', 0.9),
+        'JPEG',
+        (pageW - imgW) / 2,
+        margin,
+        imgW,
+        imgH
+      )
+    }
+    pdf.save(docFileName('pdf'))
+    ElMessage.success(`已导出 PDF（${pages.length} 页）`)
+  } catch (e) {
+    ElMessage.error('导出 PDF 失败：' + (e.message || e))
+  } finally {
+    pdfExporting.value = false
+  }
+}
+
+/** 浏览器打印：把预览件 HTML 写进新窗口，并带上当前页面的样式表，保证纸面与屏幕一致 */
+function doPrint() {
+  const el = printDocRef.value
+  if (!el) return
+  const w = window.open('', '_blank')
+  if (!w) {
+    ElMessage.warning('浏览器拦截了打印窗口，请允许本站弹窗后重试')
+    return
+  }
+  const size = isLandscape.value ? 'A4 landscape' : 'A4 portrait'
+  const doc = w.document
+  doc.write(
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' +
+      docFileName('pdf') +
+      '</title></head><body></body></html>'
+  )
+  doc.close()
+  document.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => {
+    doc.head.appendChild(node.cloneNode(true))
+  })
+  const extra = doc.createElement('style')
+  extra.textContent = `
+    @page { size: ${size}; margin: 8mm; }
+    body { margin: 0; background: #fff; }
+    .print-scroll { max-height: none !important; overflow: visible !important; padding: 0 !important; background: #fff !important; }
+    .doc-page { border: none !important; margin: 0 !important; page-break-after: always; break-after: page; }
+    .doc-page:last-child { page-break-after: auto; break-after: auto; }
+  `
+  doc.head.appendChild(extra)
+  const host = doc.createElement('div')
+  host.className = 'print-doc ' + (isLandscape.value ? 'is-landscape' : 'is-portrait')
+  host.innerHTML = el.innerHTML
+  doc.body.appendChild(host)
+  w.focus()
+  setTimeout(() => w.print(), 400)
+}
+
 onUnmounted(() => {
   // 离开页面即停止轮询，避免在后台空转
   calcAbort = true
   clearInterval(calcClock)
+  clearInterval(refreshTimer)
+  refreshTimer = null
 })
 
 // ---------------- 单指标计算 ----------------
@@ -2133,11 +2609,15 @@ function factSql(sourceTables) {
   return Array.isArray(sourceTables) ? sourceTables.join('\n') : String(sourceTables)
 }
 
+// 开关一变就生效：关掉时立即清掉定时器，而不是等下一轮 5 分钟到了才发现还在刷
+watch(autoRefresh, startAutoRefresh)
+
 onMounted(async () => {
   // 先取科室字典并纠正外链科室参数，再发起查询 —— 保证首次请求用的就是有效编码
   await loadDepartments()
   loadOverview()
   loadRules()
+  startAutoRefresh()
 })
 </script>
 
@@ -2665,5 +3145,234 @@ onMounted(async () => {
   .result-cards {
     grid-template-columns: 1fr;
   }
+}
+
+/* ===================================================================
+   首页增强：自定义区间 / 关注置顶 / 自动刷新
+   =================================================================== */
+.range-sep {
+  font-size: 13px;
+  color: #a8a29e;
+}
+
+.auto-refresh {
+  margin-right: 4px;
+}
+
+/* 关注星标：默认灰、关注后暖橙，与整体主题一致 */
+.fav-star {
+  display: inline-block;
+  width: 16px;
+  margin-right: 4px;
+  font-size: 14px;
+  line-height: 1;
+  color: #d6d3d1;
+  cursor: pointer;
+  user-select: none;
+}
+
+.fav-star:hover,
+.fav-star.is-on {
+  color: #f59e0b;
+}
+
+/* ===================================================================
+   打印预览 / PDF（一份 DOM 同时供给屏幕预览、jsPDF 截图与浏览器打印）
+   =================================================================== */
+.print-params {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.pp-label {
+  font-size: 13px;
+  color: #78716c;
+}
+
+.pp-hint {
+  font-size: 12px;
+  color: #a8a29e;
+  margin-left: auto;
+}
+
+.pp-foot-hint {
+  float: left;
+  font-size: 12px;
+  color: #a8a29e;
+  line-height: 32px;
+}
+
+.print-scroll {
+  max-height: 68vh;
+  overflow: auto;
+  background: #f5f5f4;
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.print-doc {
+  width: 1122px;
+  margin: 0 auto;
+}
+
+.print-doc.is-portrait {
+  width: 794px;
+}
+
+/* 一页 = 一张 A4（96dpi：横向 1122×793、纵向 794×1123） */
+.doc-page {
+  position: relative;
+  width: 1122px;
+  min-height: 793px;
+  padding: 20px 22px 34px;
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1px solid #e7e5e4;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  color: #1c1917;
+}
+
+.is-portrait .doc-page {
+  width: 794px;
+  min-height: 1123px;
+  padding: 24px 18px 34px;
+}
+
+.doc-head {
+  border-bottom: 2px solid #f97316;
+  padding-bottom: 7px;
+  margin-bottom: 10px;
+}
+
+.doc-title {
+  font-size: 19px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+.doc-sub {
+  font-size: 11px;
+  color: #78716c;
+  text-align: center;
+  margin-top: 4px;
+}
+
+.doc-summary {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-bottom: 10px;
+}
+
+.doc-summary .ds-cell {
+  border: 1px solid #d6d3d1;
+  padding: 8px 10px;
+  text-align: center;
+  background: #fafaf9;
+}
+
+.ds-label {
+  display: block;
+  font-size: 11px;
+  color: #78716c;
+}
+
+.ds-value {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.ds-value.ok {
+  color: #16a34a;
+}
+
+.ds-value.warn {
+  color: #d97706;
+}
+
+.ds-value.muted {
+  color: #78716c;
+}
+
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 11px;
+}
+
+.doc-table th,
+.doc-table td {
+  border: 1px solid #d6d3d1;
+  padding: 3px 5px;
+  line-height: 1.4;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.doc-table th {
+  background: #f5f5f4;
+  font-weight: 600;
+  text-align: center;
+}
+
+.bc-name {
+  width: 330px;
+  text-align: left;
+}
+
+.bc-atom {
+  width: 90px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.bc-num {
+  width: 100px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.bc-unit {
+  width: 60px;
+  text-align: center;
+}
+
+.bc-tag {
+  width: 70px;
+  text-align: center;
+}
+
+/* 纵向纸张放不下分子/分母两列，隐去后仍保留指标名 + 本期值 + 达标与状态 */
+.is-portrait .bc-atom {
+  display: none;
+}
+
+.is-portrait .bc-name {
+  width: 240px;
+}
+
+.doc-foot {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #a8a29e;
+}
+
+.is-portrait .doc-foot {
+  left: 18px;
+  right: 18px;
 }
 </style>

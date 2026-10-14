@@ -37,6 +37,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 质控查询服务：看板、指标详情、血缘下钻、配置审阅。
@@ -569,6 +570,134 @@ public class QualityQueryService {
             // 未预落库时返回空
         }
         return list;
+    }
+
+    /** 患者月度指标查询缓存（同一患者同期来回查看时不必重跑几十次事实层查询） */
+    private final Map<String, Map<String, Object>> patientMetricsCache = new ConcurrentHashMap<>();
+    private final Map<String, Long> patientMetricsCacheAt = new ConcurrentHashMap<>();
+    private static final long PATIENT_METRICS_TTL_MS = 5 * 60 * 1000L;
+
+    /**
+     * 患者月度质控指标：某位患者在某月命中了哪些质控指标（清单「患者月度质控指标」）。
+     *
+     * <p>与 {@link #patients} 的方向正好相反：那是「指标 → 人」（点一个数字看是谁），
+     * 本方法是「人 → 指标」（打开一位患者的质控档案）。查房与病案复核要的正是后者 ——
+     * 「这个病人触发了哪些质控项、哪几项没达标」，而此前只能在指标页里逐条翻。
+     *
+     * <p>实现上逐条指标调用 {@link QualityEngine#loadPatients} 再筛出该患者：
+     * 事实层已物化并被多个指标共享，因此这是一串落在物化表上的小查询，
+     * 比「先把全院明细拉回来再匹配」快得多，也不必另维护一张患者维度宽表。
+     * 代价是指标多时要查几十次，因此结果按「患者 + 期间 + 科室」缓存 5 分钟。
+     *
+     * <p>不产生明细的指标（人工录入 / 待接数据源 / 空壳 / 引用型）不静默跳过，
+     * 而是收进 {@code skipped} 并在页面上说明原因 —— 否则使用者会以为漏算了指标。
+     *
+     * @param inHospitalNo 住院号（患者维度的稳定键：同一患者多次入科时 patientId 会变）
+     * @param patientId    患者 ID（住院号为空时用它匹配）
+     * @param periodStart  周期，yyyy / yyyy-MM（缺省为上个月）
+     * @param departCode   科室编码，空或 ALL 表示全院
+     */
+    public Map<String, Object> patientMetrics(String inHospitalNo, String patientId,
+                                              String periodStart, String departCode) {
+        String no = inHospitalNo == null ? "" : inHospitalNo.trim();
+        String pid = patientId == null ? "" : patientId.trim();
+        String dept = normalizeDepart(departCode);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("inHospitalNo", no);
+        out.put("patientId", pid);
+        List<Map<String, Object>> hitList = new ArrayList<>();
+        List<Map<String, Object>> skipped = new ArrayList<>();
+        out.put("metrics", hitList);
+        out.put("skipped", skipped);
+        if (no.isEmpty() && pid.isEmpty()) {
+            out.put("message", "缺少住院号或患者 ID，无法定位患者");
+            return out;
+        }
+
+        String cacheKey = no + '|' + pid + '|' + periodStart + '|' + dept;
+        Long at = patientMetricsCacheAt.get(cacheKey);
+        if (at != null && System.currentTimeMillis() - at < PATIENT_METRICS_TTL_MS) {
+            Map<String, Object> cached = patientMetricsCache.get(cacheKey);
+            if (cached != null) {
+                return cached;
+            }
+        }
+
+        PeriodRange range = PeriodRange.of("MONTH", periodStart);
+        String deptValue = "ALL".equals(dept) ? null : dept;
+        String patientName = null;
+        String patientDepart = null;
+
+        for (MetricDefinition m : dsl.getMetrics().values()) {
+            if (m == null || m.isDerived()) {
+                continue;
+            }
+            String status = m.getImplStatus() == null ? "IMPL" : m.getImplStatus().toUpperCase();
+            if (!"IMPL".equals(status)) {
+                Map<String, Object> s = new LinkedHashMap<>();
+                s.put("code", m.getCode());
+                s.put("name", m.getName());
+                s.put("domain", m.getDomain());
+                s.put("reason", "MANUAL".equals(status) ? "人工录入类，无患者级明细"
+                        : "PENDING_SOURCE".equals(status) ? "事实层尚未接入数据源"
+                        : "PLACEHOLDER".equals(status) ? "口径待确认（空壳占位）"
+                        : "该指标不产生患者明细");
+                skipped.add(s);
+                continue;
+            }
+            List<MetricOutcome.PatientHit> hits;
+            try {
+                hits = engine.loadPatients(m, range.getStart(), range.getEnd(), deptValue, true);
+            } catch (Exception e) {
+                // 单条指标算不出来不能让整页失败：把原因记进 skipped，
+                // 页面照常展示其余指标，使用者能看出是哪一条缺数、为什么
+                Map<String, Object> s = new LinkedHashMap<>();
+                s.put("code", m.getCode());
+                s.put("name", m.getName());
+                s.put("domain", m.getDomain());
+                s.put("reason", "计算失败：" + e.getMessage());
+                skipped.add(s);
+                continue;
+            }
+            for (MetricOutcome.PatientHit h : hits) {
+                String hitNo = h.getInHospitalNo() == null ? "" : h.getInHospitalNo().trim();
+                String hitId = h.getPatientId() == null ? "" : h.getPatientId().trim();
+                boolean match = !no.isEmpty() ? no.equals(hitNo) : pid.equals(hitId);
+                if (!match) {
+                    continue;
+                }
+                if (patientName == null) {
+                    patientName = h.getPatientName();
+                    patientDepart = h.getDepartCode();
+                }
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("code", m.getCode());
+                row.put("name", m.getName());
+                row.put("domain", m.getDomain());
+                row.put("unit", m.getUnit());
+                row.put("inNumerator", h.getInNumerator());
+                row.put("inDenominator", h.getInDenominator());
+                row.put("inclusionState", inclusionState(h.getInNumerator(), h.getInDenominator()));
+                if (h.getExtras() != null) {
+                    for (Map.Entry<String, Object> e : h.getExtras().entrySet()) {
+                        row.put(e.getKey(), formatCellValue(e.getValue()));
+                    }
+                }
+                hitList.add(row);
+                break;
+            }
+        }
+
+        out.put("patientName", patientName);
+        out.put("departCode", patientDepart);
+        out.put("periodStart", range.getStart() == null ? null : DATE_FMT.format(range.getStart()));
+        out.put("periodEnd", range.getEnd() == null ? null : DATE_FMT.format(range.getEnd().minusSeconds(1)));
+        out.put("hitCount", hitList.size());
+        out.put("skippedCount", skipped.size());
+
+        patientMetricsCache.put(cacheKey, out);
+        patientMetricsCacheAt.put(cacheKey, System.currentTimeMillis());
+        return out;
     }
 
     /**

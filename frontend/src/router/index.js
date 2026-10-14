@@ -238,6 +238,12 @@ const routes = [
     meta: { title: '质控月度汇总' }
   },
   {
+    path: '/page/quality-patient-monthly',
+    name: 'qualityPatientMonthly',
+    component: () => import('../views/QualityPatientMonthly.vue'),
+    meta: { title: '患者月度质控指标' }
+  },
+  {
     path: '/page/quality-config',
     name: 'qualityConfig',
     component: () => import('../views/QualityConfig.vue'),
@@ -288,6 +294,8 @@ const PATIENT_PAGES = new Set([
   '/page/sedation-monitor',
   '/page/neuro-monitor',
   '/page/nutrition-monitor',
+  // 患者月度质控指标：从工作台点某患者的「质控」过来时，直接把该患者带进来
+  '/page/quality-patient-monthly',
   // 方案25 阶段1 的四个患者级分析页（docs/25 §1/§2）：全部需要 patientId，
   // 注册进 PATIENT_PAGES 后，侧栏菜单点击会自动带上当前患者上下文
   '/page/vital-signs',

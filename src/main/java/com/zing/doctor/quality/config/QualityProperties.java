@@ -106,6 +106,32 @@ public class QualityProperties {
      */
     private String configDefaultOperator;
 
+    /**
+     * 质控数据（看板 + 患者明细 + 导出）访问控制开关，<b>默认 false</b>。
+     *
+     * <p>关闭时行为与改造前一致：通过外链或登录进入的用户均可查看并导出质控数据。
+     * 开启后只有命中 {@link #accessIpWhitelist} 的工作站能访问 {@code /api/quality/**}，
+     * 用于满足「只有经授权人员才能访问和导出敏感质控数据」的要求。
+     *
+     * <p>默认关闭是刻意的：升级即锁死会让现场在没人知道配置项存在的情况下失去质控功能，
+     * 而这类问题往往要等到上报日才发现。开启后启动日志会明确打出当前生效的授权范围。
+     *
+     * <p>例：{@code ${QUALITY_ACCESS_CONTROL_ENABLED:false}}
+     */
+    private boolean accessControlEnabled = false;
+
+    /**
+     * 质控数据访问 IP 白名单（启用 {@link #accessControlEnabled} 后必填）。
+     *
+     * <p>逗号分隔，元素支持<b>前缀匹配</b>，与配置写接口白名单同一写法：
+     * <pre>
+     *   100.120.1.104,10.0.0.        → 单机 + 10.0.0.* 整段
+     * </pre>
+     *
+     * <p>为空且开关为 true 时，{@code /api/quality/**} 一律返回 403（fail-closed）。
+     */
+    private String accessIpWhitelist;
+
     /** 数据源定义文件 */
     private String sourceLocation = "classpath*:quality/sources.yaml";
 
