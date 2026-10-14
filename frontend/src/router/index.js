@@ -238,6 +238,12 @@ const routes = [
     meta: { title: '质控月度汇总' }
   },
   {
+    path: '/page/tube-stats',
+    name: 'tubeStats',
+    component: () => import('../views/TubeStats.vue'),
+    meta: { title: '导管统计分析' }
+  },
+  {
     path: '/page/quality-patient-monthly',
     name: 'qualityPatientMonthly',
     component: () => import('../views/QualityPatientMonthly.vue'),

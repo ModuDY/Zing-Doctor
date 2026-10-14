@@ -124,6 +124,10 @@
           <MedicalIcon name="calendar" />
           <span class="nav-label">质控月度汇总</span>
         </router-link>
+        <router-link to="/page/tube-stats" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="board" />
+          <span class="nav-label">导管统计分析</span>
+        </router-link>
         <router-link to="/page/quality-patient-monthly" class="nav-item" active-class="nav-active">
           <MedicalIcon name="calendar" />
           <span class="nav-label">患者月度质控</span>
