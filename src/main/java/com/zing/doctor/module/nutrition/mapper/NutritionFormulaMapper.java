@@ -18,6 +18,9 @@ public interface NutritionFormulaMapper {
     @Select("SELECT formula_code AS formula_code, formula_name AS formula_name, "
             + "route_type AS route_type, energy_kcal_per_ml AS energy_kcal_per_ml, "
             + "protein_g_per_ml AS protein_g_per_ml, match_keywords AS match_keywords "
-            + "FROM config_nutrition_formula WHERE status = 1")
+            // 必须带 schema 前缀：表建在 zing_doctor_db_prod，而连接默认 schema 是 SYSDBA，
+            // 缺前缀会报「表或视图不存在」→ Service catch → 页面显示"数据暂不可用"（实测踩过）。
+            // 与其它应用库 mapper（SofaScoreRecordMapper 等）写法保持一致。
+            + "FROM \"zing_doctor_db_prod\".\"config_nutrition_formula\" WHERE status = 1")
     List<Map<String, Object>> selectActiveFormulas();
 }

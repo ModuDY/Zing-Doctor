@@ -140,7 +140,10 @@ export default {
     renderCharts() {
       this.sources.forEach((s) => {
         if (s.dataStatus !== 'AVAILABLE' || !s.buckets || !s.buckets.length) return
-        const el = this.$refs['chart-' + s.key]
+        // v-for 内的 ref 在 Vue 3 里会被收集成数组，直接塞给 echarts.init 会报
+        // 「this.dom.getContext is not a function」（卡片渲染了但图是空的）
+        const raw = this.$refs['chart-' + s.key]
+        const el = Array.isArray(raw) ? raw[0] : raw
         if (!el) return
         const chart = echarts.getInstanceByDom(el) || echarts.init(el)
         this.charts[s.key] = chart
