@@ -22,19 +22,20 @@
 
     <p class="hint">
       <el-icon><InfoFilled /></el-icon>
-      同一时间轴上下分面，鼠标指到任意时刻，所有指标同时显示数值。仅展示监测记录，不自动诊断。
+      同一时间轴叠加对比：左轴血压(mmHg)，右轴血氧(%)与呼吸(次/分)各自独立量纲，不同单位不强行共轴。仅展示，不自动诊断。
     </p>
 
-    <div v-loading="loading">
-      <MultiTrendChart v-if="hasAvail" :series="availSeries" />
+    <div v-loading="loading" class="panel">
+      <div v-if="chartError" class="state">{{ chartError }}</div>
+      <div v-else ref="chartEl" class="chart"></div>
+    </div>
 
-      <!-- 非 AVAILABLE 的指标单独列状态，不塞进图里 -->
-      <div v-if="nonAvail.length" class="status-strip">
-        <span v-for="s in nonAvail" :key="s.key" class="status-tag"
-              :class="s.dataStatus === 'UNKNOWN' ? 'bad' : 'muted'">
-          {{ s.name }}：{{ s.dataStatus === 'UNKNOWN' ? '查询失败' : '窗口内无记录' }}
-        </span>
-      </div>
+    <!-- 非 AVAILABLE 的指标单独列状态 -->
+    <div v-if="nonAvail.length" class="status-strip">
+      <span v-for="s in nonAvail" :key="s.key" class="status-tag"
+            :class="s.dataStatus === 'UNKNOWN' ? 'bad' : 'muted'">
+        {{ s.name }}：{{ s.dataStatus === 'UNKNOWN' ? '查询失败' : '窗口内无记录' }}
+      </span>
     </div>
 
     <section class="table-block">
@@ -55,12 +56,15 @@
 
 <script>
 import { Refresh, InfoFilled } from '@element-plus/icons-vue'
-import MultiTrendChart from '../components/MultiTrendChart.vue'
+import * as echarts from '../utils/echarts'
 import { fetchVitals } from '../api/workbench'
+
+// 颜色：按指标顺序
+const COLORS = ['#b45309', '#0e7490', '#b91c1c', '#7c3aed', '#2563eb', '#059669', '#c2410c', '#475569']
 
 export default {
   name: 'VitalSigns',
-  components: { Refresh, InfoFilled, MultiTrendChart },
+  components: { Refresh, InfoFilled },
   data() {
     return {
       hours: 24,
@@ -72,7 +76,9 @@ export default {
       rangeEnd: '',
       series: [],
       records: [],
-      recordCount: 0
+      recordCount: 0,
+      chart: null,
+      chartError: ''
     }
   },
   computed: {
@@ -80,7 +86,6 @@ export default {
     availSeries() {
       return this.series.filter((s) => s.dataStatus === 'AVAILABLE' && s.points && s.points.length)
     },
-    hasAvail() { return this.availSeries.length > 0 },
     nonAvail() {
       return this.series.filter((s) => s.dataStatus !== 'AVAILABLE')
     },
@@ -90,7 +95,16 @@ export default {
       return fmt(this.rangeStart) + ' ~ ' + fmt(this.rangeEnd)
     }
   },
+  watch: {
+    availSeries: {
+      deep: true,
+      handler() { this.$nextTick(this.renderChart) }
+    }
+  },
   created() { this.load() },
+  beforeUnmount() {
+    if (this.chart) { this.chart.dispose(); this.chart = null }
+  },
   methods: {
     async load() {
       if (!this.patientId) {
@@ -98,6 +112,7 @@ export default {
         return
       }
       this.loading = true
+      this.chartError = ''
       try {
         const d = await fetchVitals(this.patientId, this.hours)
         this.patientName = d.patientName || ''
@@ -108,11 +123,85 @@ export default {
         this.series = d.series || []
         this.records = d.records || []
         this.recordCount = d.recordCount || 0
+        if (!this.availSeries.length) this.chartError = '窗口内无可用趋势数据'
       } catch (e) {
         this.$message.error('生命体征加载失败：' + ((e && e.message) || '请稍后重试'))
       } finally {
         this.loading = false
       }
+    },
+    // 按 unit 分组分配 y 轴：mmHg 左轴；其余每个不同 unit 一个右轴（offset 错开）
+    buildAxes(list) {
+      const groups = [] // [{unit, axisIndex}]
+      list.forEach((s) => {
+        const u = (s.unit || '').trim()
+        let g = groups.find((x) => x.unit === u)
+        if (!g) { g = { unit: u, items: [] }; groups.push(g) }
+        g.items.push(s)
+      })
+      return groups
+    },
+    renderChart() {
+      const el = this.$refs.chartEl
+      if (!el || !this.availSeries.length) return
+      if (!this.chart) this.chart = echarts.init(el)
+
+      const groups = this.buildAxes(this.availSeries)
+      // 第一个组（通常 mmHg）放左轴；其余依次放右轴，offset 错开
+      const yAxes = []
+      const axisOfSeries = {}
+      groups.forEach((g, gi) => {
+        const isLeft = gi === 0
+        yAxes.push({
+          type: 'value',
+          scale: true,
+          position: isLeft ? 'left' : 'right',
+          offset: isLeft ? 0 : (gi - 1) * 46,
+          name: g.unit || '',
+          nameTextStyle: { color: '#78716c', fontSize: 10 },
+          axisLabel: { color: '#a8a29e', fontSize: 10 },
+          splitLine: { lineStyle: { color: '#f5f5f4' } }
+        })
+        g.items.forEach((s) => { axisOfSeries[s.key] = gi })
+      })
+
+      const eseries = this.availSeries.map((s, i) => ({
+        name: s.name,
+        type: 'line',
+        yAxisIndex: axisOfSeries[s.key],
+        showSymbol: true,
+        symbolSize: 5,
+        data: s.points.map((p) => [p.time, p.value]),
+        lineStyle: { width: 2, color: COLORS[i % COLORS.length] },
+        itemStyle: { color: COLORS[i % COLORS.length] }
+      }))
+
+      this.chart.setOption({
+        backgroundColor: 'transparent',
+        legend: { top: 0, textStyle: { fontSize: 11, color: '#57534e' } },
+        grid: { left: 50, right: 50 + (groups.length - 1) * 46, top: 30, bottom: 30 },
+        tooltip: {
+          trigger: 'axis',
+          confine: true,
+          formatter: (ps) => {
+            if (!ps || !ps.length) return ''
+            const t = String(ps[0].axisValue).slice(5, 16).replace('T', ' ')
+            const rows = ps.map((p) => {
+              const s = this.availSeries[p.seriesIndex]
+              return (p.marker || '') + ' ' + p.seriesName + '：<b>' + p.value[1] + '</b>' + (s && s.unit ? ' ' + s.unit : '')
+            }).join('<br/>')
+            return t + '<br/>' + rows
+          }
+        },
+        xAxis: {
+          type: 'time',
+          axisLabel: { color: '#a8a29e', fontSize: 10, hideOverlap: true },
+          axisLine: { lineStyle: { color: '#e7e5e4' } }
+        },
+        yAxis: yAxes,
+        series: eseries
+      }, true)
+      this.chart.resize()
     }
   }
 }
@@ -129,6 +218,9 @@ export default {
 .dot { margin: 0 4px; color: #d6d3d1; }
 .head-right { display: flex; align-items: center; gap: 8px; }
 .hint { display: flex; align-items: center; gap: 5px; margin: 0 0 12px; font-size: 11px; color: #a8a29e; }
+.panel { background: #fff; border: 1px solid #eeece8; border-radius: 10px; padding: 10px 12px; }
+.chart { width: 100%; height: 420px; }
+.state { height: 420px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #a8a29e; }
 .status-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .status-tag { font-size: 11px; padding: 3px 10px; border-radius: 999px; background: #f5f5f4; color: #78716c; }
 .status-tag.bad { background: #fef2f2; color: #b91c1c; }

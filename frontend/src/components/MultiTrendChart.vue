@@ -105,7 +105,6 @@ export default {
           data: s.points.map((p) => [p.time, p.value]),
           lineStyle: { width: 2, color },
           itemStyle: { color },
-          areaStyle: { color: color.replace(')', ',0.06)').replace('#', 'rgba(') },
           markLine: refLine(s, color)
         })
       })
