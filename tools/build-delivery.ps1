@@ -245,6 +245,11 @@ if (Test-Path $myDir) {
         '01_schema.sql', '02_seed.sql', '05_apache2_pdf.sql', '06_abx_drug_dict.sql',
         '07_sofa.sql', '08_sofa_p1.sql', '09_quality.sql', '10_quality_config.sql',
         '11_quality_count_rule.sql', '12_archive.sql', '13_auth.sql', '14_param_framework.sql',
+        # 23_external_link_params 外链参数（EXTERNAL_LINK_BASE_URL / EXTERNAL_LINK_ICU_TOKEN）。
+        # 达梦侧这两条写在 14_param_framework.sql 里，MySQL 版 14 只有 AUTO_REGISTER_*，
+        # 必须单独补进来 —— 此前它没进任何清单，install-all.sql 装出来的库缺这两个参数且不报错。
+        # 依赖 14 建的 sys_param / sys_param_group，故排其后；幂等（不存在才插）。
+        '23_external_link_params.sql',
         '15_quality_patient_fields.sql', '16_quality_fatality_ref.sql', '17_quality_rule_local.sql',
         '18_quality_manual_audit.sql', '19_quality_target_direction.sql',
         '20_quality_fact_patient_default_cols.sql', '21_ards_prone.sql',
@@ -275,7 +280,9 @@ if (Test-Path $myDir) {
         '43_workbench_score_display.sql',
         '44_patient_round_record.sql',
         '45_antibiotic_reassessment_window.sql',
-        '46_nutrition_formula.sql')
+        '46_nutrition_formula.sql',
+        '47_quality_patient_monthly_page.sql',
+        '48_external_link_pages.sql')
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine('-- ============================================================')
     [void]$sb.AppendLine('-- zing-doctor MySQL/MariaDB 一次性初始化脚本（打包时自动合成，勿手工编辑）')

@@ -32,24 +32,6 @@
           <span class="nav-label">患者出科统计</span>
         </router-link>
 
-        <div class="nav-divider">抗感染</div>
-        <router-link to="/page/abx-decision" class="nav-item" active-class="nav-active">
-          <MedicalIcon name="pill" />
-          <span class="nav-label">抗感染决策</span>
-        </router-link>
-        <router-link to="/page/abx-pkpd" class="nav-item" active-class="nav-active">
-          <MedicalIcon name="trend" />
-          <span class="nav-label">PK/PD 剂量优化</span>
-        </router-link>
-        <router-link to="/page/abx-mdro" class="nav-item" active-class="nav-active">
-          <MedicalIcon name="dish" />
-          <span class="nav-label">细菌培养监测</span>
-        </router-link>
-        <router-link to="/page/abx-ddd" class="nav-item" active-class="nav-active">
-          <MedicalIcon name="bottle" />
-          <span class="nav-label">使用强度分析</span>
-        </router-link>
-
         <div class="nav-divider">评分评估</div>
         <router-link to="/page/sofa-overview" class="nav-item" active-class="nav-active">
           <MedicalIcon name="trend" />
@@ -66,6 +48,24 @@
         <router-link to="/page/apache2-score" class="nav-item" active-class="nav-active">
           <MedicalIcon name="gauge" />
           <span class="nav-label">APACHE II 评分</span>
+        </router-link>
+
+        <div class="nav-divider">临床分析</div>
+        <router-link to="/page/vital-signs" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="trend" />
+          <span class="nav-label">生命体征趋势</span>
+        </router-link>
+        <router-link to="/page/fluid-balance" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="mapping" />
+          <span class="nav-label">体液平衡分析</span>
+        </router-link>
+        <router-link to="/page/lab-liver" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="taxonomy" />
+          <span class="nav-label">肝功能趋势</span>
+        </router-link>
+        <router-link to="/page/lab-coag" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="taxonomy" />
+          <span class="nav-label">凝血功能趋势</span>
         </router-link>
 
         <div class="nav-divider">脏器支持与监护</div>
@@ -90,32 +90,29 @@
           <span class="nav-label">神经功能监测</span>
         </router-link>
         <router-link to="/page/nutrition-monitor" class="nav-item" active-class="nav-active">
-          <MedicalIcon name="sedation" />
+          <MedicalIcon name="bottle" />
           <span class="nav-label">营养支持分析</span>
         </router-link>
 
-                <div class="nav-divider">临床分析</div>
-        <router-link to="/page/vital-signs" class="nav-item" active-class="nav-active">
+        <div class="nav-divider">抗感染</div>
+        <router-link to="/page/abx-decision" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="pill" />
+          <span class="nav-label">抗感染决策</span>
+        </router-link>
+        <router-link to="/page/abx-pkpd" class="nav-item" active-class="nav-active">
           <MedicalIcon name="trend" />
-          <span class="nav-label">生命体征趋势</span>
+          <span class="nav-label">PK/PD 剂量优化</span>
         </router-link>
-        <router-link to="/page/fluid-balance" class="nav-item" active-class="nav-active">
-          <MedicalIcon name="mapping" />
-          <span class="nav-label">体液平衡分析</span>
+        <router-link to="/page/abx-mdro" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="dish" />
+          <span class="nav-label">细菌培养监测</span>
         </router-link>
-        <router-link to="/page/lab-liver" class="nav-item" active-class="nav-active">
-          <MedicalIcon name="taxonomy" />
-          <span class="nav-label">肝功能趋势</span>
+        <router-link to="/page/abx-ddd" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="bottle" />
+          <span class="nav-label">使用强度分析</span>
         </router-link>
-        <router-link to="/page/lab-coag" class="nav-item" active-class="nav-active">
-          <MedicalIcon name="taxonomy" />
-          <span class="nav-label">凝血功能趋势</span>
-        </router-link><div class="nav-divider">科室管理</div>
-        <router-link to="/page/department-cockpit" class="nav-item" active-class="nav-active">
-          <MedicalIcon name="board" />
-          <span class="nav-label">科室驾驶舱</span>
-        </router-link>
-        <div class="nav-divider">质控中台</div>
+
+        <div class="nav-divider">质控与统计</div>
         <router-link to="/page/quality-board" class="nav-item" active-class="nav-active">
           <MedicalIcon name="board" />
           <span class="nav-label">质控指标看板</span>
@@ -124,17 +121,17 @@
           <MedicalIcon name="calendar" />
           <span class="nav-label">质控月度汇总</span>
         </router-link>
-        <router-link to="/page/tube-stats" class="nav-item" active-class="nav-active">
-          <MedicalIcon name="board" />
-          <span class="nav-label">导管统计分析</span>
-        </router-link>
         <router-link to="/page/quality-patient-monthly" class="nav-item" active-class="nav-active">
           <MedicalIcon name="calendar" />
           <span class="nav-label">患者月度质控</span>
         </router-link>
-        <router-link to="/page/quality-config" class="nav-item" active-class="nav-active">
-          <MedicalIcon name="tools" />
-          <span class="nav-label">质控指标配置</span>
+        <router-link to="/page/tube-stats" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="bed" />
+          <span class="nav-label">导管统计分析</span>
+        </router-link>
+        <router-link to="/page/department-cockpit" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="gauge" />
+          <span class="nav-label">科室驾驶舱</span>
         </router-link>
 
         <div class="nav-divider">配置管理</div>
@@ -157,6 +154,10 @@
         <router-link to="/page/ards-prone-config" class="nav-item" active-class="nav-active">
           <MedicalIcon name="mapping" />
           <span class="nav-label">俯卧位映射配置</span>
+        </router-link>
+        <router-link to="/page/quality-config" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="tools" />
+          <span class="nav-label">质控指标配置</span>
         </router-link>
 
         <div class="nav-divider">系统设置</div>

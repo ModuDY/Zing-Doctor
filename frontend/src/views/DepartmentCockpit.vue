@@ -29,6 +29,7 @@
         </el-radio-group>
         <el-button :icon="refreshIcon" :loading="loading" @click="load">刷新数据</el-button>
         <el-button :icon="infoIcon" text @click="notesVisible = true">口径说明</el-button>
+        <el-button :icon="fullscreenIcon" text @click="toggleFullscreen">{{ fullscreenText }}</el-button>
       </div>
     </header>
 
@@ -187,7 +188,8 @@
 </template>
 <script>
 import { ElMessage } from 'element-plus'
-import { Refresh, InfoFilled } from '@element-plus/icons-vue'
+import { markRaw } from 'vue'
+import { Refresh, InfoFilled, FullScreen } from '@element-plus/icons-vue'
 import * as echarts from '../utils/echarts'
 import { fetchCockpitSummary } from '../api/workbench'
 import { currentDepart } from '../utils/departContext'
@@ -204,6 +206,9 @@ export default {
       updatedAt: '',
       refreshIcon: Refresh,
       infoIcon: InfoFilled,
+      // 组件对象放进 data 会被 Vue 变成响应式并告警，包一层 markRaw
+      fullscreenIcon: markRaw(FullScreen),
+      fullscreenText: '全屏',
       summary: { date: '', departCode: '', departName: '', notes: [] },
       charts: {},
       sofaColors: ['#78a99b', '#5c9b8c', '#c3a35d', '#d18b4c', '#c96b52', '#a94442'],
@@ -334,13 +339,41 @@ export default {
       Object.values(this.charts).forEach((c) => { if (c) c.resize() })
     }
     window.addEventListener('resize', this.handleResize)
+    // 全屏状态可能被 F11 / Esc 从外部改变，按钮文案要跟着走
+    this.handleFullscreenChange = () => {
+      this.fullscreenText = document.fullscreenElement ? '退出全屏' : '全屏'
+    }
+    document.addEventListener('fullscreenchange', this.handleFullscreenChange)
   },
   beforeUnmount() {
     window.removeEventListener('resize', this.handleResize)
+    document.removeEventListener('fullscreenchange', this.handleFullscreenChange)
     Object.values(this.charts).forEach((c) => { if (c) c.dispose() })
     this.charts = {}
   },
   methods: {
+    /**
+     * 进入 / 退出浏览器全屏。
+     *
+     * 挂墙大屏平时交给 F11 也行，但值班同事未必知道，所以页面上给一个按钮；
+     * 全屏后视口高度即屏幕高度，锁高布局才能真正铺满整块屏。
+     */
+    async toggleFullscreen() {
+      const el = document.documentElement
+      const req = el.requestFullscreen || el.webkitRequestFullscreen
+      const exit = document.exitFullscreen || document.webkitExitFullscreen
+      try {
+        if (document.fullscreenElement) {
+          if (exit) await exit.call(document)
+        } else if (req) {
+          await req.call(el)
+        } else {
+          ElMessage.warning('当前浏览器不支持全屏 API，可按 F11 代替')
+        }
+      } catch (e) {
+        ElMessage.warning('进入全屏被浏览器拒绝，可按 F11 代替')
+      }
+    },
     async load() {
       this.loading = true
       try {
@@ -533,14 +566,14 @@ export default {
    也不会在高分屏上留大片空白。
    min-height 兜底：视口过矮时允许滚动，总比把内容压扁到不可读要好。
 
-   生效条件：宽 >1180px 且高 ≥1000px。实测 1920×1080 与 2560×1440 均一屏放下、
-   零裁切。加高度门槛是因为矮视口下纵向真的不够分：900px 时 APACHE 面板开始被
-   裁、768px 时五个面板被裁 —— 裁掉的是数字，比出滚动条更糟。所以宁可退回原来
-   的文档流：要滚，但一个数字都不丢。
+   生效条件：宽 >1180px（桌面宽度就锁定，不再加高度门槛）。
+   早先版本加了 min-height:1000px 门槛，结果是 1080p 屏在 Windows 125% 缩放下
+   视口只有约 864px，直接落回旧的滚动布局 —— 而挂墙大屏恰恰是这种环境，等于没
+   生效。现在改为「够宽就锁」，再用下面的高度分档逐级压缩，保证矮视口也一屏放下。
    （外链无身份时 App.vue 顶部那条警告条不在本模式内，它出现时会多占一行，
    属异常态告警，容忍轻微滚动。）
    ========================================================================== */
-@media (min-width: 1181px) and (min-height: 1000px) {
+@media (min-width: 1181px) {
   /* box-sizing 必须显式声明：该元素是 content-box，不写的话 height:100vh 只是
      内容盒高度，再加上下 padding 会溢出正好 22px —— 实测 docH 1102 / vh 1080。 */
   .cockpit-page { box-sizing: border-box; height: 100vh; display: flex; flex-direction: column; gap: 9px; padding: 10px 14px 12px; }
@@ -609,6 +642,84 @@ export default {
   /* 空态/异常态：锁高布局里不该再占 160px 的固定高度，改为吃满并居中 */
   .state-box { flex: 1 1 auto; min-height: 0; }
   .state-box.small { min-height: 0; }
+}
+
+/* 高度分档：矮视口逐级压缩，保证一屏放下且不裁掉数字。
+   1080p + Windows 125% 缩放 ≈ 864px、150% ≈ 720px —— 挂墙大屏常见就是这两种。 */
+@media (min-width: 1181px) and (max-height: 940px) {
+  .cockpit-page { gap: 7px; padding: 8px 12px 10px; }
+  .cockpit-hero { padding: 8px 14px; gap: 12px; }
+  .hero-eyebrow { font-size: 8px; }
+  .hero-copy h1 { margin: 3px 0 2px; font-size: 18px; }
+  .hero-copy p { font-size: 10px; }
+  .hero-meta { min-width: 130px; padding-left: 12px; }
+  .hero-actions :deep(.el-radio-button__inner) { padding: 4px 7px; }
+
+  .kpi-row { gap: 7px; }
+  .kpi-row :deep(.snapshot-card) { min-height: 62px; padding: 7px 11px 6px; border-radius: 10px; }
+  .kpi-row :deep(.snapshot-card)::before { top: 9px; bottom: 9px; }
+  .kpi-row :deep(.snapshot-card)::after { display: none; }
+  .kpi-row :deep(.card-label) { font-size: 9px; }
+  .kpi-row :deep(.num) { font-size: 20px; }
+  .kpi-row :deep(.card-sub) { font-size: 8px; }
+
+  .panel-head { min-height: 32px; padding: 5px 11px; }
+  .panel-kicker { font-size: 8px; }
+  .panel-title { font-size: 12px; }
+  .panel-body { padding: 6px 11px; }
+
+  .flow-summary { gap: 18px; padding: 5px 12px 0; }
+  .flow-summary b { font-size: 17px; }
+  .flow-chart { min-height: 96px; }
+
+  .q-list { gap: 4px; padding: 5px 10px 0; }
+  .q-card { min-height: 28px; padding: 3px 8px; }
+  .q-result b { font-size: 15px; }
+  .quality-foot { margin: 2px 11px 5px; padding-top: 4px; }
+
+  .bed-body { grid-template-columns: 96px 1fr; gap: 10px; padding: 6px 12px 3px; }
+  .bed-gauge { width: 84px; height: 84px; }
+  .device-list { gap: 4px; padding: 6px 12px 3px; }
+  .device-row { min-height: 22px; }
+  .score-content { grid-template-columns: 62px 1fr; gap: 8px; padding: 6px 11px; }
+  .score-total { height: 48px; }
+  .score-total b { font-size: 20px; }
+  .score-rows { gap: 4px; }
+  .score-row { grid-template-columns: 38px minmax(40px, 1fr) 22px 32px; gap: 5px; }
+  .resource-foot, .organ-foot { margin: 2px 11px 5px; padding-top: 4px; }
+}
+
+/* 更矮（约 720px 起，150% 缩放 / 1366×768 全屏）：再压一轮 */
+@media (min-width: 1181px) and (max-height: 780px) {
+  .cockpit-page { gap: 5px; padding: 6px 10px 8px; }
+  .cockpit-hero { padding: 6px 12px; }
+  .hero-eyebrow { display: none; }
+  .hero-copy h1 { margin: 0; font-size: 16px; }
+  .hero-copy p { display: none; }
+  .period-strip { font-size: 9px; }
+
+  .kpi-row { gap: 6px; }
+  .kpi-row :deep(.snapshot-card) { min-height: 54px; padding: 5px 10px; }
+  .kpi-row :deep(.num) { font-size: 18px; }
+
+  .panel-head { min-height: 26px; padding: 3px 9px; }
+  .panel-kicker { display: none; }
+  .panel-body { padding: 4px 9px; }
+  .flow-chart { min-height: 78px; }
+  .q-list { gap: 3px; padding: 3px 8px 0; }
+  .q-card { min-height: 22px; padding: 2px 7px; }
+  .q-result b { font-size: 14px; }
+  .quality-foot { margin: 1px 9px 4px; padding-top: 3px; }
+  .bed-body { grid-template-columns: 84px 1fr; gap: 8px; padding: 4px 10px 2px; }
+  .bed-gauge { width: 70px; height: 70px; }
+  .device-list { gap: 3px; padding: 4px 10px 2px; }
+  .device-row { min-height: 18px; }
+  .score-content { grid-template-columns: 56px 1fr; gap: 6px; padding: 4px 9px; }
+  .score-total { height: 36px; }
+  .score-total b { font-size: 16px; }
+  .score-rows { gap: 2px; }
+  .score-row { grid-template-columns: 34px minmax(36px, 1fr) 20px 30px; gap: 4px; }
+  .resource-foot, .organ-foot { margin: 1px 9px 4px; padding-top: 3px; }
 }
 
 @media (max-width: 1180px) { .cockpit-hero { grid-template-columns: 1fr auto; }.hero-actions { grid-column: 1 / -1; justify-content: flex-end; }.kpi-row { grid-template-columns: repeat(3, 1fr); }.secondary-grid { grid-template-columns: 1fr 1fr; }.organ-panel { grid-column: 1 / -1; }.device-row { grid-template-columns: 96px minmax(70px, .8fr) minmax(250px, 1.2fr); gap: 10px; } }

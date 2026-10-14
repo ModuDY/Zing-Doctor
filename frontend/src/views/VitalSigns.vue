@@ -114,16 +114,7 @@ export default {
     }
   },
   created() { this.load() },
-  mounted() {
-    // 只有视口尺寸变了才 resize。不能像原来那样把它挂在每次数据重绘的后面 ——
-    // resize() 内部会 resetOption('media') 重建序列模型再跑一次更新，紧跟在 setOption
-    // 之后同一 tick 执行时，新模型尚未回填 coordinateSystem，LineView.render 读
-    // coordSys.type 就会抛 TypeError（现象：每次切时间窗一条未捕获异常）。
-    this.handleResize = () => { if (this.chart) this.chart.resize() }
-    window.addEventListener('resize', this.handleResize)
-  },
   beforeUnmount() {
-    window.removeEventListener('resize', this.handleResize)
     if (this.chart) { this.chart.dispose(); this.chart = null }
   },
   methods: {
@@ -226,10 +217,10 @@ export default {
         yAxis: yAxes,
         series: eseries
       }, true)
-      // 刻意不在这里调 resize()：数据窗口变了不等于容器尺寸变了。这里调会与上面的
-      // setOption 在同一 tick 内连跑两次更新，触发 coordinateSystem 未回填的问题
-      // （ECharts 会先 resetOption('media') 重建序列模型，新模型还没回填坐标系就被渲染）。
-      // 容器尺寸变化由 mounted 里的 window resize 监听负责。
+      // 不要在这里补 resize()：数据窗口变了不等于容器尺寸变了，而 resize() 与上面的
+      // setOption 在同一 tick 内连跑两次更新时，ECharts 会先 resetOption('media') 重建
+      // 序列模型，新模型尚未回填坐标系就被渲染 → LineView.render 读 coordSys.type 抛
+      // TypeError（每次切时间窗一条未捕获异常，线上实测）。
     }
   }
 }

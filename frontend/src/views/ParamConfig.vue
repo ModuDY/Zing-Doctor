@@ -362,6 +362,7 @@ const LINK_PAGES = [
     { k: 'departCode', req: false, sample: 'ICU01' },
     { k: 'patientName', req: false, sample: '陈丽珍' },
     { k: 'realname', req: false, sample: '张医生' } ] },
+  { code: 'history-patients', name: '历史患者', desc: '历史在科 / 已出科患者检索', params: [] },
   { code: 'abx-patient-list', name: '疑似感染患者列表（已并入工作台）', desc: '⚠️ 该入口已重定向到患者工作台的「感染风险」视图，建议容器改用 patient-workbench', params: [
     { k: 'departCode', req: false, sample: 'ICU01' },
     { k: 'departName', req: false, sample: '综合ICU' } ] },
@@ -373,9 +374,13 @@ const LINK_PAGES = [
     { k: 'inHospitalNo', req: true, sample: '201152869' } ] },
   { code: 'abx-ddd', name: '抗菌药物使用强度分析', desc: '全院/科室抗菌药物使用率、DDDs、药品排名、趋势', params: [
     { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'abx-ddd-patients', name: '抗菌药物使用患者明细', desc: '使用强度分析的患者明细清单', params: [
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
   { code: 'abx-ddd-config', name: 'DDD 值配置管理', desc: '抗菌药物 DDD 值知识库后台配置', params: [] },
   { code: 'abx-pkpd-config', name: 'PK/PD 药物知识库配置', desc: '抗菌药物 PK/PD 参数界面化配置，优先于内置枚举', params: [] },
   { code: 'abx-mdro', name: '细菌培养检出监测', desc: '菌株排名、标本分布、趋势、高风险菌预警', params: [] },
+  { code: 'abx-mdro-patients', name: '细菌培养患者明细', desc: '细菌培养检出监测的患者明细清单', params: [
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
   { code: 'abx-mdro-config', name: '细菌分类配置管理', desc: '革兰阳性/阴性/真菌、高风险菌列表后台配置', params: [] },
   { code: 'sepsis-bundle', name: '脓毒症休克集束化治疗', desc: '1H/3H/6H 集束化治疗完成情况自动判断与记录', params: [
     { k: 'inHospitalNo', req: true, sample: '201152869' } ] },
@@ -408,9 +413,52 @@ const LINK_PAGES = [
     { k: 'id', req: true, sample: '1024' },
     { k: 'scr', req: false, sample: 'print' } ] },
   { code: 'ards-prone-config', name: 'ARDS 俯卧位数据映射配置', desc: '采集项 → 监护/LIS 项目映射、候选值、试采核对', params: [] },
+  { code: 'sedation-monitor', name: '镇痛镇静监测', desc: '单患者镇痛镇静监测：RASS / CPOT 趋势与用药', params: [
+    { k: 'patientId', req: true, sample: '10001' },
+    { k: 'inHospitalNo', req: true, sample: '201152869' },
+    { k: 'inDepartTime', req: false, sample: '2026-09-04T08:00:00' },
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'neuro-monitor', name: '神经功能监测', desc: '单患者神经功能监测趋势', params: [
+    { k: 'patientId', req: true, sample: '10001' },
+    { k: 'inHospitalNo', req: true, sample: '201152869' },
+    { k: 'inDepartTime', req: false, sample: '2026-09-04T08:00:00' },
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'nutrition-monitor', name: '营养支持分析', desc: '单患者营养支持：热量 / 蛋白目标达成与营养制剂', params: [
+    { k: 'patientId', req: true, sample: '10001' },
+    { k: 'inHospitalNo', req: true, sample: '201152869' },
+    { k: 'inDepartTime', req: false, sample: '2026-09-04T08:00:00' },
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'vital-signs', name: '生命体征趋势', desc: '单患者生命体征多指标同时间轴叠加（多 Y 轴），时间窗切换', params: [
+    { k: 'patientId', req: true, sample: '10001' },
+    { k: 'inHospitalNo', req: true, sample: '201152869' },
+    { k: 'inDepartTime', req: false, sample: '2026-09-04T08:00:00' },
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'fluid-balance', name: '体液平衡分析', desc: '单患者体液平衡：入量 / 出量 / 净平衡按时间窗汇总与明细', params: [
+    { k: 'patientId', req: true, sample: '10001' },
+    { k: 'inHospitalNo', req: true, sample: '201152869' },
+    { k: 'inDepartTime', req: false, sample: '2026-09-04T08:00:00' },
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'lab-liver', name: '肝功能趋势', desc: '单患者肝功能检验趋势：ALT / AST / 胆红素 / 白蛋白等按参考范围展示', params: [
+    { k: 'patientId', req: true, sample: '10001' },
+    { k: 'inHospitalNo', req: true, sample: '201152869' },
+    { k: 'inDepartTime', req: false, sample: '2026-09-04T08:00:00' },
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'lab-coag', name: '凝血功能趋势', desc: '单患者凝血检验趋势：PLT / PT / INR / APTT / Fib / D-二聚体', params: [
+    { k: 'patientId', req: true, sample: '10001' },
+    { k: 'inHospitalNo', req: true, sample: '201152869' },
+    { k: 'inDepartTime', req: false, sample: '2026-09-04T08:00:00' },
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'department-cockpit', name: '科室驾驶舱', desc: '科室运行总览：患者负荷、器官支持、床位与设备、评分分布、本月质控', params: [
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
   { code: 'quality-board', name: '质控指标看板', desc: '127 条指标按域分组、周期切换、点数字下钻', params: [
     { k: 'departCode', req: false, sample: 'ICU01' } ] },
   { code: 'quality-monthly', name: '质控月度汇总', desc: '1-12 月横排对比，同比/环比，支持 xlsx 导出', params: [
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'tube-stats', name: '导管统计分析', desc: '三管（CVC / 导尿 / 气道）置管、拔管、非计划拔管与留置日统计', params: [] },
+  { code: 'quality-patient-monthly', name: '患者月度质控指标', desc: '单患者月度质控档案：命中指标与纳入情况、导出 Excel 与打印', params: [
+    { k: 'inHospitalNo', req: true, sample: '201152869' },
+    { k: 'patientId', req: true, sample: '10001' },
+    { k: 'periodStart', req: false, sample: '2026-09' },
     { k: 'departCode', req: false, sample: 'ICU01' } ] },
   { code: 'quality-config', name: '质控指标配置', desc: '指标口径编辑、事实层配置、变更历史与回滚', params: [] },
   { code: 'param-config', name: '参数设置', desc: '系统参数、ARDS 采集映射、外链页面一览', params: [] },

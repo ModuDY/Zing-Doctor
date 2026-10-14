@@ -57,11 +57,34 @@
 # =====================================================================
 set -euo pipefail
 
-# ---------------- 输出辅助 ----------------
-GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
-info(){ echo -e "${GREEN}[INFO]${NC} $*"; }
-warn(){ echo -e "${YELLOW}[WARN]${NC} $*"; }
-err(){ echo -e "${RED}[ERROR]${NC} $*" >&2; }
+# ---------------- 控制台输出 ----------------
+# 排版分三层，现场一眼就能分层：
+#   步骤标题   [n/m] 当前步骤 / 总步骤，下面跟一条分隔线
+#   细节行     两空格缩进
+#   结果标记   [完成] / [注意] / [失败]，同样缩进
+# 结尾汇总用「标签 + 值」两列：标签统一写成 4 个汉字，显示宽度一致，无需计算，
+# 逐个手写空格对齐即可（汉字在等宽字体下占 2 列，用 printf 的 %-Ns 按字符数补
+# 空格反而会对不齐）。
+# 刻意不使用任何图标或符号字符：换终端字体、重定向进日志文件、被 CI 或聊天工具
+# 抓取时都不会变形。
+C_RED='\033[31m'; C_GREEN='\033[32m'; C_YELLOW='\033[33m'; C_CYAN='\033[36m'
+C_BOLD='\033[1m'; C_DIM='\033[2m'; C_RESET='\033[0m'
+STEP_N=0; STEP_TOTAL=8
+
+# 分隔线用 %s 承载：不能把横线直接写进格式串 —— 颜色变量一旦为空（日志重定向、
+# NO_COLOR、CI 抓取时会被清空），格式串就以 "--" 开头，printf 会当选项报 invalid option
+rule(){ printf '%s%s%s\n' "$C_DIM" "--------------------------------------------------------------------" "$C_RESET"; }
+step(){
+  STEP_N=$((STEP_N + 1))
+  printf "\n${C_CYAN}${C_BOLD}[%d/%d]${C_RESET} ${C_BOLD}%s${C_RESET}\n" "$STEP_N" "$STEP_TOTAL" "$*"
+  rule
+}
+info(){ printf '  %s\n' "$*"; }
+ok(){   printf "  ${C_GREEN}[完成]${C_RESET} %s\n" "$*"; }
+warn(){ printf "  ${C_YELLOW}[注意]${C_RESET} %s\n" "$*"; }
+err(){  printf "  ${C_RED}[失败]${C_RESET} %s\n" "$*" >&2; }
+# 汇总行：标签固定 4 个汉字，对齐由标签宽度保证
+kv(){ printf '  %s  %s\n' "$1" "$2"; }
 trap 'err "脚本在第 $LINENO 行失败，已中止（已完成的步骤是幂等的，修正后可重跑）"' ERR
 [ "$(id -u)" -eq 0 ] || { err "请用 root 运行：sudo $0"; exit 1; }
 
@@ -100,6 +123,20 @@ load_conf() {
     val="$(printf '%s' "${line#*=}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
            -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/")"
     [ -n "$key" ] || continue
+    # 只接受脚本支持的键。printf -v 能设置任意变量名（PATH / IFS / LD_PRELOAD…），
+    # 而本脚本以 root 运行 —— 不加限制等于「能写 conf 文件的人 = root」。
+    # 下列都是本脚本自己会读的变量，不含 shell 特殊变量，放开是安全的。
+    # 副作用：拼错的键不再被静默忽略成默认值，而是当场提示，省掉一次排查。
+    case "$key" in
+      DB_HOST|DB_PORT|DB_TYPE|DOCTOR_DB|ICU_DB|ICU_DB_HOST|ICU_DB_PORT) ;;
+      DB_ADMIN_USER|DB_ADMIN_PASSWORD|APP_DB_USER|APP_DB_PASSWORD) ;;
+      ICU_DB_USER|ICU_DB_PASSWORD|DB_CLI|INSTALL_SERVER) ;;
+      APP_HOME|WEB_PORT|BACKEND_PORT|WEB_MODE|NGINX_IMAGE|NGINX_CONTAINER) ;;
+      SKIP_APT|APT_PKGS|JAVA_BIN|NGINX_BIN|SPRING_PROFILES_ACTIVE) ;;
+      ICU_DATA_PROVIDER|SETUP_ICU_INDEX|ICU_LINK_TOKEN|EXTERNAL_LINK_SECRET) ;;
+      EXTERNAL_LINK_BASE_URL|QUALITY_CONFIG_WRITE_IP_WHITELIST) ;;
+      *) warn "conf 里忽略不支持的配置项：$key（检查是否拼错）"; continue ;;
+    esac
     # 环境变量/命令行已显式提供时不覆盖
     if declare -p "$key" >/dev/null 2>&1; then continue; fi
     printf -v "$key" '%s' "$val"
@@ -233,13 +270,29 @@ suggest_db_cli() {
 # 管理员访问是否走「本机直接执行客户端」语义（本机自建，或连接信息已写进 DB_CLI）
 admin_is_local(){ [ "$INSTALL_SERVER" = "yes" ] || cli_is_compound; }
 
+# 管理员连接的附加参数，写入数组 ADMIN_CONN。分两种情况，区别只在「谁负责认证」：
+#   1) 本机自建 / DB_CLI 是复合命令 → 认证已由 unix_socket 或 DB_CLI 自身完成，
+#      一个参数都不能追加。⚠️ 此前 admin_query 在这里固定追加 -uroot：DB_CLI 写成
+#      'docker run ... mysql -uadmin -pxxx'（文档推荐形态）时，追加的 -uroot 会把
+#      命令里给的账号顶掉，静默用错账号。
+#   2) 远程库 → 用 DB_ADMIN_USER 显式指定账号（此前本机分支完全不认这个变量，
+#      改了 DB_ADMIN_USER 也不生效，与文档描述不符）。
+admin_conn_args() {
+  ADMIN_CONN=()
+  if admin_is_local; then return 0; fi
+  ADMIN_CONN=(-h"$DB_HOST" -P"$DB_PORT" -u"$DB_ADMIN_USER" -p"$DB_ADMIN_PASSWORD")
+}
+
 # 管理员连接：mariadb_admin [库名]  （stdin 喂 SQL，或 < 文件）
+# 空数组单独走一个分支：bash 4.4 以前 `"${arr[@]}"` 在 set -u 下会报 unbound variable，
+# 而这里绝大多数场景（本机自建 / 复合 DB_CLI）ADMIN_CONN 恰好是空的。
 mariadb_admin() {
   local db="${1:-}"
-  if admin_is_local; then
-    $DB_CLI ${db:+"$db"}
+  admin_conn_args
+  if [ "${#ADMIN_CONN[@]}" -gt 0 ]; then
+    $DB_CLI "${ADMIN_CONN[@]}" ${db:+"$db"}
   else
-    $DB_CLI -h"$DB_HOST" -P"$DB_PORT" -u"$DB_ADMIN_USER" -p"$DB_ADMIN_PASSWORD" ${db:+"$db"}
+    $DB_CLI ${db:+"$db"}
   fi
 }
 # ICU 库管理员连接（可能与主库不同机）
@@ -260,28 +313,28 @@ mariadb_icu_admin() {
 # 执行单条查询并输出结果：admin_query "SQL" [库名]（用于 VERSION()/COUNT 等 -e 场景）
 admin_query() {
   local sql="$1"; local db="${2:-}"
-  if admin_is_local; then
-    $DB_CLI -N -uroot ${db:+"$db"} -e "$sql"
+  admin_conn_args
+  if [ "${#ADMIN_CONN[@]}" -gt 0 ]; then
+    $DB_CLI "${ADMIN_CONN[@]}" -N ${db:+"$db"} -e "$sql"
   else
-    $DB_CLI -h"$DB_HOST" -P"$DB_PORT" -u"$DB_ADMIN_USER" -p"$DB_ADMIN_PASSWORD" -N ${db:+"$db"} -e "$sql"
+    $DB_CLI -N ${db:+"$db"} -e "$sql"
   fi
 }
 
-echo ""
-echo "=================================================="
-echo "  zing-doctor  Debian 一键安装"
+printf "\n${C_BOLD}医生决策系统  Debian 一键安装${C_RESET}\n"
+rule
 if [ "$INSTALL_SERVER" = "yes" ]; then
-  echo "  数据库来源: 本机自建（apt 安装 MariaDB 10.5）"
+  kv "数据来源" "本机自建（apt 安装 MariaDB 10.5）"
 else
-  echo "  数据库来源: 外部库（容器/远程）$DB_HOST:$DB_PORT，账号 $DB_ADMIN_USER"
+  kv "数据来源" "外部库（容器 / 远程）$DB_HOST:$DB_PORT，账号 $DB_ADMIN_USER"
 fi
-echo "  应用目录  : $APP_HOME"
-echo "  前端端口  : $WEB_PORT    后端端口: $BACKEND_PORT"
-echo "  ICU 索引  : $SETUP_ICU_INDEX    ICU 数据: $ICU_DATA_PROVIDER"
-echo "=================================================="
-echo ""
+kv "应用目录" "$APP_HOME"
+kv "服务端口" "前端 $WEB_PORT，后端 $BACKEND_PORT"
+kv "ICU 索引" "$SETUP_ICU_INDEX（数据源 $ICU_DATA_PROVIDER）"
+printf "\n"
 
 # ---------------- 1. 安装系统依赖 ----------------
+step "安装系统依赖（已存在则跳过，不依赖 apt）"
 # 医院内网服务器多为离线：无 DNS、apt 源不可达（现象：Could not resolve 'security.debian.org'，
 # 随后 E: Unable to locate package ...）。因此这里的策略是：
 #   1) 先检查命令是否已存在，存在就直接用，不依赖 apt；
@@ -379,6 +432,7 @@ if [ "$ICU_DB_HOST" != "$DB_HOST" ] || [ "$ICU_DB_PORT" != "$DB_PORT" ]; then
 fi
 
 # ---------------- 2. 连接数据库 + 探测类型/版本 ----------------
+step "连接数据库并探测类型与版本"
 # DB_TYPE 显式指定（conf 里 DB_TYPE=mariadb|mysql）时跳过探测：
 # 适用于「应用机没有数据库客户端、库由对方 DBA 维护」的部署形态。
 if [ -n "$DB_TYPE" ]; then
@@ -450,10 +504,49 @@ fi
 fi   # 结束 DB_TYPE 未指定（自动探测）分支
 
 # ---------------- 3. 建库、建账号、授权 ----------------
+step "建库、建账号与授权"
 run_sql_file() {
   local file="$1"; local db="${2:-}"
   info "  执行 $(basename "$file")"
   mariadb_admin "$db" < "$file"
+}
+
+# ---------------- SQL 清单自检 ----------------
+# 起因：23_external_link_params.sql 曾长期是「孤岛文件」—— 躺在 sql/mysql/ 下，
+# 但没被登记进任何清单，于是装完缺外链参数，日志里完全看不出问题。
+# 所以这里查两个方向：清单里登记的文件在不在；目录里有没有没登记的 .sql。
+check_sql_manifest() {
+  local f base missing="" unlisted=""
+  # known = 已知且刻意不登记进 MAIN_SQL 的脚本（各有单独处理或人为执行）
+  #   00b/00c 幂等辅助过程（单独执行）  00_init_user 建库已由脚本自身完成
+  #   03_icu_indexes ICU 库索引（SETUP_ICU_INDEX=yes 时单独执行）
+  #   24_fix_id_auto_increment 历史库修复（单独执行）
+  #   03_word_* / 04_abx_word_training 可选词库（默认不导）
+  #   27_restore_config_snapshot 配置快照（刻意不自动执行，见 MAIN_SQL 上方说明）
+  #   install-all.sql 打包时由 tools/build-delivery.ps1 合成的一次性脚本（给库侧 DBA 用），
+  #     交付包里它和本目录其他脚本并存，不参与本脚本的执行流程
+  local known=" 00b_idempotent_helpers_doctor.sql 00c_idempotent_helpers_icu.sql
+    00_init_user.sql 03_icu_indexes.sql 24_fix_id_auto_increment.sql
+    03_word_inc_v23111.sql 03_word_inc_v2319.sql 04_abx_word_training.sql
+    27_restore_config_snapshot.sql install-all.sql "
+  for f in "${MAIN_SQL[@]}"; do
+    [ -f "$SQL_DIR/$f" ] || missing="$missing $f"
+  done
+  for f in "$SQL_DIR"/*.sql; do
+    base="$(basename "$f")"
+    case " ${MAIN_SQL[*]} " in *" $base "*) continue ;; esac
+    case "$known" in *" $base "*) continue ;; esac
+    unlisted="$unlisted $base"
+  done
+  if [ -n "$missing" ]; then
+    err "MAIN_SQL 清单里登记的脚本不存在:$missing"
+    return 1
+  fi
+  if [ -n "$unlisted" ]; then
+    warn "sql/mysql/ 下有未登记进 MAIN_SQL 的脚本:$unlisted"
+    warn "  需要执行 → 加进 MAIN_SQL；确认不需要 → 加进 check_sql_manifest 的 known 白名单"
+  fi
+  return 0
 }
 
 # ---------------- 配置真源表校验：三张表到底建了没有 ----------------
@@ -522,6 +615,7 @@ SQL
   fi
 
   # ---------------- 4. 导入建表 + 种子脚本 ----------------
+step "导入建表与种子脚本（幂等，可重复执行）"
   [ -d "$SQL_DIR" ] || { err "缺少 SQL 目录：$SQL_DIR（请确认在交付包根目录运行）"; exit 1; }
 
   info "初始化主库幂等存储过程 ..."
@@ -539,12 +633,25 @@ SQL
     01_schema.sql 02_seed.sql 05_apache2_pdf.sql 06_abx_drug_dict.sql
     07_sofa.sql 08_sofa_p1.sql 09_quality.sql 10_quality_config.sql
     11_quality_count_rule.sql 12_archive.sql 13_auth.sql 14_param_framework.sql
+    # 23_external_link_params.sql：外链参数分组 + EXTERNAL_LINK_BASE_URL /
+    #    EXTERNAL_LINK_ICU_TOKEN 两条 sys_param。达梦侧这两条写在 14_param_framework.sql
+    #    里，MySQL 版的 14 只写了 AUTO_REGISTER_* 三条 —— 故 MariaDB 侧必须在这里单独补，
+    #    此前它没被登记进任何清单（孤岛文件），装完缺参数且不报任何错，表现为
+    #    「参数设置 - 外链页面」少两个配置项。依赖 14 建的 sys_param_group / sys_param，
+    #    故排其后；幂等（不存在才插）。
+    23_external_link_params.sql
     15_quality_patient_fields.sql 16_quality_fatality_ref.sql
     17_quality_rule_local.sql 18_quality_manual_audit.sql
     19_quality_target_direction.sql 20_quality_fact_patient_default_cols.sql
     21_ards_prone.sql 22_ards_prone_config.sql 23_ards_prone_sign_work_no.sql
     # 25/26 表名规范化 rename（人工改写的存储过程版；全新 MariaDB 库无旧表 → 全部跳过，幂等）
     25_rename_doctor_tables.sql 26_rename_clinical_tables.sql
+    # ⚠️ 27_restore_config_snapshot.sql 刻意不进本清单：它是「17 张配置表整表 DELETE +
+    #    INSERT」的生产配置快照（1204 行），达梦侧只在确认全新库时才执行。这里若自动跑，
+    #    一旦判断失误就会把现场维护的配置打回快照日期。因此 MariaDB 侧两套库的初始化
+    #    结果天然不同（达梦新库带快照，MariaDB 新库是 02_seed 出厂值）。
+    #    确需与达梦侧一致的「全新库」，人工执行一次：
+    #      mysql <库名> < sql/mysql/27_restore_config_snapshot.sql
     # 28 质控每日批算参数。必须排在 25/26 之后：脚本写的是新表名 sys_param，
     #    老库上要等 25/26 把 zing_sys_param 改名过来，排前面会报表不存在
     28_quality_daily_param.sql
@@ -575,8 +682,12 @@ SQL
     44_patient_round_record.sql
     45_antibiotic_reassessment_window.sql
     46_nutrition_formula.sql
+    47_quality_patient_monthly_page.sql
+    48_external_link_pages.sql
     41_patient_summary_page.sql
     )
+  # 清单自检：登记的脚本必须存在；目录里也不能有未登记的孤岛脚本
+  check_sql_manifest
   for f in "${MAIN_SQL[@]}"; do
     [ -f "$SQL_DIR/$f" ] || { warn "缺少 $f，跳过"; continue; }
     run_sql_file "$SQL_DIR/$f" "$DOCTOR_DB"
@@ -602,6 +713,7 @@ SQL
 fi
 
 # ---------------- 5. 部署应用文件 ----------------
+step "部署应用文件（后端 jar / 前端产物 / 配置）"
 if [ "$CONFIG_ONLY" = "yes" ] && [ ! -f "$APP_HOME/app/zing-doctor.jar" ]; then
   err "--config-only 需要先完成一次完整安装（未找到 $APP_HOME/app/zing-doctor.jar）"
   err "先执行：$0   （不带参数），之后再改配置文件用 --config-only 同步"
@@ -680,6 +792,7 @@ zing:
 EOF
 
 # ---------------- 6. systemd 服务 ----------------
+step "配置 systemd 服务（开机自启与崩溃拉起）"
 info "注册 systemd 服务 zing-doctor ..."
 cat > /etc/systemd/system/zing-doctor.service <<EOF
 [Unit]
@@ -707,6 +820,7 @@ systemctl restart zing-doctor
 info "后端服务已启动（systemctl status zing-doctor 查看状态）"
 
 # ---------------- 7. nginx 前端 + 反代 ----------------
+step "配置 nginx 前端与反向代理"
 # 宿主装了 nginx 就用宿主 nginx；没装但有 Docker + 本机已有 nginx 镜像，
 # 就用容器跑前端（--network host，容器内直接监听 $WEB_PORT）。
 # 站点配置只有一份来源，两种方式共用；dist 挂载路径与 root 指令保持一致。
@@ -797,39 +911,42 @@ fi
 fi
 
 # ---------------- 8. 健康检查 ----------------
+step "健康检查与结果汇总"
 info "等待后端启动（最多 60 秒）..."
-ok=no
+HEALTHY=no
 for i in $(seq 1 30); do
   if have curl; then
-    curl -fs "http://127.0.0.1:$BACKEND_PORT/api/health" >/dev/null 2>&1 && { ok=yes; break; }
+    curl -fs "http://127.0.0.1:$BACKEND_PORT/api/health" >/dev/null 2>&1 && { HEALTHY=yes; break; }
   elif (exec 3<>"/dev/tcp/127.0.0.1/$BACKEND_PORT") >/dev/null 2>&1; then
     # 无 curl 时退化为端口探测：只能证明进程已监听，不能证明健康检查内容
-    ok=yes; break
+    HEALTHY=yes; break
   fi
   sleep 2
 done
 
 HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"; [ -z "$HOST_IP" ] && HOST_IP="<服务器IP>"
-echo ""
-echo "=================================================="
-if [ "$ok" = "yes" ]; then
-  echo -e "  ${GREEN}后端健康检查通过${NC}"
+printf "\n"
+rule
+printf "  ${C_BOLD}部署完成${C_RESET}\n"
+rule
+if [ "$HEALTHY" = "yes" ]; then
+  ok "后端健康检查通过"
 else
-  echo -e "  ${YELLOW}后端尚未响应健康检查（首次启动可能较慢），请查日志：${NC}"
-  echo "    journalctl -u zing-doctor -n 80 --no-pager"
-  echo "    tail -n 80 $APP_HOME/logs/backend.log"
+  warn "后端尚未响应健康检查（首次启动可能较慢），请查日志："
+  printf '    %s\n' "journalctl -u zing-doctor -n 80 --no-pager"
+  printf '    %s\n' "tail -n 80 $APP_HOME/logs/backend.log"
 fi
+printf "\n"
 if [ "$WEB_OK" = "yes" ]; then
-  echo "  前端入口 : http://$HOST_IP:$WEB_PORT/   （$WEB_HOW）"
+  kv "前端入口" "http://$HOST_IP:$WEB_PORT/（$WEB_HOW）"
 else
-  echo "  前端入口 : （未托管，请自行托管 $APP_HOME/frontend/dist）"
+  kv "前端入口" "未托管，请自行托管 $APP_HOME/frontend/dist"
 fi
-echo "  后端接口 : http://$HOST_IP:$BACKEND_PORT/api/health"
-echo "  数据库   : $DB_KIND $DB_VER @ $DB_HOST:$DB_PORT / $DOCTOR_DB（应用账号 $APP_DB_USER）"
-echo ""
-echo "  服务管理 :"
-echo "    systemctl status|restart zing-doctor"
-echo "    tail -f $APP_HOME/logs/backend.log"
-echo ""
-echo "  默认管理员: admin / zing@123（首次启动自动创建，请及时改密）"
-echo "=================================================="
+kv "后端接口" "http://$HOST_IP:$BACKEND_PORT/api/health"
+kv "数据连接" "$DB_KIND $DB_VER @ $DB_HOST:$DB_PORT / $DOCTOR_DB（应用账号 $APP_DB_USER）"
+kv "服务管理" "systemctl status|restart zing-doctor"
+kv "日志查看" "tail -f $APP_HOME/logs/backend.log"
+kv "默认账号" "admin / zing@123（首次启动自动创建，请及时改密）"
+rule
+info "下一步：浏览器打开前端入口核对版本号，再到「参数设置 - 外链页面」复制各页完整外链"
+rule

@@ -29,17 +29,79 @@ set -e
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
-RED='\033[31m'; GREEN='\033[32m'; YELLOW='\033[33m'; NC='\033[0m'
-info(){ echo -e "${GREEN}[INFO]${NC} $*"; }
-warn(){ echo -e "${YELLOW}[WARN]${NC} $*"; }
-err(){ echo -e "${RED}[ERROR]${NC} $*"; }
+# ---------- 临时文件 ----------
+# 脚本以 root 运行，而 /tmp/zing-verify-cols.sql 这种可预测的固定路径，可被本机其他用户
+# 提前预置成指向 /etc/... 的符号链接 —— 随后的 `cat > "$vf"`（或重定向日志）就会以 root
+# 覆盖任意文件。故统一放进 mktemp -d 建的私有目录（700），退出时清理。
+# mktemp 不可用时退回包内 runtime/tmp：同样无法预测，且不落在全局可写的 /tmp。
+if TMP_WORK="$(mktemp -d 2>/dev/null)"; then
+  chmod 700 "$TMP_WORK"
+  trap 'rm -rf "$TMP_WORK"' EXIT
+else
+  TMP_WORK="$ROOT/runtime/tmp"
+  mkdir -p "$TMP_WORK"
+  chmod 700 "$TMP_WORK"
+fi
 
-echo "=================================================="
-echo "  医生决策系统 · 一键安装部署"
-echo "  部署路径：$ROOT"
-echo "=================================================="
+# ---------------- 控制台输出 ----------------
+# 排版分三层，现场一眼就能分层：
+#   步骤标题   [n/m] 当前步骤 / 总步骤，下面跟一条分隔线
+#   细节行     两空格缩进
+#   结果标记   [完成] / [注意] / [失败]，同样缩进
+# 结尾汇总用「标签 + 值」两列：标签统一写成 4 个汉字，显示宽度一致，无需计算，
+# 逐个手写空格对齐即可（汉字在等宽字体下占 2 列，用 printf 的 %-Ns 按字符数补
+# 空格反而会对不齐）。
+# 刻意不使用任何图标或符号字符：换终端字体、重定向进日志文件、被 CI 或聊天工具
+# 抓取时都不会变形。
+C_RED='\033[31m'; C_GREEN='\033[32m'; C_YELLOW='\033[33m'; C_CYAN='\033[36m'
+C_BOLD='\033[1m'; C_DIM='\033[2m'; C_RESET='\033[0m'
+STEP_N=0; STEP_TOTAL=4
+
+# 分隔线用 %s 承载：不能把横线直接写进格式串 —— 颜色变量一旦为空（日志重定向、
+# NO_COLOR、CI 抓取时会被清空），格式串就以 "--" 开头，printf 会当选项报 invalid option
+rule(){ printf '%s%s%s\n' "$C_DIM" "--------------------------------------------------------------------" "$C_RESET"; }
+step(){
+  STEP_N=$((STEP_N + 1))
+  printf "\n${C_CYAN}${C_BOLD}[%d/%d]${C_RESET} ${C_BOLD}%s${C_RESET}\n" "$STEP_N" "$STEP_TOTAL" "$*"
+  rule
+}
+info(){ printf '  %s\n' "$*"; }
+ok(){   printf "  ${C_GREEN}[完成]${C_RESET} %s\n" "$*"; }
+warn(){ printf "  ${C_YELLOW}[注意]${C_RESET} %s\n" "$*"; }
+err(){  printf "  ${C_RED}[失败]${C_RESET} %s\n" "$*" >&2; }
+# 汇总行：标签固定 4 个汉字，对齐由标签宽度保证
+kv(){ printf '  %s  %s\n' "$1" "$2"; }
+
+# ---------------- 命令行参数 ----------------
+#   --skip-db   跳过数据库初始化（自己已经手工执行过 SQL）
+#   --init-db   允许「探测不到业务表时」按全新库跑全量初始化（见 init_db 顶部的 fail-closed 说明）
+#   -h/--help   打印文件头部的用法说明
+# 参数可任意顺序，不再是「只能放第一个」
+SKIP_DB="no"; FORCE_FULL_INIT="no"
+for _arg in "$@"; do
+  case "$_arg" in
+    --skip-db) SKIP_DB="yes" ;;
+    --init-db) FORCE_FULL_INIT="yes" ;;
+    -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
+    *) warn "忽略未知参数：$_arg（可用：--skip-db / --init-db / -h）" ;;
+  esac
+done
+
+# 运行身份：脚本要往 /usr/local/bin 装 docker-compose、跑 docker、以 root 身份写临时文件。
+# 非 root 时往往在中途报「Permission denied」这类看不懂的错，这里提前讲清楚。
+# 必须放在控制台函数定义（warn）之后，否则非 root 时会先撞上 warn: command not found。
+if [ "$(id -u 2>/dev/null)" != "0" ]; then
+  warn "当前不是 root（建议 sudo bash $0 运行）：装 docker-compose 到 /usr/local/bin 等步骤可能因权限失败"
+fi
+
+printf "\n${C_BOLD}医生决策系统  一键安装部署${C_RESET}\n"
+rule
+kv "部署路径" "$ROOT"
+kv "部署方式" "自动探测：可访问 Docker Hub 则用 Docker Compose，否则内网直连"
+printf "\n"
 
 # ---------- 1. 环境检查 ----------
+step "环境检查（Docker / Docker Compose / 达梦连通）"
 command -v docker >/dev/null 2>&1 || { err "未安装 Docker，请先安装"; exit 1; }
 
 # 定位 docker compose：优先系统自带，其次使用交付包内置二进制（无需服务器联网安装）
@@ -81,6 +143,7 @@ fi
 info "达梦：$DM_HOST_PORT  连接账号：$ADMIN_USER（目标模式 zing_doctor_db_prod，显式前缀访问）"
 
 # ---------- 2. 达梦数据库初始化 ----------
+step "初始化达梦数据库（建模式 / 建表 / 种子数据）"
 # 统一用 SYSDBA 执行（建模式 zing_doctor_db_prod → 建表 → 种子数据）：
 #   00_init_user.sql：CREATE SCHEMA "zing_doctor_db_prod" AUTHORIZATION SYSDBA
 #   01_schema.sql   ：建表（SQL 内显式 "zing_doctor_db_prod"."xxx" 模式前缀）
@@ -192,6 +255,8 @@ FULL_SQL=(
     "44_patient_round_record.sql"
     "45_antibiotic_reassessment_window.sql"
     "46_nutrition_formula.sql"
+    "47_quality_patient_monthly_page.sql"
+    "48_external_link_pages.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -249,6 +314,8 @@ FULL_SQL_JDBC=(
     "44_patient_round_record.sql"
     "45_antibiotic_reassessment_window.sql"
     "46_nutrition_formula.sql"
+    "47_quality_patient_monthly_page.sql"
+    "48_external_link_pages.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -324,32 +391,82 @@ INCREMENTAL_SQL=(
     "44_patient_round_record.sql"
     "45_antibiotic_reassessment_window.sql"
     "46_nutrition_formula.sql"
+    "47_quality_patient_monthly_page.sql"
+    "48_external_link_pages.sql"
 )
+
+# ---------------- SQL 清单自检 ----------------
+# 清单在 FULL_SQL / FULL_SQL_JDBC / INCREMENTAL_SQL 三处手工维护，改了 SQL 忘同步是常态。
+# 这里查两个方向：三个清单里登记的文件必须真实存在；sql/ 下不该有既没登记、
+# 也不在白名单里的脚本 —— 漏执行的 SQL 不会报错，只会让装出来的库静默少东西
+# （MariaDB 侧就漏过 23_external_link_params.sql，装完缺外链参数且毫无提示）。
+check_sql_manifest() {
+  local f base missing="" unlisted=""
+  local all=" ${FULL_SQL[*]} ${FULL_SQL_JDBC[*]} ${INCREMENTAL_SQL[*]} "
+  # known = 已知且刻意不登记的可选脚本（词库类，默认不导入）
+  local known=" 03_word_inc_v23111.sql 03_word_inc_v2319.sql 04_abx_word_training.sql "
+  for f in "${FULL_SQL[@]}" "${FULL_SQL_JDBC[@]}" "${INCREMENTAL_SQL[@]}"; do
+    [ -f "$ROOT/sql/$f" ] || missing="$missing $f"
+  done
+  for f in "$ROOT"/sql/*.sql; do
+    base="$(basename "$f")"
+    case "$all" in *" $base "*) continue ;; esac
+    case "$known" in *" $base "*) continue ;; esac
+    unlisted="$unlisted $base"
+  done
+  if [ -n "$missing" ]; then
+    err "SQL 清单里登记的脚本不存在:$missing"
+    err "  修正 FULL_SQL / FULL_SQL_JDBC / INCREMENTAL_SQL 后重跑"
+    exit 1
+  fi
+  if [ -n "$unlisted" ]; then
+    warn "sql/ 下有未登记进任何清单的脚本:$unlisted"
+    warn "  需要执行 → 加进对应清单；确认不需要 → 加进 check_sql_manifest 的 known 白名单"
+  fi
+  return 0
+}
 
 # ---------- JDBC 初始化工具 classpath ----------
 # ⚠️ 交付包里的 tools/db-init/DbInit.class 是预编译产物：若 DbInit.java 比它新
 # （典型：改了源码却没重新编译就打包），必须现场重编译，否则跑的还是旧逻辑
 # ——曾因旧 class 把 PL/SQL 块按分号切碎，导致 13/14 初始化脚本报「语法分析出错」。
+#
+# ⚠️⚠️ 必须把 DbCheck.java 一起编译：老库探测（probe_doctor_tables）跑的是 DbCheck，
+#    不是 DbInit。若只编 DbInit.java，产物目录里没有 DbCheck.class，探测会抛
+#    ClassNotFoundException（stderr 被吞掉）→ EXIST_COUNT 为空 → 被当成全新库走
+#    全量初始化 → 27 配置快照整表 DELETE + INSERT，把现场维护的配置打回快照日期。
+#    故编译后显式校验两个 class 都在，产物不全就回退用交付包自带的。
 # 结果写入全局变量 DBINIT_CP（不用命令替换，避免 info 日志混进 classpath）。
 DBINIT_CP=""
 resolve_dbinit_cp() {
   DBINIT_CP=""
+  local _srcs=() _d
   if command -v javac >/dev/null 2>&1 && [ -f "tools/db-init/DbInit.java" ] \
-     && { [ ! -f "tools/db-init/DbInit.class" ] || [ "tools/db-init/DbInit.java" -nt "tools/db-init/DbInit.class" ]; }; then
-    info "编译 JDBC 初始化工具（DbInit.java 比 DbInit.class 新）..."
+     && { [ ! -f "tools/db-init/DbInit.class" ] \
+          || [ "tools/db-init/DbInit.java" -nt "tools/db-init/DbInit.class" ] \
+          || { [ -f "tools/db-init/DbCheck.java" ] \
+               && { [ ! -f "tools/db-init/DbCheck.class" ] || [ "tools/db-init/DbCheck.java" -nt "tools/db-init/DbCheck.class" ]; }; }; }; then
+    info "编译 JDBC 工具（DbInit / DbCheck 源码比 class 新）..."
     mkdir -p tools/db-init-classes
+    _srcs=(tools/db-init/DbInit.java)
+    [ -f "tools/db-init/DbCheck.java" ] && _srcs+=(tools/db-init/DbCheck.java)
     if javac -encoding UTF-8 -cp "lib/DmJdbcDriver18-8.1.3.140.jar" \
-         -d tools/db-init-classes tools/db-init/DbInit.java >/dev/null 2>&1; then
+         -d tools/db-init-classes "${_srcs[@]}" >/dev/null 2>&1 \
+       && [ -f "tools/db-init-classes/DbInit.class" ] \
+       && { [ ! -f "tools/db-init/DbCheck.java" ] || [ -f "tools/db-init-classes/DbCheck.class" ]; }; then
       DBINIT_CP="tools/db-init-classes"
       return 0
     fi
-    warn "javac 编译失败，回退使用交付包自带的 DbInit.class"
+    warn "javac 编译失败或产物不全（缺 DbCheck.class），回退使用交付包自带的 class"
   fi
-  if [ -f "tools/db-init/DbInit.class" ]; then
-    DBINIT_CP="tools/db-init"
-  elif [ -f "tools/db-init-classes/DbInit.class" ]; then
-    DBINIT_CP="tools/db-init-classes"
-  fi
+  # 回退：优先选「DbInit.class 与 DbCheck.class 都在」的目录，避免探测能力被削掉
+  for _d in tools/db-init tools/db-init-classes; do
+    if [ -f "$_d/DbInit.class" ] && [ -f "$_d/DbCheck.class" ]; then DBINIT_CP="$_d"; return 0; fi
+  done
+  for _d in tools/db-init tools/db-init-classes; do
+    if [ -f "$_d/DbInit.class" ]; then DBINIT_CP="$_d"; return 0; fi
+  done
+  return 0
 }
 
 # 用可用通道执行若干 SQL 文件：本机 disql → 容器内 disql → JDBC 工具。
@@ -394,7 +511,7 @@ apply_incremental() {
   local files=()
   local f
   for f in "${INCREMENTAL_SQL[@]}"; do files+=("$ROOT/sql/$f"); done
-  local logfile=/tmp/zing-db-incr.log
+  local logfile="$TMP_WORK/zing-db-incr.log"
 
   local rc=0
   db_exec "$logfile" "${files[@]}" || rc=$?
@@ -415,8 +532,8 @@ apply_incremental() {
 # 直到调用 /api/quality/config/facts 才 500「无效的表或视图名」。
 # 这里显式复查三张表，缺表就停止部署并给出手动执行指引。
 verify_quality_tables() {
-  local vf=/tmp/zing-verify-tables.sql
-  local log=/tmp/zing-verify-tables.log
+  local vf="$TMP_WORK/zing-verify-tables.sql"
+  local log="$TMP_WORK/zing-verify-tables.log"
   cat > "$vf" <<'SQL'
 DECLARE
   v_missing VARCHAR(2000) := '';
@@ -469,8 +586,8 @@ SQL
 # 所以这里显式复查，并且不靠解析表格输出（格式随通道而变，很脆）：
 # 缺列就让 PL/SQL 抛错、通道返回非 0，判断只有「通过」和「没通过」两种。
 verify_quality_columns() {
-  local vf=/tmp/zing-verify-cols.sql
-  local log=/tmp/zing-verify-cols.log
+  local vf="$TMP_WORK/zing-verify-cols.sql"
+  local log="$TMP_WORK/zing-verify-cols.log"
   cat > "$vf" <<'SQL'
 DECLARE
   v_missing VARCHAR(2000) := '';
@@ -554,8 +671,16 @@ probe_doctor_tables() {
   fi
 }
 
+# 全量初始化后的复核：disql 碰到 SQL 报错也常返回 0，只看退出码会漏掉「只执行了一半」。
+# 用探测结果复核一次 —— 看不到 zing_page_config 就说明本次全量没有真正生效。
+verify_full_init() {
+  EXIST_COUNT=""
+  probe_doctor_tables || true
+  [ -n "$EXIST_COUNT" ] && [ "$EXIST_COUNT" -gt 0 ] 2>/dev/null
+}
+
 init_db() {
-  local logfile=/tmp/zing-dbinit.log
+  local logfile="$TMP_WORK/zing-dbinit.log"
   local DISQL="$DB_DISQL"
   local p=""
   # 全量脚本路径（清单见文件上方 FULL_SQL / FULL_SQL_JDBC，新增 SQL 记得同步）
@@ -564,15 +689,26 @@ init_db() {
   local f
   for f in "${FULL_SQL[@]}";      do files+=("$ROOT/sql/$f");  done
   for f in "${FULL_SQL_JDBC[@]}"; do jfiles+=("$ROOT/sql/$f"); done
+  check_sql_manifest
   # 表已存在则跳过初始化（重复部署场景，避免报错）。
   # 探测通道无关（disql / JDBC 二选一，见 probe_doctor_tables 顶部的背景说明）：
-  # 检测不到业务表 → 真新库，走全量；探测本身失败（EXIST_COUNT 为空）→ 打出
-  # 醒目警告后再走全量，让运维至少知道发生了什么，而不是静默重灌配置。
+  # 检测不到业务表 → 真新库，走全量；探测本身失败（EXIST_COUNT 为空）→ 无法区分
+  # 「全新库」与「老库」，默认停手（fail-closed），只有显式 --init-db 才按新库继续。
   probe_doctor_tables
   if [ -z "$EXIST_COUNT" ]; then
-    warn "无法探测 zing_doctor_db_prod 是否已有业务表（无 disql 且 JDBC 探测失败）"
-    warn "将按全新库执行全量初始化 —— 若这其实是一个已在使用的老库，27 配置快照会把现场配置覆盖掉！"
-    warn "确认是老库请立即 Ctrl+C 中止，手动执行增量脚本后用 --skip-db 重新运行本脚本"
+    # 探测不到 = 无法区分「全新库」和「已在使用的老库」。默认 fail-closed 直接停：
+    # 猜错的代价不对称 —— 猜成全新库会执行 27 配置快照（17 张配置表整表 DELETE +
+    # INSERT），把现场维护的配置打回快照日期且不可逆；停在原地则只是重跑一次。
+    if [ "$FORCE_FULL_INIT" = "yes" ]; then
+      warn "无法探测 zing_doctor_db_prod 是否已有业务表（无 disql 且 JDBC 探测失败）"
+      warn "已显式指定 --init-db，按全新库执行全量初始化 —— 若这其实是老库，27 配置快照会覆盖现场配置！"
+    else
+      err "无法探测 zing_doctor_db_prod 是否已有业务表（无 disql 且 JDBC 探测失败），已停止（不做任何写入）"
+      err "  确认是全新库，按全新库初始化： bash $0 --init-db"
+      err "  确认是已在使用的老库：先手动执行 sql/ 下的增量脚本，再 bash $0 --skip-db"
+      err "  想恢复自动探测：本机装 disql，或确保 tools/db-init/DbCheck.class 存在（脚本会自动编译）"
+      exit 1
+    fi
   fi
   if [ -n "$EXIST_COUNT" ] && [ "$EXIST_COUNT" -gt 0 ] 2>/dev/null; then
       info "检测到 zing_doctor_db_prod 的业务表（sys_page_config / 旧名 zing_page_config）已存在，跳过全量初始化（如需重建请先 DROP SCHEMA）"
@@ -589,9 +725,14 @@ init_db() {
     info "通道 a：本机 disql 初始化达梦（建模式+建表+种子）..."
     if cat "${files[@]}" \
          | "$DISQL" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" >"$logfile" 2>&1; then
-      info "达梦初始化完成（本机 disql，模式 zing_doctor_db_prod）"; return 0
+      # disql 遇到 SQL 报错也常返回 0，必须复核，否则「初始化完成」可能是假的
+      if verify_full_init; then
+        info "达梦初始化完成（本机 disql，模式 zing_doctor_db_prod）"; return 0
+      fi
+      warn "disql 退出码为 0，但复核探测不到 zing_page_config —— 本次全量很可能未生效（详见 $logfile）"
+    else
+      warn "本机 disql 执行失败，尝试其他通道（详见 $logfile）"
     fi
-    warn "本机 disql 执行失败，尝试其他通道（详见 $logfile）"
   fi
 
   # 通道 b：达梦 Docker 容器内 disql
@@ -602,9 +743,13 @@ init_db() {
       if docker exec "$CID" test -x "$p" 2>/dev/null; then
         if cat "${files[@]}" \
              | docker exec -i "$CID" "$p" "$ADMIN_USER/$ADMIN_PASS@$DM_HOST_PORT" >"$logfile" 2>&1; then
-          info "达梦初始化完成（容器 $CID，模式 zing_doctor_db_prod）"; return 0
+          if verify_full_init; then
+            info "达梦初始化完成（容器 $CID，模式 zing_doctor_db_prod）"; return 0
+          fi
+          warn "disql 退出码为 0，但复核探测不到 zing_page_config —— 本次全量很可能未生效（详见 $logfile）"
+        else
+          warn "达梦容器通道失败，尝试 JDBC 通道（详见 $logfile）"
         fi
-        warn "达梦容器通道失败，尝试 JDBC 通道（详见 $logfile）"
         break
       fi
     done
@@ -620,9 +765,13 @@ init_db() {
       info "通道 c：运行 JDBC 初始化工具连接达梦（classpath: $_cp）..."
       if java -cp "lib/DmJdbcDriver18-8.1.3.140.jar:$_cp" \
               DbInit "jdbc:dm://$DM_HOST_PORT" "$ADMIN_USER" "$ADMIN_PASS" "${jfiles[@]}"; then
-        info "达梦初始化完成（JDBC 工具，模式 zing_doctor_db_prod + ICU 库性能索引 + APACHE2 PDF列）"; return 0
+        if verify_full_init; then
+          info "达梦初始化完成（JDBC 工具，模式 zing_doctor_db_prod + ICU 库性能索引 + APACHE2 PDF列）"; return 0
+        fi
+        warn "JDBC 工具退出码为 0，但复核探测不到 zing_page_config —— 本次全量很可能未生效（详见上方日志）"
+      else
+        warn "JDBC 工具执行失败（详见上方日志）"
       fi
-      warn "JDBC 工具执行失败（详见上方日志）"
     else
       warn "通道 c：未找到 DbInit.class 且无 javac，跳过 JDBC 通道"
     fi
@@ -658,13 +807,14 @@ init_db() {
 }
 
 # 表已存在（重复部署）时允许跳过初始化
-if [ "$1" = "--skip-db" ]; then
+if [ "$SKIP_DB" = "yes" ]; then
   warn "跳过数据库初始化（--skip-db）"
 else
   init_db
 fi
 
 # ---------- 3. 构建并启动 ----------
+step "构建并启动服务（自动选择部署模式）"
 
 # 生成后端外部配置文件 $ROOT/config/application.yml
 #
@@ -687,7 +837,7 @@ write_backend_config() {
     cat > "$file" <<EOF
 # zing-doctor 后端外部配置（由 install.sh 生成，优先级高于 jar 内 application.yml）
 # 这里只放「每台服务器不同」的项，其余配置见交付包 src/main/resources/application.yml。
-# 改完需重启后端生效：pkill -f zing-doctor.jar && bash install.sh
+# 改完需重启后端生效：pkill -f "java .*zing-doctor.jar" && bash install.sh
 zing:
   quality:
     # 质控配置写接口白名单（POST /api/quality/config/**：保存指标/事实层、回滚、批量导入、重载）
@@ -749,11 +899,24 @@ direct_deploy() {
   [ -f "$JAR" ] || { err "缺少 $JAR（后端可执行包），请确认交付包完整（含 app/zing-doctor.jar）"; return 1; }
 
   # 停止旧后端进程（重复部署）
-  if [ -f "$ROOT/backend.pid" ] && kill -0 "$(cat "$ROOT/backend.pid")" 2>/dev/null; then
-    info "停止旧后端进程 PID $(cat "$ROOT/backend.pid") ..."
-    kill "$(cat "$ROOT/backend.pid")" 2>/dev/null; sleep 3
+  if [ -f "$ROOT/backend.pid" ]; then
+    local _pid
+    _pid="$(cat "$ROOT/backend.pid" 2>/dev/null || true)"
+    if [ -n "$_pid" ] && kill -0 "$_pid" 2>/dev/null; then
+      # PID 会被系统复用：先确认这个 PID 的命令行确实是我们的后端，否则 kill 的是别人的进程
+      if tr '\0' ' ' < "/proc/$_pid/cmdline" 2>/dev/null | grep -q 'zing-doctor\.jar'; then
+        info "停止旧后端进程 PID $_pid ..."
+        kill "$_pid" 2>/dev/null; sleep 3
+      else
+        warn "backend.pid 记录的 PID $_pid 不是本系统后端（PID 可能已被复用），跳过 kill"
+      fi
+    fi
+    rm -f "$ROOT/backend.pid"
   fi
-  pkill -f "zing-doctor.jar" 2>/dev/null && sleep 2 || true
+  # 兜底再扫一次：只杀「java + zing-doctor.jar」同时出现的命令行。
+  # 原来是 pkill -f "zing-doctor.jar"，按整个命令行模糊匹配 —— 运维用 tail/less/vim 看
+  # 这个 jar、或用 rsync 拷贝交付包时，进程都会被误杀。
+  pkill -f "java .*zing-doctor\.jar" 2>/dev/null && sleep 2 || true
 
   mkdir -p "$ROOT/logs"
   # 本机 IP（用于 nginx 反代后端地址）
@@ -847,19 +1010,41 @@ server {
 }
 EOF
     docker rm -f zing-doctor-frontend 2>/dev/null
-    # 前端端口：默认 2001；若宿主机 80 端口空闲则同时映射 80（外链无端口访问 /page 时也能打开，避免 404）
+    # 前端端口：默认 2001；仅在「确认」宿主机 80 空闲时才同时映射 80
+    # （外链不带端口访问 /page 时也能打开）。探测手段都不可用时保持保守：
+    # 从前这里把「探测不到」当成空闲，而 80 常被医院 ICU 系统占着，docker run
+    # 会因端口冲突失败 —— 又因为本函数处于 `||` 上下文、set -e 失效，失败被吞掉，
+    # 脚本照样打印「部署完成」，实际前端根本没起来。
     PORTS=(-p 2001:80)
-    if ! ss -tln 2>/dev/null | awk '{print $4}' | grep -qE ':80$'; then
+    PORT80="unknown"
+    if command -v ss >/dev/null 2>&1; then
+      if ss -tln 2>/dev/null | awk '{print $4}' | grep -qE ':80$'; then PORT80="busy"; else PORT80="free"; fi
+    elif command -v netstat >/dev/null 2>&1; then
+      if netstat -tln 2>/dev/null | awk '{print $4}' | grep -qE ':80$'; then PORT80="busy"; else PORT80="free"; fi
+    fi
+    if [ "$PORT80" = "free" ]; then
       PORTS+=(-p 80:80)
       info "宿主机 80 端口空闲，前端同时映射 80:80（http://$HOST_IP/page/... 可默认访问）"
-    else
+    elif [ "$PORT80" = "busy" ]; then
       info "宿主机 80 端口已被占用（可能是 ICU 系统），前端仅映射 2001:80"
+    else
+      warn "无法探测宿主机 80 端口占用情况（缺 ss / netstat），前端仅映射 2001:80"
     fi
-    docker run -d --name zing-doctor-frontend --restart unless-stopped \
-      "${PORTS[@]}" \
-      -v "$ROOT/frontend/dist:/usr/share/nginx/html:ro" \
-      -v "$ROOT/runtime/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro" \
-      nginx:stable
+    if ! docker run -d --name zing-doctor-frontend --restart unless-stopped \
+         "${PORTS[@]}" \
+         -v "$ROOT/frontend/dist:/usr/share/nginx/html:ro" \
+         -v "$ROOT/runtime/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro" \
+         nginx:stable; then
+      err "前端容器启动失败（最常见原因：2001 或 80 端口被占用）"
+      err "  查看占用：ss -tlnp | grep -E ':(80|2001)'"
+      err "  处理端口后重跑：bash $0"
+      return 1
+    fi
+    # 容器起来了不等于跑得住（配置校验失败会立刻退出），再确认一次运行状态
+    if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'zing-doctor-frontend'; then
+      err "前端容器 zing-doctor-frontend 未处于运行状态，请查看：docker logs zing-doctor-frontend"
+      return 1
+    fi
     info "前端容器 zing-doctor-frontend 已启动（nginx stable，映射 ${PORTS[*]}）"
   else
     err "未找到 nginx:stable 镜像且服务器无外网无法拉取，前端无法托管"
@@ -868,15 +1053,22 @@ EOF
   fi
 
   # ---- 等待后端就绪（最多 60 秒）----
+  # 结果写入 BACKEND_READY 供最后的汇总使用：不改写脚本结论，但要让汇总如实反映
+  # 「后端到底通没通」，避免启动失败时汇总仍写「部署完成」而现场以为一切正常。
+  BACKEND_READY="no"
   info "等待后端就绪（最多 60 秒）..."
   for i in $(seq 1 30); do
     # -f 不能省：/api/health 未就绪时返回 503，不加 -f 的话 curl 仍返回 0，
     # 会把「未就绪」当成就绪放行。docker-compose.yml 的健康检查用的是 -f，两处口径必须一致。
     if curl -f -m 2 -s -o /dev/null "http://127.0.0.1:8081/api/health"; then
-      info "后端已就绪（$i 次探测）"; break
+      info "后端已就绪（$i 次探测）"; BACKEND_READY="yes"; break
     fi
     sleep 2
   done
+  if [ "$BACKEND_READY" != "yes" ]; then
+    warn "后端 60 秒内未通过健康检查（首次启动可能较慢），请查日志确认："
+    warn "  tail -n 80 $ROOT/logs/backend.log"
+  fi
 
   return 0
 }
@@ -925,6 +1117,7 @@ else
 fi
 
 # ---------- 4. 等待与验证 ----------
+step "等待并验证（服务状态 / 外链入口）"
 if [ "$MODE" = "docker" ]; then
   info "等待服务启动..."
   sleep 10
@@ -936,15 +1129,36 @@ else
   LOG_HINT="tail -50 $ROOT/logs/backend.log"
 fi
 
-echo ""
-echo "=================================================="
-echo "  部署完成（部署模式：$MODE）"
-echo "  前端入口:   http://<部署机IP>:2001/page/abx-patient-list"
-echo "  后端端口:   8081"
-echo ""
-echo "  生成外链验证（在部署机上执行）："
-echo "    curl \"http://127.0.0.1:8081/api/external/token?pageCode=abx-patient-list&baseUrl=http://<部署机IP>:2001\""
-echo "    curl \"http://127.0.0.1:8081/api/external/token?pageCode=abx-decision&baseUrl=http://<部署机IP>:2001&patientId=<真实患者ID>\""
-echo ""
-echo "  查看后端日志：$LOG_HINT"
-echo "=================================================="
+# 部署模式用中文描述：现场不必对着 docker / direct 这两个词猜是什么意思
+if [ "$MODE" = "docker" ]; then
+  MODE_TEXT="Docker Compose（后端与前端均为容器）"
+else
+  MODE_TEXT="内网直连（后端 java -jar + 前端 nginx 容器）"
+fi
+
+printf "\n"
+rule
+printf "  ${C_BOLD}部署完成${C_RESET}\n"
+rule
+kv "部署模式" "$MODE_TEXT"
+kv "前端入口" "http://<部署机IP>:2001/page/patient-workbench"
+kv "后端端口" "8081"
+# 后端连通性如实上报：直连模式用 direct_deploy 的探测结果，容器模式这里补测一次。
+# 前面各步骤失败已在各自分支中止，这里只负责「别把没起来的服务说成正常」。
+BACKEND_READY="${BACKEND_READY:-no}"
+if [ "$MODE" = "docker" ]; then
+  if curl -f -m 3 -s -o /dev/null "http://127.0.0.1:8081/api/health"; then BACKEND_READY="yes"; fi
+fi
+if [ "$BACKEND_READY" = "yes" ]; then
+  kv "后端状态" "健康检查通过（/api/health 可访问）"
+else
+  kv "后端状态" "尚未通过健康检查，先看日志：$LOG_HINT"
+fi
+kv "日志查看" "$LOG_HINT"
+printf "\n"
+info "外链自测（在部署机上执行，返回的 URL 可直接粘到浏览器打开）："
+printf '    %s\n' "curl \"http://127.0.0.1:8081/api/external/token?pageCode=patient-workbench&baseUrl=http://<部署机IP>:2001\""
+printf '    %s\n' "curl \"http://127.0.0.1:8081/api/external/token?pageCode=abx-decision&baseUrl=http://<部署机IP>:2001&patientId=<患者ID>\""
+printf "\n"
+info "下一步：浏览器打开前端入口核对版本号，再到「参数设置 - 外链页面」复制各页完整外链"
+rule

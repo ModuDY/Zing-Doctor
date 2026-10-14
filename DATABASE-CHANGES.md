@@ -1388,3 +1388,15 @@ SELECT param_key, param_value, default_value FROM sys_param WHERE param_key = 'W
 
 **密度的口径说明**：氨基酸能量按 4 kcal/g 折算（与字典既有约定一致）。其它浓度品种（5% / 11.4%）如后续启用，需按各自规格另建配方行，不能共用 8.5% 密度。
 
+
+---
+
+### 2026-10-14 · 48 号外链页面批量补注册（左侧菜单新增页）
+
+左侧菜单近期新增的功能页此前未在 `sys_page_config` 登记：外链 `/entry/{pageCode}` 会判「未注册的页面」404，参数设置页「外链页面」一览也看不到它们。本脚本一次性补齐 12 个页面：
+
+`history-patients`、`vital-signs`、`fluid-balance`、`lab-liver`、`lab-coag`、`department-cockpit`、`abx-ddd-patients`、`abx-mdro-patients`、`sedation-monitor`、`neuro-monitor`、`nutrition-monitor`、`tube-stats`
+
+- 达梦：`sql/48_external_link_pages.sql`；MySQL/MariaDB：`sql/mysql/48_external_link_pages.sql`。按 `page_code` 删除后重建，幂等可重复执行。
+- **登记**：`install.sh`（三处数组）、`install-mariadb-debian.sh`、`build-delivery.ps1` 均已加入 `47_quality_patient_monthly_page.sql`（此前遗漏，未登记会导致全新安装后患者月度质控外链 404）与 `48_external_link_pages.sql`。
+- 前端参数设置「外链页面」一览已同步补齐这 12 页（含各页参数说明与示例 URL），清单与路由已核对一致。
