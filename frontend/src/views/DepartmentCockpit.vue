@@ -327,7 +327,16 @@ export default {
   created() {
     this.load()
   },
+  mounted() {
+    // 大屏锁的是视口高度：窗口一变，趋势图容器就跟着变。ECharts 不会自己感知
+    // 容器尺寸变化，不显式 resize 就会把图形留在旧尺寸上（被裁切或留白）。
+    this.handleResize = () => {
+      Object.values(this.charts).forEach((c) => { if (c) c.resize() })
+    }
+    window.addEventListener('resize', this.handleResize)
+  },
   beforeUnmount() {
+    window.removeEventListener('resize', this.handleResize)
     Object.values(this.charts).forEach((c) => { if (c) c.dispose() })
     this.charts = {}
   },
@@ -506,6 +515,102 @@ export default {
 .score-content { display: grid; grid-template-columns: 87px 1fr; align-items: center; gap: 12px; min-height: 148px; padding: 15px 16px 17px; }.score-total { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 76px; border-right: 1px solid rgba(119, 179, 179, .12); }.score-total b { color: #9af0dc; font-size: 30px; line-height: 1; text-shadow: 0 0 20px rgba(93, 230, 207, .25); }.score-total span { margin-top: 6px; color: #648489; font-size: 10px; }.score-rows { display: flex; flex-direction: column; gap: 9px; }.score-row { display: grid; grid-template-columns: 42px minmax(50px, 1fr) 25px 34px; align-items: center; gap: 7px; }.score-range { color: #78979a; font-size: 10px; }.score-track { height: 7px; overflow: hidden; border-radius: 5px; background: rgba(111, 169, 169, .12); }.score-track i { display: block; height: 100%; min-width: 2px; border-radius: inherit; box-shadow: 0 0 8px currentColor; }.score-row b { color: #bdd6d5; font-size: 11px; text-align: right; }.score-row small { color: #5d7c81; font-size: 9px; text-align: right; }
 .organ-panel { min-height: 224px; }.organ-list { display: flex; flex-direction: column; gap: 14px; padding: 17px 16px 11px; }.organ-item { display: grid; grid-template-columns: 70px minmax(50px, 1fr) 47px; align-items: center; gap: 10px; }.organ-label { color: #78999c; font-size: 11px; }.organ-bar { height: 7px; overflow: hidden; border-radius: 5px; background: rgba(105, 161, 161, .12); }.organ-bar-fill { height: 100%; border-radius: inherit; box-shadow: 0 0 10px currentColor; transition: width .4s ease; }.organ-num { color: #d7eeeb; font-size: 15px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }.organ-num i { margin-left: 2px; color: #628287; font-size: 9px; font-style: normal; font-weight: 400; }.organ-num.value-unknown { color: #547176; }.organ-foot { margin: 0 16px 15px; padding-top: 10px; border-top: 1px solid rgba(120, 180, 180, .1); color: #58777c; font-size: 9px; line-height: 1.55; }
 .state-box { display: flex; min-height: 160px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }.state-box.small { min-height: 120px; }.state-title { color: #607f84; font-size: 11px; }.notes-list { margin: 0; padding-left: 18px; color: #53686d; font-size: 12px; line-height: 2; }.notes-foot { margin: 10px 0 0; color: #9ca9aa; font-size: 11px; }
+/* ==========================================================================
+   大屏展示：视口锁定 + 纵向弹性分配
+   --------------------------------------------------------------------------
+   这个页面是给科室挂在大屏上看的，全屏时必须一屏看全 —— 一旦出现滚动条，
+   最下面的器官支持/评分分布就被推到屏幕外，值班的人根本看不到。
+   原来的写法是「各区块固定高度 + min-height 累加」。线上实测：整页 1348px
+   （页头 170 + 范围条 14 + KPI 137 + 三组面板 358/261/290 + 内外边距），
+   而 1080p 全屏可用高度只有 1080px —— 溢出 268px，必然出滚动条。
+
+   可用高度为什么是 100vh：外壳是「左侧固定侧栏 + main-content」，内容区
+   min-height:100vh 且顶部偏移为 0，没有顶栏。原代码用 calc(100vh - 56px)
+   是白丢了 56px（按已不存在的顶栏算的），这里收回。
+
+   改法：把页面锁成「视口高度」的纵向 flex 容器，三组面板按 flex 比例瓜分
+   剩余高度，内部一律 min-height:0 纯弹性吃满。这样任何视口高度都不溢出，
+   也不会在高分屏上留大片空白。
+   min-height 兜底：视口过矮时允许滚动，总比把内容压扁到不可读要好。
+
+   生效条件：宽 >1180px 且高 ≥1000px。实测 1920×1080 与 2560×1440 均一屏放下、
+   零裁切。加高度门槛是因为矮视口下纵向真的不够分：900px 时 APACHE 面板开始被
+   裁、768px 时五个面板被裁 —— 裁掉的是数字，比出滚动条更糟。所以宁可退回原来
+   的文档流：要滚，但一个数字都不丢。
+   （外链无身份时 App.vue 顶部那条警告条不在本模式内，它出现时会多占一行，
+   属异常态告警，容忍轻微滚动。）
+   ========================================================================== */
+@media (min-width: 1181px) and (min-height: 1000px) {
+  /* box-sizing 必须显式声明：该元素是 content-box，不写的话 height:100vh 只是
+     内容盒高度，再加上下 padding 会溢出正好 22px —— 实测 docH 1102 / vh 1080。 */
+  .cockpit-page { box-sizing: border-box; height: 100vh; display: flex; flex-direction: column; gap: 9px; padding: 10px 14px 12px; }
+
+  /* 页头：124px → 约 80px。信息一条不少，但不再吃掉整屏的 1/8 */
+  .cockpit-hero { flex: 0 0 auto; min-height: 0; padding: 11px 18px; gap: 16px; border-radius: 12px; }
+  .hero-eyebrow { font-size: 9px; letter-spacing: 1.2px; }
+  .hero-copy h1 { margin: 5px 0 3px; font-size: 21px; }
+  .hero-copy p { font-size: 11px; }
+  .hero-meta { min-width: 148px; padding-left: 14px; }
+  .hero-radar { right: 196px; width: 122px; height: 122px; opacity: .5; }
+  .hero-actions :deep(.el-radio-button__inner) { padding: 5px 9px; }
+  .hero-actions :deep(.el-button) { height: 26px; padding: 0 10px; }
+
+  /* 范围条：margin 交给父级 gap 统一管，避免和 gap 叠加出双份间距 */
+  .period-strip { flex: 0 0 auto; margin: 0 2px; gap: 12px; }
+
+  /* KPI：105px → 74px，数字 30 → 24。24px 是全屏三米外仍可辨认的下限 */
+  .kpi-row { flex: 0 0 auto; gap: 9px; }
+  .kpi-row :deep(.snapshot-card) { min-height: 74px; padding: 10px 13px 9px; border-radius: 11px; }
+  .kpi-row :deep(.snapshot-card)::before { top: 12px; bottom: 12px; }
+  .kpi-row :deep(.snapshot-card)::after { right: 11px; top: 7px; font-size: 21px; }
+  .kpi-row :deep(.card-label) { font-size: 10px; }
+  .kpi-row :deep(.num) { font-size: 24px; }
+  .kpi-row :deep(.card-sub) { font-size: 9px; }
+
+  /* 三组面板按 1.18 : 0.95 : 0.95 瓜分剩余高度（趋势图信息量最大，给最多） */
+  .primary-grid { flex: 1.18 1 0; min-height: 0; margin-top: 0; }
+  .resource-grid { flex: 0.95 1 0; min-height: 0; margin-top: 0; }
+  .secondary-grid { flex: 0.95 1 0; min-height: 0; margin-top: 0; }
+
+  /* 面板统一改纵向 flex：头部固定、内容区吃满剩余高度 */
+  .panel { display: flex; flex-direction: column; min-height: 0; }
+  .panel-head { flex: 0 0 auto; min-height: 42px; padding: 7px 13px; }
+  .panel-body { flex: 1 1 auto; min-height: 0; padding: 8px 13px; }
+  .flow-panel, .quality-panel { min-height: 0; }
+
+  /* 患者流转：图表从固定 268px 改为吃满容器 */
+  .flow-summary { flex: 0 0 auto; gap: 26px; padding: 8px 14px 0; }
+  .flow-summary b { font-size: 20px; }
+  .flow-body { display: flex; flex-direction: column; padding-top: 2px; }
+  .flow-chart { flex: 1 1 auto; height: auto; min-height: 110px; }
+
+  /* 质量指标：后端固定返回 6 项，两列 = 3 行；行高用 minmax(34px,1fr) 让三行
+     均分面板高度，既不会挤成一长条，也不会在下方留出半屏空白。 */
+  .q-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(34px, 1fr); flex: 1 1 auto; min-height: 0; gap: 5px; padding: 7px 12px 0; overflow: hidden; }
+  .q-card { min-height: 34px; padding: 5px 9px; }
+  .q-result b { font-size: 17px; }
+  .quality-foot { flex: 0 0 auto; margin: 4px 13px 8px; padding-top: 6px; font-size: 9px; }
+
+  /* 床位 / 设备 / 评分 / 器官支持：取消固定 min-height，改为吃满容器 */
+  .bed-body { flex: 1 1 auto; min-height: 0; grid-template-columns: 118px 1fr; gap: 14px; padding: 10px 15px 4px; }
+  .bed-gauge { width: 104px; height: 104px; }
+  .device-list { flex: 1 1 auto; min-height: 0; gap: 6px; padding: 10px 14px 4px; justify-content: stretch; }
+  /* 设备按 device_type 分组，行数取决于科室实际配了哪几类（1~7 行）。
+     行高设为可伸缩：行少时均分撑满，行多时按 26px 下限排紧，避免固定 34px
+     在 6 行以上把最后一行挤出面板。 */
+  .device-row { flex: 1 1 0; min-height: 26px; }
+  .score-content { flex: 1 1 auto; min-height: 0; grid-template-columns: 74px 1fr; gap: 10px; padding: 10px 13px; }
+  .score-total { height: 60px; }
+  .score-total b { font-size: 25px; }
+  .score-rows { gap: 7px; }
+  .organ-list { flex: 1 1 auto; min-height: 0; }
+  .resource-foot, .organ-foot { flex: 0 0 auto; margin: 3px 13px 8px; padding-top: 6px; font-size: 9px; }
+
+  /* 空态/异常态：锁高布局里不该再占 160px 的固定高度，改为吃满并居中 */
+  .state-box { flex: 1 1 auto; min-height: 0; }
+  .state-box.small { min-height: 0; }
+}
+
 @media (max-width: 1180px) { .cockpit-hero { grid-template-columns: 1fr auto; }.hero-actions { grid-column: 1 / -1; justify-content: flex-end; }.kpi-row { grid-template-columns: repeat(3, 1fr); }.secondary-grid { grid-template-columns: 1fr 1fr; }.organ-panel { grid-column: 1 / -1; }.device-row { grid-template-columns: 96px minmax(70px, .8fr) minmax(250px, 1.2fr); gap: 10px; } }
 @media (max-width: 820px) { .cockpit-page { padding: 12px; }.cockpit-hero { grid-template-columns: 1fr; gap: 14px; }.hero-meta { padding-left: 0; border-left: 0; }.hero-actions { grid-column: auto; justify-content: flex-start; flex-wrap: wrap; }.kpi-row { grid-template-columns: repeat(2, 1fr); }.primary-grid, .resource-grid, .secondary-grid { grid-template-columns: 1fr; }.organ-panel { grid-column: auto; }.panel-context { white-space: normal; text-align: right; }.device-row { grid-template-columns: 100px 1fr; }.device-stats { grid-column: 1 / -1; } }
 @media (max-width: 480px) { .kpi-row { grid-template-columns: 1fr; }.period-strip { align-items: flex-start; flex-direction: column; gap: 7px; }.data-gap { margin-left: 0; }.flow-summary { gap: 14px; }.score-content { grid-template-columns: 70px 1fr; padding-left: 10px; padding-right: 10px; }.score-row { grid-template-columns: 36px minmax(40px, 1fr) 22px 31px; gap: 5px; } }

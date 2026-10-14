@@ -83,7 +83,7 @@
 
     <!-- 患者信息条 -->
     <div v-if="result" class="patient-bar qb-card">
-      <span class="pb-name">{{ result.patientName || '未知患者' }}</span>
+      <span class="pb-name">{{ displayName }}</span>
       <span class="pb-item">住院号 {{ result.inHospitalNo || '—' }}</span>
       <span class="pb-item">期间 {{ result.periodStart || '—' }} ~ {{ result.periodEnd || '—' }}</span>
       <span class="pb-item">命中 <b>{{ result.hitCount }}</b> 项</span>
@@ -193,10 +193,15 @@ const BASE_KEYS = new Set([
   'code', 'name', 'domain', 'unit', 'inNumerator', 'inDenominator', 'inclusionState'
 ])
 
-function lastMonth() {
+/**
+ * 默认查「本月」而不是上月。
+ *
+ * 患者下拉列的是当前在科患者，默认查上月时，本月新入科的人几乎一条都命中不了 ——
+ * 页面看着像坏了，数据其实是对的（那个人上个月根本没在科）。批算每天都会重算当月，
+ * 月内数据持续滚动刷新，所以本月口径一直是有效的。
+ */
+function currentMonth() {
   const d = new Date()
-  d.setDate(1)
-  d.setMonth(d.getMonth() - 1)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
@@ -204,7 +209,7 @@ const extDepartCode = externalParam('departCode')
 const departCode = ref(extDepartCode || currentDepart.departCode)
 const departments = ref([])
 
-const month = ref(lastMonth())
+const month = ref(currentMonth())
 const patientKey = ref('')
 const keyword = ref('')
 const historyMode = ref(false)
@@ -238,6 +243,7 @@ const patientOptions = computed(() => {
     const bed = p.bedNo || p.bed_no || ''
     out.push({
       key,
+      name,
       inHospitalNo: no,
       patientId: id,
       label: `${bed ? bed + ' · ' : ''}${name}${no ? ' · ' + no : ''}`
@@ -248,6 +254,17 @@ const patientOptions = computed(() => {
 
 const currentPatient = computed(
   () => patientOptions.value.find((p) => p.key === patientKey.value) || null
+)
+
+/**
+ * 展示用的患者名：优先用后端返回的（同一住院号多次入科时，会带上当次入科的姓名），
+ * 后端查不到人时（例如所查月份该患者并不在科）回退到下拉里已选中的姓名 ——
+ * 姓名本来就在手上，没必要显示成「未知患者」。
+ */
+const displayName = computed(
+  () => (result.value && result.value.patientName)
+    || (currentPatient.value && currentPatient.value.name)
+    || '未知患者'
 )
 
 const metrics = computed(() => (result.value && result.value.metrics) || [])
@@ -338,13 +355,16 @@ async function doQuery() {
       departCode: departCode.value || ''
     })
     result.value = res || null
-    if (res && !res.hitCount && !res.skippedCount) {
-      ElMessage.info('该患者本月未命中任何质控项')
+    if (res && !res.hitCount) {
+      // 命中 0 项绝大多数是正常结果（该月该患者尚未入科，自然触发不了任何质控项），
+      // 但沉默的 0 会被当成故障，所以带上月份说清楚
+      ElMessage.info(`${month.value} 该患者未命中任何质控项（所查月份未在科属正常）`)
     }
   } catch (e) {
-    // 首次查询要逐条指标构建/读取事实层，慢是正常的；提示里说清楚，
-    // 否则使用者会当成页面坏了，反复点击反而把服务端压得更慢
-    ElMessage.error('查询失败：' + (e.message || e) + '（首次查询较慢，可稍后重试）')
+    // 该月若还没被预热过，服务端要现场物化事实层（实测约 1~2 分钟），
+    // 会比网关 120 秒的读超时先断掉。提示里说清楚，否则使用者会当成页面坏了，
+    // 反复点击反而把服务端压得更慢 —— 重试一次通常就命中了已建好的表。
+    ElMessage.error('查询失败：' + (e.message || e) + '（该月首次下钻需现场构建，稍后重试通常可成功）')
   } finally {
     loading.value = false
   }
@@ -368,7 +388,7 @@ function doExport() {
     ])
     const title = [
       ['患者月度质控指标'],
-      ['患者', result.value.patientName || ''],
+      ['患者', displayName.value],
       ['住院号', result.value.inHospitalNo || ''],
       ['期间', `${result.value.periodStart || ''} ~ ${result.value.periodEnd || ''}`],
       []
@@ -420,7 +440,7 @@ function doPrint() {
       @page{size:A4 portrait;margin:12mm}
     </style></head><body>
     <h1>患者月度质控指标</h1>
-    <div class="sub">${esc(result.value.patientName || '')} · 住院号 ${esc(result.value.inHospitalNo || '—')}
+    <div class="sub">${esc(displayName.value)} · 住院号 ${esc(result.value.inHospitalNo || '—')}
       · 期间 ${esc(result.value.periodStart || '')} ~ ${esc(result.value.periodEnd || '')}
       · 命中 ${metrics.value.length} 项${p.patientId ? '' : ''}</div>
     <table><thead><tr><th style="width:26%">指标名称</th><th style="width:12%">所属域</th>

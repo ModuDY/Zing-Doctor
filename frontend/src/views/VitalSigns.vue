@@ -16,7 +16,7 @@
           <el-radio-button :label="72">近 3 天</el-radio-button>
           <el-radio-button :label="168">近 7 天</el-radio-button>
         </el-radio-group>
-        <el-button size="small" :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+        <el-button size="small" :icon="refreshIcon" :loading="loading" @click="load">刷新</el-button>
       </div>
     </section>
 
@@ -24,6 +24,11 @@
       <el-icon><InfoFilled /></el-icon>
       同一时间轴叠加对比：左轴血压(mmHg)，右轴血氧(%)与呼吸(次/分)各自独立量纲，不同单位不强行共轴。仅展示，不自动诊断。
     </p>
+
+    <div v-if="truncated" class="truncated-tip">
+      <el-icon><WarningFilled /></el-icon>
+      {{ truncatedNote }}
+    </div>
 
     <div v-loading="loading" class="panel">
       <div v-if="chartError" class="state">{{ chartError }}</div>
@@ -55,7 +60,7 @@
 </template>
 
 <script>
-import { Refresh, InfoFilled } from '@element-plus/icons-vue'
+import { Refresh, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
 import * as echarts from '../utils/echarts'
 import { fetchVitals } from '../api/workbench'
 
@@ -65,9 +70,13 @@ const COLORS = ['#b45309', '#0e7490', '#dc2626', '#2563eb', '#059669', '#7c3aed'
 
 export default {
   name: 'VitalSigns',
-  components: { Refresh, InfoFilled },
+  components: { Refresh, InfoFilled, WarningFilled },
   data() {
     return {
+      // 图标必须作为实例属性暴露给模板：`:icon="Refresh"` 是属性查找，而不是组件解析，
+      // 只写进 components 是拿不到的（Vue 会警告 Refresh is not defined on instance，
+      // 表现为刷新按钮的图标位置空白）。其它页面同样用 refreshIcon 这种写法。
+      refreshIcon: Refresh,
       hours: 24,
       loading: false,
       patientName: '',
@@ -78,6 +87,8 @@ export default {
       series: [],
       records: [],
       recordCount: 0,
+      truncated: false,
+      truncatedNote: '',
       chart: null,
       chartError: ''
     }
@@ -103,7 +114,16 @@ export default {
     }
   },
   created() { this.load() },
+  mounted() {
+    // 只有视口尺寸变了才 resize。不能像原来那样把它挂在每次数据重绘的后面 ——
+    // resize() 内部会 resetOption('media') 重建序列模型再跑一次更新，紧跟在 setOption
+    // 之后同一 tick 执行时，新模型尚未回填 coordinateSystem，LineView.render 读
+    // coordSys.type 就会抛 TypeError（现象：每次切时间窗一条未捕获异常）。
+    this.handleResize = () => { if (this.chart) this.chart.resize() }
+    window.addEventListener('resize', this.handleResize)
+  },
   beforeUnmount() {
+    window.removeEventListener('resize', this.handleResize)
     if (this.chart) { this.chart.dispose(); this.chart = null }
   },
   methods: {
@@ -124,6 +144,8 @@ export default {
         this.series = d.series || []
         this.records = d.records || []
         this.recordCount = d.recordCount || 0
+        this.truncated = !!d.truncated
+        this.truncatedNote = d.truncatedNote || ''
         if (!this.availSeries.length) this.chartError = '窗口内无可用趋势数据'
       } catch (e) {
         this.$message.error('生命体征加载失败：' + ((e && e.message) || '请稍后重试'))
@@ -145,6 +167,12 @@ export default {
     renderChart() {
       const el = this.$refs.chartEl
       if (!el || !this.availSeries.length) return
+      // chartEl 因 v-if(chartError) 可能被销毁重建；DOM 变了必须 dispose 旧实例重新 init，
+      // 否则 setOption 还写在脱离文档的旧 canvas 上，表现为“切时间后图没了”。
+      if (this.chart && this.chart.getDom() !== el) {
+        this.chart.dispose()
+        this.chart = null
+      }
       if (!this.chart) this.chart = echarts.init(el)
 
       const groups = this.buildAxes(this.availSeries)
@@ -198,7 +226,10 @@ export default {
         yAxis: yAxes,
         series: eseries
       }, true)
-      this.chart.resize()
+      // 刻意不在这里调 resize()：数据窗口变了不等于容器尺寸变了。这里调会与上面的
+      // setOption 在同一 tick 内连跑两次更新，触发 coordinateSystem 未回填的问题
+      // （ECharts 会先 resetOption('media') 重建序列模型，新模型还没回填坐标系就被渲染）。
+      // 容器尺寸变化由 mounted 里的 window resize 监听负责。
     }
   }
 }
@@ -215,6 +246,7 @@ export default {
 .dot { margin: 0 4px; color: #d6d3d1; }
 .head-right { display: flex; align-items: center; gap: 8px; }
 .hint { display: flex; align-items: center; gap: 5px; margin: 0 0 12px; font-size: 11px; color: #a8a29e; }
+.truncated-tip { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 8px 12px; font-size: 12px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; }
 .panel { background: #fff; border: 1px solid #eeece8; border-radius: 10px; padding: 10px 12px; }
 .chart { width: 100%; height: 420px; }
 .state { height: 420px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #a8a29e; }

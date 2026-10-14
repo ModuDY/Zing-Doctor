@@ -70,7 +70,7 @@ class LabTrendServiceTest {
     @DisplayName("肝功能：ALT 两套编码都能按名称匹配到，合并为一条序列")
     void liverMatchesByNameNotOnlyByCode() {
         patientWith("H001");
-        when(icuPatientMapper.selectLabsByTimeRange(anyString(), anyString(), anyString())).thenReturn(Arrays.asList(
+        when(icuPatientMapper.selectLabsByKeywordsAndRange(anyString(), anyString(), anyString(), any())).thenReturn(Arrays.asList(
                 lab("丙氨酸氨基转移酶", "35", "2026-10-11T08:00:00"),
                 lab("*丙氨酸氨基转移酶", "42", "2026-10-12T08:00:00"),   // 带 * 前缀 + 另一套编码的数据
                 lab("天冬氨酸氨基转氨酶", "28", "2026-10-12T08:00:00"),
@@ -93,20 +93,21 @@ class LabTrendServiceTest {
     @DisplayName("无记录是 NO_RECORD，不是 0，也不是 UNKNOWN")
     void noRecordIsNoRecord() {
         patientWith("H001");
-        when(icuPatientMapper.selectLabsByTimeRange(anyString(), anyString(), anyString()))
+        when(icuPatientMapper.selectLabsByKeywordsAndRange(anyString(), anyString(), anyString(), any()))
                 .thenReturn(Collections.emptyList());
 
         LabTrendResponse resp = service.trend("P1", "liver", 168);
 
         LabTrendResponse.Series alt = findSeries(resp, "ALT");
-        assertEquals("UNKNOWN", alt.getDataStatus(), "明细查空（无记录）时不得伪装成 AVAILABLE");
+        assertEquals("NO_RECORD", alt.getDataStatus(),
+                "查询成功但窗口内无记录 → NO_RECORD（不得伪装成 AVAILABLE，也不该说成查询失败）");
     }
 
     @Test
     @DisplayName("查询异常是 UNKNOWN 而非空列表（前端据此提示失败，不当成没数据）")
     void queryFailureIsUnknown() {
         patientWith("H001");
-        when(icuPatientMapper.selectLabsByTimeRange(anyString(), anyString(), anyString()))
+        when(icuPatientMapper.selectLabsByKeywordsAndRange(anyString(), anyString(), anyString(), any()))
                 .thenThrow(new RuntimeException("连接超时"));
 
         LabTrendResponse resp = service.trend("P1", "liver", 168);
@@ -120,7 +121,7 @@ class LabTrendServiceTest {
     @DisplayName("凝血：D-二聚体纳入但标注低覆盖属性由前端说明；序列齐全")
     void coagHasAllSeries() {
         patientWith("H001");
-        when(icuPatientMapper.selectLabsByTimeRange(anyString(), anyString(), anyString())).thenReturn(Arrays.asList(
+        when(icuPatientMapper.selectLabsByKeywordsAndRange(anyString(), anyString(), anyString(), any())).thenReturn(Arrays.asList(
                 lab("*血小板计数", "180", "2026-10-11T08:00:00"),
                 lab("*血浆凝血酶原时间(PT)", "13.5", "2026-10-11T08:00:00"),
                 lab("床边血浆D-二聚体测定(ICU)", "2.1", "2026-10-11T08:00:00")
@@ -161,7 +162,7 @@ class LabTrendServiceTest {
     @DisplayName("type 非法时按肝功能兜底而非报错（前端只传 liver/coag）")
     void unknownTypeFallsBackToLiver() {
         patientWith("H001");
-        when(icuPatientMapper.selectLabsByTimeRange(anyString(), anyString(), anyString()))
+        when(icuPatientMapper.selectLabsByKeywordsAndRange(anyString(), anyString(), anyString(), any()))
                 .thenReturn(Collections.emptyList());
         LabTrendResponse resp = service.trend("P1", "whatever", 168);
         assertNotNull(findSeries(resp, "ALT"), "未知 type 应按肝功能处理");

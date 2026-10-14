@@ -91,23 +91,32 @@ public class LabTrendServiceImpl implements LabTrendService {
         }
         String inHospitalNo = p == null ? null : p.getInHospitalNo();
 
-        // 一次拉全窗检验明细（上限 2000 条），Java 端按关键词分组 —— 避免按项目 N+1
+        LinkedHashMap<String, String[][]> groups = "coag".equals(type)
+                ? singleGroup("凝血功能", COAG) : LIVER;
+
+        // DB 端按目标项目关键词过滤取数，不再先拉全项目再 Java 筛
+        List<String> keywords = new ArrayList<>();
+        for (String[][] items : groups.values()) {
+            for (String[] it : items) {
+                keywords.add(it[0]);
+            }
+        }
+
         List<Map<String, Object>> rows = new ArrayList<>();
-        if (inHospitalNo != null && !inHospitalNo.isEmpty()) {
+        boolean queryFailed = false;
+        if (inHospitalNo == null || inHospitalNo.isEmpty()) {
+            queryFailed = true;
+            log.warn("检验趋势：未取到住院号 patientId={}", patientId);
+        } else {
             try {
-                rows = icuPatientMapper.selectLabsByTimeRange(
-                        inHospitalNo, start.format(ISO), end.format(ISO));
+                rows = icuPatientMapper.selectLabsByKeywordsAndRange(
+                        inHospitalNo, start.format(ISO), end.format(ISO), keywords);
             } catch (Exception e) {
+                queryFailed = true;
                 log.warn("检验明细查询失败 patientId={} inHospitalNo={}", patientId, inHospitalNo, e);
             }
         }
-        boolean queryFailed = inHospitalNo == null || inHospitalNo.isEmpty() || rows.isEmpty();
-        if (inHospitalNo == null || inHospitalNo.isEmpty()) {
-            log.warn("检验趋势：未取到住院号 patientId={}", patientId);
-        }
 
-        LinkedHashMap<String, String[][]> groups = "coag".equals(type)
-                ? singleGroup("凝血功能", COAG) : LIVER;
         for (Map.Entry<String, String[][]> e : groups.entrySet()) {
             LabTrendResponse.Group g = new LabTrendResponse.Group();
             g.setName(e.getKey());
@@ -132,7 +141,7 @@ public class LabTrendServiceImpl implements LabTrendService {
         LabTrendResponse.Series s = new LabTrendResponse.Series();
         s.setName(name);
         if (queryFailed) {
-            s.setDataStatus(rows.isEmpty() && !queryFailed ? "NO_RECORD" : "UNKNOWN");
+            s.setDataStatus("UNKNOWN");
             s.setNote("查询失败");
             return s;
         }

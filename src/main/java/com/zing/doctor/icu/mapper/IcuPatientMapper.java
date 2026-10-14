@@ -434,6 +434,38 @@ public interface IcuPatientMapper {
                                                      @Param("startTime") String startTime,
                                                      @Param("endTime") String endTime);
 
+    /**
+     * 检验趋势专用（肝功能/凝血）：DB 端按项目名称关键词过滤，再按时间窗取数。
+     * 不再先取全项目最新200条再 Java 筛（30天早期肝功/凝血会被其他项目挤掉）。
+     * 别名对齐 service 期望：item_value/low_value/high_value/ref_text/alarm_flag。
+     *
+     * <p><b>注意</b>：本 SQL 带 &lt;script&gt; 标签，MyBatis 会把整段内容按 XML 解析，
+     * 所以 SQL 里的「小于号」必须写成 XML 实体（&amp;lt;），否则注解解析阶段就抛
+     * SAXParseException —— 表现为应用启动/首次调用即失败，而不是查询报错。
+     * 同文件里其它 @Select 没带 &lt;script&gt;，是当纯文本下发的，才不需要转义。
+     * 下面三处（&lt;&gt;、&lt; #{endTime}、ROWNUM &lt;=）都是这个原因。
+     */
+    @Select("<script>SELECT * FROM ( "
+            + "  SELECT li.lis_item_name AS item_name, li.lis_item_result AS item_value, "
+            + "  li.lis_item_unit AS item_unit, li.check_time AS check_time, "
+            + "  li.lis_item_low_value AS low_value, li.lis_item_height_value AS high_value, "
+            + "  li.lis_item_limit AS ref_text, li.lis_item_alarm_flag AS alarm_flag "
+            + "  FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li "
+            + "  WHERE li.in_hospital_no = #{inHospitalNo} AND li.del_flag = 0 "
+            + "  AND li.lis_item_result IS NOT NULL AND li.lis_item_result &lt;&gt; '' "
+            + "  AND li.check_time >= #{startTime} AND li.check_time &lt; #{endTime} "
+            + "  AND ("
+            + "    <foreach collection='keywords' item='k' separator=' OR '>"
+            + "      li.lis_item_name LIKE '%' || #{k} || '%'"
+            + "    </foreach>"
+            + "  ) "
+            + "  ORDER BY li.check_time ASC "
+            + ") WHERE ROWNUM &lt;= 2000</script>")
+    List<Map<String, Object>> selectLabsByKeywordsAndRange(@Param("inHospitalNo") String inHospitalNo,
+                                                           @Param("startTime") String startTime,
+                                                           @Param("endTime") String endTime,
+                                                           @Param("keywords") List<String> keywords);
+
     /** AKI：近14天肌酐，名称允许带*等前缀；单患者查询，避免全院 GROUP BY。 */
     @Select("SELECT li.lis_item_name AS item_name, li.lis_item_result AS result, "
             + "li.lis_item_unit AS unit, li.check_time AS check_time "
@@ -976,6 +1008,11 @@ public interface IcuPatientMapper {
      *
      * <p>时间参数传 ISO 字符串（达梦可与 TIMESTAMP 比较）；ROWNUM 在最外层截断防呆
      * （达梦不允许 ROWNUM 落在三层嵌套内层，这是踩过的坑）。
+     *
+     * <p><b>截断口径</b>：按 item_time 倒序取最新 2001 条做「探测上限」——
+     * service 拿到 &gt;2000 条即判定窗口内记录超限，去掉最早一条后反转回升序返回，
+     * 并在响应里带 truncated 标记供前端提示。只保留最新记录，避免 7 天高频患者
+     * 因升序截断丢掉最新数据（趋势图显示过时数据比缺历史更危险）。
      */
     @Select({"<script>",
             "SELECT * FROM (",
@@ -989,8 +1026,8 @@ public interface IcuPatientMapper {
             "     AND r.item_time &gt;= #{startTime} AND r.item_time &lt; #{endTime}",
             "     AND r.item_code IN ",
             "     <foreach collection='itemCodes' item='code' open='(' separator=',' close=')'>#{code}</foreach>",
-            "   ORDER BY r.item_time ASC",
-            ") WHERE ROWNUM &lt;= 2000",
+            "   ORDER BY r.item_time DESC",
+            ") WHERE ROWNUM &lt;= 2001",
             "</script>"})
     List<Map<String, Object>> selectVitalsByCodes(@Param("patientId") String patientId,
                                                   @Param("itemCodes") List<String> itemCodes,
@@ -1358,6 +1395,43 @@ public interface IcuPatientMapper {
                                                              @Param("shiftDate") String shiftDate,
                                                              @Param("startTime") String startTime,
                                                              @Param("endTime") String endTime);
+
+    /**
+     * 体液平衡专用：出量（排除尿量 ii_nl），按任意时间窗明细返回。
+     * 与交接班/汇总用的 selectOutputByPatient 区分：后者 io_type='o' 含尿量，
+     * 体液平衡页要把尿量单独列、且与"非尿出量"互斥，故排除 ii_nl。
+     */
+    @Select("SELECT r.item_code AS item_code, r.item_value AS item_value, "
+            + "r.item_time AS item_time, r.item_unit AS item_unit, c.item_name AS item_name "
+            + "FROM \"zing_icu_db_prod\".\"patient_io_module_item_record\" r "
+            + "INNER JOIN \"zing_icu_db_prod\".\"config_io_item\" c "
+            + "  ON r.item_code = c.item_code AND c.io_type = 'o' "
+            + "WHERE r.del_flag = 0 AND r.status = 1 "
+            + "AND r.item_code <> 'ii_nl' "
+            + "AND r.patient_id = #{patientId} "
+            + "AND r.item_time >= #{startTime} AND r.item_time < #{endTime} "
+            + "ORDER BY r.item_time DESC")
+    List<Map<String, Object>> selectFluidOutputExclUrine(@Param("patientId") String patientId,
+                                                        @Param("startTime") String startTime,
+                                                        @Param("endTime") String endTime);
+
+    /**
+     * 体液平衡专用：医嘱入量按任意时间窗简单汇总（不做 07:00 班次边界换算）。
+     * 交接班用的 selectAdviceIntakeByPatient 固定 shiftDate 当天 07:00~次日07:00，
+     * 不适用页面传入的 6/12/24/72h 窗口；这里直接按 execute_hour 落在窗口内取 amount。
+     */
+    @Select("SELECT paei.execute_hour AS item_time, pae.name AS item_name, paei.amount AS item_value "
+            + "FROM \"zing_icu_db_prod\".\"patient_advice_execute\" pae "
+            + "INNER JOIN \"zing_icu_db_prod\".\"patient_advice_execute_item\" paei "
+            + "  ON pae.id = paei.execute_id "
+            + "WHERE pae.is_to_io = '1' "
+            + "AND pae.del_flag = '0' "
+            + "AND pae.patient_id = #{patientId} "
+            + "AND paei.execute_hour >= #{startTime} AND paei.execute_hour < #{endTime} "
+            + "ORDER BY paei.execute_hour DESC")
+    List<Map<String, Object>> selectAdviceIntakeByWindow(@Param("patientId") String patientId,
+                                                          @Param("startTime") String startTime,
+                                                          @Param("endTime") String endTime);
 
     /**
      * 出量项目分组汇总（按患者）：按 item_name 分组累加。

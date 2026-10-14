@@ -162,6 +162,30 @@ public class QualityProperties {
     /** 指标并行计算线程数 */
     private int calcThreads = 4;
 
+    /**
+     * 启动后是否在后台预热事实层物化表。
+     *
+     * <p>事实层物化 = 把事实 SQL 的结果落成物理表供多个指标复用，表名连同「周期 + 科室指纹」
+     * 缓存在 JVM 内存（{@code factTableCache}）里。服务一重启缓存即空，此时第一个下钻请求
+     * 要现场重建「全部事实层 × 当月」的表。实测约 96 张表、耗时 106 秒，恰好压在网关 120 秒
+     * 的超时边缘 —— 这正是「患者月度质控」页时好时坏 504、热了之后又只要百毫秒的原因。
+     *
+     * <p>预热把这段耗时从「用户请求路径」挪到「启动后台线程」：语义完全不变（仍是同一批
+     * {@code CREATE TABLE AS}，物化结果与按需生成一致），但首个下钻请求从 106 秒降到百毫秒级。
+     */
+    private boolean warmupOnStartup = true;
+
+    /**
+     * 预热覆盖的月份数：1 = 仅当月，2 = 当月 + 上月。
+     *
+     * <p>取 2 是因为下钻页默认查上月、批算覆盖当月，两者都要热。再往上加会线性拉长
+     * 启动后的后台负载，没有实际收益（更早的月份几乎没人下钻）。
+     */
+    private int warmupMonths = 2;
+
+    /** 预热开始前的静默秒数：避开启动瞬间连接池初始化、DSL 装载的争抢。 */
+    private int warmupDelaySeconds = 20;
+
     /** 引擎版本，写入计算批次供回溯 */
     private String engineVersion = "quality-engine/1.0.0";
 }

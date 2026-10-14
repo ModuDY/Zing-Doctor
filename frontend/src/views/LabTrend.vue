@@ -97,6 +97,17 @@ export default {
     }
   },
   watch: {
+    // 肝功能与凝血是两条路由（/page/lab-liver、/page/lab-coag）指向同一个组件，
+    // Vue Router 会复用实例：切换菜单时 created 不再执行 → load() 不被调用 →
+    // 页面一直停在上一类检验的结果上（只有依赖 $route 的标题与提示会变，数据不换，
+    // 看着就像「点了菜单没反应」）。同一组件换 patientId 是同一类问题，故盯 fullPath。
+    '$route.fullPath'() {
+      this.disposeCharts()
+      this.groups = []
+      this.records = []
+      this.recordCount = 0
+      this.load()
+    },
     groups() {
       this.$nextTick(this.renderCharts)
     }
@@ -105,8 +116,7 @@ export default {
     this.load()
   },
   beforeUnmount() {
-    Object.values(this.charts).forEach((c) => c && c.dispose())
-    this.charts = {}
+    this.disposeCharts()
   },
   methods: {
     async load() {
@@ -136,6 +146,16 @@ export default {
       if (row.refLow != null) return '≥ ' + row.refLow
       if (row.refHigh != null) return '≤ ' + row.refHigh
       return '—'
+    },
+    /**
+     * 销毁全部图表实例。
+     *
+     * 切换检验类型 / 患者前必须先销毁：两类检验的分组数与卡片数不同（肝功能 4 组 8 图、
+     * 凝血 1 组 6 图），而 charts 是按 `gi-si` 索引的，不清理会把旧实例错配到新卡片上。
+     */
+    disposeCharts() {
+      Object.values(this.charts).forEach((c) => c && c.dispose())
+      this.charts = {}
     },
     renderCharts() {
       this.groups.forEach((g, gi) => {

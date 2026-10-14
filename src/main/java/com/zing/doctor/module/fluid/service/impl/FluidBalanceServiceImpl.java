@@ -20,16 +20,16 @@ import java.util.Map;
 /**
  * 体液平衡实现（docs/25 §2）。
  *
- * <p>四类来源分别查询、分别汇总（复用 IcuPatientMapper 既有方法）：
+ * <p>四类来源分别查询、分别汇总（体液平衡专用方法，与交接班口径区分）：
  * <ol>
- *   <li>出量（尿/引流等）：{@code selectOutputByPatient}（config_io_item.io_type='o'）</li>
+ *   <li>非尿出量：{@code selectFluidOutputExclUrine}（io_type='o' 且排除 ii_nl）</li>
  *   <li>尿量：{@code selectUrineByPatient}（item_code='ii_nl'）</li>
- *   <li>医嘱入量：{@code selectAdviceIntakeByPatient}（patient_advice_execute.is_to_io='1'）</li>
+ *   <li>医嘱入量：{@code selectAdviceIntakeByWindow}（任意时间窗，不做07:00班次换算）</li>
  *   <li>其他入量：{@code selectOtherIntakeByPatient}（module_code='io_in'）</li>
  * </ol>
  *
- * <p><b>不做跨来源合计</b>：核查未能证明 I/O 记录与医嘱执行两条通道已去重，
- * 且 io_type='i'（252 个配置）从未被使用。方案明确"来源可解释且已去重后才计算净平衡"。
+ * <p><b>四栏互斥</b>：非尿出量已排除 ii_nl，与尿量不重复；入量侧医嘱入量与其他入量
+ * （非药品 io_in）按来源分通道，不跨通道合计净平衡（两条通道未证明已去重）。</p>
  */
 @Slf4j
 @Service
@@ -60,12 +60,11 @@ public class FluidBalanceServiceImpl implements FluidBalanceService {
 
         String s = start.format(ISO);
         String e = end.format(ISO);
-        String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 
-        resp.getSources().add(source("output", "出量（尿/引流等）", icuPatientMapper.selectOutputByPatient(patientId, s, e), resp));
+        resp.getSources().add(source("output", "出量（引流/呕吐等，不含尿）", icuPatientMapper.selectFluidOutputExclUrine(patientId, s, e), resp));
         resp.getSources().add(source("urine", "尿量", icuPatientMapper.selectUrineByPatient(patientId, s, e), resp));
-        resp.getSources().add(source("advice_in", "医嘱入量", icuPatientMapper.selectAdviceIntakeByPatient(patientId, today, s, e), resp));
-        resp.getSources().add(source("other_in", "其他入量", icuPatientMapper.selectOtherIntakeByPatient(patientId, s, e), resp));
+        resp.getSources().add(source("advice_in", "医嘱入量", icuPatientMapper.selectAdviceIntakeByWindow(patientId, s, e), resp));
+        resp.getSources().add(source("other_in", "其他入量（非药品）", icuPatientMapper.selectOtherIntakeByPatient(patientId, s, e), resp));
 
         resp.setRecordCount(resp.getSources().stream()
                 .mapToInt(x -> x.getRows().size()).sum());

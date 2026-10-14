@@ -30,6 +30,12 @@ public class VitalsResponse {
 
     private Integer recordCount;
 
+    /** 窗口内记录超过 2000 条上限时为 true（仅保留最新 2000 条，更早记录已省略） */
+    private Boolean truncated;
+
+    /** 截断提示文案（truncated=true 时前端展示） */
+    private String truncatedNote;
+
     @Data
     public static class Series {
         /** 指标 key，如 hr / rr / spo2 / sbp / dbp / map / temp */

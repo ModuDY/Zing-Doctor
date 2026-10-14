@@ -95,6 +95,15 @@ public class VitalsServiceImpl implements VitalsService {
             return resp;
         }
 
+        // 截断探测：SQL 倒序取最新 2001 条，>2000 说明窗口内记录超限。
+        // 去掉最早一条（DESC 顺序下在末尾），再反转回升序供图表按时间轴绘制。
+        if (rows.size() > 2000) {
+            resp.setTruncated(true);
+            resp.setTruncatedNote("窗口内记录超过 2000 条，仅展示最近 2000 条，更早记录已省略");
+            rows.remove(rows.size() - 1);
+        }
+        java.util.Collections.reverse(rows);
+
         // 按指标分组
         Map<String, VitalsResponse.Series> byKey = new LinkedHashMap<>();
         for (Object[] def : DEFS) {
