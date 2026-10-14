@@ -11,6 +11,7 @@
 import * as echarts from 'echarts/core'
 import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import {
+  AxisPointerComponent,
   DataZoomComponent,
   GridComponent,
   LegendComponent,
@@ -25,10 +26,10 @@ import { CanvasRenderer } from 'echarts/renderers'
 echarts.use([
   // series 类型：本项目只用了折线 / 柱状 / 饼图
   LineChart, BarChart, PieChart,
-  // 组件：坐标轴网格、提示、图例、标题、标点/标线/标域、内置缩放
+  // 组件：坐标轴网格、提示、图例、标题、标点/标线/标域、内置缩放、轴指示线
   GridComponent, TooltipComponent, LegendComponent, TitleComponent,
   MarkPointComponent, MarkLineComponent, MarkAreaComponent,
-  DataZoomComponent,
+  DataZoomComponent, AxisPointerComponent,
   // 渲染器：canvas（页面里 echarts.init(dom) 默认用法）
   CanvasRenderer
 ])

@@ -59,8 +59,9 @@ import { Refresh, InfoFilled } from '@element-plus/icons-vue'
 import * as echarts from '../utils/echarts'
 import { fetchVitals } from '../api/workbench'
 
-// 颜色：按指标顺序
-const COLORS = ['#b45309', '#0e7490', '#b91c1c', '#7c3aed', '#2563eb', '#059669', '#c2410c', '#475569']
+// 配色：以项目琥珀棕 #b45309 为主色，搭配临床监护常用的高区分度色，
+// 每条固定一色，便于在同一时间轴上区分不同指标。
+const COLORS = ['#b45309', '#0e7490', '#dc2626', '#2563eb', '#059669', '#7c3aed', '#ea580c', '#475569']
 
 export default {
   name: 'VitalSigns',
@@ -178,20 +179,16 @@ export default {
 
       this.chart.setOption({
         backgroundColor: 'transparent',
-        legend: { top: 0, textStyle: { fontSize: 11, color: '#57534e' } },
-        grid: { left: 50, right: 50 + (groups.length - 1) * 46, top: 30, bottom: 30 },
+        legend: {
+          top: 0,
+          data: this.availSeries.map((s) => s.name),
+          textStyle: { fontSize: 11, color: '#57534e' }
+        },
+        grid: { left: 50, right: 60 + (groups.length - 1) * 46, top: 34, bottom: 30 },
         tooltip: {
           trigger: 'axis',
-          confine: true,
-          formatter: (ps) => {
-            if (!ps || !ps.length) return ''
-            const t = String(ps[0].axisValue).slice(5, 16).replace('T', ' ')
-            const rows = ps.map((p) => {
-              const s = this.availSeries[p.seriesIndex]
-              return (p.marker || '') + ' ' + p.seriesName + '：<b>' + p.value[1] + '</b>' + (s && s.unit ? ' ' + s.unit : '')
-            }).join('<br/>')
-            return t + '<br/>' + rows
-          }
+          axisPointer: { type: 'line' },
+          confine: true
         },
         xAxis: {
           type: 'time',

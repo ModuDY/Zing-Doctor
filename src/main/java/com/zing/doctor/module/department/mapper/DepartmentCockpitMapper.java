@@ -122,4 +122,57 @@ public interface DepartmentCockpitMapper {
     Map<String, Object> selectAvgStayDays(@Param("departCode") String departCode,
                                           @Param("start") String start,
                                           @Param("end") String end);
+
+    /**
+     * 当前床位资源。开放床位必须同时满足未删除、启用且当前时刻落在启停区间内；
+     * 占用床位只统计能匹配到有效开放床位的当前在科患者，避免脏床号把使用率推到 100% 以上。
+     */
+    @Select({"<script>",
+            "SELECT COUNT(*) AS open_beds,",
+            "       SUM(CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info\" pi",
+            "                              WHERE pi.del_flag = 0 AND pi.is_in_depart = 1",
+            "                                AND pi.depart_code = b.depart_code AND pi.bed_code = b.bed_code) THEN 1 ELSE 0 END) AS occupied_beds,",
+            "       (SELECT COUNT(DISTINCT pi2.in_hospital_no) FROM \"zing_icu_db_prod\".\"patient_info\" pi2",
+            "         WHERE pi2.del_flag = 0 AND pi2.is_in_depart = 1",
+            "           <if test=\"departCode != null and departCode != ''\">AND pi2.depart_code = #{departCode}</if>",
+            "           AND (pi2.bed_code IS NULL OR TRIM(pi2.bed_code) = '' OR NOT EXISTS (",
+            "                SELECT 1 FROM \"zing_icu_db_prod\".\"config_bed\" bx",
+            "                 WHERE bx.del_flag = 0 AND bx.status = 1",
+            "                   AND (bx.begin_use_time IS NULL OR bx.begin_use_time &lt;= SYSDATE)",
+            "                   AND (bx.stop_use_time IS NULL OR bx.stop_use_time &gt; SYSDATE)",
+            "                   AND bx.depart_code = pi2.depart_code AND bx.bed_code = pi2.bed_code",
+            "           )) AS unassigned_patients",
+            "  FROM \"zing_icu_db_prod\".\"config_bed\" b",
+            " WHERE b.del_flag = 0 AND b.status = 1",
+            "   AND (b.begin_use_time IS NULL OR b.begin_use_time &lt;= SYSDATE)",
+            "   AND (b.stop_use_time IS NULL OR b.stop_use_time &gt; SYSDATE)",
+            "   <if test=\"departCode != null and departCode != ''\">AND b.depart_code = #{departCode}</if>",
+            "</script>"})
+    Map<String, Object> selectBedOverview(@Param("departCode") String departCode);
+
+    /**
+     * 设备接入态势。bound_count 通过 patient_info 的四个设备编码与配置 device_id 精确匹配；
+     * device_status 是采集连接状态，不能解释为临床使用、维修或库存状态。
+     */
+    @Select({"<script>",
+            "SELECT d.device_type AS device_type, COUNT(DISTINCT d.id) AS configured_count,",
+            "       SUM(CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info\" pi",
+            "                              WHERE pi.del_flag = 0 AND pi.is_in_depart = 1",
+            "                                AND pi.depart_code = d.depart_code",
+            "                                AND (pi.monitor_code = d.device_id OR pi.ventilator_code = d.device_id",
+            "                                     OR pi.crrt_device_code = d.device_id OR pi.ecmo_device_code = d.device_id))",
+            "                THEN 1 ELSE 0 END) AS bound_count,",
+            "       SUM(CASE WHEN d.device_status = '数据正在接收' THEN 1 ELSE 0 END) AS receiving_count,",
+            "       SUM(CASE WHEN d.device_status = '端口已连接' THEN 1 ELSE 0 END) AS connected_count,",
+            "       SUM(CASE WHEN d.device_status = '连接初始化' THEN 1 ELSE 0 END) AS initializing_count,",
+            "       SUM(CASE WHEN d.device_status = '数据停止接收' THEN 1 ELSE 0 END) AS stopped_count,",
+            "       SUM(CASE WHEN d.device_status LIKE '%异常%' OR d.device_status LIKE '%断开%' THEN 1 ELSE 0 END) AS abnormal_count,",
+            "       SUM(CASE WHEN d.device_status IS NULL OR TRIM(d.device_status) = '' OR d.device_status = '未接入采集套件' THEN 1 ELSE 0 END) AS unknown_count,",
+            "       MAX(d.update_time) AS latest_update",
+            "  FROM \"zing_icu_db_prod\".\"config_device\" d",
+            " WHERE d.del_flag = 0 AND d.status = 1",
+            "   <if test=\"departCode != null and departCode != ''\">AND d.depart_code = #{departCode}</if>",
+            " GROUP BY d.device_type ORDER BY d.device_type",
+            "</script>"})
+    List<Map<String, Object>> selectDeviceOverview(@Param("departCode") String departCode);
 }

@@ -11,8 +11,8 @@ import java.util.List;
  * <p>每个区块独立带 {@code dataStatus}：某一块查失败时只把该块标 UNKNOWN，
  * 其它块照常返回 —— 不能因为一个源挂掉就让整页空白（与工作台各摘要块一致的原则）。
  *
- * <p>床位使用率刻意不带"算出来的百分比"：质控事实层 fact_bed 的状态是 PENDING_SOURCE
- * （quality_301 / quality_304 均待接床位开放记录源），没有可靠分母前显示状态而非 0。
+ * <p>床位与设备资源来自 ICU 配置表。床位占用按“有效开放床位 ∩ 当前在科患者床号”计算；
+ * 设备状态只代表采集连接状态，不等同于设备运行、维修或库存状态。
  */
 @Data
 public class CockpitSnapshot {
@@ -55,8 +55,11 @@ public class CockpitSnapshot {
     /** 当前 ECMO 患者数 */
     private SnapshotBlock<Integer> ecmoCount;
 
-    /** 床位使用率区块：首版恒为 PENDING_SOURCE，等床位数据源接入 */
-    private SnapshotBlock<String> bedUsage;
+    /** 当前床位开放、占用和可用情况 */
+    private SnapshotBlock<BedOverview> bedUsage;
+
+    /** 设备配置、患者绑定及数据接收状态（按设备类型聚合） */
+    private SnapshotBlock<List<DeviceOverview>> deviceOverview;
 
     // ---------------- D. 患者流转（近 N 天） ----------------
 
@@ -120,6 +123,35 @@ public class CockpitSnapshot {
             c.note = note;
             return c;
         }
+    }
+
+    /** 床位资源快照。使用率为 0~1；没有开放床位时为 null。 */
+    @Data
+    public static class BedOverview {
+        private int openBeds;
+        private int occupiedBeds;
+        private int availableBeds;
+        private int unassignedPatients;
+        private Double occupancyRate;
+    }
+
+    /**
+     * 设备接入快照。
+     * configured/bound 是设备数，receiving 等字段来自 config_device.device_status。
+     */
+    @Data
+    public static class DeviceOverview {
+        private String type;
+        private String label;
+        private int configured;
+        private int bound;
+        private int receiving;
+        private int connected;
+        private int initializing;
+        private int stopped;
+        private int abnormal;
+        private int unknown;
+        private String latestUpdate;
     }
 
     /** 单个数据区块：值 + 状态 */

@@ -37,7 +37,7 @@
       <span class="period-item"><i class="period-dot today"></i>科室快照：当前 / 今日</span>
       <span class="period-item"><i class="period-dot trend"></i>流转、评分、住院日：近 {{ days }} 天</span>
       <span class="period-item"><i class="period-dot quality"></i>质控指标：本月</span>
-      <span v-if="bedDataPending" class="data-gap"><i></i>床位台账未接入</span>
+      <span v-if="bedDataPending" class="data-gap"><i></i>床位资源暂不可用</span>
     </div>
 
     <section class="kpi-row" aria-label="科室核心指标">
@@ -46,6 +46,7 @@
       <StatCard class="snapshot-card admission-card" label="今日入科 / 转入" :block="summary.todayInCount" unit="人" />
       <StatCard class="snapshot-card discharge-card" label="今日转出 / 出科" :block="summary.todayOutCount" unit="人" />
       <StatCard class="snapshot-card stay-card" :label="'近 ' + days + ' 天平均 ICU 住院日'" :block="summary.avgStayDays" unit="天" :sub="avgStaySub" />
+      <StatCard class="snapshot-card bed-card" label="当前床位使用率" :block="bedUsageRateBlock" unit="%" :sub="bedUsageSub" :sub-warn="bedUsagePercent >= 90" />
     </section>
 
     <section class="primary-grid">
@@ -86,6 +87,44 @@
           </div>
         </div>
         <div class="quality-foot">指标结果来自质控中台；目标值及上期变化请在指标详情中核对</div>
+      </article>
+    </section>
+
+    <section class="resource-grid" aria-label="床位与设备资源">
+      <article class="panel bed-panel">
+        <div class="panel-head">
+          <div><span class="panel-kicker">BED CAPACITY</span><h2 class="panel-title">床位负荷</h2></div>
+          <div class="panel-context">当前实时快照 <span>·</span> 有效开放床位</div>
+        </div>
+        <div v-if="!bedOverview" class="state-box small"><div class="state-title">{{ blockNote(summary.bedUsage) || '床位资源暂无数据' }}</div></div>
+        <div v-else class="bed-body">
+          <div class="bed-gauge" :style="{ '--bed-rate': bedUsagePercent + '%' }">
+            <div class="bed-gauge-inner"><b>{{ bedUsagePercent.toFixed(1) }}</b><span>%</span><small>床位使用率</small></div>
+          </div>
+          <div class="bed-metrics">
+            <div><span>开放床位</span><b>{{ bedOverview.openBeds }}</b><i>张</i></div>
+            <div><span>当前占用</span><b>{{ bedOverview.occupiedBeds }}</b><i>张</i></div>
+            <div :class="{ alert: bedOverview.availableBeds <= 1 }"><span>可用床位</span><b>{{ bedOverview.availableBeds }}</b><i>张</i></div>
+            <div><span>未匹配床位患者</span><b>{{ bedOverview.unassignedPatients }}</b><i>人</i></div>
+          </div>
+        </div>
+        <div class="resource-foot">占用仅统计床号能匹配有效开放床位的当前在科患者，避免无效床号造成使用率超过 100%。</div>
+      </article>
+
+      <article class="panel device-panel">
+        <div class="panel-head">
+          <div><span class="panel-kicker">DEVICE CONNECTIVITY</span><h2 class="panel-title">设备接入态势</h2></div>
+          <div class="panel-context">配置 / 患者绑定 / 数据接收</div>
+        </div>
+        <div v-if="!deviceRows.length" class="state-box small"><div class="state-title">{{ blockNote(summary.deviceOverview) || '设备配置暂无数据' }}</div></div>
+        <div v-else class="device-list">
+          <div v-for="d in deviceRows" :key="d.type || d.label" class="device-row">
+            <div class="device-name"><span class="device-pulse" :class="{ warn: d.nonReceiving > 0 }"></span><b>{{ d.label }}</b><small>{{ d.latestUpdateText }}</small></div>
+            <div class="device-track"><i :style="{ width: d.receivingRate + '%' }"></i></div>
+            <div class="device-stats"><span><b>{{ d.configured }}</b> 配置</span><span><b>{{ d.bound }}</b> 绑定</span><span class="receiving"><b>{{ d.receiving }}</b> 接收</span><span :class="{ warn: d.nonReceiving > 0 }"><b>{{ d.nonReceiving }}</b> 非接收</span></div>
+          </div>
+        </div>
+        <div class="resource-foot">“接收/非接收”来自采集链路状态，不代表设备维修、库存或临床可用性；CRRT 未接采集套件会列入非接收。</div>
       </article>
     </section>
 
@@ -199,7 +238,43 @@ export default {
       return { inCount, outCount, net: inCount - outCount }
     },
     bedDataPending() {
-      return this.summary.bedUsage && this.summary.bedUsage.status === 'PENDING_SOURCE'
+      return this.summary.bedUsage && this.summary.bedUsage.status !== 'OK'
+    },
+    bedOverview() {
+      const block = this.summary.bedUsage
+      return block && block.status === 'OK' ? block.value : null
+    },
+    bedUsagePercent() {
+      const rate = this.bedOverview && Number(this.bedOverview.occupancyRate)
+      return Number.isFinite(rate) ? Math.max(0, Math.min(100, rate * 100)) : 0
+    },
+    bedUsageRateBlock() {
+      const block = this.summary.bedUsage
+      if (!block || block.status !== 'OK' || !block.value) {
+        return block || { status: 'UNKNOWN', value: null, note: '床位资源未加载' }
+      }
+      return { status: 'OK', value: this.bedUsagePercent.toFixed(1) }
+    },
+    bedUsageSub() {
+      if (!this.bedOverview) return ''
+      return `${this.bedOverview.occupiedBeds}/${this.bedOverview.openBeds} 张 · 可用 ${this.bedOverview.availableBeds} 张`
+    },
+    deviceRows() {
+      const block = this.summary.deviceOverview
+      const rows = block && block.status === 'OK' && Array.isArray(block.value) ? block.value : []
+      return rows.map((row) => {
+        const configured = Number(row.configured) || 0
+        const receiving = Number(row.receiving) || 0
+        return {
+          ...row,
+          configured,
+          receiving,
+          bound: Number(row.bound) || 0,
+          nonReceiving: Math.max(0, configured - receiving),
+          receivingRate: configured > 0 ? Math.min(100, (receiving / configured) * 100) : 0,
+          latestUpdateText: row.latestUpdate ? String(row.latestUpdate).slice(5, 16) + ' 更新' : '无更新时间'
+        }
+      })
     },
     flowUnknown() {
       const f = this.summary.dailyFlow
@@ -401,14 +476,15 @@ export default {
 .period-dot.today { background: #d28754; }.period-dot.trend { background: #5e9ca0; }.period-dot.quality { background: #7d82ae; }
 .data-gap { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; color: #a36b35; }
 .data-gap i { width: 6px; height: 6px; border: 1px solid #cf934e; border-radius: 50%; }
-.kpi-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 11px; }
+.kpi-row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 11px; }
 .kpi-row :deep(.snapshot-card) { position: relative; min-height: 105px; padding: 16px 18px 14px; overflow: hidden; border: 1px solid rgba(110, 202, 195, .16); border-radius: 13px; background: linear-gradient(145deg, rgba(19, 53, 64, .96), rgba(11, 35, 45, .94)); box-shadow: 0 8px 24px rgba(0, 0, 0, .18), inset 0 1px 0 rgba(255, 255, 255, .035); transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease; }
 .kpi-row :deep(.snapshot-card:hover) { z-index: 2; border-color: rgba(100, 234, 215, .42); box-shadow: 0 14px 30px rgba(0, 0, 0, .3), 0 0 24px rgba(58, 214, 196, .08); transform: translateY(-4px); }
 .kpi-row :deep(.snapshot-card)::before { content: ''; position: absolute; left: 0; top: 18px; bottom: 18px; width: 3px; border-radius: 0 4px 4px 0; background: #61cfc2; box-shadow: 0 0 12px currentColor; }
-.kpi-row :deep(.snapshot-card)::after { position: absolute; right: 13px; top: 10px; color: rgba(159, 235, 222, .16); font-size: 26px; font-weight: 800; letter-spacing: -2px; }.kpi-row :deep(.census-card)::after { content: '01'; }.kpi-row :deep(.critical-card)::after { content: '02'; }.kpi-row :deep(.admission-card)::after { content: '03'; }.kpi-row :deep(.discharge-card)::after { content: '04'; }.kpi-row :deep(.stay-card)::after { content: '05'; }
-.kpi-row :deep(.critical-card)::before { background: #c87863; }.kpi-row :deep(.admission-card)::before { background: #d18b4c; }.kpi-row :deep(.discharge-card)::before { background: #5c9b9b; }.kpi-row :deep(.stay-card)::before { background: #8189ad; }
+.kpi-row :deep(.snapshot-card)::after { position: absolute; right: 13px; top: 10px; color: rgba(159, 235, 222, .16); font-size: 26px; font-weight: 800; letter-spacing: -2px; }.kpi-row :deep(.census-card)::after { content: '01'; }.kpi-row :deep(.critical-card)::after { content: '02'; }.kpi-row :deep(.admission-card)::after { content: '03'; }.kpi-row :deep(.discharge-card)::after { content: '04'; }.kpi-row :deep(.stay-card)::after { content: '05'; }.kpi-row :deep(.bed-card)::after { content: '06'; }
+.kpi-row :deep(.critical-card)::before { background: #c87863; }.kpi-row :deep(.admission-card)::before { background: #d18b4c; }.kpi-row :deep(.discharge-card)::before { background: #5c9b9b; }.kpi-row :deep(.stay-card)::before { background: #8189ad; }.kpi-row :deep(.bed-card)::before { background: #e1a85d; }
 .kpi-row :deep(.card-label) { color: #83a4a8; font-size: 11px; letter-spacing: .3px; }.kpi-row :deep(.num) { color: #effffc; font-size: 30px; text-shadow: 0 0 20px rgba(119, 242, 220, .17); }.kpi-row :deep(.unit) { color: #759398; }.kpi-row :deep(.card-sub) { color: #78969a; }
 .primary-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(330px, .75fr); gap: 13px; margin-top: 14px; align-items: stretch; }
+.resource-grid { display: grid; grid-template-columns: minmax(330px, .72fr) minmax(0, 1.28fr); gap: 13px; margin-top: 13px; }
 .secondary-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(260px, .86fr); gap: 13px; margin-top: 13px; align-items: stretch; }
 .panel { position: relative; min-width: 0; overflow: hidden; border: 1px solid rgba(100, 185, 181, .15); border-radius: 14px; background: var(--panel); box-shadow: 0 12px 30px rgba(0, 0, 0, .2), inset 0 1px 0 rgba(255, 255, 255, .025); }
 .panel::after { content: ''; position: absolute; left: 0; top: 0; width: 46px; height: 1px; background: var(--cyan); box-shadow: 0 0 13px var(--cyan); }
@@ -419,10 +495,18 @@ export default {
 .panel-body { padding: 12px 16px; }.flow-panel, .quality-panel { min-height: 356px; }.flow-summary { display: flex; gap: 34px; padding: 14px 17px 0; }.flow-summary > div { display: flex; align-items: baseline; gap: 4px; }.flow-summary span { color: #698d91; font-size: 10px; }.flow-summary b { margin-left: 4px; color: #dff7f3; font-size: 23px; font-weight: 700; font-variant-numeric: tabular-nums; }.flow-summary i { color: #5f8085; font-size: 10px; font-style: normal; }.flow-summary .net-positive b { color: #6fe0bd; }.flow-summary .net-negative b { color: #ff7d75; }
 .flow-body { padding-top: 5px; }.flow-chart { width: 100%; height: 268px; }
 .q-list { display: flex; flex-direction: column; gap: 7px; padding: 10px 14px 0; }.q-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 43px; padding: 7px 10px; border: 1px solid rgba(112, 186, 181, .11); border-radius: 8px; background: linear-gradient(90deg, rgba(34, 78, 86, .48), rgba(17, 48, 58, .38)); }.q-main { min-width: 0; }.q-name { overflow: hidden; color: #b6cece; font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }.q-sub { margin-top: 3px; overflow: hidden; color: #5f8085; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }.q-result { flex-shrink: 0; text-align: right; }.q-result b { color: var(--amber); font-size: 20px; font-weight: 700; text-shadow: 0 0 14px rgba(255, 174, 87, .18); font-variant-numeric: tabular-nums; }.q-result i { margin-left: 3px; color: #68898c; font-size: 9px; font-style: normal; }.q-state { color: #6e8d91; font-size: 10px; }.q-state.pending { color: #d79a55; }.quality-foot { margin: 11px 14px 13px; padding-top: 9px; border-top: 1px solid rgba(120, 180, 180, .1); color: #58777c; font-size: 9px; line-height: 1.5; }
+.bed-body { display: grid; grid-template-columns: 142px 1fr; align-items: center; gap: 18px; min-height: 184px; padding: 18px 20px 8px; }
+.bed-gauge { --bed-rate: 0%; position: relative; width: 132px; height: 132px; border-radius: 50%; background: conic-gradient(#ffae57 0 var(--bed-rate), rgba(108, 169, 169, .12) var(--bed-rate) 100%); box-shadow: 0 0 28px rgba(255, 174, 87, .1); }
+.bed-gauge::before { content: ''; position: absolute; inset: 9px; border: 1px solid rgba(139, 210, 203, .12); border-radius: 50%; background: #0e2a34; box-shadow: inset 0 0 24px rgba(0, 0, 0, .28); }
+.bed-gauge-inner { position: absolute; inset: 0; z-index: 1; display: flex; align-items: baseline; justify-content: center; padding-top: 41px; color: #f4fffd; }
+.bed-gauge-inner b { font-size: 31px; line-height: 1; font-variant-numeric: tabular-nums; text-shadow: 0 0 18px rgba(255, 174, 87, .22); }.bed-gauge-inner span { margin-left: 2px; color: #c69660; font-size: 11px; }.bed-gauge-inner small { position: absolute; top: 80px; color: #698e91; font-size: 10px; font-weight: 400; }
+.bed-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }.bed-metrics > div { padding: 10px 11px; border: 1px solid rgba(111, 184, 181, .1); border-radius: 8px; background: rgba(24, 61, 70, .42); }.bed-metrics span { display: block; margin-bottom: 4px; color: #668a8e; font-size: 9px; }.bed-metrics b { color: #dff7f3; font-size: 20px; font-variant-numeric: tabular-nums; }.bed-metrics i { margin-left: 3px; color: #66868a; font-size: 9px; font-style: normal; }.bed-metrics .alert b { color: #ffae57; text-shadow: 0 0 12px rgba(255, 174, 87, .18); }
+.device-list { display: flex; min-height: 184px; flex-direction: column; justify-content: center; gap: 12px; padding: 16px 18px 8px; }.device-row { display: grid; grid-template-columns: 115px minmax(90px, 1fr) minmax(280px, 1.15fr); align-items: center; gap: 14px; min-height: 45px; }.device-name { position: relative; padding-left: 13px; }.device-name b { display: block; color: #d7edeb; font-size: 12px; }.device-name small { display: block; margin-top: 4px; color: #55767a; font-size: 8px; }.device-pulse { position: absolute; left: 0; top: 3px; width: 6px; height: 6px; border-radius: 50%; background: #64d7be; box-shadow: 0 0 0 4px rgba(100, 215, 190, .08), 0 0 9px rgba(100, 215, 190, .5); }.device-pulse.warn { background: #d49a58; box-shadow: 0 0 0 4px rgba(212, 154, 88, .08), 0 0 9px rgba(212, 154, 88, .45); }.device-track { height: 8px; overflow: hidden; border-radius: 6px; background: rgba(95, 146, 148, .13); }.device-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #3d8f8e, #68d9c5); box-shadow: 0 0 11px rgba(92, 220, 199, .32); }.device-stats { display: grid; grid-template-columns: repeat(4, minmax(54px, 1fr)); gap: 6px; }.device-stats span { color: #607f83; font-size: 9px; white-space: nowrap; }.device-stats b { margin-right: 2px; color: #bcd5d3; font-size: 14px; font-variant-numeric: tabular-nums; }.device-stats .receiving b { color: #69d8c0; }.device-stats .warn b { color: #e0a15d; }
+.resource-foot { margin: 4px 18px 13px; padding-top: 9px; border-top: 1px solid rgba(120, 180, 180, .1); color: #58777c; font-size: 9px; line-height: 1.55; }
 .score-content { display: grid; grid-template-columns: 87px 1fr; align-items: center; gap: 12px; min-height: 148px; padding: 15px 16px 17px; }.score-total { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 76px; border-right: 1px solid rgba(119, 179, 179, .12); }.score-total b { color: #9af0dc; font-size: 30px; line-height: 1; text-shadow: 0 0 20px rgba(93, 230, 207, .25); }.score-total span { margin-top: 6px; color: #648489; font-size: 10px; }.score-rows { display: flex; flex-direction: column; gap: 9px; }.score-row { display: grid; grid-template-columns: 42px minmax(50px, 1fr) 25px 34px; align-items: center; gap: 7px; }.score-range { color: #78979a; font-size: 10px; }.score-track { height: 7px; overflow: hidden; border-radius: 5px; background: rgba(111, 169, 169, .12); }.score-track i { display: block; height: 100%; min-width: 2px; border-radius: inherit; box-shadow: 0 0 8px currentColor; }.score-row b { color: #bdd6d5; font-size: 11px; text-align: right; }.score-row small { color: #5d7c81; font-size: 9px; text-align: right; }
 .organ-panel { min-height: 224px; }.organ-list { display: flex; flex-direction: column; gap: 14px; padding: 17px 16px 11px; }.organ-item { display: grid; grid-template-columns: 70px minmax(50px, 1fr) 47px; align-items: center; gap: 10px; }.organ-label { color: #78999c; font-size: 11px; }.organ-bar { height: 7px; overflow: hidden; border-radius: 5px; background: rgba(105, 161, 161, .12); }.organ-bar-fill { height: 100%; border-radius: inherit; box-shadow: 0 0 10px currentColor; transition: width .4s ease; }.organ-num { color: #d7eeeb; font-size: 15px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }.organ-num i { margin-left: 2px; color: #628287; font-size: 9px; font-style: normal; font-weight: 400; }.organ-num.value-unknown { color: #547176; }.organ-foot { margin: 0 16px 15px; padding-top: 10px; border-top: 1px solid rgba(120, 180, 180, .1); color: #58777c; font-size: 9px; line-height: 1.55; }
 .state-box { display: flex; min-height: 160px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }.state-box.small { min-height: 120px; }.state-title { color: #607f84; font-size: 11px; }.notes-list { margin: 0; padding-left: 18px; color: #53686d; font-size: 12px; line-height: 2; }.notes-foot { margin: 10px 0 0; color: #9ca9aa; font-size: 11px; }
-@media (max-width: 1180px) { .cockpit-hero { grid-template-columns: 1fr auto; }.hero-actions { grid-column: 1 / -1; justify-content: flex-end; }.secondary-grid { grid-template-columns: 1fr 1fr; }.organ-panel { grid-column: 1 / -1; } }
-@media (max-width: 820px) { .cockpit-page { padding: 12px; }.cockpit-hero { grid-template-columns: 1fr; gap: 14px; }.hero-meta { padding-left: 0; border-left: 0; }.hero-actions { grid-column: auto; justify-content: flex-start; flex-wrap: wrap; }.kpi-row { grid-template-columns: repeat(2, 1fr); }.primary-grid, .secondary-grid { grid-template-columns: 1fr; }.organ-panel { grid-column: auto; }.panel-context { white-space: normal; text-align: right; } }
+@media (max-width: 1180px) { .cockpit-hero { grid-template-columns: 1fr auto; }.hero-actions { grid-column: 1 / -1; justify-content: flex-end; }.kpi-row { grid-template-columns: repeat(3, 1fr); }.secondary-grid { grid-template-columns: 1fr 1fr; }.organ-panel { grid-column: 1 / -1; }.device-row { grid-template-columns: 96px minmax(70px, .8fr) minmax(250px, 1.2fr); gap: 10px; } }
+@media (max-width: 820px) { .cockpit-page { padding: 12px; }.cockpit-hero { grid-template-columns: 1fr; gap: 14px; }.hero-meta { padding-left: 0; border-left: 0; }.hero-actions { grid-column: auto; justify-content: flex-start; flex-wrap: wrap; }.kpi-row { grid-template-columns: repeat(2, 1fr); }.primary-grid, .resource-grid, .secondary-grid { grid-template-columns: 1fr; }.organ-panel { grid-column: auto; }.panel-context { white-space: normal; text-align: right; }.device-row { grid-template-columns: 100px 1fr; }.device-stats { grid-column: 1 / -1; } }
 @media (max-width: 480px) { .kpi-row { grid-template-columns: 1fr; }.period-strip { align-items: flex-start; flex-direction: column; gap: 7px; }.data-gap { margin-left: 0; }.flow-summary { gap: 14px; }.score-content { grid-template-columns: 70px 1fr; padding-left: 10px; padding-right: 10px; }.score-row { grid-template-columns: 36px minmax(40px, 1fr) 22px 31px; gap: 5px; } }
 </style>

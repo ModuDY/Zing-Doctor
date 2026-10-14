@@ -33,8 +33,8 @@ import java.util.TreeMap;
  * <ul>
  *   <li><b>区块级容错</b>：每个区块单独 try-catch，失败只把该块标 UNKNOWN，其它块照常返回。
  *       不让一个数据源的故障把整页拖成空白 —— 与患者摘要卡 / 神经监测的处理一致。</li>
- *   <li><b>不虚构数据</b>：床位使用率因 fact_bed 为 PENDING_SOURCE，恒返回 PENDING_SOURCE
- *       状态而不是 0；危重比例在科数为 0 时返回 null 而不是 0%。</li>
+ *   <li><b>不虚构数据</b>：床位使用率来自有效开放床位与当前患者床号的交集；
+ *       设备只展示配置、绑定和采集连接状态，不冒充维修/库存状态；危重比例在科数为 0 时返回 null。</li>
  *   <li><b>复用既有口径</b>：危重计数走 {@link IcuPatientService#countOrganSupport}（与工作台同一批查询）；
  *       出科时间、左闭右开区间、住院号去重均与出科统计 / 交班览表一致。</li>
  *   <li><b>聚合在后端</b>：SQL 一次 GROUP BY 聚合，不把患者明细传到前端再统计。</li>
@@ -68,6 +68,7 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
         String flowStart = today.minusDays(range - 1L).atTime(0, 0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
         fillTodaySnapshot(s, departCode, todayStart, todayEnd);
+        fillResourceOverview(s, departCode);
         fillFlow(s, departCode, flowStart, todayEnd, range, today);
         // 本月首日：质控按月周期（MONTH periodStart），与质控中台同一周期边界
         String monthStart = today.withDayOfMonth(1).atTime(0, 0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
@@ -83,8 +84,10 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
     /** SOFA 分桶（与临床惯例及参考系统一致）：0-4 / 5-8 / 9-12 / 13-16 / 17-20 / 21-24 */
     private static final int[][] SOFA_BUCKETS = {{0, 5}, {5, 9}, {9, 13}, {13, 17}, {17, 21}, {21, 25}};
 
-    /** APACHE II 分桶：0-14 / 15-19 / 20-24 / 25-30（总分范围 0~30） */
-    private static final int[][] APACHE2_BUCKETS = {{0, 15}, {15, 20}, {20, 25}, {25, 31}};
+    /** APACHE II 理论总分 0~71；原实现只到 30 分会直接漏掉高危患者。 */
+    private static final int[][] APACHE2_BUCKETS = {
+            {0, 5}, {5, 10}, {10, 15}, {15, 20}, {20, 25}, {25, 30}, {30, 35}, {35, 72}
+    };
 
     private void fillScores(CockpitSnapshot s, String departCode, String scoreStart, String scoreEnd) {
         s.setSofaDist(scoreDist(departCode,
@@ -146,6 +149,7 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
         try {
             List<CockpitSnapshot.QualityCard> cards = new ArrayList<>();
             cards.add(qualityCard("quality_30", monthStart, departCode));
+            cards.add(qualityCard("quality_31", monthStart, departCode));
             cards.add(qualityCard("quality_22", monthStart, departCode));
             cards.add(qualityCard("quality_34", monthStart, departCode));
             cards.add(qualityCard("quality_9", monthStart, departCode));
@@ -232,9 +236,70 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
             s.setEcmoCount(CockpitSnapshot.SnapshotBlock.unknown("ECMO 统计失败"));
         }
 
-        // 床位使用率：质控 fact_bed = PENDING_SOURCE，没有可靠分母前只报状态
-        s.setBedUsage(CockpitSnapshot.SnapshotBlock.pending(
-                "待接床位数据源：需 ICU 床位配置（开放/暂停/临时床位）后方可计算，暂不显示比例"));
+    }
+
+    // ---------------- 床位与设备资源 ----------------
+
+    private void fillResourceOverview(CockpitSnapshot s, String departCode) {
+        try {
+            Map<String, Object> row = cockpitMapper.selectBedOverview(departCode);
+            int open = row == null ? 0 : intOf(row.get("open_beds"));
+            int occupied = row == null ? 0 : intOf(row.get("occupied_beds"));
+            int unassigned = row == null ? 0 : intOf(row.get("unassigned_patients"));
+            if (open <= 0) {
+                s.setBedUsage(CockpitSnapshot.SnapshotBlock.of(null, "EMPTY", "当前科室没有有效开放床位配置"));
+            } else {
+                CockpitSnapshot.BedOverview bed = new CockpitSnapshot.BedOverview();
+                bed.setOpenBeds(open);
+                bed.setOccupiedBeds(Math.min(occupied, open));
+                bed.setAvailableBeds(Math.max(0, open - occupied));
+                bed.setUnassignedPatients(unassigned);
+                bed.setOccupancyRate(BigDecimal.valueOf(occupied)
+                        .divide(BigDecimal.valueOf(open), 4, RoundingMode.HALF_UP).doubleValue());
+                s.setBedUsage(CockpitSnapshot.SnapshotBlock.of(bed));
+            }
+        } catch (Exception e) {
+            log.warn("驾驶舱-床位资源查询失败 departCode={}", departCode, e);
+            s.setBedUsage(CockpitSnapshot.SnapshotBlock.unknown("床位配置或占用查询失败"));
+        }
+
+        try {
+            List<Map<String, Object>> rows = cockpitMapper.selectDeviceOverview(departCode);
+            List<CockpitSnapshot.DeviceOverview> devices = new ArrayList<>();
+            if (rows != null) {
+                for (Map<String, Object> row : rows) {
+                    CockpitSnapshot.DeviceOverview d = new CockpitSnapshot.DeviceOverview();
+                    String type = stringOf(row.get("device_type"));
+                    d.setType(type);
+                    d.setLabel(deviceLabel(type));
+                    d.setConfigured(intOf(row.get("configured_count")));
+                    d.setBound(intOf(row.get("bound_count")));
+                    d.setReceiving(intOf(row.get("receiving_count")));
+                    d.setConnected(intOf(row.get("connected_count")));
+                    d.setInitializing(intOf(row.get("initializing_count")));
+                    d.setStopped(intOf(row.get("stopped_count")));
+                    d.setAbnormal(intOf(row.get("abnormal_count")));
+                    d.setUnknown(intOf(row.get("unknown_count")));
+                    d.setLatestUpdate(stringOf(row.get("latest_update")));
+                    devices.add(d);
+                }
+            }
+            s.setDeviceOverview(devices.isEmpty()
+                    ? CockpitSnapshot.SnapshotBlock.of(null, "EMPTY", "当前科室没有有效设备配置")
+                    : CockpitSnapshot.SnapshotBlock.of(devices));
+        } catch (Exception e) {
+            log.warn("驾驶舱-设备接入态势查询失败 departCode={}", departCode, e);
+            s.setDeviceOverview(CockpitSnapshot.SnapshotBlock.unknown("设备配置或连接状态查询失败"));
+        }
+    }
+
+    private static String deviceLabel(String type) {
+        if (type == null) return "未分类设备";
+        if ("monitor".equalsIgnoreCase(type)) return "监护仪";
+        if ("ventilator".equalsIgnoreCase(type)) return "呼吸机";
+        if ("crrtDevice".equalsIgnoreCase(type)) return "CRRT";
+        if ("ecmoDevice".equalsIgnoreCase(type)) return "ECMO";
+        return type;
     }
 
     /**
@@ -357,7 +422,8 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
         s.getNotes().add("危重：机械通气 / 血管活性药 / CRRT / ECMO 任一（窄口径，取并集不去重相加）");
         s.getNotes().add("入科 / 出科：按入出科时间自然日聚合，左闭右开区间，与出科统计一致");
         s.getNotes().add("平均 ICU 住院日：仅统计区间内已出科患者，在科者住院日仍在增长不计入");
-        s.getNotes().add("床位使用率：待接床位数据源，暂不计算");
+        s.getNotes().add("床位使用率：有效开放床位中，与当前在科患者床号匹配的占用床位数 ÷ 有效开放床位数");
+        s.getNotes().add("设备接入态势：配置数来自 config_device；绑定数来自在科患者设备编码；连接状态仅代表数据采集链路，不代表维修、库存或临床可用性");
         s.getNotes().add("评分分布：统计单位是「患者」（每患者取周期内最新一条有效评分），非评分次数");
         s.getNotes().add("APACHE II 预测病死率单独标注为预测值，不与实际病死率（quality_30）混用");
         s.getNotes().add("集束化展示完成人数绝对值：完成率分母口径（病例识别/无记录规则）待院方确认后开放");
@@ -429,5 +495,9 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private static String stringOf(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 }

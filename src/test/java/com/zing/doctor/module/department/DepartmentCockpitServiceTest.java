@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>这里钉住三件事：
  * <ol>
- *   <li><b>不虚构数据</b>：床位使用率恒为 PENDING_SOURCE（fact_bed 待接数据源）、
+ *   <li><b>不虚构数据</b>：床位使用率只用有效开放床位与匹配床号计算，
  *       在科为 0 时危重比例是 null 而不是 0% —— 「0% 危重」会被医生读成"很安全"；</li>
  *   <li><b>危重取并集不相加</b>：同一患者同时上 ECMO 和 CRRT，只算 1 个危重患者，
  *       四类各自相加会让卡片数字虚高；</li>
@@ -71,6 +71,12 @@ class DepartmentCockpitServiceTest {
         qualityQueryService = mock(QualityQueryService.class);
         service = new DepartmentCockpitServiceImpl(cockpitMapper, icuPatientMapper, icuPatientService,
                 sofaMapper, apache2Mapper, qualityQueryService);
+        Map<String, Object> bed = new HashMap<>();
+        bed.put("open_beds", 20);
+        bed.put("occupied_beds", 10);
+        bed.put("unassigned_patients", 0);
+        when(cockpitMapper.selectBedOverview(anyString())).thenReturn(bed);
+        when(cockpitMapper.selectDeviceOverview(anyString())).thenReturn(Collections.emptyList());
     }
 
     private Map<String, Object> snapshotRow(int in, int todayIn, int todayOut) {
@@ -82,17 +88,52 @@ class DepartmentCockpitServiceTest {
     }
 
     @Test
-    @DisplayName("床位使用率恒为 PENDING_SOURCE，不返回假百分比")
-    void bedUsageIsPendingNotZero() {
+    @DisplayName("床位使用率按有效开放床位计算，并返回可用床位")
+    void bedUsageUsesOpenBeds() {
         when(cockpitMapper.selectTodaySnapshot(anyString(), anyString(), anyString())).thenReturn(snapshotRow(89, 5, 7));
         when(icuPatientService.countOrganSupport(anyString())).thenReturn(Collections.emptyMap());
         when(icuPatientMapper.selectAllDepartments()).thenReturn(Collections.emptyList());
+        Map<String, Object> bed = new HashMap<>();
+        bed.put("open_beds", 22);
+        bed.put("occupied_beds", 21);
+        bed.put("unassigned_patients", 0);
+        when(cockpitMapper.selectBedOverview(anyString())).thenReturn(bed);
 
         CockpitSnapshot s = service.snapshot("20010231", 30);
 
-        assertEquals("PENDING_SOURCE", s.getBedUsage().getStatus());
-        assertNull(s.getBedUsage().getValue(), "没有可靠分母前不得给出床位比例");
-        assertNotNull(s.getBedUsage().getNote());
+        assertEquals("OK", s.getBedUsage().getStatus());
+        assertEquals(22, s.getBedUsage().getValue().getOpenBeds());
+        assertEquals(21, s.getBedUsage().getValue().getOccupiedBeds());
+        assertEquals(1, s.getBedUsage().getValue().getAvailableBeds());
+        assertEquals(21D / 22D, s.getBedUsage().getValue().getOccupancyRate(), 0.0001);
+    }
+
+    @Test
+    @DisplayName("设备状态区分配置、患者绑定与数据接收，不把配置数当使用数")
+    void deviceOverviewKeepsDifferentMeanings() {
+        when(cockpitMapper.selectTodaySnapshot(anyString(), anyString(), anyString())).thenReturn(snapshotRow(21, 1, 1));
+        when(icuPatientService.countOrganSupport(anyString())).thenReturn(Collections.emptyMap());
+        when(icuPatientMapper.selectAllDepartments()).thenReturn(Collections.emptyList());
+        Map<String, Object> vent = new HashMap<>();
+        vent.put("device_type", "ventilator");
+        vent.put("configured_count", 22);
+        vent.put("bound_count", 13);
+        vent.put("receiving_count", 12);
+        vent.put("connected_count", 3);
+        vent.put("initializing_count", 3);
+        vent.put("stopped_count", 4);
+        vent.put("abnormal_count", 0);
+        vent.put("unknown_count", 0);
+        when(cockpitMapper.selectDeviceOverview(anyString())).thenReturn(Collections.singletonList(vent));
+
+        CockpitSnapshot s = service.snapshot("20070131", 30);
+
+        CockpitSnapshot.DeviceOverview d = s.getDeviceOverview().getValue().get(0);
+        assertEquals("呼吸机", d.getLabel());
+        assertEquals(22, d.getConfigured());
+        assertEquals(13, d.getBound());
+        assertEquals(12, d.getReceiving());
+        assertEquals(4, d.getStopped());
     }
 
     @Test
@@ -263,6 +304,26 @@ class DepartmentCockpitServiceTest {
                 .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         verify(sofaMapper).selectLatestPerEpisode(eq("20010231"), eq(expectedStart), anyString());
         verify(apache2Mapper).selectLatestPerEpisode(eq("20010231"), eq(expectedStart), anyString());
+    }
+
+    @Test
+    @DisplayName("APACHE II 高于30分的高危患者不能从分布中丢失")
+    void apacheDistributionIncludesScoresAboveThirty() {
+        when(cockpitMapper.selectTodaySnapshot(anyString(), anyString(), anyString()))
+                .thenReturn(snapshotRow(10, 1, 1));
+        when(icuPatientService.countOrganSupport(anyString())).thenReturn(Collections.emptyMap());
+        when(icuPatientMapper.selectAllDepartments()).thenReturn(Collections.emptyList());
+        Map<String, Object> highRisk = new HashMap<>();
+        highRisk.put("total_score", 40);
+        when(apache2Mapper.selectLatestPerEpisode(anyString(), anyString(), anyString()))
+                .thenReturn(Collections.singletonList(highRisk));
+
+        CockpitSnapshot s = service.snapshot("20070131", 30);
+
+        assertEquals("OK", s.getApache2Dist().getStatus());
+        assertEquals(1, s.getApache2Dist().getValue().stream()
+                .filter(bucket -> "35-71".equals(bucket.getLabel()))
+                .findFirst().orElseThrow(AssertionError::new).getCount());
     }
 
     @Test
