@@ -27,5 +27,10 @@ INSERT IGNORE INTO `config_nutrition_formula`
   (UUID(), 'ENT_NENGLI',   '能全力',                                  'ENTERAL',    1.0,   0.0400, '能全力',                            '标准整蛋白肠内,营养科提供值',                '营养科提供'),
   (UUID(), 'ENT_RUIXIAN',  '瑞先',                                    'ENTERAL',    1.5,   0.0560, '瑞先',                              '高蛋白肠内,营养科提供值',                    '营养科提供'),
   (UUID(), 'PAR_FAT20',    '脂肪乳(C14~24/中长链20%)',                'PARENTERAL', 2.0,   0.0000, '脂肪乳',                            '20%浓度2.0kcal/ml,不含氨基酸',              '说明书/DailyMed:20%脂肪乳2.0kcal/ml'),
-  (UUID(), 'PAR_AA18_5',   '复方氨基酸18AA-II(5%)',                   'PARENTERAL', 0.2,   0.0500, '氨基酸(18AA',                       '250ml:12.5g=0.05g/ml;8.5%/11.4%需另行核对','说明书规格250ml:12.5g'),
+  (UUID(), 'PAR_AA18_85',  '复方氨基酸18AA-II(8.5% 乐凡命)',          'PARENTERAL', 0.34,  0.0850, '18AA-II,乐凡命',                   '250ml:21.25g=0.085g/ml，氨基酸按4kcal/g折算0.34kcal/ml','config_drug 实测规格 250ml:21.25g/瓶'),
   (UUID(), 'PAR_KABIVEN',  '卡文 脂肪乳氨基酸(17)葡萄糖(11%)',       'PARENTERAL', 0.694, 0.0236, '脂肪乳氨基酸(17)葡萄糖,卡文,全合一', '1440ml整袋:约1000kcal/氨基酸34g;整袋密度','说明书:1440ml氨基酸34g/总能量约1000kcal');
+
+-- 旧编码 PAR_AA18_5（复方氨基酸18AA-II(5%)）已被 PAR_AA18_85 取代：
+-- 关键词 '氨基酸(18AA' 在真实医嘱名里永不命中，且真实规格为 250ml:21.25g（8.5%），
+-- 原按 5% 记会低估约 40%。清理旧行避免误配。
+DELETE FROM `config_nutrition_formula` WHERE `formula_code` = 'PAR_AA18_5';

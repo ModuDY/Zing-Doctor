@@ -61,7 +61,7 @@ USING (
     SELECT 'ENT_NENGLI','能全力', 'ENTERAL', 1.0, 0.0400, '能全力', '标准整蛋白肠内,营养科提供值', '营养科提供' FROM DUAL UNION ALL
     SELECT 'ENT_RUIXIAN', '瑞先',   'ENTERAL', 1.5, 0.0560, '瑞先', '高蛋白肠内,营养科提供值', '营养科提供' FROM DUAL UNION ALL
     SELECT 'PAR_FAT20',    '脂肪乳(C14~24/中长链20%)', 'PARENTERAL', 2.0, 0.0000, '脂肪乳', '20%浓度2.0kcal/ml,不含氨基酸', '说明书/DailyMed:20%脂肪乳2.0kcal/ml' FROM DUAL UNION ALL
-    SELECT 'PAR_AA18_5',  '复方氨基酸18AA-II(5%)', 'PARENTERAL', 0.2, 0.0500, '氨基酸(18AA', '250ml:12.5g总氨基酸=0.05g/ml;8.5%/11.4%规格需另行核对', '说明书规格250ml:12.5g' FROM DUAL UNION ALL
+    SELECT 'PAR_AA18_85', '复方氨基酸18AA-II(8.5% 乐凡命)', 'PARENTERAL', 0.34, 0.0850, '18AA-II,乐凡命', '250ml:21.25g=0.085g/ml，氨基酸按4kcal/g折算0.34kcal/ml', 'config_drug 实测规格 250ml:21.25g/瓶' FROM DUAL UNION ALL
     SELECT 'PAR_KABIVEN',  '卡文 脂肪乳氨基酸(17)葡萄糖(11%)', 'PARENTERAL', 0.694, 0.0236, '脂肪乳氨基酸(17)葡萄糖,卡文,全合一', '1440ml整袋:总能量约1000kcal,氨基酸34g;整袋密度', '说明书:1440ml氨基酸34g/总能量约1000kcal' FROM DUAL
 ) s
 ON (t."formula_code" = s.formula_code)
@@ -75,5 +75,11 @@ WHEN NOT MATCHED THEN
      "protein_g_per_ml", "match_keywords", "spec_note", "source_note", "status")
     VALUES (SYS_GUID(), s.formula_code, s.formula_name, s.route_type, s.energy_kcal_per_ml,
      s.protein_g_per_ml, s.match_keywords, s.spec_note, s.source_note, 1);
+
+-- 旧编码 PAR_AA18_5（复方氨基酸18AA-II(5%)）已被 PAR_AA18_85 取代：
+-- 其关键词 '氨基酸(18AA' 在真实医嘱名（复方氨基酸注射液(18AA-II)(乐凡命)）里永不命中，
+-- 且真实规格为 250ml:21.25g（8.5%，config_drug 实测），原按 5% 记会低估约 40%。
+-- 这里清理旧行，避免留下误配；新库首次执行时本就没有该行，DELETE 影响 0 行。
+DELETE FROM "zing_doctor_db_prod"."config_nutrition_formula" WHERE formula_code = 'PAR_AA18_5';
 
 COMMIT;

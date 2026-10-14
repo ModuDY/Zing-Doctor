@@ -1367,3 +1367,24 @@ SELECT param_key, param_value, default_value FROM sys_param WHERE param_key = 'W
 - MySQL/MariaDB `sql/mysql/45_antibiotic_reassessment_window.sql`：`ADD COLUMN/ADD UNIQUE KEY IF NOT EXISTS`（MariaDB 10.0.2+），可重复执行。
 
 **登记**：`install.sh`（三处数组）、`install-mariadb-debian.sh`、`build-delivery.ps1` 均已加 `45_antibiotic_reassessment_window.sql`。已在达梦真库验证首次执行与幂等复跑通过。
+
+---
+
+### 2026-10-14 · 46 号营养配方字典修正（关键词 + 密度）
+
+现场实测「营养支持分析」出数异常后，核对真库发现 46 号字典两处配置问题，均已在脚本与生产库修正：
+
+| 项 | 原值 | 现值 | 依据 |
+|---|---|---|---|
+| `PAR_AA18_5` 关键词 | `氨基酸(18AA` | `18AA-II,乐凡命` | 真实医嘱名为「复方氨基酸注射液(18AA-II)(乐凡命) 250ml」，中间夹「注射液」，原关键词 `contains` 永不命中（近 3 天 81 条氨基酸医嘱零识别） |
+| 能量密度 | 0.2 kcal/ml | 0.34 kcal/ml | `config_drug.spec` 实测 **250ml:21.25g/瓶 = 8.5%**，非脚本假设的 5% |
+| 蛋白密度 | 0.05 g/ml | 0.085 g/ml | 同上（21.25g ÷ 250ml） |
+| 编码/名称 | `PAR_AA18_5` / 复方氨基酸18AA-II(5%) | `PAR_AA18_85` / 复方氨基酸18AA-II(8.5% 乐凡命) | 编码改为反映实际浓度 |
+
+- 近 7 天该品种使用 **124 条**（其它氨基酸品种 15HBC / 谷安光 / 3AA / 14AA / 18AA飘仙 均为 0 条），故字典只需覆盖乐凡命 8.5%。
+- 脚本改动：`sql/46_nutrition_formula.sql`（MERGE 后 `DELETE PAR_AA18_5` 清理旧编码）、`sql/mysql/46_nutrition_formula.sql`（同步）。
+- **已有环境**：46 号幂等，重跑一次即可生效（MERGE 按 `formula_code` 更新并清理旧行）；生产库已直接应用并线上验证。
+- 另：`spec_note` 内不再使用半角分号，避免加载器按 `;` 分段。
+
+**密度的口径说明**：氨基酸能量按 4 kcal/g 折算（与字典既有约定一致）。其它浓度品种（5% / 11.4%）如后续启用，需按各自规格另建配方行，不能共用 8.5% 密度。
+

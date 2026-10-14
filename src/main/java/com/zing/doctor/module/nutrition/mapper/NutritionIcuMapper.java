@@ -27,10 +27,18 @@ import java.util.Map;
 public interface NutritionIcuMapper {
 
     /**
-     * 单患者在时间窗内开始的医嘱执行单（不限名称；Java 端再按配方关键词识别营养制剂）。
+     * 单患者与时间窗<b>有交集</b>的医嘱执行单（不限名称；Java 端再按配方关键词识别营养制剂）。
      *
-     * @param startTime 开始（含），ISO
-     * @param endTime   结束（不含），ISO
+     * <p><b>口径要点（别改回 start_time 落在窗口内）</b>：营养泵入常是连续医嘱，一条执行单
+     * 横跨 20 小时以上。若按「start_time 必须落在窗口内」过滤，凡是窗口开始前开立、窗口内
+     * 仍在执行的执行单会被整条丢掉——实测某患者 24h 内 1425ml 能全力因此凭空消失
+     * （只有窗口开始后才开的 65ml 被算上，漏掉 95%）。
+     * 故改为区间相交：{@code start_time < 窗口结束} 且（{@code end_time} 为空表示仍在执行，
+     * 或 {@code end_time > 窗口开始}）。已给入量仍由小时明细按窗口裁剪（见 {@link #selectHourItems}），
+     * 所以窗口之前的泵入量不会被算进来，不会重复计数。
+     *
+     * @param startTime 窗口开始（含），ISO
+     * @param endTime   窗口结束（不含），ISO
      */
     @Select("<script>"
             + "SELECT * FROM ( "
@@ -39,7 +47,8 @@ public interface NutritionIcuMapper {
             + "         e.start_time AS start_time, e.end_time AS end_time, e.status AS status "
             + "  FROM \"zing_icu_db_prod\".\"patient_advice_execute\" e "
             + "  WHERE e.patient_id = #{patientId} AND e.del_flag = 0 "
-            + "    AND e.start_time &gt;= #{startTime} AND e.start_time &lt; #{endTime} "
+            + "    AND e.start_time &lt; #{endTime} "
+            + "    AND (e.end_time IS NULL OR e.end_time &gt; #{startTime}) "
             + "  ORDER BY e.start_time DESC) WHERE ROWNUM &lt;= 300"
             + "</script>")
     List<Map<String, Object>> selectOrders(@Param("patientId") String patientId,
