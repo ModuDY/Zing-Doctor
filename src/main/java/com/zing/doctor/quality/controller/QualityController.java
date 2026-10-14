@@ -80,11 +80,12 @@ public class QualityController {
     @GetMapping("/overview")
     public Result<Map<String, Object>> overview(@RequestParam(required = false) String periodType,
                                                 @RequestParam(required = false) String periodStart,
+                                                @RequestParam(required = false) String periodEnd,
                                                 @RequestParam(required = false) String departCode,
                                                 HttpServletRequest request) {
         try {
             String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
-            return Result.ok(queryService.overview(periodType, periodStart, allowed));
+            return Result.ok(queryService.overview(periodType, periodStart, periodEnd, allowed));
         } catch (Exception e) {
             log.error("[质控] 看板查询失败", e);
             return Result.fail("查询失败: " + e.getMessage());
@@ -193,15 +194,17 @@ public class QualityController {
         }
     }
 
-    /** 单指标详情：口径 + 本期值 + 血缘摘要 + 患者明细。 */
+    /** 单指标详情：口径 + 本期值 + 血缘摘要 + 患者明细。periodEnd 仅在自定义区间（CUSTOM）时需要。 */
     @GetMapping("/metric")
     public Result<Map<String, Object>> metric(@RequestParam String code,
+                                              @RequestParam(required = false) String periodType,
                                               @RequestParam(required = false) String periodStart,
+                                              @RequestParam(required = false) String periodEnd,
                                               @RequestParam(required = false) String departCode,
                                               HttpServletRequest request) {
         try {
             String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
-            return Result.ok(queryService.metricDetail(code, periodStart, allowed));
+            return Result.ok(queryService.metricDetail(code, periodType, periodStart, periodEnd, allowed));
         } catch (Exception e) {
             log.error("[质控] 指标详情失败: code={}", code, e);
             return Result.fail("查询失败: " + e.getMessage());
@@ -211,7 +214,9 @@ public class QualityController {
     /** 导出对象级明细 xlsx；列定义与页面同源，避免导出的列与屏幕对不上。 */
     @GetMapping("/metric/patients/export")
     public void exportMetricPatients(@RequestParam String code,
+                                     @RequestParam(required = false) String periodType,
                                      @RequestParam(required = false) String periodStart,
+                                     @RequestParam(required = false) String periodEnd,
                                      @RequestParam(required = false) String departCode,
                                      @RequestParam(required = false, defaultValue = "false")
                                      Boolean includeExcluded,
@@ -219,7 +224,7 @@ public class QualityController {
                                      HttpServletRequest request,
                                      HttpServletResponse response) {
         String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
-        exportService.exportPatients(response, code, periodStart, allowed,
+        exportService.exportPatients(response, code, periodType, periodStart, periodEnd, allowed,
                 Boolean.TRUE.equals(includeExcluded), view);
     }
 
@@ -247,7 +252,9 @@ public class QualityController {
      */
     @GetMapping("/metric/patients")
     public Result<Map<String, Object>> patients(@RequestParam String code,
+                                                @RequestParam(required = false) String periodType,
                                                 @RequestParam(required = false) String periodStart,
+                                                @RequestParam(required = false) String periodEnd,
                                                 @RequestParam(required = false) String departCode,
                                                 @RequestParam(required = false, defaultValue = "false")
                                                 Boolean includeExcluded,
@@ -255,7 +262,7 @@ public class QualityController {
                                                 HttpServletRequest request) {
         try {
             String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
-            return Result.ok(queryService.patients(code, periodStart, allowed,
+            return Result.ok(queryService.patients(code, periodType, periodStart, periodEnd, allowed,
                     Boolean.TRUE.equals(includeExcluded), view));
         } catch (Exception e) {
             log.error("[质控] 患者明细失败: code={}", code, e);

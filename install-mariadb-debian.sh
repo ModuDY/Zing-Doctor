@@ -67,12 +67,25 @@ set -euo pipefail
 # 空格反而会对不齐）。
 # 刻意不使用任何图标或符号字符：换终端字体、重定向进日志文件、被 CI 或聊天工具
 # 抓取时都不会变形。
-C_RED='\033[31m'; C_GREEN='\033[32m'; C_YELLOW='\033[33m'; C_CYAN='\033[36m'
-C_BOLD='\033[1m'; C_DIM='\033[2m'; C_RESET='\033[0m'
+# ⚠️ 颜色必须用 printf 生成「真实的 ESC 字节」，不能写成 '\033[2m' 这种字面量：
+#    printf 只在「格式串」里解释 \033，在「%s 的实参」里是原样输出的。
+#    step/ok/warn/err 把颜色拼进了格式串 → 正常上色；
+#    而 rule() 走的是实参（printf '%s%s%s\n' "$C_DIM" ...）→ 字面量被原样打出来，
+#    现场看到的就是裸的 \033[2m------------\033[0m，分隔线一点没变暗。
+ESC="$(printf '\033')"
+# 非终端（重定向进日志 / CI 抓取 / ssh 管道）时整体关闭颜色，避免日志里混进 ANSI 乱码。
+# 关闭后颜色变量为空串，此时 rule() 的格式串仍是 '%s%s%s\n'，不会变成以 "--" 开头的
+# 非法选项 —— 这正是横线一定要走 %s 而不是直接写进格式串的原因。
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  C_RED="${ESC}[31m"; C_GREEN="${ESC}[32m"; C_YELLOW="${ESC}[33m"; C_CYAN="${ESC}[36m"
+  C_BOLD="${ESC}[1m"; C_DIM="${ESC}[2m"; C_RESET="${ESC}[0m"
+else
+  C_RED=''; C_GREEN=''; C_YELLOW=''; C_CYAN=''; C_BOLD=''; C_DIM=''; C_RESET=''
+fi
 STEP_N=0; STEP_TOTAL=8
 
 # 分隔线用 %s 承载：不能把横线直接写进格式串 —— 颜色变量一旦为空（日志重定向、
-# NO_COLOR、CI 抓取时会被清空），格式串就以 "--" 开头，printf 会当选项报 invalid option
+# NO_COLOR 时会被清空），格式串就以 "--" 开头，printf 会当选项报 invalid option
 rule(){ printf '%s%s%s\n' "$C_DIM" "--------------------------------------------------------------------" "$C_RESET"; }
 step(){
   STEP_N=$((STEP_N + 1))
@@ -684,6 +697,7 @@ step "导入建表与种子脚本（幂等，可重复执行）"
     46_nutrition_formula.sql
     47_quality_patient_monthly_page.sql
     48_external_link_pages.sql
+    49_lab_renal_page.sql
     41_patient_summary_page.sql
     )
   # 清单自检：登记的脚本必须存在；目录里也不能有未登记的孤岛脚本

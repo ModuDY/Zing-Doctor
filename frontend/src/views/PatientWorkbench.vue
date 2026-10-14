@@ -185,6 +185,7 @@
                     <el-dropdown-item command="/page/fluid-balance">体液平衡分析</el-dropdown-item>
                     <el-dropdown-item command="/page/lab-liver">肝功能趋势</el-dropdown-item>
                     <el-dropdown-item command="/page/lab-coag">凝血功能趋势</el-dropdown-item>
+                    <el-dropdown-item command="/page/lab-renal">肾功能与电解质趋势</el-dropdown-item>
                     <el-dropdown-item command="/page/nutrition-monitor">营养支持分析</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
@@ -238,6 +239,7 @@
                     <el-dropdown-item command="/page/fluid-balance">体液平衡分析</el-dropdown-item>
                     <el-dropdown-item command="/page/lab-liver">肝功能趋势</el-dropdown-item>
                     <el-dropdown-item command="/page/lab-coag">凝血功能趋势</el-dropdown-item>
+                    <el-dropdown-item command="/page/lab-renal">肾功能与电解质趋势</el-dropdown-item>
                     <el-dropdown-item command="/page/nutrition-monitor">营养支持分析</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>

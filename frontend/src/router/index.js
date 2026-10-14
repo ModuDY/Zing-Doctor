@@ -60,6 +60,12 @@ const routes = [
     meta: { title: '凝血功能趋势' }
   },
   {
+    path: '/page/lab-renal',
+    name: 'labRenal',
+    component: () => import('../views/LabTrend.vue'),
+    meta: { title: '肾功能与电解质趋势' }
+  },
+  {
     path: '/page/department-cockpit',
     name: 'departmentCockpit',
     component: () => import('../views/DepartmentCockpit.vue'),
@@ -308,6 +314,7 @@ const PATIENT_PAGES = new Set([
   '/page/fluid-balance',
   '/page/lab-liver',
   '/page/lab-coag',
+  '/page/lab-renal',
   // 俯卧位「列表」跟随：它会拿住院号去填搜索框，等于只看该患者的记录 ——
   // 使用者要的正是这个。但必须连入科时间一起给：新建记录时后端靠
   // (住院号 + 入科时间) 定位到哪一次入科，只有住院号会退化成「最近一次入科」，

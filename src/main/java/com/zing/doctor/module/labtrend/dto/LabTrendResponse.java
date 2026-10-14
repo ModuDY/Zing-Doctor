@@ -6,10 +6,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 检验趋势（肝功能 / 凝血功能共用）。
+ * 检验趋势（肝功能 / 凝血功能 / 肾功能与电解质共用）。
  *
  * <p>docs/25 §4/§5：独立检验趋势页，展示历史结果与参考范围，
- * **不由趋势直接诊断**肝衰竭 / DIC / 出血风险。
+ * **不由趋势直接诊断**肝衰竭 / DIC / 出血风险；
+ * 肾功能面板同理，肌酐趋势只作展示，AKI 判定走既有规则（WorkbenchEnrichService）。
  */
 @Data
 public class LabTrendResponse {

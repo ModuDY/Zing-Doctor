@@ -66,6 +66,23 @@ export function fetchCockpitSummary(departCode, days = 30) {
 }
 
 /**
+ * 驾驶舱补充质控块：近 7 天转出后 48h 重返率 + 近 12 个月 sepsis bundle 完成率趋势。
+ *
+ * <p>与 summary 分开请求：一块要按任意窗口现算、一块要读 12 个月结果，耗时与今日快照
+ * 不是一个量级。分开可以让首屏先出、补充块后到，单块失败也不影响整页。
+ *
+ * @param {string} [departCode] 科室编码（org_code）
+ * @returns {Promise<object>} CockpitQualityExtra：
+ *   readmitNumerator / readmitDenominator / readmitRate / windowStart / windowEnd /
+ *   readmitNote / bundleTrend[{ month, numerator, denominator, rate }] / bundleNote
+ */
+export function fetchCockpitQualityExtra(departCode) {
+  const params = {}
+  if (departCode) params.departCode = departCode
+  return request.get('/department-cockpit/quality-extra', { params, silentError: true })
+}
+
+/**
  * 单患者镇痛镇静监测（只读）：一次批量返回 NRS / CPOT / RASS / CAM-ICU。
  *
  * 二选一：
@@ -149,10 +166,11 @@ export function fetchVitals(patientId, hours = 24) {
 }
 
 /**
- * 检验趋势（肝功能 liver / 凝血 coag，docs/25 §4/§5）。
+ * 检验趋势（肝功能 liver / 凝血 coag / 肾功能与电解质 renal，docs/25 §4/§5）。
  * 按项目名称匹配（生产库存在同一项目多编码），返回分组序列 + 明细。
+ * renal 面板会排除名称相近但非同一项目的检验（降钙素原、脑钠肽、尿素/肌酐比值、尿液标本）。
  * @param {string} patientId
- * @param {'liver'|'coag'} type
+ * @param {'liver'|'coag'|'renal'} type
  * @param {number} [hours=168] 1~720
  */
 export function fetchLabTrend(patientId, type = 'liver', hours = 168) {

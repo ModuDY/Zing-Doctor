@@ -178,6 +178,35 @@
       </article>
     </section>
 
+    <section class="quality-extra-grid" aria-label="质控延展指标">
+      <article class="panel readmit-panel">
+        <div class="panel-head">
+          <div><span class="panel-kicker">READMISSION · 7D</span><h2 class="panel-title">转出后 48h 重返率</h2></div>
+          <div class="panel-context">近 7 天 <span>·</span> {{ readmitWindowText }}</div>
+        </div>
+        <div v-if="extraLoading && !qualityExtra" class="state-box small"><div class="state-title">正在按近 7 天窗口计算…</div></div>
+        <div v-else-if="!readmitAvailable" class="state-box small"><div class="state-title">{{ extraReadmitNote || '近 7 天暂无转出记录' }}</div></div>
+        <div v-else class="readmit-body">
+          <div class="readmit-gauge"><b>{{ readmitRateText }}</b><span>%</span><small>48h 重返率</small></div>
+          <div class="readmit-metrics">
+            <div><span>重返人数</span><b>{{ readmitNumerator }}</b><i>人</i></div>
+            <div><span>同期转出 / 出科</span><b>{{ readmitDenominator }}</b><i>人</i></div>
+          </div>
+        </div>
+        <div class="resource-foot">{{ extraReadmitNote || '分子 quality_22（转出后 48h 内重返），分母 quality_403（同期转出/出院）；窗口为最近 7 天（含今天），口径与质控中台同源。' }}</div>
+      </article>
+
+      <article class="panel bundle-panel">
+        <div class="panel-head">
+          <div><span class="panel-kicker">SEPSIS BUNDLE</span><h2 class="panel-title">感染性休克 bundle 完成率</h2></div>
+          <div class="panel-context">近 12 个月 <span>·</span> 完成 6h bundle ÷ 感染性休克患者</div>
+        </div>
+        <div v-if="!bundlePoints.length" class="state-box small"><div class="state-title">{{ extraBundleNote || '近 12 个月暂无已算结果' }}</div></div>
+        <div v-else ref="bundleChart" class="bundle-chart"></div>
+        <div class="resource-foot">{{ extraBundleNote || '逐月取已算结果（quality_11 ÷ quality_10）；跑批未覆盖的月份断开显示，不按 0 处理。' }}</div>
+      </article>
+    </section>
+
     <el-dialog v-model="notesVisible" title="口径说明" width="640px">
       <ul class="notes-list">
         <li v-for="(n, i) in summary.notes" :key="i">{{ n }}</li>
@@ -191,7 +220,7 @@ import { ElMessage } from 'element-plus'
 import { markRaw } from 'vue'
 import { Refresh, InfoFilled, FullScreen } from '@element-plus/icons-vue'
 import * as echarts from '../utils/echarts'
-import { fetchCockpitSummary } from '../api/workbench'
+import { fetchCockpitQualityExtra, fetchCockpitSummary } from '../api/workbench'
 import { currentDepart } from '../utils/departContext'
 import StatCard from '../components/StatCard.vue'
 
@@ -210,6 +239,10 @@ export default {
       fullscreenIcon: markRaw(FullScreen),
       fullscreenText: '全屏',
       summary: { date: '', departCode: '', departName: '', notes: [] },
+      // 补充质控块（近 7 天 48h 重返率 + 近 12 个月 bundle 趋势）单独加载：
+      // 它要按任意窗口现算并读 12 个月结果，慢了不该拖住首屏。
+      qualityExtra: null,
+      extraLoading: false,
       charts: {},
       sofaColors: ['#78a99b', '#5c9b8c', '#c3a35d', '#d18b4c', '#c96b52', '#a94442'],
       apacheColors: ['#8cb7d4', '#5e9fbd', '#3d859b', '#285c70']
@@ -297,6 +330,37 @@ export default {
       const q = this.summary.qualityCards
       return q && q.value ? q.value : []
     },
+    /** 近 7 天窗口的起止展示（后端已算好，前端只切 MM-DD） */
+    readmitWindowText() {
+      const e = this.qualityExtra
+      if (!e || !e.windowStart || !e.windowEnd) return '最近 7 天'
+      return e.windowStart.slice(5) + ' ~ ' + e.windowEnd.slice(5)
+    },
+    /** 分母为 0（近 7 天没有转出）时不画 0%，与「没数据」区分开 */
+    readmitAvailable() {
+      const e = this.qualityExtra
+      return !!(e && e.readmitNumerator != null && e.readmitDenominator != null && Number(e.readmitDenominator) > 0)
+    },
+    readmitNumerator() {
+      return (this.qualityExtra && this.qualityExtra.readmitNumerator) || 0
+    },
+    readmitDenominator() {
+      return (this.qualityExtra && this.qualityExtra.readmitDenominator) || 0
+    },
+    readmitRateText() {
+      const v = this.qualityExtra && this.qualityExtra.readmitRate
+      return v == null ? '—' : Number(v).toFixed(1)
+    },
+    extraReadmitNote() {
+      return (this.qualityExtra && this.qualityExtra.readmitNote) || ''
+    },
+    extraBundleNote() {
+      return (this.qualityExtra && this.qualityExtra.bundleNote) || ''
+    },
+    bundlePoints() {
+      const list = this.qualityExtra && this.qualityExtra.bundleTrend
+      return Array.isArray(list) ? list : []
+    },
     organItems() {
       const block = (key) => {
         const item = this.summary[key]
@@ -326,6 +390,11 @@ export default {
     summary() {
       this.$nextTick(() => {
         this.renderFlow()
+      })
+    },
+    qualityExtra() {
+      this.$nextTick(() => {
+        this.renderBundle()
       })
     }
   },
@@ -357,9 +426,16 @@ export default {
      *
      * 挂墙大屏平时交给 F11 也行，但值班同事未必知道，所以页面上给一个按钮；
      * 全屏后视口高度即屏幕高度，锁高布局才能真正铺满整块屏。
+     *
+     * 全屏目标必须是本页根元素，不能是 document.documentElement：
+     * 全屏 API 的语义只是「让指定元素占满屏幕」，同文档里的其它元素该显示还是显示 ——
+     * 请求 <html> 全屏时，布局里的 aside.sidebar（position: fixed、z-index: 100）
+     * 会一并铺在屏幕上，挂墙展示就永远多一条用不上的菜单。
+     * 请求 .cockpit-page 全屏时，侧边栏是它的兄弟节点、不在全屏子树内，浏览器不再渲染它，
+     * 退出全屏后布局照旧（菜单、宽高都不需要额外恢复逻辑）。
      */
     async toggleFullscreen() {
-      const el = document.documentElement
+      const el = this.$el || document.documentElement
       const req = el.requestFullscreen || el.webkitRequestFullscreen
       const exit = document.exitFullscreen || document.webkitExitFullscreen
       try {
@@ -376,6 +452,9 @@ export default {
     },
     async load() {
       this.loading = true
+      // 补充块不 await：先让今日快照上屏，48h 重返率与趋势图随后补；
+      // 它自己有 try/catch，失败不会影响上面的快照。
+      this.loadQualityExtra()
       try {
         const s = await fetchCockpitSummary(this.departCode, this.days)
         this.summary = s || { notes: [] }
@@ -387,6 +466,75 @@ export default {
       } finally {
         this.loading = false
       }
+    },
+    /**
+     * 拉取补充质控块。
+     *
+     * 刻意不写 ElMessage.error：这块是首屏之外的补充信息（近 7 天重返率、年度 bundle 趋势），
+     * 失败时面板内会显示后端给的说明文字，挂墙大屏不该为了它弹一层红条。
+     */
+    async loadQualityExtra() {
+      this.extraLoading = true
+      try {
+        const extra = await fetchCockpitQualityExtra(this.departCode)
+        this.qualityExtra = extra || null
+      } catch (e) {
+        this.qualityExtra = null
+      } finally {
+        this.extraLoading = false
+      }
+    },
+    /**
+     * 近 12 个月 bundle 完成率折线。
+     *
+     * 缺月给 null 且 connectNulls=false：跑批没覆盖的月份必须断开，
+     * 连成直线上是拿「没算」冒充「算出来是 0」，比空着更容易误导。
+     */
+    renderBundle() {
+      const el = this.$refs.bundleChart
+      if (!el || !this.bundlePoints.length) return
+      const chart = this.getChart('bundle', el)
+      const months = this.bundlePoints.map((p) => (p.month ? p.month.slice(5) + '月' : ''))
+      const rates = this.bundlePoints.map((p) => (p.rate == null ? null : Number(p.rate)))
+      chart.setOption({
+        backgroundColor: 'transparent',
+        animationDuration: 300,
+        grid: { left: 42, right: 16, top: 26, bottom: 26 },
+        tooltip: {
+          trigger: 'axis',
+          formatter: (params) => {
+            if (!params || !params.length) return ''
+            const idx = params[0].dataIndex
+            const p = this.bundlePoints[idx] || {}
+            if (p.rate == null) return months[idx] + '<br/>该月无已算结果'
+            return months[idx] + '<br/>完成率 ' + Number(p.rate).toFixed(1) + '%<br/>完成 ' + p.numerator + ' / 感染性休克 ' + p.denominator + ' 例'
+          }
+        },
+        xAxis: {
+          type: 'category',
+          data: months,
+          axisLine: { lineStyle: { color: 'rgba(120, 180, 180, .25)' } },
+          axisLabel: { color: '#5f8085', fontSize: 9, interval: 0 },
+          axisTick: { show: false }
+        },
+        yAxis: {
+          type: 'value',
+          axisLabel: { color: '#5f8085', fontSize: 9, formatter: '{value}%' },
+          splitLine: { lineStyle: { color: 'rgba(120, 180, 180, .1)' } }
+        },
+        series: [{
+          type: 'line',
+          name: 'bundle 完成率',
+          data: rates,
+          connectNulls: false,
+          symbol: 'circle',
+          symbolSize: 6,
+          smooth: false,
+          itemStyle: { color: '#ffae57' },
+          lineStyle: { color: '#ffae57', width: 2 },
+          areaStyle: { color: 'rgba(255, 174, 87, .12)' }
+        }]
+      })
     },
     distPoints(block) {
       return block && block.value ? block.value : []
@@ -487,6 +635,9 @@ export default {
 </script>
 <style scoped>
 .cockpit-page { --cyan: #52d7d2; --cyan-soft: #8ff4df; --amber: #ffae57; --red: #ff766f; --panel: rgba(13, 37, 47, .94); min-height: calc(100vh - 56px); padding: 18px 22px 34px; overflow: hidden; color: #eaf7f5; background: radial-gradient(circle at 82% 3%, rgba(37, 126, 128, .22), transparent 30%), radial-gradient(circle at 12% 36%, rgba(40, 103, 119, .13), transparent 30%), linear-gradient(145deg, #071820 0%, #0b222b 48%, #091c25 100%); }
+/* 全屏时本元素被浏览器设为 fixed + inset:0，可用高度即整块屏；这里只兜底掉
+   min-height 里为布局预留的 56px，避免大屏底部露出一条布局底色。 */
+.cockpit-page:fullscreen { min-height: 100vh; }
 .cockpit-hero { position: relative; display: grid; grid-template-columns: minmax(260px, 1fr) auto auto; align-items: center; gap: 26px; min-height: 124px; padding: 22px 26px; overflow: hidden; border-radius: 16px; background: linear-gradient(118deg, #19363f 0%, #28515a 64%, #3a696b 100%); box-shadow: 0 12px 28px rgba(24, 56, 64, .18); }
 .cockpit-hero { border: 1px solid rgba(126, 231, 218, .2); background: linear-gradient(110deg, rgba(20, 64, 73, .98), rgba(17, 54, 66, .96) 48%, rgba(24, 82, 83, .92)); box-shadow: 0 18px 42px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .08); }
 .cockpit-hero::before { content: ''; position: absolute; inset: 0; opacity: .13; background-image: linear-gradient(rgba(111, 220, 211, .22) 1px, transparent 1px), linear-gradient(90deg, rgba(111, 220, 211, .22) 1px, transparent 1px); background-size: 30px 30px; mask-image: linear-gradient(90deg, transparent, #000 40%, #000); }
@@ -547,6 +698,19 @@ export default {
 .resource-foot { margin: 4px 18px 13px; padding-top: 9px; border-top: 1px solid rgba(120, 180, 180, .1); color: #58777c; font-size: 9px; line-height: 1.55; }
 .score-content { display: grid; grid-template-columns: 87px 1fr; align-items: center; gap: 12px; min-height: 148px; padding: 15px 16px 17px; }.score-total { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 76px; border-right: 1px solid rgba(119, 179, 179, .12); }.score-total b { color: #9af0dc; font-size: 30px; line-height: 1; text-shadow: 0 0 20px rgba(93, 230, 207, .25); }.score-total span { margin-top: 6px; color: #648489; font-size: 10px; }.score-rows { display: flex; flex-direction: column; gap: 9px; }.score-row { display: grid; grid-template-columns: 42px minmax(50px, 1fr) 25px 34px; align-items: center; gap: 7px; }.score-range { color: #78979a; font-size: 10px; }.score-track { height: 7px; overflow: hidden; border-radius: 5px; background: rgba(111, 169, 169, .12); }.score-track i { display: block; height: 100%; min-width: 2px; border-radius: inherit; box-shadow: 0 0 8px currentColor; }.score-row b { color: #bdd6d5; font-size: 11px; text-align: right; }.score-row small { color: #5d7c81; font-size: 9px; text-align: right; }
 .organ-panel { min-height: 224px; }.organ-list { display: flex; flex-direction: column; gap: 14px; padding: 17px 16px 11px; }.organ-item { display: grid; grid-template-columns: 70px minmax(50px, 1fr) 47px; align-items: center; gap: 10px; }.organ-label { color: #78999c; font-size: 11px; }.organ-bar { height: 7px; overflow: hidden; border-radius: 5px; background: rgba(105, 161, 161, .12); }.organ-bar-fill { height: 100%; border-radius: inherit; box-shadow: 0 0 10px currentColor; transition: width .4s ease; }.organ-num { color: #d7eeeb; font-size: 15px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }.organ-num i { margin-left: 2px; color: #628287; font-size: 9px; font-style: normal; font-weight: 400; }.organ-num.value-unknown { color: #547176; }.organ-foot { margin: 0 16px 15px; padding-top: 10px; border-top: 1px solid rgba(120, 180, 180, .1); color: #58777c; font-size: 9px; line-height: 1.55; }
+/* 质控延展块：近 7 天 48h 重返率 + 近 12 个月 bundle 完成率趋势 */
+.quality-extra-grid { display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); gap: 13px; margin-top: 13px; align-items: stretch; }
+.readmit-body { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 18px 4px; }
+.readmit-gauge { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+.readmit-gauge b { color: var(--amber); font-size: 38px; font-weight: 700; text-shadow: 0 0 18px rgba(255, 174, 87, .18); font-variant-numeric: tabular-nums; }
+.readmit-gauge span { color: #68898c; font-size: 13px; }
+.readmit-gauge small { flex: 0 0 100%; color: #5f8085; font-size: 9px; }
+.readmit-metrics { display: flex; gap: 20px; }
+.readmit-metrics div { display: flex; flex-direction: column; align-items: flex-end; }
+.readmit-metrics span { color: #5f8085; font-size: 9px; }
+.readmit-metrics b { color: #b6cece; font-size: 19px; font-variant-numeric: tabular-nums; }
+.readmit-metrics i { color: #68898c; font-size: 9px; font-style: normal; }
+.bundle-chart { width: calc(100% - 24px); height: 186px; margin: 4px 12px 0; }
 .state-box { display: flex; min-height: 160px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }.state-box.small { min-height: 120px; }.state-title { color: #607f84; font-size: 11px; }.notes-list { margin: 0; padding-left: 18px; color: #53686d; font-size: 12px; line-height: 2; }.notes-foot { margin: 10px 0 0; color: #9ca9aa; font-size: 11px; }
 /* ==========================================================================
    大屏展示：视口锁定 + 纵向弹性分配

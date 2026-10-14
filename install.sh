@@ -43,6 +43,17 @@ else
   chmod 700 "$TMP_WORK"
 fi
 
+# ---------- 日志目录 ----------
+# ⚠️ 日志不能放在 $TMP_WORK 里：那个目录在脚本退出时被上面的 trap 清掉，
+#    而多处失败提示写的是「详见 $logfile」—— 日志跟着临时目录一起消失，
+#    那句提示就成了死指针（现场照提示去读，只会得到 No such file）。
+#    典型场景：增量脚本返回非 0 时提示「详见 …/zing-db-incr.log」，
+#    而这条分支只 warn 不退出，脚本正常跑完 → 日志已被删，现场无从排查。
+#    $ROOT 是交付包解压目录（root 所有），不是全局可写的 /tmp，无符号链接风险。
+#    生成的临时 .sql 仍留在 $TMP_WORK（那才是需要防预置符号链接的东西）。
+LOG_DIR="$ROOT/logs"
+if ! mkdir -p "$LOG_DIR" 2>/dev/null; then LOG_DIR="$TMP_WORK"; fi
+
 # ---------------- 控制台输出 ----------------
 # 排版分三层，现场一眼就能分层：
 #   步骤标题   [n/m] 当前步骤 / 总步骤，下面跟一条分隔线
@@ -53,12 +64,26 @@ fi
 # 空格反而会对不齐）。
 # 刻意不使用任何图标或符号字符：换终端字体、重定向进日志文件、被 CI 或聊天工具
 # 抓取时都不会变形。
-C_RED='\033[31m'; C_GREEN='\033[32m'; C_YELLOW='\033[33m'; C_CYAN='\033[36m'
-C_BOLD='\033[1m'; C_DIM='\033[2m'; C_RESET='\033[0m'
+# ⚠️ 颜色必须用 printf 生成「真实的 ESC 字节」，不能写成 '\033[2m' 这种字面量：
+#    printf 只在「格式串」里解释 \033，在「%s 的实参」里是原样输出的。
+#    step/ok/warn/err 把颜色拼进了格式串 → 正常上色；
+#    而 rule() 走的是实参（printf '%s%s%s\n' "$C_DIM" ...）→ 字面量被原样打出来，
+#    现场看到的就是裸的 \033[2m------------\033[0m，分隔线一点没变暗。
+#    （曾长期这么出现在部署日志里，属于「能跑但难看」，故记在此处防回退。）
+ESC="$(printf '\033')"
+# 非终端（重定向进日志 / CI 抓取 / ssh 管道）时整体关闭颜色，避免日志里混进 ANSI 乱码。
+# 关闭后颜色变量为空串，此时 rule() 的格式串仍是 '%s%s%s\n'，不会变成以 "--" 开头的
+# 非法选项 —— 这正是横线一定要走 %s 而不是直接写进格式串的原因。
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  C_RED="${ESC}[31m"; C_GREEN="${ESC}[32m"; C_YELLOW="${ESC}[33m"; C_CYAN="${ESC}[36m"
+  C_BOLD="${ESC}[1m"; C_DIM="${ESC}[2m"; C_RESET="${ESC}[0m"
+else
+  C_RED=''; C_GREEN=''; C_YELLOW=''; C_CYAN=''; C_BOLD=''; C_DIM=''; C_RESET=''
+fi
 STEP_N=0; STEP_TOTAL=4
 
 # 分隔线用 %s 承载：不能把横线直接写进格式串 —— 颜色变量一旦为空（日志重定向、
-# NO_COLOR、CI 抓取时会被清空），格式串就以 "--" 开头，printf 会当选项报 invalid option
+# NO_COLOR 时会被清空），格式串就以 "--" 开头，printf 会当选项报 invalid option
 rule(){ printf '%s%s%s\n' "$C_DIM" "--------------------------------------------------------------------" "$C_RESET"; }
 step(){
   STEP_N=$((STEP_N + 1))
@@ -257,6 +282,7 @@ FULL_SQL=(
     "46_nutrition_formula.sql"
     "47_quality_patient_monthly_page.sql"
     "48_external_link_pages.sql"
+    "49_lab_renal_page.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -316,6 +342,7 @@ FULL_SQL_JDBC=(
     "46_nutrition_formula.sql"
     "47_quality_patient_monthly_page.sql"
     "48_external_link_pages.sql"
+    "49_lab_renal_page.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -393,6 +420,7 @@ INCREMENTAL_SQL=(
     "46_nutrition_formula.sql"
     "47_quality_patient_monthly_page.sql"
     "48_external_link_pages.sql"
+    "49_lab_renal_page.sql"
 )
 
 # ---------------- SQL 清单自检 ----------------
@@ -511,7 +539,7 @@ apply_incremental() {
   local files=()
   local f
   for f in "${INCREMENTAL_SQL[@]}"; do files+=("$ROOT/sql/$f"); done
-  local logfile="$TMP_WORK/zing-db-incr.log"
+  local logfile="$LOG_DIR/zing-db-incr.log"
 
   local rc=0
   db_exec "$logfile" "${files[@]}" || rc=$?
@@ -520,7 +548,21 @@ apply_incremental() {
   elif [ "$rc" = "0" ]; then
     info "增量脚本执行完成"
   else
-    warn "增量脚本返回非 0（详见 $logfile）：多为「对象已存在」提示，可忽略"
+    # 幂等脚本理论上重跑不该报错，但 disql 对「对象已存在」这类提示也可能返回非 0，
+    # 所以这条分支里既可能是无害提示，也可能是「某个脚本整段没生效」。
+    # 原提示一律写「可忽略」，等于让现场自己猜；这里顺手数一下真正的报错行再表态。
+    # 日志现在落在 $LOG_DIR，脚本退出后仍在，提示里的路径可以真去读。
+    local nerr=0
+    nerr="$(grep -cE '错误|error|Error' "$logfile" 2>/dev/null || true)"
+    [ -n "$nerr" ] || nerr=0
+    if [ "$nerr" -gt 0 ] 2>/dev/null; then
+      warn "增量脚本返回非 0，且日志里有 $nerr 行疑似报错（详见 $logfile）"
+      warn "  逐条核对：grep -nE '错误|error' $logfile"
+      warn "  若确为报错：这些脚本都是幂等的，按日志里的脚本名手动重跑即可"
+    else
+      warn "增量脚本返回非 0，但日志里未出现报错行（多为「对象已存在」提示，可忽略）"
+      warn "  想确认：less $logfile"
+    fi
   fi
   verify_quality_columns
   verify_quality_tables
@@ -533,7 +575,7 @@ apply_incremental() {
 # 这里显式复查三张表，缺表就停止部署并给出手动执行指引。
 verify_quality_tables() {
   local vf="$TMP_WORK/zing-verify-tables.sql"
-  local log="$TMP_WORK/zing-verify-tables.log"
+  local log="$LOG_DIR/zing-verify-tables.log"
   cat > "$vf" <<'SQL'
 DECLARE
   v_missing VARCHAR(2000) := '';
@@ -587,7 +629,7 @@ SQL
 # 缺列就让 PL/SQL 抛错、通道返回非 0，判断只有「通过」和「没通过」两种。
 verify_quality_columns() {
   local vf="$TMP_WORK/zing-verify-cols.sql"
-  local log="$TMP_WORK/zing-verify-cols.log"
+  local log="$LOG_DIR/zing-verify-cols.log"
   cat > "$vf" <<'SQL'
 DECLARE
   v_missing VARCHAR(2000) := '';
@@ -680,7 +722,7 @@ verify_full_init() {
 }
 
 init_db() {
-  local logfile="$TMP_WORK/zing-dbinit.log"
+  local logfile="$LOG_DIR/zing-dbinit.log"
   local DISQL="$DB_DISQL"
   local p=""
   # 全量脚本路径（清单见文件上方 FULL_SQL / FULL_SQL_JDBC，新增 SQL 记得同步）

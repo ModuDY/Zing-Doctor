@@ -3,7 +3,7 @@
     <section class="head">
       <button class="back" @click="$router.back()">← 返回</button>
       <div class="head-main">
-        <h2>{{ isLiver ? '肝功能趋势' : '凝血功能趋势' }}</h2>
+        <h2>{{ panelTitle }}</h2>
         <p class="sub">
           {{ patientName }} · {{ inHospitalNo }}
           <span class="dot">·</span>{{ rangeText }}
@@ -21,9 +21,7 @@
 
     <p class="hint">
       <el-icon><InfoFilled /></el-icon>
-      {{ isLiver
-        ? '展示肝功能检验历史结果与参考范围；不由趋势直接诊断肝衰竭。按项目名称匹配（生产库存在同一项目多编码，如 ALT 两套）。'
-        : '展示凝血检验历史结果；不自动输出 DIC / 出血风险结论。D-二聚体仅 ICU 床边项目，覆盖有限。' }}
+      {{ panelHint }}
     </p>
 
     <div v-loading="loading" class="groups">
@@ -66,6 +64,27 @@ import { Refresh, InfoFilled } from '@element-plus/icons-vue'
 import * as echarts from '../utils/echarts'
 import { fetchLabTrend } from '../api/workbench'
 
+/**
+ * 三个面板共用本组件，标题与提示集中在这里维护。
+ *
+ * 提示语都写清「不由趋势直接下结论」：检验趋势是给临床看数值走向的，
+ * 页面自己给出诊断性措辞（肝衰竭 / AKI）会越权，且与工作台的规则判定重复。
+ */
+const PANELS = {
+  liver: {
+    title: '肝功能趋势',
+    hint: '展示肝功能检验历史结果与参考范围；不由趋势直接诊断肝衰竭。按项目名称匹配（生产库存在同一项目多编码，如 ALT 两套）。'
+  },
+  coag: {
+    title: '凝血功能趋势',
+    hint: '展示凝血检验历史结果；不自动输出 DIC / 出血风险结论。D-二聚体仅 ICU 床边项目，覆盖有限。'
+  },
+  renal: {
+    title: '肾功能与电解质趋势',
+    hint: '展示肌酐 / 尿素氮与钾钠氯钙镁磷的历史结果与参考范围；不由趋势直接诊断 AKI。已排除同名异物（降钙素原、脑钠肽、肌钙蛋白、尿素/肌酐比值、尿液标本）。'
+  }
+}
+
 export default {
   name: 'LabTrend',
   components: { Refresh, InfoFilled },
@@ -87,8 +106,18 @@ export default {
     patientId() {
       return this.$route.query.patientId
     },
-    isLiver() {
-      return (this.$route.name || '') !== 'labCoag'
+    /** 路由 → 面板类型：三个面板共用本组件，类型只由路由决定 */
+    panel() {
+      const name = this.$route.name || ''
+      if (name === 'labCoag') return 'coag'
+      if (name === 'labRenal') return 'renal'
+      return 'liver'
+    },
+    panelTitle() {
+      return PANELS[this.panel].title
+    },
+    panelHint() {
+      return PANELS[this.panel].hint
     },
     rangeText() {
       if (!this.rangeStart) return ''
@@ -97,8 +126,8 @@ export default {
     }
   },
   watch: {
-    // 肝功能与凝血是两条路由（/page/lab-liver、/page/lab-coag）指向同一个组件，
-    // Vue Router 会复用实例：切换菜单时 created 不再执行 → load() 不被调用 →
+    // 肝功能 / 凝血 / 肾功能是三条路由（/page/lab-liver、/page/lab-coag、/page/lab-renal）
+    // 指向同一个组件，Vue Router 会复用实例：切换菜单时 created 不再执行 → load() 不被调用 →
     // 页面一直停在上一类检验的结果上（只有依赖 $route 的标题与提示会变，数据不换，
     // 看着就像「点了菜单没反应」）。同一组件换 patientId 是同一类问题，故盯 fullPath。
     '$route.fullPath'() {
@@ -126,7 +155,7 @@ export default {
       }
       this.loading = true
       try {
-        const d = await fetchLabTrend(this.patientId, this.isLiver ? 'liver' : 'coag', this.hours)
+        const d = await fetchLabTrend(this.patientId, this.panel, this.hours)
         this.patientName = d.patientName || ''
         this.inHospitalNo = d.inHospitalNo || ''
         this.rangeStart = d.rangeStart

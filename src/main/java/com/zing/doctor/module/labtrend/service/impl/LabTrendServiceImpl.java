@@ -19,20 +19,39 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 检验趋势实现（肝功能 / 凝血）。
+ * 检验趋势实现（肝功能 / 凝血 / 肾功能与电解质）。
  *
- * <p>项目口径全部来自 docs/25 生产库核查（近 90 天实测覆盖）：
+ * <p>项目口径来源：
  * <ul>
- *   <li>肝功能：ALT 丙氨酸氨基转移酶 / AST <b>天冬氨酸氨基转氨酶</b> /
- *       总胆红素 / 直接胆红素 / 间接胆红素 / 白蛋白 / 碱性磷酸酶 / γ-谷氨酰转肽酶；</li>
- *   <li>凝血：血小板计数 / PT / INR / APTT / 纤维蛋白原 / D-二聚体（仅 ICU 床边项目、低覆盖）。</li>
+ *   <li>肝功能、凝血：docs/25 生产库核查（近 90 天实测覆盖）：ALT 丙氨酸氨基转移酶 /
+ *       AST <b>天冬氨酸氨基转氨酶</b> / 总胆红素 / 直接胆红素 / 间接胆红素 / 白蛋白 /
+ *       碱性磷酸酶 / γ-谷氨酰转肽酶；血小板计数 / PT / INR / APTT / 纤维蛋白原 /
+ *       D-二聚体（仅 ICU 床边项目、低覆盖）；</li>
+ *   <li>肾功能与电解质：达梦生产库（172.88.1.184:34567，schema {@code zing_icu_db_prod}）
+ *       近 90 天实测核查（2026-10-14，见 docs/25 §9）—— 血生化八项
+ *       {@code *肌酐 *尿素 *钾 *钠 *氯 *钙 *镁 *磷}（lis_item_code 100210 / 100200 / 100140~100190）
+ *       各覆盖 3.6~4.3 万患者；血气侧另有第二套命名 {@code 钾离子 / 钠离子 / 氯离子浓度 / 离子钙}
+ *       （各约 3,382 患者）与 {@code 钙离子浓度(PH7.4)}（321 患者），一并纳入。
+ *       电解质组含镁、磷：与血生化 K/Na/Cl/Ca/Mg/P 是同一面板（编码连号 100140~100190）。</li>
  * </ul>
  *
  * <p><b>按名称匹配而非只按 code</b>：核查证实 ALT 有第二套编码（约 5,200 患者），
  * 只按 code 100080 查会漏掉新系统数据；项目名普遍带 {@code *} 前缀（异常标记），用包含匹配。
  *
- * <p><b>不纳入「谷草/谷丙」组合项</b>：单字段含两个值（如"35/28"），
- * 拆分规则未经临床确认，强行拆分等于自行猜测数值。
+ * <p><b>组合项与同名异物逐项排除</b>：单字段含两个值的组合项（如"35/28"）拆分规则未经临床确认；
+ * 名称包含匹配又是一把宽口子 —— 生产库核查（docs/25 §9）实测到这些误伤，
+ * 全部按项目名显式挡掉，否则趋势图里会混进完全不同项目的数值，而且看起来完全正常：
+ * <ul>
+ *   <li>肌酐 ← {@code 尿素/肌酐}（比值）、{@code 内生肌酐清除率}、{@code 尿肌酐}、{@code 24小时腹透液肌酐}；</li>
+ *   <li>尿素 ← {@code 尿素/肌酐}、{@code 尿素呼气试验}、{@code 24小时腹透液尿素}；</li>
+ *   <li>钠 ← {@code N端-B型钠尿肽前体(NT-ProBNP)}、{@code 血清药物浓度测定(苯妥英钠)}；</li>
+ *   <li>氯 ← {@code 氯氮平}、{@code 氯胺酮}（药物浓度，非血氯）、{@code 氯化物测定}（无单位，数值跨血清/脑脊液区间，标本不可判定）；</li>
+ *   <li>钙 ← {@code 降钙素原} / {@code 降钙素}（PCT 与降钙素）、{@code 肌钙蛋白}（含「肌钙」）、
+ *       {@code 钙卫蛋白}、{@code N端骨钙素}、{@code 草酸钙/磷酸钙/碳酸钙结晶}；</li>
+ *   <li>镁 / 磷 ← {@code 磷酸铵镁结晶}、{@code 抗心磷脂抗体}、{@code 血清骨型碱性磷酸酶}、
+ *       {@code 6-磷酸脱氢酶}、{@code 磷酸化tau-181蛋白} 等含「磷酸」「磷脂」的项目；</li>
+ *   <li>八项共同的 {@code 微量元素-*}（ICP-MS 独立面板，参考区间与生化法不同）与各类尿液标本。</li>
+ * </ul>
  */
 @Slf4j
 @Service
@@ -44,7 +63,11 @@ public class LabTrendServiceImpl implements LabTrendService {
     private final IcuPatientMapper icuPatientMapper;
     private final IcuPatientService icuPatientService;
 
-    /** 肝功能分组：组名 → (项目名关键词, 展示名) */
+    /**
+     * 项目定义：{@code {项目名关键词, 展示名, 排除词(可选, 用 | 分隔)}}。
+     *
+     * <p>第三列只在名称包含匹配会误伤时才写：见类注释里的同名异物清单。
+     */
     private static final LinkedHashMap<String, String[][]> LIVER = new LinkedHashMap<>();
     private static final String[][] COAG = {
             {"血小板计数", "PLT 血小板计数"},
@@ -54,6 +77,9 @@ public class LabTrendServiceImpl implements LabTrendService {
             {"纤维蛋白原", "Fib 纤维蛋白原"},
             {"D-二聚体", "D-二聚体"},
     };
+
+    /** 肾功能与电解质：组名 → 项目定义。 */
+    private static final LinkedHashMap<String, String[][]> RENAL = new LinkedHashMap<>();
 
     static {
         LIVER.put("肝细胞损伤", new String[][]{
@@ -71,6 +97,30 @@ public class LabTrendServiceImpl implements LabTrendService {
         LIVER.put("胆道 / 酶学", new String[][]{
                 {"碱性磷酸酶", "ALP 碱性磷酸酶"},
                 {"谷氨酰转肽酶", "GGT γ-谷氨酰转肽酶"},
+        });
+
+        RENAL.put("肾小球滤过功能", new String[][]{
+                // 排除：尿素/肌酐比值（单字段双值）、清除率类（计算值不是检验结果）、
+                // 尿肌酐与腹透液肌酐（标本不同）
+                {"肌酐", "Cr 肌酐", "尿素/肌酐|尿素／肌酐|清除率|腹透液|透析液|尿"},
+                // 排除：幽门螺杆菌尿素呼气试验、24小时腹透液尿素（标本不同）。
+                // 注意这里不能像钾/钠那样直接排除「尿」字：血尿素的项目名本身就可能写作「尿素」，
+                // 一刀切会把要的项目也挡掉。
+                {"尿素", "BUN 尿素氮", "尿素/肌酐|尿素／肌酐|呼气|腹透液|透析液|尿尿素|小时尿"},
+        });
+        RENAL.put("电解质", new String[][]{
+                // 钾 / 钠 / 氯 / 钙 的第二套命名（血气侧：钾离子 / 钠离子 / 氯离子浓度 / 离子钙）
+                // 都含同一个关键词，天然一并纳入，无需额外配置
+                {"钾", "K⁺ 钾", "腹透液|透析液|微量元素|尿"},
+                // 排除：脑钠肽 / 钠尿肽（BNP）、含「钠」的药物浓度（苯妥英钠）
+                {"钠", "Na⁺ 钠", "腹透液|透析液|微量元素|钠肽|BNP|前体|苯妥英钠|药物浓度|尿"},
+                // 排除：含「氯」的药物（氯氮平 / 氯胺酮）、氯化物测定（标本不可判定）
+                {"氯", "Cl⁻ 氯", "腹透液|透析液|微量元素|氯化物|氯氮平|氯胺酮|尿"},
+                // 排除：降钙素原 PCT / 降钙素、肌钙蛋白、钙卫蛋白、骨钙素、钙盐结晶
+                {"钙", "Ca²⁺ 钙", "肌钙蛋白|降钙素|钙卫蛋白|骨钙素|微量元素|结晶|尿"},
+                {"镁", "Mg²⁺ 镁", "微量元素|结晶|磷酸铵镁|尿"},
+                // 「磷酸」一刀切：血磷的项目名就是「*磷」，含「磷酸」的都是别的项目
+                {"磷", "P 磷", "微量元素|磷酸|结晶|磷脂|尿"},
         });
     }
 
@@ -91,8 +141,7 @@ public class LabTrendServiceImpl implements LabTrendService {
         }
         String inHospitalNo = p == null ? null : p.getInHospitalNo();
 
-        LinkedHashMap<String, String[][]> groups = "coag".equals(type)
-                ? singleGroup("凝血功能", COAG) : LIVER;
+        LinkedHashMap<String, String[][]> groups = groupsOf(type);
 
         // DB 端按目标项目关键词过滤取数，不再先拉全项目再 Java 筛
         List<String> keywords = new ArrayList<>();
@@ -121,12 +170,25 @@ public class LabTrendServiceImpl implements LabTrendService {
             LabTrendResponse.Group g = new LabTrendResponse.Group();
             g.setName(e.getKey());
             for (String[] item : e.getValue()) {
-                g.getSeries().add(oneSeries(item[0], item[1], rows, queryFailed, resp));
+                g.getSeries().add(oneSeries(item, rows, queryFailed, resp));
             }
             resp.getGroups().add(g);
         }
         resp.setRecordCount(resp.getRecords().size());
         return resp;
+    }
+
+    /**
+     * 面板类型 → 分组定义。未知 type 按肝功能兜底（前端只用 liver / coag / renal 三种）。
+     */
+    private LinkedHashMap<String, String[][]> groupsOf(String type) {
+        if ("coag".equals(type)) {
+            return singleGroup("凝血功能", COAG);
+        }
+        if ("renal".equals(type)) {
+            return RENAL;
+        }
+        return LIVER;
     }
 
     private LinkedHashMap<String, String[][]> singleGroup(String name, String[][] items) {
@@ -135,11 +197,32 @@ public class LabTrendServiceImpl implements LabTrendService {
         return m;
     }
 
-    private LabTrendResponse.Series oneSeries(String keyword, String name,
-                                              List<Map<String, Object>> rows,
+    /**
+     * 该项目名是否属于「看着像、其实不是」的排除项。
+     *
+     * <p>两类：组合项（单字段双值，拆分规则未确认）与同名异物（PCT 含「钙」、BNP 含「钠」、
+     * 尿素/肌酐含「肌酐」、尿液标本含「钾」等）。判错的后果是趋势图里混入别的项目数值，
+     * 曲线本身看不出异常，所以这里宁可少匹配也不宽收。
+     */
+    private static boolean isExcluded(String itemName, String[] item) {
+        if (itemName.contains("谷草/谷丙") || itemName.contains("谷草／谷丙")) {
+            return true;
+        }
+        if (item.length <= 2 || item[2] == null || item[2].isEmpty()) {
+            return false;
+        }
+        for (String bad : item[2].split("\\|")) {
+            if (!bad.isEmpty() && itemName.contains(bad)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private LabTrendResponse.Series oneSeries(String[] item, List<Map<String, Object>> rows,
                                               boolean queryFailed, LabTrendResponse resp) {
         LabTrendResponse.Series s = new LabTrendResponse.Series();
-        s.setName(name);
+        s.setName(item[1]);
         if (queryFailed) {
             s.setDataStatus("UNKNOWN");
             s.setNote("查询失败");
@@ -147,11 +230,7 @@ public class LabTrendServiceImpl implements LabTrendService {
         }
         for (Map<String, Object> r : rows) {
             String itemName = str(r.get("item_name"));
-            if (itemName == null || !itemName.contains(keyword)) {
-                continue;
-            }
-            // 「谷草/谷丙」组合项单字段双值，拆分规则未确认，跳过
-            if (itemName.contains("谷草/谷丙") || itemName.contains("谷草／谷丙")) {
+            if (itemName == null || !itemName.contains(item[0]) || isExcluded(itemName, item)) {
                 continue;
             }
             Double v = parseDouble(r.get("item_value"));

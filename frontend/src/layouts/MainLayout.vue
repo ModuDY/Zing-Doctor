@@ -67,6 +67,10 @@
           <MedicalIcon name="taxonomy" />
           <span class="nav-label">凝血功能趋势</span>
         </router-link>
+        <router-link to="/page/lab-renal" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="taxonomy" />
+          <span class="nav-label">肾功能与电解质趋势</span>
+        </router-link>
 
         <div class="nav-divider">脏器支持与监护</div>
         <router-link to="/page/sepsis-bundle" class="nav-item" active-class="nav-active">

@@ -1400,3 +1400,14 @@ SELECT param_key, param_value, default_value FROM sys_param WHERE param_key = 'W
 - 达梦：`sql/48_external_link_pages.sql`；MySQL/MariaDB：`sql/mysql/48_external_link_pages.sql`。按 `page_code` 删除后重建，幂等可重复执行。
 - **登记**：`install.sh`（三处数组）、`install-mariadb-debian.sh`、`build-delivery.ps1` 均已加入 `47_quality_patient_monthly_page.sql`（此前遗漏，未登记会导致全新安装后患者月度质控外链 404）与 `48_external_link_pages.sql`。
 - 前端参数设置「外链页面」一览已同步补齐这 12 页（含各页参数说明与示例 URL），清单与路由已核对一致。
+
+---
+
+### 2026-10-14 · 49 号肾功能与电解质趋势页注册（左侧菜单新增页）
+
+患者工作台与左侧菜单新增「肾功能与电解质趋势」（`/page/lab-renal`），需在 `sys_page_config` 登记：外链 `/entry/{pageCode}` 只放行已注册且启用的页面，未登记会判「未注册的页面」404，参数设置页的「外链页面」一览也看不到它。
+
+- 达梦：`sql/49_lab_renal_page.sql`；MySQL/MariaDB：`sql/mysql/49_lab_renal_page.sql`。按 `page_code` 删除后重建，幂等可重复执行。
+- **登记**：`install.sh`（三处数组）、`install-mariadb-debian.sh`、`build-delivery.ps1` 均已加入 `49_lab_renal_page.sql`。
+- 前端参数设置「外链页面」一览已补该页（参数同 `lab-liver` / `lab-coag`：`patientId`、`inHospitalNo` 必填，`inDepartTime`、`departCode` 选填）。
+- **项目口径已核查**（2026-10-14，达梦 `172.88.1.184:34567` 近 90 天实测，见 docs/25 §9）：血生化八项 `*肌酐 *尿素 *钾 *钠 *氯 *钙 *镁 *磷`（code 100210 / 100200 / 100140~100190）各覆盖 3.6~4.3 万患者，电解质组按编码连号的 K/Na/Cl/Ca/Mg/P 六项做；血气侧第二套命名 `钾离子 / 钠离子 / 氯离子浓度 / 离子钙 / 钙离子浓度(PH7.4)`（各约 3,382 患者）按名称匹配自动纳入。同名异物已逐项排除：降钙素原 / 降钙素 / 肌钙蛋白 / 骨钙素 / 钙盐结晶（含「钙」）、脑钠肽前体 / 苯妥英钠（含「钠」）、氯氮平 / 氯胺酮 / 氯化物测定（含「氯」）、尿素-肌酐比值 / 清除率 / 腹透液 / 尿液标本、微量元素面板。

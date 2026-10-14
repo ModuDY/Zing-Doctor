@@ -15,21 +15,28 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
- * 检验趋势接口（肝功能 / 凝血功能，只读）。
+ * 检验趋势接口（肝功能 / 凝血功能 / 肾功能与电解质，只读）。
  */
 @RestController
 @RequestMapping("/api/lab-trend")
 @RequiredArgsConstructor
 public class LabTrendController {
 
+    /** 支持的面板类型；不在白名单内直接挡回，不让未知 type 落到 Service 的兜底分支上。 */
+    private static final Set<String> TYPES =
+            new HashSet<>(Arrays.asList("liver", "coag", "renal"));
+
     private final IcuPatientService icuPatientService;
     private final UserDepartScopeService departScopeService;
     private final LabTrendService labTrendService;
 
     /**
-     * @param type liver / coag
+     * @param type liver（肝功能）/ coag（凝血）/ renal（肾功能与电解质）
      * @param hours 回溯小时数，1~720（默认 168=7天）
      */
     @GetMapping("/patients/{patientId}")
@@ -46,8 +53,8 @@ public class LabTrendController {
         if (allowed == null) {
             return Result.fail("无该患者科室权限");
         }
-        if (!"liver".equals(type) && !"coag".equals(type)) {
-            return Result.fail("type 仅支持 liver / coag");
+        if (!TYPES.contains(type)) {
+            return Result.fail("type 仅支持 liver / coag / renal");
         }
         return Result.ok(labTrendService.trend(patientId, type, hours));
     }

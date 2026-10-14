@@ -180,12 +180,27 @@ public class QualityExportService {
      */
     public void exportPatients(HttpServletResponse response, String code, String periodStart,
                                String departCode, boolean includeExcluded, String view) {
+        exportPatients(response, code, null, periodStart, null, departCode, includeExcluded, view);
+    }
+
+    /**
+     * 导出对象级明细（支持自定义起止区间）。
+     *
+     * <p>文件名带上区间终点：自定义区间的起点常常相同（都从 10-01 起查不同长度），
+     * 只用起点命名会让两份导出在下载目录里同名，后到的被浏览器改成「(1)」——
+     * 交给临床时拿到哪一份全凭运气。
+     */
+    public void exportPatients(HttpServletResponse response, String code, String periodType, String periodStart,
+                               String periodEnd, String departCode, boolean includeExcluded, String view) {
         String dept = departCode == null || departCode.trim().isEmpty() ? "ALL" : departCode.trim();
         String viewLabel = viewLabel(view);
-        String fileName = "质控患者明细_" + code + "_" + periodStart + "_" + dept
+        String windowLabel = periodStart
+                + (periodEnd == null || periodEnd.trim().isEmpty() ? "" : "~" + periodEnd.trim());
+        String fileName = "质控患者明细_" + code + "_" + windowLabel + "_" + dept
                 + (viewLabel.isEmpty() ? "" : "_" + viewLabel) + ".xlsx";
         try {
-            Map<String, Object> data = queryService.patients(code, periodStart, dept, includeExcluded, view);
+            Map<String, Object> data = queryService.patients(code, periodType, periodStart, periodEnd, dept,
+                    includeExcluded, view);
             Object rawRows = data.get("patients");
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> rows = rawRows instanceof List

@@ -1501,6 +1501,8 @@ async function loadOverviewData() {
     const res = await fetchQualityOverview({
       periodType: periodType.value,
       periodStart: periodStart.value,
+      // 自定义区间必须把终点带上：只送起点时后端按一天的窗口算，页面看不出少了什么
+      periodEnd: periodEnd.value,
       departCode: departCode.value || ''
     })
     Object.assign(overview, res || {})
@@ -1950,7 +1952,9 @@ async function doExportPatients() {
   patientExporting.value = true
   try {
     const resp = await exportQualityMetricPatients(detail.code, {
+      periodType: periodType.value,
       periodStart: periodStart.value,
+      periodEnd: periodEnd.value,
       departCode: departCode.value || '',
       // includeExcluded 恒为 true：明细已一次取全，视角统一由 view 表达。
       // 再留一个开关，只会让「导出的行」与「屏幕的行」出现第二种解释。
@@ -2051,7 +2055,10 @@ async function openMetric(row, opts) {
   Object.keys(detail).forEach((k) => delete detail[k])
   try {
     const res = await fetchQualityMetric(row.code, {
+      periodType: periodType.value,
       periodStart: periodStart.value,
+      // 明细是按需重算的：带上终点，抽屉里的患者名单才能跟自定义区间一致
+      periodEnd: periodEnd.value,
       departCode: departCode.value || ''
     })
     Object.assign(detail, res || {})

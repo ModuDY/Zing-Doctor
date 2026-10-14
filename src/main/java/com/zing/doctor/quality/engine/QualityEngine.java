@@ -157,7 +157,7 @@ public class QualityEngine {
         if (f == null) {
             throw new IllegalStateException("未定义的事实层: " + factName);
         }
-        String key = cacheKey(factName, start, deptValue);
+        String key = cacheKey(factName, start, end, deptValue);
         if (!refresh) {
             String cached = factTableCache.get(key);
             if (cached != null) {
@@ -178,7 +178,7 @@ public class QualityEngine {
             if (props.isMaterializeFacts()) {
                 String physical = "\"" + props.getFactSchema() + "\".\""
                         + compiler.factPhysicalName(props.getFactTablePrefix(), factName)
-                        + "_" + DAY.format(start) + deptSuffix(deptValue) + "\"";
+                        + "_" + DAY.format(start) + windowSuffix(start, end) + deptSuffix(deptValue) + "\"";
                 dropIfExists(physical);
                 sqlMapper.execute("CREATE TABLE " + physical + " AS " + sql);
                 log.debug("[质控] 事实层物化 {} → {}{}", factName, physical,
@@ -655,14 +655,45 @@ public class QualityEngine {
     // internal
     // ------------------------------------------------------------------
 
-    private String cacheKey(String factName, LocalDateTime start) {
-        return factName + "_" + DAY.format(start);
+    /**
+     * 事实层物化键 = 事实名 + 窗口起点 + 窗口指纹。
+     *
+     * <p><b>为什么必须带上窗口终点</b>：自定义区间的起点可以相同
+     * （10-01~10-07 与 10-01~10-15），只拿起点当键时，第二个窗口会直接复用第一张物化表，
+     * 拿到的是第一段的数据 —— 数字偏小、不报错、看不出来，是典型的静默错误。
+     * 自然周期（日/月/季/年）窗口的终点由起点唯一决定，本来就不会撞，
+     * 因此不加指纹，既有物理表名保持不变（不触发无谓的重建）。
+     */
+    private String cacheKey(String factName, LocalDateTime start, LocalDateTime end) {
+        return factName + "_" + DAY.format(start) + windowSuffix(start, end);
     }
 
     /** 科室专属事实表的缓存键：与全院表分开，避免互相顶掉。 */
-    private String cacheKey(String factName, LocalDateTime start, String deptValue) {
-        return StringUtils.hasText(deptValue) ? cacheKey(factName, start) + "_d" + deptSuffix(deptValue)
-                : cacheKey(factName, start);
+    private String cacheKey(String factName, LocalDateTime start, LocalDateTime end, String deptValue) {
+        return StringUtils.hasText(deptValue)
+                ? cacheKey(factName, start, end) + "_d" + deptSuffix(deptValue)
+                : cacheKey(factName, start, end);
+    }
+
+    /**
+     * 非自然周期窗口的终点指纹（如 {@code _e20261015}）；自然周期返回空串。
+     *
+     * <p>物理表名与缓存键必须用同一个方法取值：两边规则一旦不一致，
+     * 就会出现「表名撞了但缓存认为是两张表」的假象，比单纯撞车更难查。
+     */
+    String windowSuffix(LocalDateTime start, LocalDateTime end) {
+        return isNaturalWindow(start, end) ? "" : "_e" + DAY.format(end);
+    }
+
+    /** 日 / 月 / 季 / 年四种自然周期：终点由起点唯一决定，无需额外指纹。 */
+    boolean isNaturalWindow(LocalDateTime start, LocalDateTime end) {
+        if (start == null || end == null) {
+            return true;
+        }
+        return end.equals(start.plusDays(1))
+                || end.equals(start.plusMonths(1))
+                || end.equals(start.plusMonths(3))
+                || end.equals(start.plusYears(1));
     }
 
     /**

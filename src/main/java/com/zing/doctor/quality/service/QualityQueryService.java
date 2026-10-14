@@ -81,13 +81,37 @@ public class QualityQueryService {
     }
 
     /**
+     * 查询区间解析：把「周期档位 + 起点 [+ 终点]」收敛成一处。
+     *
+     * <p>periodType 为空按 MONTH 处理、periodEnd 为空时退化成该档位的自然周期 ——
+     * 两者都与加自定义区间之前的接口行为一致，所以老调用方不用改。
+     * 自定义区间必须带终点：{@code PeriodRange} 对 CUSTOM 的既有语义是「没有终点就取一天」，
+     * 直接透传会让用户选的 10-01~10-15 变成只查 10-01 一天，且页面上看不出少了什么。
+     */
+    private static PeriodRange rangeOf(String periodType, String periodStart, String periodEnd) {
+        String type = periodType == null || periodType.trim().isEmpty() ? "MONTH" : periodType.trim();
+        return PeriodRange.of(type, periodStart, periodEnd);
+    }
+
+    /**
      * 指标看板：127 行按域分组，含本期值与实现状态。
      *
      * <p>占位指标（PLACEHOLDER / PENDING_SOURCE / MANUAL）同样返回元信息，
      * 前端渲染成正常行、数值列显示「—」，因此页面永远是完整的 127 行。
      */
     public Map<String, Object> overview(String periodType, String periodStart, String departCode) {
-        PeriodRange range = PeriodRange.of(periodType, periodStart);
+        return overview(periodType, periodStart, null, departCode);
+    }
+
+    /**
+     * 指标看板（支持自定义起止区间）。
+     *
+     * <p>自定义区间的数值仍来自结果表（需先按该区间跑过一次计算），
+     * 找不到结果时按既有逻辑返回纯字典视图，不会抛错。
+     */
+    public Map<String, Object> overview(String periodType, String periodStart, String periodEnd,
+                                        String departCode) {
+        PeriodRange range = rangeOf(periodType, periodStart, periodEnd);
         String dept = normalizeDepart(departCode);
 
         List<QualityIndex> indices = indexMapper.selectAllOrdered();
@@ -171,9 +195,20 @@ public class QualityQueryService {
 
     /** 单指标详情：口径 + 本期值 + 追溯摘要 + 患者明细。 */
     public Map<String, Object> metricDetail(String code, String periodStart, String departCode) {
+        return metricDetail(code, null, periodStart, null, departCode);
+    }
+
+    /**
+     * 单指标详情（支持自定义起止区间）。
+     *
+     * <p>值列读结果表、明细列按需重算，所以自定义区间是「部分即时」的：
+     * 数值要先按该区间跑过一次计算，患者明细则随时可出。
+     */
+    public Map<String, Object> metricDetail(String code, String periodType, String periodStart,
+                                            String periodEnd, String departCode) {
         MetricDefinition m = dsl.getMetrics().get(code);
         QualityIndex idx = indexMapper.selectByCode(code);
-        PeriodRange range = PeriodRange.of("MONTH", periodStart);
+        PeriodRange range = rangeOf(periodType, periodStart, periodEnd);
         String dept = normalizeDepart(departCode);
 
         QualityMetricResult result = null;
@@ -220,7 +255,11 @@ public class QualityQueryService {
             // includeExcluded=true：抽屉里要能切到「未纳入」，而常规明细的外层条件把
             // 「既没进分子也没进分母」的人滤掉了 —— 不取全，那一档永远是空的
             //（现场表现就是「未纳入」点开没有一个人，而这批人恰恰是质控争议的焦点）。
-            Map<String, Object> pd = patients(code, periodStart, departCode, true);
+            // 明细必须和上面解析出的区间用同一套参数：只传 periodStart 的话，
+            // 自定义区间会退化成「起点所在的那个自然月」—— 表头写着 10-01~10-07，
+            // 抽屉里却躺着整个 10 月的患者，多出来的人无声无息。
+            Map<String, Object> pd = patients(code, range.getPeriodType(), periodStart, periodEnd,
+                    departCode, true, null);
             out.put("patients", pd.get("patients"));
             out.put("viewCounts", pd.get("viewCounts"));
             if (pd.get("message") != null) {
@@ -292,6 +331,18 @@ public class QualityQueryService {
      */
     public Map<String, Object> patients(String code, String periodStart, String departCode,
                                         boolean includeExcluded, String view) {
+        return patients(code, null, periodStart, null, departCode, includeExcluded, view);
+    }
+
+    /**
+     * 对象级命中明细（支持自定义起止区间）。
+     *
+     * <p>明细按需重算、不读结果表，所以自定义区间在这里是天然支持的：
+     * 「转出后 48h 内重返病例」这类专项筛选直接走这条路径，
+     * 不必先把该区间跑一遍批算才能看到人。
+     */
+    public Map<String, Object> patients(String code, String periodType, String periodStart, String periodEnd,
+                                        String departCode, boolean includeExcluded, String view) {
         MetricDefinition m = dsl.getMetrics().get(code);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("code", code);
@@ -316,7 +367,7 @@ public class QualityQueryService {
         if ("PLACEHOLDER".equals(declared)) {
             return emptyPatients(out, "该指标口径待业务确认（空壳占位），暂无患者明细");
         }
-        PeriodRange range = PeriodRange.of("MONTH", periodStart);
+        PeriodRange range = rangeOf(periodType, periodStart, periodEnd);
         // 明细必须跟着看板的科室筛选走：筛选值是编码，'ALL' 表示全院
         String dept = normalizeDepart(departCode);
         try {

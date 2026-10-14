@@ -53,6 +53,92 @@
       </div>
     </div>
 
+    <!--
+      转出后 48h 内重返病例专项筛选
+      为什么单开一块：复盘窗口通常是「10-01 ~ 10-07」这种任意区间，
+      年度监汇表只能按 12 个自然月出数，塞不进去；而 48h 重返的复盘恰恰是按事件发生的那几天拉名单。
+    -->
+    <div class="readmit-panel qb-card">
+      <div class="readmit-head">
+        <div class="readmit-title">
+          <span class="readmit-kicker">专项筛选</span>
+          <h3>转出后 48h 内重返病例</h3>
+          <p>任选起止日期（不限自然月），按「转出 ICU 后 48 小时内重返」口径重算并列出患者明细，便于逐例复盘重返原因。</p>
+        </div>
+        <div class="readmit-actions">
+          <el-date-picker
+            v-model="readmitRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            range-separator="~"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            :clearable="false"
+            style="width: 250px"
+            popper-class="qb-popper"
+          />
+          <el-button type="primary" :loading="readmitLoading" @click="loadReadmit">
+            <el-icon><Search /></el-icon> 查询
+          </el-button>
+          <el-button
+            :loading="readmitExporting"
+            :disabled="!readmitPatients.length"
+            @click="doExportReadmit"
+          >
+            <el-icon><Download /></el-icon> 导出明细
+          </el-button>
+        </div>
+      </div>
+
+      <div class="readmit-stats">
+        <div class="readmit-stat">
+          <span>48h 内重返</span>
+          <b>{{ readmitNumeratorText }}</b><i>人</i>
+        </div>
+        <div class="readmit-stat">
+          <span>同期转出 / 出科</span>
+          <b>{{ readmitDenominatorText }}</b><i>人</i>
+        </div>
+        <div class="readmit-stat accent">
+          <span>重返率</span>
+          <b>{{ readmitRateText }}</b><i>%</i>
+        </div>
+        <div class="readmit-scope">
+          <span>口径</span><em>quality_22 ÷ quality_403</em>
+          <span>区间</span><em>{{ readmitPeriodText }}</em>
+          <span>科室</span><em>{{ departLabel }}</em>
+        </div>
+      </div>
+
+      <el-alert
+        v-if="readmitMessage"
+        class="readmit-alert"
+        :title="readmitMessage"
+        type="warning"
+        :closable="false"
+        show-icon
+      />
+      <el-table
+        v-else
+        :data="readmitPatients"
+        border
+        size="small"
+        max-height="330"
+        class="readmit-table"
+        empty-text="点「查询」后显示该区间转出 48h 内重返的患者明细"
+      >
+        <el-table-column
+          v-for="col in readmitColumns"
+          :key="col.key"
+          :prop="col.key"
+          :label="col.label"
+          min-width="112"
+          :formatter="readmitCellFormatter"
+          show-overflow-tooltip
+        />
+      </el-table>
+    </div>
+
     <!-- 摘要卡 -->
     <div class="metric-cards">
       <div class="metric-card info">
@@ -343,7 +429,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, Cpu, Download, Printer, Grid, CircleCheck, Collection, View } from '@element-plus/icons-vue'
+import { Refresh, Cpu, Download, Printer, Grid, CircleCheck, Collection, View, Search } from '@element-plus/icons-vue'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import { externalParam } from '../utils/external'
@@ -354,7 +440,10 @@ import {
   fetchQualityMonthly,
   rebuildQualityMonthly,
   exportQualityXlsx,
-  fetchQualityDepartments
+  fetchQualityDepartments,
+  fetchQualityMetric,
+  recalcQualityMetric,
+  exportQualityMetricPatients
 } from '../api/quality'
 
 const DEFAULT_HEADER = [
@@ -371,6 +460,156 @@ const onlyWithData = ref(false)
 // 宽表的行是指标（分子 ÷ 分母 × 系数）。打开它才追加「没有任何指标在引用」的原子项行 ——
 // 那是排查用的（某个原子项算出来了却没人用），日常看指标时不必背着这些噪声
 const showAtoms = ref(false)
+
+// ---------------- 转出后 48h 内重返病例（专项筛选，支持任意起止区间） ----------------
+const READMIT_CODE = 'quality_22'        // 转出后 48h 内重返人数（分子）
+const READMIT_DENOM_CODE = 'quality_403' // 同期转出 / 出科人数（分母）
+
+const readmitRange = ref(defaultReadmitRange())
+const readmitLoading = ref(false)
+const readmitExporting = ref(false)
+const readmitPatients = ref([])
+const readmitColumns = ref([])
+const readmitMessage = ref('')
+const readmitNumerator = ref(null)
+const readmitDenominator = ref(null)
+
+function pad2(n) {
+  return String(n).padStart(2, '0')
+}
+
+function fmtDate(d) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+
+/** 默认最近 7 天（含今天）：与科室驾驶舱的 48h 重返卡同一窗口，两处数字能对上 */
+function defaultReadmitRange() {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(start.getDate() - 6)
+  return [fmtDate(start), fmtDate(end)]
+}
+
+/** 自定义区间必须带终点：只送起点时后端按「起点所在自然月」算，页面看不出少了什么 */
+function readmitParams() {
+  const [start, end] = readmitRange.value || []
+  return {
+    periodType: 'CUSTOM',
+    periodStart: start,
+    periodEnd: end,
+    departCode: departCode.value || ''
+  }
+}
+
+/**
+ * 与质控首页同一套呈现习惯：布尔说人话、空值给破折号。
+ * 不这么做时，表格里会出现一列 true/false 和一列空白 —— 空白分不清「没有值」和「没查出来」。
+ */
+function readmitCellFormatter(row, column, cellValue) {
+  if (cellValue === null || cellValue === undefined || cellValue === '') return '—'
+  if (cellValue === true) return '是'
+  if (cellValue === false) return '否'
+  return cellValue
+}
+
+/** 结果行里的「人数」：COUNT 指标取 numerator，没有分子的指标退到 metricValue */
+function countOf(result) {
+  if (!result) return null
+  const v = result.numerator != null ? result.numerator : result.metricValue
+  return v == null ? null : Number(v)
+}
+
+const readmitPeriodText = computed(() => {
+  const [start, end] = readmitRange.value || []
+  return start && end ? `${start} ~ ${end}` : '未选择'
+})
+
+const readmitNumeratorText = computed(() =>
+  readmitNumerator.value == null ? '—' : readmitNumerator.value
+)
+
+const readmitDenominatorText = computed(() =>
+  readmitDenominator.value == null ? '—' : readmitDenominator.value
+)
+
+/** 分母为 0 或还没查时显示「—」：0% 会被读成「质量很好」，而实际是没有可观察人群 */
+const readmitRateText = computed(() => {
+  const n = readmitNumerator.value
+  const d = readmitDenominator.value
+  if (n == null || d == null || d === 0) return '—'
+  return ((n * 100) / d).toFixed(1)
+})
+
+/**
+ * 查询任意区间的 48h 重返病例。
+ *
+ * 结果表里没有这个区间的现成行，所以先让后端按该窗口各算一次再读回：
+ * 重算是「同周期 + 同科室」幂等覆盖，反复查询不会叠加数据，
+ * 且算出来的数与质控中台同源 —— 前端不自己拿两列相除。
+ */
+async function loadReadmit() {
+  const [start, end] = readmitRange.value || []
+  if (!start || !end) {
+    ElMessage.warning('请先选择起止日期')
+    return
+  }
+  readmitLoading.value = true
+  readmitMessage.value = ''
+  try {
+    await recalcQualityMetric(READMIT_CODE, readmitParams())
+    await recalcQualityMetric(READMIT_DENOM_CODE, readmitParams())
+    const [num, den] = await Promise.all([
+      fetchQualityMetric(READMIT_CODE, readmitParams()),
+      fetchQualityMetric(READMIT_DENOM_CODE, readmitParams())
+    ])
+    readmitNumerator.value = countOf(num && num.result)
+    readmitDenominator.value = countOf(den && den.result)
+    readmitColumns.value = (num && num.patientFields) || []
+    readmitPatients.value = (num && num.patients) || []
+    readmitMessage.value = (num && num.patientsMessage) || ''
+    if (!readmitPatients.value.length && !readmitMessage.value) {
+      readmitMessage.value = `${readmitPeriodText.value} 期间没有转出后 48h 内重返的病例`
+    }
+  } catch (e) {
+    readmitPatients.value = []
+    readmitMessage.value = '查询失败：' + (e && e.message ? e.message : e)
+  } finally {
+    readmitLoading.value = false
+  }
+}
+
+/** 导出与屏幕同源：明细一次取全，不额外加视角筛选，避免导出的行与看到的不一致 */
+async function doExportReadmit() {
+  readmitExporting.value = true
+  try {
+    const resp = await exportQualityMetricPatients(READMIT_CODE, {
+      ...readmitParams(),
+      includeExcluded: true
+    })
+    const payloadType = resp && resp.data && resp.data.type
+    if (payloadType && String(payloadType).includes('json')) {
+      ElMessage.error('导出失败：服务端返回了错误信息')
+      return
+    }
+    const blob = new Blob([resp.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const [start, end] = readmitRange.value || []
+    a.download = `48h重返病例_${start || ''}~${end || ''}.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+    ElMessage.success('导出成功')
+  } catch (e) {
+    ElMessage.error('导出失败：' + (e && e.message ? e.message : e))
+  } finally {
+    readmitExporting.value = false
+  }
+}
 
 const loading = ref(false)
 const rebuilding = ref(false)
@@ -1207,5 +1446,108 @@ function doPrint() {
 .is-portrait .doc-foot {
   left: 18px;
   right: 18px;
+}
+
+/* ---- 转出后 48h 内重返病例（专项筛选） ---- */
+.readmit-panel {
+  margin-top: 13px;
+  padding: 14px 18px 16px;
+}
+
+.readmit-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.readmit-title h3 {
+  margin: 5px 0 6px;
+  font-size: 15px;
+  color: #d8ecec;
+}
+
+.readmit-title p {
+  margin: 0;
+  max-width: 660px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6c8f92;
+}
+
+.readmit-kicker {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid rgba(255, 174, 87, .28);
+  border-radius: 9px;
+  font-size: 10px;
+  color: #ffae57;
+  background: rgba(255, 174, 87, .12);
+}
+
+.readmit-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.readmit-stats {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  margin: 14px 0 12px;
+  flex-wrap: wrap;
+}
+
+.readmit-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.readmit-stat span {
+  margin-right: 4px;
+  font-size: 11px;
+  color: #6c8f92;
+}
+
+.readmit-stat b {
+  font-size: 22px;
+  color: #cfe4e4;
+  font-variant-numeric: tabular-nums;
+}
+
+.readmit-stat i {
+  font-size: 11px;
+  font-style: normal;
+  color: #6c8f92;
+}
+
+.readmit-stat.accent b {
+  color: #ffae57;
+}
+
+.readmit-scope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: #5f8085;
+}
+
+.readmit-scope em {
+  font-style: normal;
+  color: #8fb3b3;
+}
+
+.readmit-alert {
+  margin-bottom: 4px;
+}
+
+.readmit-table {
+  width: 100%;
 }
 </style>

@@ -448,6 +448,11 @@ const LINK_PAGES = [
     { k: 'inHospitalNo', req: true, sample: '201152869' },
     { k: 'inDepartTime', req: false, sample: '2026-09-04T08:00:00' },
     { k: 'departCode', req: false, sample: 'ICU01' } ] },
+  { code: 'lab-renal', name: '肾功能与电解质趋势', desc: '单患者肾功能与电解质趋势：肌酐 / 尿素氮 / 钾 / 钠 / 氯 / 钙 / 镁 / 磷，已排除降钙素原、脑钠肽、肌钙蛋白等同名异物', params: [
+    { k: 'patientId', req: true, sample: '10001' },
+    { k: 'inHospitalNo', req: true, sample: '201152869' },
+    { k: 'inDepartTime', req: false, sample: '2026-09-04T08:00:00' },
+    { k: 'departCode', req: false, sample: 'ICU01' } ] },
   { code: 'department-cockpit', name: '科室驾驶舱', desc: '科室运行总览：患者负荷、器官支持、床位与设备、评分分布、本月质控', params: [
     { k: 'departCode', req: false, sample: 'ICU01' } ] },
   { code: 'quality-board', name: '质控指标看板', desc: '127 条指标按域分组、周期切换、点数字下钻', params: [

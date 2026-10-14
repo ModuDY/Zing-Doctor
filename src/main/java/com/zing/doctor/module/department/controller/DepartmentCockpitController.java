@@ -3,7 +3,9 @@ package com.zing.doctor.module.department.controller;
 import com.zing.doctor.common.Result;
 import com.zing.doctor.external.ExternalLinkInterceptor;
 import com.zing.doctor.icu.service.UserDepartScopeService;
+import com.zing.doctor.module.department.dto.CockpitQualityExtra;
 import com.zing.doctor.module.department.dto.CockpitSnapshot;
+import com.zing.doctor.module.department.service.CockpitQualityExtraService;
 import com.zing.doctor.module.department.service.DepartmentCockpitService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,6 +32,7 @@ public class DepartmentCockpitController {
 
     private final UserDepartScopeService departScopeService;
     private final DepartmentCockpitService cockpitService;
+    private final CockpitQualityExtraService qualityExtraService;
 
     /**
      * 今日快照 + 近 N 天患者流转（阶段1 MVP）。
@@ -44,6 +47,21 @@ public class DepartmentCockpitController {
             HttpServletRequest request) {
         String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
         return Result.ok(cockpitService.snapshot(allowed, days));
+    }
+
+    /**
+     * 补充质控块：近 7 天转出后 48h 重返率 + 近 12 个月 sepsis bundle 完成率趋势。
+     *
+     * <p>单独成接口而不是并进 summary：一块要按任意窗口现算、一块要读 12 个月结果，
+     * 耗时和「今日快照」不是一个量级，分开挂墙大屏可以先出首屏、补充块后到，
+     * 任一块取数失败也只影响自己（服务内已降级，不抛 500）。
+     */
+    @GetMapping("/quality-extra")
+    public Result<CockpitQualityExtra> qualityExtra(
+            @RequestParam(required = false) String departCode,
+            HttpServletRequest request) {
+        String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+        return Result.ok(qualityExtraService.extra(allowed));
     }
 
     /** 当前登录账号；外链免登录时返回 null（与其它控制器同一取法）。 */
