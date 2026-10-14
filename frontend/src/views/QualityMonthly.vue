@@ -233,8 +233,8 @@
       <div class="print-params">
         <span class="pp-label">纸张方向</span>
         <el-radio-group v-model="printOrientation" size="small">
-          <el-radio-button label="landscape">A4 横向</el-radio-button>
-          <el-radio-button label="portrait">A4 纵向</el-radio-button>
+          <el-radio-button value="landscape">A4 横向</el-radio-button>
+          <el-radio-button value="portrait">A4 纵向</el-radio-button>
         </el-radio-group>
         <span class="pp-label">每页行数</span>
         <el-input-number

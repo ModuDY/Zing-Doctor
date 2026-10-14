@@ -88,7 +88,10 @@ function groupClass(g) {
 async function load() {
   try {
     const res = await request.get('/tube/monthly', { params: { yearMonth: month.value } })
-    Object.assign(data, res.data)
+    // 兼容两种信封：统一 request 已解包（直接是业务对象），但若上层改动或
+    // 换用裸 axios 会拿到 {code,message,data}。整包 Object.assign 的后果是
+    // data.groups 永远为空 —— 页面「暂无数据」而接口明明返回了 4 组 30 行。
+    Object.assign(data, res && res.groups ? res : (res && res.data) || {})
   } catch (e) {
     console.error(e)
   }

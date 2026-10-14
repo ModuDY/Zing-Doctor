@@ -37,7 +37,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * 质控查询服务：看板、指标详情、血缘下钻、配置审阅。
@@ -625,50 +630,136 @@ public class QualityQueryService {
 
         PeriodRange range = PeriodRange.of("MONTH", periodStart);
         String deptValue = "ALL".equals(dept) ? null : dept;
-        String patientName = null;
-        String patientDepart = null;
 
+        // 先挑出真正需要扫的指标：引用型与不产生明细的指标直接进 skipped，
+        // 既不占线程也不占数据库连接
+        List<MetricDefinition> probes = new ArrayList<>();
         for (MetricDefinition m : dsl.getMetrics().values()) {
             if (m == null || m.isDerived()) {
                 continue;
             }
             String status = m.getImplStatus() == null ? "IMPL" : m.getImplStatus().toUpperCase();
             if (!"IMPL".equals(status)) {
-                Map<String, Object> s = new LinkedHashMap<>();
-                s.put("code", m.getCode());
-                s.put("name", m.getName());
-                s.put("domain", m.getDomain());
-                s.put("reason", "MANUAL".equals(status) ? "人工录入类，无患者级明细"
+                skipped.add(skipInfo(m, "MANUAL".equals(status) ? "人工录入类，无患者级明细"
                         : "PENDING_SOURCE".equals(status) ? "事实层尚未接入数据源"
                         : "PLACEHOLDER".equals(status) ? "口径待确认（空壳占位）"
-                        : "该指标不产生患者明细");
-                skipped.add(s);
+                        : "该指标不产生患者明细"));
                 continue;
             }
-            List<MetricOutcome.PatientHit> hits;
-            try {
-                hits = engine.loadPatients(m, range.getStart(), range.getEnd(), deptValue, true);
-            } catch (Exception e) {
-                // 单条指标算不出来不能让整页失败：把原因记进 skipped，
-                // 页面照常展示其余指标，使用者能看出是哪一条缺数、为什么
-                Map<String, Object> s = new LinkedHashMap<>();
-                s.put("code", m.getCode());
-                s.put("name", m.getName());
-                s.put("domain", m.getDomain());
-                s.put("reason", "计算失败：" + e.getMessage());
-                skipped.add(s);
-                continue;
+            probes.add(m);
+        }
+
+        // 并发扫描：串行逐条时 60+ 条指标要两分钟以上，会被网关按读超时切断
+        // （实测 nginx 504 —— 页面看到的是「操作失败」，而不是「慢」）。
+        // 每条任务各自限时，超时/失败只影响它自己：宁可少一条并说明原因，也不要整页失败。
+        String patientName = null;
+        String patientDepart = null;
+        Map<String, String> failReasons = new LinkedHashMap<>();
+        Map<String, Map<String, Object>> hitByCode = new LinkedHashMap<>();
+        int threads = Math.max(2, Math.min(PROBE_THREADS, Runtime.getRuntime().availableProcessors()));
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        try {
+            List<CompletableFuture<MetricProbe>> futures = new ArrayList<>();
+            for (MetricDefinition m : probes) {
+                futures.add(CompletableFuture.supplyAsync(
+                        () -> probe(m, range, deptValue, no, pid), pool));
             }
+            for (int i = 0; i < probes.size(); i++) {
+                MetricDefinition m = probes.get(i);
+                MetricProbe p;
+                try {
+                    p = futures.get(i).get(PROBE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                } catch (TimeoutException te) {
+                    futures.get(i).cancel(true);
+                    failReasons.put(m.getCode(), "计算超时（超过 " + PROBE_TIMEOUT_SECONDS + " 秒），已跳过");
+                    continue;
+                } catch (Exception e) {
+                    failReasons.put(m.getCode(), "计算失败：" + e.getMessage());
+                    continue;
+                }
+                if (p.error != null) {
+                    failReasons.put(m.getCode(), "计算失败：" + p.error);
+                    continue;
+                }
+                if (p.hit == null) {
+                    continue;
+                }
+                hitByCode.put(m.getCode(), p.hit);
+                if (patientName == null) {
+                    patientName = p.patientName;
+                    patientDepart = p.patientDepart;
+                }
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        // 按配置顺序组装：返回顺序稳定（并发执行不改变页面上指标的先后）
+        for (MetricDefinition m : probes) {
+            Map<String, Object> row = hitByCode.get(m.getCode());
+            if (row != null) {
+                hitList.add(row);
+            } else if (failReasons.containsKey(m.getCode())) {
+                skipped.add(skipInfo(m, failReasons.get(m.getCode())));
+            }
+        }
+
+        out.put("patientName", patientName);
+        out.put("departCode", patientDepart);
+        out.put("periodStart", range.getStart() == null ? null : DATE_FMT.format(range.getStart()));
+        out.put("periodEnd", range.getEnd() == null ? null : DATE_FMT.format(range.getEnd().minusSeconds(1)));
+        out.put("hitCount", hitList.size());
+        out.put("skippedCount", skipped.size());
+
+        patientMetricsCache.put(cacheKey, out);
+        patientMetricsCacheAt.put(cacheKey, System.currentTimeMillis());
+        return out;
+    }
+
+    /** 患者扫描并发度：够快，又不至于把达梦连接池占满 */
+    private static final int PROBE_THREADS = 6;
+
+    /** 单条指标扫描上限（秒）：超时就跳过它，不让整页被一条慢查询拖死 */
+    private static final int PROBE_TIMEOUT_SECONDS = 30;
+
+    /** 单条指标的扫描结果（并发任务返回值；hit 为空表示该患者未命中） */
+    private static final class MetricProbe {
+        private Map<String, Object> hit;
+        private String patientName;
+        private String patientDepart;
+        private String error;
+    }
+
+    /** skipped 行：页面据此说明「为什么有些指标没出现在命中列表里」 */
+    private Map<String, Object> skipInfo(MetricDefinition m, String reason) {
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("code", m.getCode());
+        s.put("name", m.getName());
+        s.put("domain", m.getDomain());
+        s.put("reason", reason);
+        return s;
+    }
+
+    /**
+     * 扫描单条指标，挑出目标患者的命中行。
+     *
+     * <p>异常在这里就地转成错误文本而不是抛出：并发任务抛出的异常会被包成
+     * ExecutionException，调用方拿到的 message 会多一层包装（"java.util.concurrent..."），
+     * 而这段文本最终要显示给人看。
+     */
+    private MetricProbe probe(MetricDefinition m, PeriodRange range, String deptValue,
+                              String inHospitalNo, String patientId) {
+        MetricProbe out = new MetricProbe();
+        try {
+            List<MetricOutcome.PatientHit> hits =
+                    engine.loadPatients(m, range.getStart(), range.getEnd(), deptValue, true);
             for (MetricOutcome.PatientHit h : hits) {
                 String hitNo = h.getInHospitalNo() == null ? "" : h.getInHospitalNo().trim();
                 String hitId = h.getPatientId() == null ? "" : h.getPatientId().trim();
-                boolean match = !no.isEmpty() ? no.equals(hitNo) : pid.equals(hitId);
+                boolean match = !inHospitalNo.isEmpty()
+                        ? inHospitalNo.equals(hitNo) : patientId.equals(hitId);
                 if (!match) {
                     continue;
-                }
-                if (patientName == null) {
-                    patientName = h.getPatientName();
-                    patientDepart = h.getDepartCode();
                 }
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("code", m.getCode());
@@ -683,20 +774,14 @@ public class QualityQueryService {
                         row.put(e.getKey(), formatCellValue(e.getValue()));
                     }
                 }
-                hitList.add(row);
+                out.hit = row;
+                out.patientName = h.getPatientName();
+                out.patientDepart = h.getDepartCode();
                 break;
             }
+        } catch (Exception e) {
+            out.error = e.getMessage() == null ? e.toString() : e.getMessage();
         }
-
-        out.put("patientName", patientName);
-        out.put("departCode", patientDepart);
-        out.put("periodStart", range.getStart() == null ? null : DATE_FMT.format(range.getStart()));
-        out.put("periodEnd", range.getEnd() == null ? null : DATE_FMT.format(range.getEnd().minusSeconds(1)));
-        out.put("hitCount", hitList.size());
-        out.put("skippedCount", skipped.size());
-
-        patientMetricsCache.put(cacheKey, out);
-        patientMetricsCacheAt.put(cacheKey, System.currentTimeMillis());
         return out;
     }
 

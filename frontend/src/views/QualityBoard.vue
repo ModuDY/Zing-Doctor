@@ -153,6 +153,21 @@
     </el-alert>
 
     <!--
+      自定义区间的语义提示：结果表按「周期类型 + 起始日」落库，自定义区间若还没算过，
+      指标会显示「—」。不解释的话，使用者会当成「这个区间确实没数据」——
+      而真相是「这个区间还没算」。
+    -->
+    <el-alert
+      v-if="periodType === 'CUSTOM'"
+      type="info"
+      show-icon
+      :closable="false"
+      class="qb-custom-hint"
+      title="自定义区间按所选起止日出数"
+      description="该区间需先点右上角「触发计算」按此区间出数（结果按区间落库）。若尚未计算，指标显示为「—」——那是「还没算」，不是「没有数据」。"
+    />
+
+    <!--
       总览（按设计稿）：常驻在 Tab 上方，统计口径是 quality_count_rule 的质控指标（约 60 条），
       数字由前端按 rules 的 calcStatus 聚合，无需后端新增接口。
     -->
@@ -1063,8 +1078,8 @@
       <div class="print-params">
         <span class="pp-label">纸张方向</span>
         <el-radio-group v-model="printOrientation" size="small">
-          <el-radio-button label="landscape">A4 横向</el-radio-button>
-          <el-radio-button label="portrait">A4 纵向</el-radio-button>
+          <el-radio-button value="landscape">A4 横向</el-radio-button>
+          <el-radio-button value="portrait">A4 纵向</el-radio-button>
         </el-radio-group>
         <span class="pp-label">每页行数</span>
         <el-input-number
@@ -1313,6 +1328,15 @@ const periodStart = computed(() => {
   const m = (Number(quarter.value) - 1) * 3 + 1
   return `${quarterYear.value}-${String(m).padStart(2, '0')}`
 })
+
+/**
+ * 周期结束日（只有自定义档位需要传）。
+ *
+ * 后端 CUSTOM 分支拿不到结束日时会按「起始日 + 1 天」处理 ——
+ * 于是页面上写着「9/1 ~ 10/14」，实际算的却只有 9/1 一天：不报错，只是结论错。
+ * 其余档位的区间由后端按周期类型推导，这里传空串即可（不传更谈不上覆盖）。
+ */
+const periodEnd = computed(() => (periodType.value === 'CUSTOM' ? customEnd.value : ''))
 
 /** 根据当前所选周期，实时推算「起 ~ 止」显示文本（与后端 PeriodRange.of 口径一致，左闭右开显示时 end 回退 1 秒）。 */
 const periodRangeText = computed(() => {
@@ -2096,6 +2120,7 @@ async function doRecalc() {
     const res = await recalcQuality({
       periodType: periodType.value,
       periodStart: periodStart.value,
+      periodEnd: periodEnd.value,
       departCode: departCode.value || '',
       async: true
     })
@@ -2509,6 +2534,7 @@ async function calcOne(row) {
     const res = await recalcQualityMetric(row.code, {
       periodType: periodType.value,
       periodStart: periodStart.value,
+      periodEnd: periodEnd.value,
       departCode: departCode.value || ''
     })
     if (res && res.calcStatus === 'BUSY') {
@@ -2577,6 +2603,7 @@ async function doManual() {
       note: manualForm.note || '',
       periodType: periodType.value,
       periodStart: periodStart.value,
+      periodEnd: periodEnd.value,
       departCode: departCode.value || ''
     })
     ElMessage.success('录入成功')
@@ -3157,6 +3184,11 @@ onMounted(async () => {
 
 .auto-refresh {
   margin-right: 4px;
+}
+
+/* 自定义区间提示条：贴在看板顶部，与错误提示条同一位置语义 */
+.qb-custom-hint {
+  margin-bottom: 12px;
 }
 
 /* 关注星标：默认灰、关注后暖橙，与整体主题一致 */

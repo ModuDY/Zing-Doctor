@@ -332,6 +332,7 @@ public class QualityController {
     @PostMapping("/recalc")
     public Result<Map<String, Object>> recalc(@RequestParam(required = false) String periodType,
                                               @RequestParam(required = false) String periodStart,
+                                              @RequestParam(required = false) String periodEnd,
                                               @RequestParam(required = false) String departCode,
                                               @RequestParam(required = false) String startTime,
                                               @RequestParam(required = false) String endTime,
@@ -340,7 +341,9 @@ public class QualityController {
                                               @RequestParam(required = false, defaultValue = "MANUAL") String triggerType,
                                               HttpServletRequest request) {
         try {
-            PeriodRange range = PeriodRange.of(periodType, periodStart);
+            // periodEnd 只对 CUSTOM 档位有意义：区间按「起始日 ~ 结束日当天 24:00」落库，
+            // 否则页面选的是整段区间、算出来的却是一天（见 PeriodRange#of 的说明）
+            PeriodRange range = PeriodRange.of(periodType, periodStart, periodEnd);
             LocalDateTime s = startTime == null ? range.getStart() : parse(startTime, range.getStart());
             LocalDateTime e = endTime == null ? range.getEnd() : parse(endTime, range.getEnd());
             // 权限收敛：普通账号不能借重算绕过科室边界；管理员/外链放行。
@@ -387,10 +390,11 @@ public class QualityController {
     public Result<Map<String, Object>> recalcMetric(@RequestParam String code,
                                                     @RequestParam(required = false) String periodType,
                                                     @RequestParam(required = false) String periodStart,
+                                                    @RequestParam(required = false) String periodEnd,
                                                     @RequestParam(required = false) String departCode,
                                                     HttpServletRequest request) {
         try {
-            PeriodRange range = PeriodRange.of(periodType, periodStart);
+            PeriodRange range = PeriodRange.of(periodType, periodStart, periodEnd);
             String dept = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
             return Result.ok(calcService.recalcOne(code, range.getPeriodType(),
                     range.getStart(), range.getEnd(), dept, configGuard.operator(request)));
@@ -411,11 +415,12 @@ public class QualityController {
                                               @RequestParam BigDecimal value,
                                               @RequestParam(required = false) String periodType,
                                               @RequestParam(required = false) String periodStart,
+                                              @RequestParam(required = false) String periodEnd,
                                               @RequestParam(required = false) String departCode,
                                               @RequestParam(required = false) String note,
                                               HttpServletRequest request) {
         try {
-            PeriodRange range = PeriodRange.of(periodType, periodStart);
+            PeriodRange range = PeriodRange.of(periodType, periodStart, periodEnd);
             String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
             // 操作人由服务端解析（X-Operator 头 → 登录令牌反解的姓名 → 外链 realname → 默认值），
             // 不接受前端传值：能伪造的审计字段等于没有审计。
