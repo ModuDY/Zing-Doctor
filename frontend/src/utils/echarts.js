@@ -8,6 +8,7 @@
  * ⚠️ 新增图表类型 / 组件时**必须**在下面登记，否则运行时才会报
  *    「Series xxx is used but not imported」或组件静默不生效（构建阶段不会报错）。
  */
+import { markRaw } from 'vue'
 import * as echarts from 'echarts/core'
 import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import {
@@ -37,5 +38,24 @@ echarts.use([
 // 页面沿用了 `import * as echarts from '...'` + `echarts.init(...)` / `echarts.graphic.xxx` 的写法，
 // 因此必须把 core 的具名导出（init / graphic / getInstanceByDom / dispose 等）re-export 出来，
 // 否则 rollup 会按命名空间成员做静态校验并报 “xxx is not exported”。
+// 注意：下面本地显式导出的 init 会覆盖（shadow）`export *` 里的同名导出，这正是我们要的统一出口。
 export * from 'echarts/core'
+
+/**
+ * init 统一出口：实例必须 markRaw，禁止被 Vue 响应式系统代理。
+ *
+ * 为什么：页面习惯把实例存进响应式状态（`data()` 里的 `chart: null`，或 `charts: {}` 再
+ * `this.charts[k] = echarts.init(el)`）。读取时拿到的是 Proxy，`setOption` 之后 ECharts
+ * 内部流水线也在 Proxy 上跑，写进内部模型（GlobalModel 的坐标系缓存、axisPointer 的
+ * `coordSysAxesInfo` 等）的属性落不到原始对象上，读侧取到 undefined，
+ * 表现为鼠标悬浮不出 tooltip、轴指示线不跟随、部分内部状态失配。
+ * 在唯一入口处包一层，全站图表一次性规避，不必逐个页面记得 markRaw。
+ * 实现上本地导出的 init 优先级高于 `export * from 'echarts/core'`，因此所有
+ * `import * as echarts from '../utils/echarts'` 的页面拿到的都是这个包装版。
+ */
+const rawInit = echarts.init
+export function init(dom, theme, opts) {
+  return markRaw(rawInit(dom, theme, opts))
+}
+
 export default echarts

@@ -60,6 +60,7 @@
 </template>
 
 <script>
+import { markRaw } from 'vue'
 import { Refresh, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
 import * as echarts from '../utils/echarts'
 import { fetchVitals } from '../api/workbench'
@@ -76,7 +77,9 @@ export default {
       // 图标必须作为实例属性暴露给模板：`:icon="Refresh"` 是属性查找，而不是组件解析，
       // 只写进 components 是拿不到的（Vue 会警告 Refresh is not defined on instance，
       // 表现为刷新按钮的图标位置空白）。其它页面同样用 refreshIcon 这种写法。
-      refreshIcon: Refresh,
+      // 图标是组件对象，必须 markRaw：否则被 Vue 变成响应式对象，触发
+      // “Vue received a Component that was made a reactive object” 警告。
+      refreshIcon: markRaw(Refresh),
       hours: 24,
       loading: false,
       patientName: '',
@@ -164,6 +167,7 @@ export default {
         this.chart.dispose()
         this.chart = null
       }
+      // 实例由 utils/echarts.js 统一 markRaw，放进 data() 也不会被 Vue 代理。
       if (!this.chart) this.chart = echarts.init(el)
 
       const groups = this.buildAxes(this.availSeries)
