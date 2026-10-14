@@ -22,18 +22,18 @@
 
     <p class="hint">
       <el-icon><InfoFilled /></el-icon>
-      数据回顾工具：仅展示监测记录，不自动诊断、不做早期预警评分。血压按无创/有创分列，不合并。
+      同一时间轴上下分面，鼠标指到任意时刻，所有指标同时显示数值。仅展示监测记录，不自动诊断。
     </p>
 
-    <div v-loading="loading" class="charts">
-      <div v-for="s in series" :key="s.key" class="chart-card">
-        <div class="chart-head">
-          <span class="chart-title">{{ s.name }}</span>
-          <span class="chart-meta">{{ s.unit }}{{ s.source && s.source !== '未标明' ? ' · ' + s.source : '' }}</span>
-        </div>
-        <div v-if="s.dataStatus === 'UNKNOWN'" class="state">查询失败：{{ s.note || '请稍后重试' }}</div>
-        <div v-else-if="s.dataStatus === 'NO_RECORD'" class="state">窗口内无记录</div>
-        <div v-else :ref="'chart-' + s.key" class="chart"></div>
+    <div v-loading="loading">
+      <MultiTrendChart v-if="hasAvail" :series="availSeries" />
+
+      <!-- 非 AVAILABLE 的指标单独列状态，不塞进图里 -->
+      <div v-if="nonAvail.length" class="status-strip">
+        <span v-for="s in nonAvail" :key="s.key" class="status-tag"
+              :class="s.dataStatus === 'UNKNOWN' ? 'bad' : 'muted'">
+          {{ s.name }}：{{ s.dataStatus === 'UNKNOWN' ? '查询失败' : '窗口内无记录' }}
+        </span>
       </div>
     </div>
 
@@ -55,12 +55,12 @@
 
 <script>
 import { Refresh, InfoFilled } from '@element-plus/icons-vue'
-import * as echarts from '../utils/echarts'
+import MultiTrendChart from '../components/MultiTrendChart.vue'
 import { fetchVitals } from '../api/workbench'
 
 export default {
   name: 'VitalSigns',
-  components: { Refresh, InfoFilled },
+  components: { Refresh, InfoFilled, MultiTrendChart },
   data() {
     return {
       hours: 24,
@@ -72,13 +72,17 @@ export default {
       rangeEnd: '',
       series: [],
       records: [],
-      recordCount: 0,
-      charts: {}
+      recordCount: 0
     }
   },
   computed: {
-    patientId() {
-      return this.$route.query.patientId
+    patientId() { return this.$route.query.patientId },
+    availSeries() {
+      return this.series.filter((s) => s.dataStatus === 'AVAILABLE' && s.points && s.points.length)
+    },
+    hasAvail() { return this.availSeries.length > 0 },
+    nonAvail() {
+      return this.series.filter((s) => s.dataStatus !== 'AVAILABLE')
     },
     rangeText() {
       if (!this.rangeStart) return ''
@@ -86,18 +90,7 @@ export default {
       return fmt(this.rangeStart) + ' ~ ' + fmt(this.rangeEnd)
     }
   },
-  watch: {
-    series() {
-      this.$nextTick(this.renderCharts)
-    }
-  },
-  created() {
-    this.load()
-  },
-  beforeUnmount() {
-    Object.values(this.charts).forEach((c) => c && c.dispose())
-    this.charts = {}
-  },
+  created() { this.load() },
   methods: {
     async load() {
       if (!this.patientId) {
@@ -120,52 +113,6 @@ export default {
       } finally {
         this.loading = false
       }
-    },
-    renderCharts() {
-      this.series.forEach((s) => {
-        if (s.dataStatus !== 'AVAILABLE' || !s.points || !s.points.length) return
-        const el = this.$refs['chart-' + s.key]
-        if (!el) return
-        const chart = echarts.getInstanceByDom(el) || echarts.init(el)
-        this.charts[s.key] = chart
-        chart.clear()
-        chart.setOption({
-          backgroundColor: 'transparent',
-          grid: { left: 46, right: 14, top: 12, bottom: 20 },
-          tooltip: {
-            trigger: 'axis',
-            confine: true,
-            formatter: (ps) => {
-              if (!ps || !ps.length) return ''
-              const p = ps[0]
-              const t = String(p.axisValue).slice(5, 16).replace('T', ' ')
-              return t + '<br/>' + s.name + '：<b>' + p.value[1] + '</b> ' + (s.unit || '')
-            }
-          },
-          xAxis: {
-            type: 'time',
-            axisLabel: { color: '#a8a29e', fontSize: 10, hideOverlap: true },
-            axisLine: { lineStyle: { color: '#e7e5e4' } },
-            splitLine: { show: false }
-          },
-          yAxis: {
-            type: 'value',
-            scale: true,
-            axisLabel: { color: '#a8a29e', fontSize: 10 },
-            splitLine: { lineStyle: { color: '#f5f5f4' } }
-          },
-          series: [{
-            type: 'line',
-            showSymbol: true,
-            symbolSize: 5,
-            data: s.points.map((p) => [p.time, p.value]),
-            lineStyle: { width: 2, color: '#b45309' },
-            itemStyle: { color: '#b45309' },
-            areaStyle: { color: 'rgba(180,83,9,0.06)' }
-          }]
-        })
-        chart.resize()
-      })
     }
   }
 }
@@ -182,13 +129,9 @@ export default {
 .dot { margin: 0 4px; color: #d6d3d1; }
 .head-right { display: flex; align-items: center; gap: 8px; }
 .hint { display: flex; align-items: center; gap: 5px; margin: 0 0 12px; font-size: 11px; color: #a8a29e; }
-.charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
-.chart-card { background: #fff; border: 1px solid #eeece8; border-radius: 10px; padding: 10px 12px; }
-.chart-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
-.chart-title { font-size: 13px; font-weight: 600; color: #1c1917; }
-.chart-meta { font-size: 10px; color: #a8a29e; }
-.chart { width: 100%; height: 180px; }
-.state { height: 180px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #a8a29e; }
+.status-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.status-tag { font-size: 11px; padding: 3px 10px; border-radius: 999px; background: #f5f5f4; color: #78716c; }
+.status-tag.bad { background: #fef2f2; color: #b91c1c; }
 .table-block { margin-top: 14px; background: #fff; border: 1px solid #eeece8; border-radius: 10px; padding: 12px 14px; }
 .block-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
 .block-title { font-size: 13px; font-weight: 600; color: #1c1917; }
