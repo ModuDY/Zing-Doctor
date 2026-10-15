@@ -8,6 +8,7 @@ import com.zing.doctor.module.department.mapper.DepartmentCockpitMapper;
 import com.zing.doctor.module.department.service.DepartmentCockpitService;
 import com.zing.doctor.module.sofa.mapper.SofaScoreRecordMapper;
 import com.zing.doctor.quality.entity.QualityMetricResult;
+import com.zing.doctor.quality.service.QualityCountRuleService;
 import com.zing.doctor.quality.service.QualityQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,6 +54,11 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
     private final SofaScoreRecordMapper sofaMapper;
     private final Apache2ScoreRecordMapper apache2Mapper;
     private final QualityQueryService qualityQueryService;
+    private final QualityCountRuleService countRuleService;
+
+    /** 质控侧「ICU床位使用率」规则的分子/分母原子项：按原子项定位规则，不硬编码 ruleId */
+    private static final String OCCUPIED_DAYS_CODE = "quality_2";
+    private static final String OPEN_DAYS_CODE = "quality_301";
 
     @Override
     public CockpitSnapshot snapshot(String departCode, int days) {
@@ -72,6 +78,8 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
         fillFlow(s, departCode, flowStart, todayEnd, range, today);
         // 本月首日：质控按月周期（MONTH periodStart），与质控中台同一周期边界
         String monthStart = today.withDayOfMonth(1).atTime(0, 0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        // 本月床位使用率：与质控看板同一周期、同一条规则（占用床日 ÷ 开放床日）
+        fillBedMonthUsage(s, departCode, monthStart);
         // 评分分布与流转图使用同一趋势窗口；当前快照和本月质控仍保持各自明确的周期。
         fillScores(s, departCode, flowStart, todayEnd);
         fillQualityCards(s, departCode, monthStart);
@@ -239,6 +247,55 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
     }
 
     // ---------------- 床位与设备资源 ----------------
+
+    /**
+     * 本月床位使用率：直接复用质控中台的「ICU床位使用率」真指标
+     * （原子项 {@code quality_2 ÷ quality_301 × 100}，精度 2），驾驶舱不再自己写这个除法 ——
+     * 同一个名字在两处各算一遍，迟早出现「驾驶舱 78.3% / 质控看板 78.35%」这类对不上，
+     * 而一旦对不上就无从判断哪个是对的。
+     *
+     * <p>规则按「分子 = {@code quality_2} 且分母 = {@code quality_301}」定位，<b>不硬编码 ruleId</b>：
+     * 那条规则的 ruleId 是 ICU 侧源端数字 id，源端重建规则时会变。
+     */
+    private void fillBedMonthUsage(CockpitSnapshot s, String departCode, String monthStart) {
+        try {
+            List<Map<String, Object>> rules = countRuleService.list("MONTH", monthStart, departCode, false);
+            Map<String, Object> bedRule = null;
+            if (rules != null) {
+                for (Map<String, Object> r : rules) {
+                    if (OCCUPIED_DAYS_CODE.equals(stringOf(r.get("numeratorCode")))
+                            && OPEN_DAYS_CODE.equals(stringOf(r.get("denominatorCode")))) {
+                        bedRule = r;
+                        break;
+                    }
+                }
+            }
+            if (bedRule == null) {
+                s.setBedMonthUsage(CockpitSnapshot.SnapshotBlock.pending(
+                        "质控未配置「占用床日 ÷ 开放床日」的床位使用率规则"));
+                return;
+            }
+            if (!"OK".equals(stringOf(bedRule.get("calcStatus")))) {
+                // 分子/分母各自的状态一并带出：分母「待接源表」与「本期为 0」在页面上都显示「—」，
+                // 但一个要去接数据源、一个只需等本月产生数据，排查方向完全不同
+                s.setBedMonthUsage(CockpitSnapshot.SnapshotBlock.pending(
+                        "本月质控结果未出（分子 " + stringOf(bedRule.get("numeratorStatus"))
+                                + " / 分母 " + stringOf(bedRule.get("denominatorStatus")) + "）"));
+                return;
+            }
+            CockpitSnapshot.BedMonthUsage u = new CockpitSnapshot.BedMonthUsage();
+            u.setRate(doubleOrNull(bedRule.get("value")));
+            u.setOccupiedDays(doubleOrNull(bedRule.get("numeratorValue")));
+            u.setOpenDays(doubleOrNull(bedRule.get("denominatorValue")));
+            u.setRuleId(stringOf(bedRule.get("ruleId")));
+            u.setRuleName(stringOf(bedRule.get("countName")));
+            u.setCalcStatus(stringOf(bedRule.get("calcStatus")));
+            s.setBedMonthUsage(CockpitSnapshot.SnapshotBlock.of(u));
+        } catch (Exception e) {
+            log.warn("驾驶舱-本月床位使用率查询失败 departCode={}", departCode, e);
+            s.setBedMonthUsage(CockpitSnapshot.SnapshotBlock.unknown("本月床位使用率查询失败"));
+        }
+    }
 
     private void fillResourceOverview(CockpitSnapshot s, String departCode) {
         try {
@@ -422,7 +479,8 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
         s.getNotes().add("危重：机械通气 / 血管活性药 / CRRT / ECMO 任一（窄口径，取并集不去重相加）");
         s.getNotes().add("入科 / 出科：按入出科时间自然日聚合，左闭右开区间，与出科统计一致");
         s.getNotes().add("平均 ICU 住院日：仅统计区间内已出科患者，在科者住院日仍在增长不计入");
-        s.getNotes().add("床位使用率：有效开放床位中，与当前在科患者床号匹配的占用床位数 ÷ 有效开放床位数");
+        s.getNotes().add("当前床位使用率：有效开放床位中，与当前在科患者床号匹配的占用床位数 ÷ 有效开放床位数（实时快照）");
+        s.getNotes().add("本月床位使用率：本月占用总床日 ÷ 同期实际开放总床日，复用质控中台「ICU床位使用率」规则；与当前快照是两种口径，数值不同属正常");
         s.getNotes().add("设备接入态势：配置数来自 config_device；绑定数来自在科患者设备编码；连接状态仅代表数据采集链路，不代表维修、库存或临床可用性");
         s.getNotes().add("评分分布：统计单位是「患者」（每患者取周期内最新一条有效评分），非评分次数");
         s.getNotes().add("APACHE II 预测病死率单独标注为预测值，不与实际病死率（quality_30）混用");
@@ -499,5 +557,23 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
 
     private static String stringOf(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    /**
+     * 质控组装结果里的数值是 BigDecimal，但达梦驱动返回的列值可能是字符串形式，两种都接住。
+     * 取不到就给 null —— 宁可让前端显示「—」，也不要拿 0 冒充一个真实的比率。
+     */
+    private static Double doubleOrNull(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        try {
+            return new BigDecimal(String.valueOf(value).trim()).doubleValue();
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

@@ -109,6 +109,14 @@
             <div><span>未匹配床位患者</span><b>{{ bedOverview.unassignedPatients }}</b><i>人</i></div>
           </div>
         </div>
+        <div class="bed-month">
+          <span class="bed-month-label">本月床位使用率</span>
+          <template v-if="bedMonthUsage">
+            <b>{{ formatMetric(bedMonthUsage.rate) }}<i>%</i></b>
+            <small class="bed-month-sub">质控口径 · 占用 {{ formatMetric(bedMonthUsage.occupiedDays) }} / 开放 {{ formatMetric(bedMonthUsage.openDays) }} 床日</small>
+          </template>
+          <small v-else class="bed-month-sub pending">{{ blockNote(summary.bedMonthUsage) || '本月质控结果未出' }}</small>
+        </div>
         <div class="resource-foot">占用仅统计床号能匹配有效开放床位的当前在科患者，避免无效床号造成使用率超过 100%。</div>
       </article>
 
@@ -280,6 +288,12 @@ export default {
     },
     bedOverview() {
       const block = this.summary.bedUsage
+      return block && block.status === 'OK' ? block.value : null
+    },
+    // 本月床位使用率（质控口径）：与上面的实时快照是两种口径；
+    // 取不到时返回 null，由模板回落到质控引擎给的原因说明
+    bedMonthUsage() {
+      const block = this.summary && this.summary.bedMonthUsage
       return block && block.status === 'OK' ? block.value : null
     },
     bedUsagePercent() {
@@ -755,6 +769,13 @@ export default {
 .bed-metrics > div { min-height: var(--row-h); padding: 6px 10px; border: 1px solid var(--card-border); border-radius: var(--r-md); background: var(--card-bg); box-shadow: var(--card-shadow); transition: border-color .2s ease, box-shadow .2s ease; }
 .bed-metrics > div:hover { border-color: var(--card-border-hover); box-shadow: var(--card-shadow-hover); }
 .bed-metrics span { display: block; margin-bottom: 4px; color: #6d9195; font-size: var(--fs-sub); }.bed-metrics b { color: #dff7f3; font-size: var(--fs-value); font-variant-numeric: tabular-nums; }.bed-metrics i { margin-left: 3px; color: #6d8b8f; font-size: var(--fs-sub); font-style: normal; }.bed-metrics .alert b { color: #ffae57; text-shadow: 0 0 12px rgba(255, 174, 87, .18); }
+/* 本月床位使用率（质控口径）：与上方实时快照并列，用同一组卡中卡 token 但不算入四张小卡 */
+.bed-month { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 8px 16px 0; padding: 8px 10px; border: 1px solid var(--card-border); border-radius: var(--r-md); background: var(--card-bg); }
+.bed-month-label { color: #6d9195; font-size: var(--fs-sub); }
+.bed-month b { color: #dff7f3; font-size: var(--fs-value); font-variant-numeric: tabular-nums; }
+.bed-month i { margin-left: 2px; color: #6d8b8f; font-size: var(--fs-sub); font-style: normal; }
+.bed-month-sub { color: #63868a; font-size: var(--fs-sub); }
+.bed-month-sub.pending { color: #d49a58; }
 .device-list { display: flex; min-height: 150px; flex-direction: column; justify-content: center; gap: 2px; padding: 8px 12px 6px; }
 .device-row { display: grid; grid-template-columns: 118px minmax(90px, 1fr) minmax(280px, 1.15fr); align-items: center; gap: 14px; min-height: var(--row-h); padding: 3px 8px; border-radius: var(--r-md); transition: background .2s ease; }
 .device-row:hover { background: rgba(255, 255, 255, .035); }

@@ -7,6 +7,7 @@ import com.zing.doctor.module.department.dto.CockpitSnapshot;
 import com.zing.doctor.module.department.mapper.DepartmentCockpitMapper;
 import com.zing.doctor.module.department.service.impl.DepartmentCockpitServiceImpl;
 import com.zing.doctor.module.sofa.mapper.SofaScoreRecordMapper;
+import com.zing.doctor.quality.service.QualityCountRuleService;
 import com.zing.doctor.quality.service.QualityQueryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -56,6 +57,7 @@ class DepartmentCockpitServiceTest {
     private SofaScoreRecordMapper sofaMapper;
     private Apache2ScoreRecordMapper apache2Mapper;
     private QualityQueryService qualityQueryService;
+    private QualityCountRuleService countRuleService;
     private DepartmentCockpitServiceImpl service;
 
     private static final String DAY_FMT = "yyyy-MM-dd";
@@ -69,8 +71,12 @@ class DepartmentCockpitServiceTest {
         sofaMapper = mock(SofaScoreRecordMapper.class);
         apache2Mapper = mock(Apache2ScoreRecordMapper.class);
         qualityQueryService = mock(QualityQueryService.class);
+        countRuleService = mock(QualityCountRuleService.class);
         service = new DepartmentCockpitServiceImpl(cockpitMapper, icuPatientMapper, icuPatientService,
-                sofaMapper, apache2Mapper, qualityQueryService);
+                sofaMapper, apache2Mapper, qualityQueryService, countRuleService);
+        // 默认取不到床位使用率规则：该块应落 PENDING（提示未配置），不能造一个 0%
+        when(countRuleService.list(anyString(), anyString(), anyString(), eq(false)))
+                .thenReturn(Collections.emptyList());
         Map<String, Object> bed = new HashMap<>();
         bed.put("open_beds", 20);
         bed.put("occupied_beds", 10);
@@ -337,6 +343,52 @@ class DepartmentCockpitServiceTest {
 
         assertEquals(90, service.snapshot("", 999).getDailyFlow().getValue().size());
         assertEquals(1, service.snapshot("", 0).getDailyFlow().getValue().size());
+    }
+
+    @Test
+    @DisplayName("本月床位使用率直接复用质控规则的结果，不在驾驶舱再除一遍")
+    void bedMonthUsageReusesQualityRule() {
+        when(cockpitMapper.selectTodaySnapshot(anyString(), anyString(), anyString())).thenReturn(snapshotRow(10, 1, 1));
+        when(icuPatientService.countOrganSupport(anyString())).thenReturn(Collections.emptyMap());
+        when(icuPatientMapper.selectAllDepartments()).thenReturn(Collections.emptyList());
+        when(countRuleService.list(anyString(), anyString(), anyString(), eq(false)))
+                .thenReturn(Collections.singletonList(bedRuleRow()));
+
+        CockpitSnapshot s = service.snapshot("20070131", 30);
+
+        assertEquals("OK", s.getBedMonthUsage().getStatus());
+        CockpitSnapshot.BedMonthUsage u = s.getBedMonthUsage().getValue();
+        assertEquals(78.35, u.getRate(), 0.0001, "应取质控算好的 1567/2000×100，而不是另算一遍");
+        assertEquals(1567D, u.getOccupiedDays(), 0.0001);
+        assertEquals(2000D, u.getOpenDays(), 0.0001);
+        assertEquals("ICU床位使用率", u.getRuleName());
+    }
+
+    @Test
+    @DisplayName("质控没有床位使用率规则时该块是 PENDING，不显示 0%")
+    void bedMonthUsagePendingWhenRuleMissing() {
+        when(cockpitMapper.selectTodaySnapshot(anyString(), anyString(), anyString())).thenReturn(snapshotRow(10, 1, 1));
+        when(icuPatientService.countOrganSupport(anyString())).thenReturn(Collections.emptyMap());
+        when(icuPatientMapper.selectAllDepartments()).thenReturn(Collections.emptyList());
+
+        CockpitSnapshot s = service.snapshot("20070131", 30);
+
+        assertEquals("PENDING_SOURCE", s.getBedMonthUsage().getStatus());
+        assertNull(s.getBedMonthUsage().getValue(), "没有规则要说明原因，不能造一个 0% 床位使用率");
+    }
+
+    /** 质控「ICU床位使用率」规则的组装结果（分子 quality_2 ÷ 分母 quality_301 × 100）。 */
+    private static Map<String, Object> bedRuleRow() {
+        Map<String, Object> r = new HashMap<>();
+        r.put("ruleId", "148305094329981301");
+        r.put("countName", "ICU床位使用率");
+        r.put("numeratorCode", "quality_2");
+        r.put("denominatorCode", "quality_301");
+        r.put("calcStatus", "OK");
+        r.put("value", new BigDecimal("78.35"));
+        r.put("numeratorValue", new BigDecimal("1567"));
+        r.put("denominatorValue", new BigDecimal("2000"));
+        return r;
     }
 
     private static Map<String, Object> row(String patientId) {

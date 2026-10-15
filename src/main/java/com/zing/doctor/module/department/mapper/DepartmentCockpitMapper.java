@@ -124,8 +124,13 @@ public interface DepartmentCockpitMapper {
                                           @Param("end") String end);
 
     /**
-     * 当前床位资源。开放床位必须同时满足未删除、启用且当前时刻落在启停区间内；
+     * 当前床位资源。开放床位 = 未删除且当前时刻落在启停区间内的 {@code config_bed} 记录；
      * 占用床位只统计能匹配到有效开放床位的当前在科患者，避免脏床号把使用率推到 100% 以上。
+     *
+     * <p>口径与质控事实层 {@code fact_bed} 对齐（见 sql/50_quality_gap_impl.sql 里 fact_bed 的
+     * where_conds）：只看 {@code del_flag} 与启停区间。<b>{@code config_bed} 没有 {@code status}
+     * 列</b> —— 早期版本此处多写了一个 {@code b.status = 1}，达梦会直接报「无效的列名」，
+     * 整条查询抛异常，页面因此显示「床位配置或占用查询失败」（而不是床位为 0 的正常空态）。</p>
      */
     @Select({"<script>",
             "SELECT COUNT(*) AS open_beds,",
@@ -137,13 +142,13 @@ public interface DepartmentCockpitMapper {
             "           <if test=\"departCode != null and departCode != ''\">AND pi2.depart_code = #{departCode}</if>",
             "           AND (pi2.bed_code IS NULL OR TRIM(pi2.bed_code) = '' OR NOT EXISTS (",
             "                SELECT 1 FROM \"zing_icu_db_prod\".\"config_bed\" bx",
-            "                 WHERE bx.del_flag = 0 AND bx.status = 1",
+            "                 WHERE bx.del_flag = 0",
             "                   AND (bx.begin_use_time IS NULL OR bx.begin_use_time &lt;= SYSDATE)",
             "                   AND (bx.stop_use_time IS NULL OR bx.stop_use_time &gt; SYSDATE)",
             "                   AND bx.depart_code = pi2.depart_code AND bx.bed_code = pi2.bed_code",
             "           )) AS unassigned_patients",
             "  FROM \"zing_icu_db_prod\".\"config_bed\" b",
-            " WHERE b.del_flag = 0 AND b.status = 1",
+            " WHERE b.del_flag = 0",
             "   AND (b.begin_use_time IS NULL OR b.begin_use_time &lt;= SYSDATE)",
             "   AND (b.stop_use_time IS NULL OR b.stop_use_time &gt; SYSDATE)",
             "   <if test=\"departCode != null and departCode != ''\">AND b.depart_code = #{departCode}</if>",

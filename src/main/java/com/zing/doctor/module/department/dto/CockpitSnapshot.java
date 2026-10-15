@@ -55,8 +55,17 @@ public class CockpitSnapshot {
     /** 当前 ECMO 患者数 */
     private SnapshotBlock<Integer> ecmoCount;
 
-    /** 当前床位开放、占用和可用情况 */
+    /** 当前床位开放、占用和可用情况（实时快照，回答「此刻有几张床」） */
     private SnapshotBlock<BedOverview> bedUsage;
+
+    /**
+     * 本月床位使用率（质控口径：占用床日 ÷ 开放床日）。
+     *
+     * <p>与 {@link #bedUsage} 是两种口径、两个答案：前者是「当前时刻的床位数」，
+     * 后者是「本月累计的床日比」，取自质控中台的「ICU床位使用率」真指标。
+     * 两者不应相等，也不应互相替代 —— 放在一起是为了让管理者能对照判断。
+     */
+    private SnapshotBlock<BedMonthUsage> bedMonthUsage;
 
     /** 设备配置、患者绑定及数据接收状态（按设备类型聚合） */
     private SnapshotBlock<List<DeviceOverview>> deviceOverview;
@@ -133,6 +142,25 @@ public class CockpitSnapshot {
         private int availableBeds;
         private int unassignedPatients;
         private Double occupancyRate;
+    }
+
+    /**
+     * 本月床位使用率（质控口径），字段直接对应质控中台「ICU床位使用率」规则的分子分母，
+     * 便于使用者把驾驶舱的数与质控看板那一行逐项对上。
+     */
+    @Data
+    public static class BedMonthUsage {
+        /** 床位使用率百分数（如 78.35），= 占用床日 ÷ 开放床日 × 100 */
+        private Double rate;
+        /** 分子：本月 ICU 实际占用总床日数（原子项 quality_2） */
+        private Double occupiedDays;
+        /** 分母：本月同期 ICU 实际开放总床日数（原子项 quality_301） */
+        private Double openDays;
+        /** 质控规则 id / 名称，用于与质控看板逐条对照 */
+        private String ruleId;
+        private String ruleName;
+        /** 质控组装状态：OK / NO_DATA */
+        private String calcStatus;
     }
 
     /**

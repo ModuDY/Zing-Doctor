@@ -304,6 +304,14 @@ const routes = [
     meta: { title: '交付自检' }
   },
   {
+    // 日志查看：刻意不进 sys_page_config 外链白名单（日志含 SQL/患者数据），
+    // 仅系统内直连登录的管理员可用，后端接口同样 403 非管理员/外链。
+    path: '/page/log-viewer',
+    name: 'logViewer',
+    component: () => import('../views/LogViewer.vue'),
+    meta: { title: '日志查看' }
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'notFound',
     component: () => import('../views/NotFound.vue'),

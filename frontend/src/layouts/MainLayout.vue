@@ -177,6 +177,10 @@
           <MedicalIcon name="check" />
           <span class="nav-label">交付自检</span>
         </router-link>
+        <router-link to="/page/log-viewer" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="file" />
+          <span class="nav-label">日志查看</span>
+        </router-link>
       </nav>
 
       <div class="sidebar-footer">
@@ -240,7 +244,8 @@ const MEDICAL_ICON_PATHS = {
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.3 3h-4.6l-.3 2.7a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.3 2.7h4.6l.3-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2Z"/>',
   check: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6zM8 12l2.5 2.5L16 9"/>',
   sedation: '<path d="M20.5 13.5A8.5 8.5 0 1 1 10.5 3.5a6.8 6.8 0 0 0 10 10Z"/><path d="M17 4.5l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6Z" />',
-  neuro: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.2"/><path d="M12 1.5v2M12 20.5v2M1.5 12h2M20.5 12h2"/>'
+  neuro: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.2"/><path d="M12 1.5v2M12 20.5v2M1.5 12h2M20.5 12h2"/>',
+  file: '<path d="M6 2h8l5 5v15H6z"/><path d="M14 2v5h5M9.5 13h6M9.5 16.5h6"/>'
 }
 
 const MedicalIcon = {

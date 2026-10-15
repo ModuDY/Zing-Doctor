@@ -61,10 +61,6 @@ class LogViewerServiceTest {
         Path p = write("l1\nl2\nl3\nl4\nl5\nl6\n");
         LogViewerService svc = service(p);
         LogPage page1 = svc.tail(2, 0);
-        System.out.println("DBG page1 status=" + page1.getStatus() + " lines=" + page1.getLines().size()
-                + " atHead=" + page1.isAtHead() + " nextOffset=" + page1.getNextOffset()
-                + " size=" + page1.getSize() + " msg=" + page1.getMessage() + " file=" + page1.getFile());
-        page1.getLines().forEach(l -> System.out.println("DBG   [" + l.getNo() + "] " + l.getText()));
         assertEquals("l5", page1.getLines().get(0).getText());
         assertEquals("l6", page1.getLines().get(1).getText());
         assertFalse(page1.isAtHead());
@@ -149,5 +145,41 @@ class LogViewerServiceTest {
         assertEquals("WARN", LogViewerService.levelOf("10:00:00.123 WARN --- [main] c.z: slow"));
         assertEquals("INFO", LogViewerService.levelOf("INFO ---"));
         assertEquals("OTHER", LogViewerService.levelOf("plain text line"));
+    }
+
+    @Test
+    @DisplayName("编码可配：GBK 日志按 GBK 解出中文，级别判定不受影响")
+    void charsetConfigurable() throws IOException {
+        Path p = dir.resolve("gbk.log");
+        Files.write(p, "启动完成\nERROR 服务异常\n".getBytes("GBK"));
+
+        LogPage page = new LogViewerService(p.toString(), "GBK").tail(10, 0);
+        assertEquals("OK", page.getStatus());
+        assertEquals(2, page.getLines().size());
+        assertEquals("启动完成", page.getLines().get(0).getText());
+        assertEquals("ERROR 服务异常", page.getLines().get(1).getText());
+        assertEquals("ERROR", page.getLines().get(1).getLevel());
+    }
+
+    @Test
+    @DisplayName("编码配错：只出现替换符，不抛异常、整页仍为 OK")
+    void wrongCharsetDoesNotBreakPage() throws IOException {
+        Path p = dir.resolve("gbk.log");
+        Files.write(p, "启动完成\nERROR 服务异常\n".getBytes("GBK"));
+
+        // 现场把 charset 配成 ASCII：多字节字符退化成替换符，但页照读
+        LogPage page = new LogViewerService(p.toString(), "US-ASCII").tail(10, 0);
+        assertEquals("OK", page.getStatus());
+        assertEquals(2, page.getLines().size());
+        assertTrue(page.getLines().get(1).getText().startsWith("ERROR"));
+    }
+
+    @Test
+    @DisplayName("编码名非法：退回 UTF-8，不拦启动")
+    void unknownCharsetFallsBackToUtf8() throws IOException {
+        Path p = write("l1\n");
+        LogPage page = new LogViewerService(p.toString(), "NOT-A-CHARSET").tail(10, 0);
+        assertEquals("OK", page.getStatus());
+        assertEquals("l1", page.getLines().get(0).getText());
     }
 }
