@@ -146,7 +146,7 @@ public interface DepartmentCockpitMapper {
             "                   AND (bx.begin_use_time IS NULL OR bx.begin_use_time &lt;= SYSDATE)",
             "                   AND (bx.stop_use_time IS NULL OR bx.stop_use_time &gt; SYSDATE)",
             "                   AND bx.depart_code = pi2.depart_code AND bx.bed_code = pi2.bed_code",
-            "           )) AS unassigned_patients",
+            "           ))) AS unassigned_patients",
             "  FROM \"zing_icu_db_prod\".\"config_bed\" b",
             " WHERE b.del_flag = 0",
             "   AND (b.begin_use_time IS NULL OR b.begin_use_time &lt;= SYSDATE)",

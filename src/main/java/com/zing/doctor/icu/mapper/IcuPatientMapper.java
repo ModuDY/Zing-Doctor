@@ -114,6 +114,12 @@ public interface IcuPatientMapper {
      * <p>供「历史患者」查阅入口用：只查基础信息，不跑诊断 / 检验 / 微生物等关联查询，
      * 避免打开历史页就触发全院级大查询。{@code keyword} 匹配姓名或住院号（可空）。
      * {@code departCode} 为空 / "ALL" 表示不限科室。返回行数由 limit 控制（默认上限 300）。
+     *
+     * <p><b>方法名不能与 {@link #selectDischargedPatients(String, String, String)} 相同。</b>
+     * MyBatis 的语句 id 是「接口全名 + 方法名」，<b>不带参数类型</b>，所以同名重载会撞 id：
+     * 后注册的那条被静默丢弃（启动日志只留一行
+     * {@code mapper[...] is ignored, because it exists}），两条查询实际都执行先注册的那条 SQL，
+     * 参数名对不上就绑成 NULL —— 现场表现是「出科统计列表查不出数据」这种没有报错的错。
      */
     @Select({"<script>",
             "SELECT * FROM (",
@@ -140,9 +146,9 @@ public interface IcuPatientMapper {
             // （即使 ROWNUM <= 5 字面量也一样），两层结构才可用 —— 与 ArdsProneDataMapper 一致。
             "WHERE ROWNUM &lt;= #{limit}",
             "</script>"})
-    List<Map<String, Object>> selectDischargedPatients(@Param("departCode") String departCode,
-                                                      @Param("keyword") String keyword,
-                                                      @Param("limit") int limit);
+    List<Map<String, Object>> selectRecentDischargedPatients(@Param("departCode") String departCode,
+                                                             @Param("keyword") String keyword,
+                                                             @Param("limit") int limit);
 
     /**
      * 取一个账号在重症系统里被授权的科室（org_code + 名称），用于工作台的科室边界。

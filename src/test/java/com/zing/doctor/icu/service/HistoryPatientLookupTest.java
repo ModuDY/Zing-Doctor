@@ -109,7 +109,7 @@ class HistoryPatientLookupTest {
         b.put("patient_id", "2108249806484901890");
         b.put("in_hospital_no", "1000702161001");
         b.put("out_depart_time", LocalDateTime.of(2026, 10, 13, 9, 50, 8));
-        when(mapper.selectDischargedPatients(eq("20010231"), eq("黄"), anyInt()))
+        when(mapper.selectRecentDischargedPatients(eq("20010231"), eq("黄"), anyInt()))
                 .thenReturn(Arrays.asList(a, b));
 
         List<WorkbenchPatient> list = service.listDischargedPatients("20010231", "黄", 300);
@@ -123,12 +123,12 @@ class HistoryPatientLookupTest {
     @Test
     @DisplayName("历史列表把关键字透传给 mapper，不在 Java 端二次过滤")
     void historyListPassesKeywordToMapper() {
-        when(mapper.selectDischargedPatients(any(), any(), anyInt())).thenReturn(Collections.emptyList());
+        when(mapper.selectRecentDischargedPatients(any(), any(), anyInt())).thenReturn(Collections.emptyList());
 
         assertTrue(service.listDischargedPatients(null, "  ", 300).isEmpty());
 
         // 空关键字应被规范成 null，避免 SQL 里拼出 LIKE '%%' 把全院历史患者都捞出来
-        verify(mapper).selectDischargedPatients(null, null, 300);
+        verify(mapper).selectRecentDischargedPatients(null, null, 300);
     }
 
     @Test

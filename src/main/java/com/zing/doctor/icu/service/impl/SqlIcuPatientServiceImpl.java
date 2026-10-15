@@ -113,7 +113,7 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
             kw = null;
         }
         List<Map<String, Object>> rows =
-                icuPatientMapper.selectDischargedPatients(departCode, kw, limit);
+                icuPatientMapper.selectRecentDischargedPatients(departCode, kw, limit);
         List<WorkbenchPatient> list = new ArrayList<>();
         if (rows == null) {
             return list;

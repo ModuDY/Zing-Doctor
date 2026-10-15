@@ -148,6 +148,21 @@ class LogViewerServiceTest {
     }
 
     @Test
+    @DisplayName("文件以空行开头：一页读完即 atHead，不留 offset=1 的空翻页")
+    void leadingBlankLineDoesNotFakeHead() throws IOException {
+        // Spring Boot banner 前有一个前导空行，真实 backend.log 就是这个形状：
+        // 文件第一个字节就是 \n，此前必须判成「已到日志开头」
+        Path p = write("\nl1\nl2\n");
+        LogPage page = service(p).tail(10, 0);
+        assertEquals("OK", page.getStatus());
+        assertEquals(2, page.getLines().size());
+        assertEquals("l1", page.getLines().get(0).getText());
+        assertEquals("l2", page.getLines().get(1).getText());
+        assertTrue(page.isAtHead(), "文件头只有前导空行，不应再提示还有更早");
+        assertEquals(0, page.getNextOffset(), "atHead 时不应再给翻页游标");
+    }
+
+    @Test
     @DisplayName("编码可配：GBK 日志按 GBK 解出中文，级别判定不受影响")
     void charsetConfigurable() throws IOException {
         Path p = dir.resolve("gbk.log");

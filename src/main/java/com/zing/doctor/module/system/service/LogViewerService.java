@@ -199,7 +199,11 @@ public class LogViewerService {
                             byte[] full = concat(seg, pendingSuffix);
                             pendingSuffix = new byte[0];
                             reversed.add(line(decoded(full)));
-                            oldestStart = start + i + 1;
+                            // 行首绝对偏移为 0 的那个换行 = 文件第一个字节就是换行（Boot banner 前的
+                            // 前导空行），它前面只有一个空行、没有更早的内容。此时若仍记 oldestStart=1，
+                            // 整文件已在一页里读完却会报 atHead=false、nextOffset=1，前端一直提示
+                            // 「还有更早的日志」，点一次才拿到一个空页 —— 必须按「已到顶」处理。
+                            oldestStart = (start + i == 0) ? 0 : start + i + 1;
                         } else {
                             pendingSuffix = new byte[0];
                         }

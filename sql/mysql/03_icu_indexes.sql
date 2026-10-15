@@ -49,3 +49,42 @@ CALL zing_add_index('patient_advice_execute', 'idx_pae_patient_id', 0, '`patient
 CALL zing_add_index('config_staff', 'idx_cs_pinyin', 0, '`pinyin`');
 
 CALL zing_add_index('config_staff', 'idx_cs_work_no', 0, '`work_no`');
+
+-- ================================================================
+-- 8. 质控事实层预热：逐患者 EXISTS 子查询的驱动列
+--
+-- 背景：质控事实层物化（CREATE TABLE AS SELECT）以 patient_info（5654 行）为驱动表，
+--       每个患者行要跑十来个相关 EXISTS 子查询去大表里找诊断/医嘱/监测/管路。
+--       下面这些表此前没有对应索引，每条 EXISTS 都退化成「按患者反复扫大表」：
+--       实测单条 CTAS 最慢 144 秒（quality_fact_fact_dvt_20260901），16 张表预热共 186 秒。
+--
+-- 索引列取自 DSL 里实际写的 WHERE 条件（src/main/resources/quality/facts/*.yaml）。
+-- 达梦版见 sql/03_icu_indexes.sql，两版必须保持一致。
+--
+-- 只跑这一段也可以（第 1~7 节的索引多数已建，zing_add_index 会自动跳过已存在的同名索引）。
+-- ⚠️ 执行前请让 DBA 先查一下这 7 张表的现有索引：zing_add_index 只按「索引名」去重，
+--    若 ICU 厂商已建过等价索引（同样列、不同名），这里会再建一条冗余索引，白白增加写入代价。
+-- ================================================================
+
+-- 8.1 patient_advice_original：医嘱原始表（DVT 机械预防 / 下腔静脉滤器判定），此前无任何索引
+CALL zing_add_index('patient_advice_original', 'idx_pao_inhos_start', 0, '`in_hospital_serial_no`, `start_time`');
+
+-- 8.2 patient_advice_execute_drug：医嘱药品明细，136 万行（DVT 药物预防判定 + 血管活性药泵速查询）
+CALL zing_add_index('patient_advice_execute_drug', 'idx_paed_patient_flag', 0, '`patient_id`, `del_flag`');
+CALL zing_add_index('patient_advice_execute_drug', 'idx_paed_execute_id', 0, '`execute_id`, `del_flag`');
+
+-- 8.3 patient_advice：医嘱计划表，551 万行（呼吸机/俯卧位/营养/抗菌药等 12 处逐行 EXISTS）
+CALL zing_add_index('patient_advice', 'idx_pa_inhos_flag_status', 0, '`in_hospital_no`, `del_flag`, `status`');
+
+-- 8.4 patient_observe_module_item：患者级监测项（镇静/镇痛/意识/俯卧位判定）
+CALL zing_add_index('patient_observe_module_item', 'idx_pomi_patient_flag', 0, '`patient_id`, `del_flag`');
+
+-- 8.5 patient_tube：管路记录（ARDS 事实层按管路天数汇总、插管相关指标）
+CALL zing_add_index('patient_tube', 'idx_pt_patient_flag_start', 0, '`patient_id`, `del_flag`, `tube_set_start_time`');
+
+-- 8.6 顺带补上：patient_advice_execute（69 万行）缺 in_hospital_no 索引，
+--     血管活性药 / 阿片类泵速查询按该列过滤，现有索引全部以 patient_id 打头，用不上
+CALL zing_add_index('patient_advice_execute', 'idx_pae_inhos_flag', 0, '`in_hospital_no`, `del_flag`');
+
+-- 说明：patient_info_diagnosis（4.8 万行）已有 patient_id 索引且表很小，不追加复合索引，
+--       避免给 ICU 业务库增加无谓的写代价。
