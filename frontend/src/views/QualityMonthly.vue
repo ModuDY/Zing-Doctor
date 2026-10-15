@@ -50,6 +50,13 @@
         <el-button type="primary" :loading="exporting" :disabled="!rows.length" @click="doExport">
           <el-icon><Download /></el-icon> 导出 Excel
         </el-button>
+        <!--
+          年度报告一键生成：忽略当前年份选择，直接按「今年」出全年三 sheet 报告
+          （月度汇总 12 个月宽表 + 指标清单 + 计算批次），管理者拿去即用，不用先翻年份。
+        -->
+        <el-button :loading="exporting" @click="exportAnnualReport">
+          <el-icon><Collection /></el-icon> 生成本年度报告
+        </el-button>
       </div>
     </div>
 
@@ -428,6 +435,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Cpu, Download, Printer, Grid, CircleCheck, Collection, View, Search } from '@element-plus/icons-vue'
 import { jsPDF } from 'jspdf'
@@ -451,7 +459,12 @@ const DEFAULT_HEADER = [
   '7月', '8月', '9月', '10月', '11月', '12月'
 ]
 
+const route = useRoute()
 const year = ref(String(new Date().getFullYear()))
+// 驾驶舱 bundle 折线点下钻带参：?year=2026（可选 month 定位月份列）
+if (route.query && /^\d{4}$/.test(String(route.query.year || ''))) {
+  year.value = String(route.query.year)
+}
 // 外链带 departCode 时默认按该科室统计（与看板一致），不再默认跑全院；可手动清空回到全院
 const extDepartCode = externalParam('departCode')
 const departCode = ref(extDepartCode || currentDepart.departCode)
@@ -763,6 +776,31 @@ async function doExport() {
     ElMessage.success('导出成功')
   } catch (e) {
     ElMessage.error('导出失败：' + (e.message || e))
+  } finally {
+    exporting.value = false
+  }
+}
+
+/** 一键生成本年度报告：固定取系统当前年份（与选中年份无关），复用同一条年度导出链路 */
+async function exportAnnualReport() {
+  const y = new Date().getFullYear()
+  exporting.value = true
+  try {
+    const resp = await exportQualityXlsx(y, departCode.value || '')
+    const blob = new Blob([resp.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `年度质控报告_${y}_${departLabel.value}.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+    ElMessage.success(`已生成本年度（${y}）报告`)
+  } catch (e) {
+    ElMessage.error('生成失败：' + (e.message || e))
   } finally {
     exporting.value = false
   }

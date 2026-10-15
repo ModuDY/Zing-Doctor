@@ -219,6 +219,37 @@
         </div>
       </div>
 
+      <!-- 呼吸参数对照：翻身前(T0) vs 俯卧位中已采集时点（呼吸机参数 + 氧合） -->
+      <div class="card">
+        <div class="hd">
+          <h2>呼吸参数对照（翻身前后）</h2>
+          <span class="hint">T0 翻身前 vs 俯卧位中各已采集时点；用于评估俯卧位改善效果</span>
+        </div>
+        <div class="bd">
+          <div class="tbl-wrap" v-if="contrastRows.length">
+            <table class="mon">
+              <thead>
+                <tr>
+                  <th class="c-name">参数</th>
+                  <th class="c-unit">单位</th>
+                  <th>T0 翻身前</th>
+                  <th v-for="tp in contrastTps" :key="tp.tpIndex">{{ tp.tpLabel }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in contrastRows" :key="r.key">
+                  <td class="c-name">{{ r.name }}</td>
+                  <td class="c-unit">{{ r.unit || '—' }}</td>
+                  <td>{{ r.t0 }}</td>
+                  <td v-for="tp in contrastTps" :key="tp.tpIndex">{{ r.values[tp.tpIndex] || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-else class="hint">暂无呼吸参数采集数据（采集或填写后自动生成对照）</div>
+        </div>
+      </div>
+
       <!-- 并发症 -->
       <div class="card">
         <div class="hd">
@@ -810,6 +841,41 @@ function cellSource(tpIndex, paramKey) {
 function srcText(s) {
   return { auto: '自动', lis: '检验', man: '手工', calc: '计算' }[s] || ''
 }
+
+// ---------------- 呼吸参数对照（T0 vs 俯卧位中） ----------------
+/** 对照参数：呼吸频率/呼吸机参数 + 氧合，key 与 ArdsProneDict 一致 */
+const CONTRAST_KEYS = ['rr', 'set_rr', 'vt', 'peep', 'fio2', 'ppeak', 'pplat', 'pf']
+/** 对照列：非 T0 且任一对照参数已填的时点（空时点不占列） */
+const contrastTps = computed(() =>
+  timepoints.value.filter((tp) => {
+    if (!tp.tpIndex) return false
+    const d = draft.value[tp.tpIndex] || {}
+    return CONTRAST_KEYS.some((k) => d[k] !== '' && d[k] != null)
+  })
+)
+const contrastRows = computed(() => {
+  const rows = []
+  const t0 = draft.value[0] || {}
+  const has = (v) => v !== '' && v != null
+  for (const key of CONTRAST_KEYS) {
+    const def = params.value.find((p) => p.key === key)
+    if (!def) continue
+    const values = {}
+    let any = has(t0[key])
+    for (const tp of contrastTps.value) {
+      const d = draft.value[tp.tpIndex] || {}
+      values[tp.tpIndex] = d[key]
+      if (has(d[key])) any = true
+    }
+    if (any) {
+      rows.push({
+        key, name: def.name, unit: def.unit,
+        t0: has(t0[key]) ? t0[key] : '—', values
+      })
+    }
+  }
+  return rows
+})
 /** 是否超出内置参考区间：仅视觉标红，不做告警、不阻断 */
 function isAbnormal(p, tpIndex) {
   const v = draft.value[tpIndex] ? draft.value[tpIndex][p.key] : ''

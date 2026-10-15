@@ -90,6 +90,18 @@ const routes = [
     meta: { title: '床旁超声教学' }
   },
   {
+    path: '/page/device-status',
+    name: 'deviceStatus',
+    component: () => import('../views/DeviceStatus.vue'),
+    meta: { title: '设备状态' }
+  },
+  {
+    path: '/page/vasoactive-analysis',
+    name: 'vasoactiveAnalysis',
+    component: () => import('../views/VasoactiveAnalysis.vue'),
+    meta: { title: '血管活性药分析' }
+  },
+  {
     path: '/page/department-cockpit',
     name: 'departmentCockpit',
     component: () => import('../views/DepartmentCockpit.vue'),

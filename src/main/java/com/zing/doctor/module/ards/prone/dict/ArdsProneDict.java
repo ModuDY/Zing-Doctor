@@ -113,6 +113,24 @@ public final class ArdsProneDict {
         add(new ParamDef().key("t").name("体温 (T)").unit("℃").group("生命体征")
                 .source(SRC_AUTO).inputType("num").windowMin(WINDOW_CONTINUOUS).refHigh(38.5)
                 .observe("体温", "T", "TEMP"));
+        // 多部位体温：生产库观察项名称存在「腋温/肛温/口温/耳温/额温」独立项（见
+        // HandoverServiceImpl 体温判定与 docs/25 核查），名称不含「体温」二字，
+        // 单一 t 项的关键字覆盖不到 —— 按部位拆项，无配置规则时回退内置关键字按名称包含匹配
+        add(new ParamDef().key("t_axilla").name("腋温").unit("℃").group("生命体征")
+                .source(SRC_AUTO).inputType("num").windowMin(WINDOW_CONTINUOUS).refHigh(38.5)
+                .observe("腋温"));
+        add(new ParamDef().key("t_rectal").name("肛温").unit("℃").group("生命体征")
+                .source(SRC_AUTO).inputType("num").windowMin(WINDOW_CONTINUOUS).refHigh(38.5)
+                .observe("肛温", "直肠温度"));
+        add(new ParamDef().key("t_oral").name("口温").unit("℃").group("生命体征")
+                .source(SRC_AUTO).inputType("num").windowMin(WINDOW_CONTINUOUS).refHigh(38.5)
+                .observe("口温", "口腔温度"));
+        add(new ParamDef().key("t_ear").name("耳温").unit("℃").group("生命体征")
+                .source(SRC_AUTO).inputType("num").windowMin(WINDOW_CONTINUOUS).refHigh(38.5)
+                .observe("耳温"));
+        add(new ParamDef().key("t_forehead").name("额温").unit("℃").group("生命体征")
+                .source(SRC_AUTO).inputType("num").windowMin(WINDOW_CONTINUOUS).refHigh(38.5)
+                .observe("额温"));
         add(new ParamDef().key("spo2").name("脉搏血氧 (SpO₂)").unit("%").group("生命体征")
                 .source(SRC_AUTO).inputType("num").windowMin(WINDOW_CONTINUOUS).refLow(90)
                 .observe("血氧饱和度", "脉搏血氧", "SpO2", "SPO2", "血氧"));

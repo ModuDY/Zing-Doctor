@@ -1679,6 +1679,35 @@ public interface IcuPatientMapper {
                                                            @Param("endTime") String endTime);
 
     /**
+     * 批量查患者的死亡转归：返回已死亡（out_vest_type=3，字典 1转科 2出院 3死亡 4临终 5自动转院，
+     * 与质控 quality_16 同口径）患者的住院号列表。
+     * APACHE II 总览 SMR（实际死亡数 ÷ 预测死亡数）用：按住院号一次查询，避免逐患者 N+1。
+     * 住院号对应多次入科时同一住院号会出现多行，由调用方 DISTINCT 去重。
+     */
+    @Select("<script>SELECT DISTINCT pi.in_hospital_no FROM \"zing_icu_db_prod\".\"patient_info\" pi "
+            + "WHERE pi.del_flag = 0 AND pi.out_vest_type = 3 "
+            + "AND pi.in_hospital_no IN "
+            + "<foreach collection='inHospitalNos' item='no' open='(' separator=',' close=')'>#{no}</foreach>"
+            + "</script>")
+    List<String> selectDeathNosByInHospitalNos(@Param("inHospitalNos") List<String> inHospitalNos);
+
+    /**
+     * 批量取时间窗内（通常=今日）的呼吸频率监护记录（观察项编码 oi_hxpl，与 Vitals 页同码），
+     * 按 item_time 降序 —— 调用方首次命中即各患者最新一次。
+     * 工作台「呼吸抑制」预警用（最新一次 RR &lt; 8 次/min）：一次查询替代逐患者 N+1。
+     */
+    @Select("<script>SELECT r.patient_id AS patient_id, r.item_value AS item_value, r.item_time AS item_time "
+            + "FROM \"zing_icu_db_prod\".\"patient_observe_module_item_record\" r "
+            + "WHERE r.del_flag = 0 AND r.status = 1 AND r.item_code = 'oi_hxpl' "
+            + "AND r.patient_id IN "
+            + "<foreach collection='patientIds' item='pid' open='(' separator=',' close=')'>#{pid}</foreach> "
+            + "AND r.item_time &gt;= #{startTime} AND r.item_time &lt; #{endTime} "
+            + "ORDER BY r.item_time DESC</script>")
+    List<Map<String, Object>> selectRrByPatientIds(@Param("patientIds") List<String> patientIds,
+                                                   @Param("startTime") String startTime,
+                                                   @Param("endTime") String endTime);
+
+    /**
      * 当前在科且入科已超过指定小时数的患者（用于 APACHE II 自动初评）。
      * 达梦日期减法用 SYSDATE - n（单位天），hours/24 即小时换算；departCode 为空时不限科室。
      */

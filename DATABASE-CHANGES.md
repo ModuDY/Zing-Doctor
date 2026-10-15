@@ -1476,6 +1476,7 @@ SELECT param_key, param_value, default_value FROM sys_param WHERE param_key = 'W
 | 院感 + ARDS 页注册 | `sql/54_infection_ards_pages.sql` | `sql/mysql/54_infection_ards_pages.sql` |
 | 血流动力学 + ADL 表 | `sql/55_hemodynamics_adl.sql` | `sql/mysql/55_hemodynamics_adl.sql` |
 | 血流动力学 + 超声教学页注册 | `sql/56_manual_pages.sql` | `sql/mysql/56_manual_pages.sql` |
+| 高风险预警消息推送参数 + 审计表 | `sql/58_msg_push.sql` | `sql/mysql/58_msg_push.sql` |
 
 **备注**
 

@@ -70,6 +70,13 @@ public class CockpitSnapshot {
     /** 设备配置、患者绑定及数据接收状态（按设备类型聚合） */
     private SnapshotBlock<List<DeviceOverview>> deviceOverview;
 
+    /**
+     * 资源调配速览（在科患者 vs 器官支持设备绑定 vs 在册护士）：给「医疗资源调配」
+     * 一个可直接目视的比例关系。口径：患者=在科去重（与工作台一致）；
+     * 设备绑定=在科患者设备编码匹配（与设备接入态势一致）；护士=config_staff 在册且未停用。
+     */
+    private SnapshotBlock<ResourceRatio> resourceRatio;
+
     // ---------------- D. 患者流转（近 N 天） ----------------
 
     /** 流转趋势（按日，缺失日期已补零） */
@@ -180,6 +187,18 @@ public class CockpitSnapshot {
         private int abnormal;
         private int unknown;
         private String latestUpdate;
+    }
+
+    /** 资源调配速览：在科患者数 / 在册护士数 / 各类器官支持设备绑定台数。 */
+    @Data
+    public static class ResourceRatio {
+        private int patientCount;
+        private int nurseCount;
+        private int ventilatorBound;
+        private int crrtBound;
+        private int monitorBound;
+        private int ecmoBound;
+        private String note;
     }
 
     /** 单个数据区块：值 + 状态 */

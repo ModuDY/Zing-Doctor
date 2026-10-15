@@ -40,6 +40,8 @@
           </div>
           <div class="main-actions">
             <el-input v-model="keyword" placeholder="搜索名称 / 参数键 / 备注" clearable class="kw" />
+            <!-- 消息推送分组专属：现场联调用，按当前模板渲染报文并发送，原样回显网关响应 -->
+            <el-button v-if="currentGroup === 'msgpush'" type="success" plain @click="openMsgPushTest">测试发送</el-button>
             <el-button type="primary" @click="openAdd">新增参数</el-button>
             <el-button :loading="loading" @click="loadAll">刷新</el-button>
           </div>
@@ -208,12 +210,17 @@
           </div>
         </el-form-item>
         <el-form-item v-else label="参数值">
+          <!-- 凭证类默认遮蔽（右侧眼睛可临时查看）；多行文本与一般参数照旧明文 -->
           <el-input
             v-model="form.paramValue"
             :type="form.paramType === 'textarea' ? 'textarea' : 'text'"
             :rows="3"
+            :show-password="isSecretParam(form.paramKey) && form.paramType !== 'textarea'"
             placeholder="参数值"
           />
+          <div v-if="isSecretParam(form.paramKey)" class="form-tip">
+            凭证类参数：默认遮蔽显示，列表页也只看得到前 4 位
+          </div>
         </el-form-item>
 
         <el-form-item v-if="form.paramType === 'select'" label="选项">
@@ -328,6 +335,60 @@
         <el-button type="primary" :loading="groupSaving" @click="onGroupSave">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 消息推送 · 测试发送：把渲染后的报文和网关原样返回给现场，对着调模板 -->
+    <el-dialog
+      v-model="msgPushVisible"
+      title="消息推送 · 测试发送"
+      width="860px"
+      :close-on-click-modal="false"
+      append-to-body
+    >
+      <el-alert type="info" :closable="false" show-icon class="mp-tip"
+                title="按当前「消息推送」分组的模板渲染报文。演练模式开着时只生成报文不发出，勾选「强制真发」才会真正调用网关。" />
+      <el-form :model="msgPushForm" label-width="92px" class="mp-form">
+        <el-form-item label="接收号码">
+          <el-input v-model="msgPushForm.mobiles" placeholder="多个号码用逗号分隔；留空则用参数 MSGPUSH_RECEIVERS" />
+        </el-form-item>
+        <el-form-item label="短信内容">
+          <el-input v-model="msgPushForm.content" type="textarea" :rows="2" placeholder="留空则发送默认联调文案" />
+        </el-form-item>
+        <el-form-item label="强制真发">
+          <el-switch v-model="msgPushForm.forceReal" />
+          <span class="mp-hint">演练模式下勾选会真的把短信发出去，先确认号码无误</span>
+        </el-form-item>
+      </el-form>
+
+      <div v-if="msgPushResult" class="mp-result">
+        <div class="mp-line">
+          <span class="mp-url">{{ msgPushResult.url }}</span>
+          <el-tag size="small" effect="plain" :type="msgPushResult.dryRun ? 'warning' : 'success'">
+            {{ msgPushResult.dryRun ? '演练模式（未发出）' : '已真实调用' }}
+          </el-tag>
+        </div>
+        <div v-for="(it, i) in msgPushResult.items" :key="i" class="mp-item">
+          <div class="mp-head">
+            <b>{{ it.mobile }}</b>
+            <el-tag size="small" effect="plain" :type="it.success ? 'success' : 'danger'">
+              {{ it.success ? '成功' : '失败' }}<span v-if="it.httpStatus"> · HTTP {{ it.httpStatus }}</span>
+            </el-tag>
+            <span class="mp-ms">{{ it.durationMs }} ms</span>
+          </div>
+          <div v-if="it.error" class="mp-err">{{ it.error }}</div>
+          <div class="mp-label">实际发出的报文</div>
+          <pre class="mp-pre">{{ it.requestBody }}</pre>
+          <template v-if="it.response">
+            <div class="mp-label">网关返回</div>
+            <pre class="mp-pre">{{ it.response }}</pre>
+          </template>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="msgPushVisible = false">关闭</el-button>
+        <el-button type="primary" :loading="msgPushSending" @click="onMsgPushSend">发送</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -339,6 +400,40 @@ import ArdsProneConfig from './ArdsProneConfig.vue'
 
 /** 顶部页签：param=系统参数（键值型），map=ARDS 采集映射（规则表型） */
 const tab = ref('param')
+
+/* ---------- 消息推送：测试发送（现场联调） ----------
+   报文由后端按「消息推送」分组的模板渲染，这里只负责把实际报文与网关返回原样摆出来：
+   现场对着报文调模板即可，不必让开发重新发版。 */
+const msgPushVisible = ref(false)
+const msgPushSending = ref(false)
+const msgPushResult = ref(null)
+const msgPushForm = reactive({ mobiles: '', content: '', forceReal: false })
+
+function openMsgPushTest() {
+  msgPushResult.value = null
+  // 默认带出已配置的接收号码，省得现场再抄一遍
+  const it = list.value.find((p) => p.paramKey === 'MSGPUSH_RECEIVERS')
+  msgPushForm.mobiles = it && it.paramValue ? it.paramValue : ''
+  msgPushVisible.value = true
+}
+
+async function onMsgPushSend() {
+  msgPushSending.value = true
+  try {
+    // request 已统一解包并提示失败原因，这里拿到的是 Result.data
+    const data = await request.post('/msgpush/test', {
+      mobiles: msgPushForm.mobiles,
+      content: msgPushForm.content,
+      forceReal: msgPushForm.forceReal
+    })
+    msgPushResult.value = data
+    ElMessage.success(data && data.dryRun ? '报文已生成（演练模式，未发出）' : '已发送，结果见下方')
+  } catch {
+    // 失败提示已由 request 拦截器统一给出，避免重复弹两条
+  } finally {
+    msgPushSending.value = false
+  }
+}
 
 /* ---------- 外链页面一览（与 sys_page_config 已注册页面对应） ---------- */
 const linkKw = ref('')
@@ -624,9 +719,21 @@ function optionsOf(p) {
   }
 }
 
+/** 凭证类参数（token / certificate / 密钥等）不在列表页回显明文：
+ *  参数设置页常在护士站或投屏上打开，明文凭证等于摆在明面上。
+ *  只露前 4 位，够确认「填的是哪一个」，又抄不走整串。 */
+const SECRET_KEY_RE = /TOKEN|CERTIFICATE|SECRET|PASSWORD|PASSWD|_PWD|APPKEY|APP_KEY|ACCESS_KEY/i
+
+function isSecretParam(key) {
+  return SECRET_KEY_RE.test(String(key || ''))
+}
+
 function shortValue(p) {
   if (!p.paramValue) return '未配置'
   const v = String(p.paramValue)
+  if (isSecretParam(p.paramKey)) {
+    return v.length <= 4 ? '••••••••' : v.slice(0, 4) + '••••••••'
+  }
   return v.length > 60 ? v.substring(0, 60) + '…' : v
 }
 
@@ -968,4 +1075,24 @@ onMounted(loadAll)
   border: 1px dashed #e2e8f0; border-radius: 4px; padding: 6px 10px;
 }
 .lc-url-text { flex: 1; background: transparent; word-break: break-all; color: #334155; font-size: 12px; }
+
+/* 消息推送 · 测试发送：报文与网关响应要能完整看清，长报文可滚动 */
+.mp-tip { margin-bottom: 12px; }
+.mp-form { margin-top: 4px; }
+.mp-hint { margin-left: 10px; color: #9ca3af; font-size: 12px; }
+.mp-result { margin-top: 8px; padding-top: 10px; border-top: 1px dashed #ebeef5; }
+.mp-line { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; color: #6b7280; font-size: 12px; }
+.mp-url { flex: 1; word-break: break-all; color: #334155; }
+.mp-item { margin-bottom: 10px; padding: 10px 12px; border: 1px solid #ebeef5; border-radius: 6px; background: #fafafa; }
+.mp-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.mp-head b { color: #111827; font-size: 13px; }
+.mp-ms { margin-left: auto; color: #9ca3af; font-size: 12px; }
+.mp-err { margin-bottom: 6px; color: #dc2626; font-size: 12px; word-break: break-all; }
+.mp-label { margin: 6px 0 4px; color: #6b7280; font-size: 12px; }
+.mp-pre {
+  margin: 0; padding: 8px 10px; max-height: 220px; overflow: auto;
+  border: 1px solid #ebeef5; border-radius: 4px; background: #fff;
+  color: #1f2937; font-size: 12px; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-all;
+}
 </style>

@@ -80,6 +80,14 @@ public class AntibioticController {
         return Result.ok(decisionService.getAssessmentView(patientId));
     }
 
+    /** 药敏与在用抗菌药个体对照（在用药各自药敏结论 + 药敏敏感但未在用清单） */
+    @GetMapping("/patients/{patientId}/sensitivity-contrast")
+    public Result<Map<String, Object>> sensitivityContrast(@PathVariable("patientId") String patientId,
+                                                           HttpServletRequest request) {
+        assertPatientAccess(patientId, request);
+        return Result.ok(decisionService.sensitivityContrast(patientId));
+    }
+
     /** 单患者决策页：评估数据 + 推荐方案（按 ICU 外链住院号 inHospitalNo 定位患者） */
     @GetMapping("/patients/by-no/assessment")
     public Result<PatientAssessmentView> assessmentByNo(@RequestParam("inHospitalNo") String inHospitalNo,

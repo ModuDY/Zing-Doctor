@@ -713,6 +713,9 @@ step "导入建表与种子脚本（幂等，可重复执行）"
     54_infection_ards_pages.sql
     55_hemodynamics_adl.sql
     56_manual_pages.sql
+    57_device_status_page.sql
+    # 58 高风险预警消息推送：参数分组 + 配置项 + 发送审计表
+    58_msg_push.sql
     41_patient_summary_page.sql
     )
   # 清单自检：登记的脚本必须存在；目录里也不能有未登记的孤岛脚本

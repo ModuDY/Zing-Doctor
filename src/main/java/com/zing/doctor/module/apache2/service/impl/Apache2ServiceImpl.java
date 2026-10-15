@@ -105,7 +105,65 @@ public class Apache2ServiceImpl implements Apache2Service {
         result.put("scoreDistribution", scoreDistribution);
         result.put("records", records);
 
+        result.put("smr", buildSmr(records));
+
         return result;
+    }
+
+    /**
+     * SMR（标准化死亡比）= 实际死亡数 ÷ 预测死亡数。
+     * 口径与质控结果表一致（quality_16 / quality_15 同源）：
+     *   预测死亡数 = 每位患者【最新一条】评分的 mortality_rate（百分数）/100 求和；
+     *   实际死亡数 = 上述患者中 patient_info.out_vest_type = 3（死亡）的住院号数。
+     * 查询失败时降级返回 null 值 + note，不阻塞总览主数据。
+     */
+    private Map<String, Object> buildSmr(List<Apache2ScoreRecord> records) {
+        Map<String, Object> smr = new LinkedHashMap<>();
+        smr.put("actualDeaths", null);
+        smr.put("predictedDeaths", null);
+        smr.put("smr", null);
+        smr.put("patientCount", 0);
+        smr.put("note", null);
+        try {
+            if (records == null || records.isEmpty()) {
+                smr.put("note", "时间范围内无评分记录");
+                return smr;
+            }
+            // 记录按评分时间倒序，首次出现即该患者最新评分
+            Map<String, Apache2ScoreRecord> latestPerPatient = new LinkedHashMap<>();
+            for (Apache2ScoreRecord r : records) {
+                if (r.getInHospitalNo() != null && !r.getInHospitalNo().trim().isEmpty()) {
+                    latestPerPatient.putIfAbsent(r.getInHospitalNo(), r);
+                }
+            }
+            if (latestPerPatient.isEmpty()) {
+                smr.put("note", "评分记录缺少住院号，无法核算 SMR");
+                return smr;
+            }
+            smr.put("patientCount", latestPerPatient.size());
+
+            double predicted = 0;
+            for (Apache2ScoreRecord r : latestPerPatient.values()) {
+                if (r.getMortalityRate() != null) {
+                    predicted += r.getMortalityRate().doubleValue() / 100.0;
+                }
+            }
+            smr.put("predictedDeaths", Math.round(predicted * 100.0) / 100.0);
+
+            List<String> deathNos = icuPatientMapper.selectDeathNosByInHospitalNos(new ArrayList<>(latestPerPatient.keySet()));
+            long actual = deathNos == null ? 0 : deathNos.stream().filter(Objects::nonNull).distinct().count();
+            smr.put("actualDeaths", (int) actual);
+
+            if (predicted > 0) {
+                smr.put("smr", Math.round(actual / predicted * 100.0) / 100.0);
+            } else {
+                smr.put("note", "预测死亡数为 0，无法计算 SMR");
+            }
+        } catch (Exception e) {
+            log.warn("APACHE II SMR 统计失败，降级为空值", e);
+            smr.put("note", "SMR 统计暂时不可用");
+        }
+        return smr;
     }
 
     /** APACHE II 评分分布空桶（顺序固定，前端柱状图按此顺序渲染） */

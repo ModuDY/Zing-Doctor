@@ -46,4 +46,12 @@ public interface AntibioticDecisionService {
 
     /** 删除医生决策记录（物理删除，级联删除推荐明细） */
     void deleteDecisionRecord(Long id);
+
+    /**
+     * 药敏与在用抗菌药个体对照（「抗菌药补充」缺口：某患者培养药敏 vs 当前在用药是否覆盖）。
+     *
+     * @param patientId ICU 患者主键
+     * @return inUse（在用药及各自药敏结论）/ sensitiveNotUsed（药敏敏感但未在用）/ dataStatus / note
+     */
+    java.util.Map<String, Object> sensitivityContrast(String patientId);
 }

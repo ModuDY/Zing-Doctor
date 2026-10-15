@@ -7,6 +7,7 @@
         <p class="sub">
           {{ patientName }} {{ bedNo ? bedNo + '床' : '' }} · {{ inHospitalNo }}
           <span class="dot">·</span>{{ rangeText }}
+          <span v-if="weight != null" class="dot">·</span><span v-if="weight != null">体重 {{ weight }} kg（登记值）</span>
         </p>
       </div>
       <div class="head-right">
@@ -25,6 +26,8 @@
       <div>
         <b>各来源分列展示，未合并总量。</b>入量存在 I/O 记录与医嘱执行两条通道，去重关系未经核实；
         在证明已去重前不提供「净平衡」合计数。缺测时段保留空白，不补零。
+        体重为患者档案登记值（源系统无每日体重记录）；肢体活动项经生产库核查
+        （docs/21）无对应文书/观察项，源系统未启用，暂无法展示。
       </div>
     </div>
 
@@ -78,6 +81,7 @@ export default {
       patientName: '',
       bedNo: '',
       inHospitalNo: '',
+      weight: null,
       rangeStart: '',
       rangeEnd: '',
       sources: [],
@@ -125,6 +129,7 @@ export default {
         this.patientName = d.patientName || ''
         this.bedNo = d.bedNo || ''
         this.inHospitalNo = d.inHospitalNo || ''
+        this.weight = d.weight != null ? d.weight : null
         this.rangeStart = d.rangeStart
         this.rangeEnd = d.rangeEnd
         this.sources = d.sources || []

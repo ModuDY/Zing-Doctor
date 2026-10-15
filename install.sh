@@ -297,6 +297,10 @@ FULL_SQL=(
     "55_hemodynamics_adl.sql"
     # 56 血流动力学 / 床旁超声教学页面注册
     "56_manual_pages.sql"
+    # 57 设备状态页注册（只读，config_device）
+    "57_device_status_page.sql"
+    # 58 高风险预警消息推送：参数分组 + 配置项 + 发送审计表
+    "58_msg_push.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -371,6 +375,10 @@ FULL_SQL_JDBC=(
     "55_hemodynamics_adl.sql"
     # 56 血流动力学 / 床旁超声教学页面注册
     "56_manual_pages.sql"
+    # 57 设备状态页注册（只读，config_device）
+    "57_device_status_page.sql"
+    # 58 高风险预警消息推送：参数分组 + 配置项 + 发送审计表
+    "58_msg_push.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -463,6 +471,10 @@ INCREMENTAL_SQL=(
     "55_hemodynamics_adl.sql"
     # 56 血流动力学 / 床旁超声教学页面注册
     "56_manual_pages.sql"
+    # 57 设备状态页注册（只读，config_device）
+    "57_device_status_page.sql"
+    # 58 高风险预警消息推送：参数分组 + 配置项 + 发送审计表
+    "58_msg_push.sql"
 )
 
 # ---------------- SQL 清单自检 ----------------

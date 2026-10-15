@@ -47,6 +47,11 @@ export function fetchRecords(patientId) {
   return request.get(`/antibiotic/patients/${patientId}/records`, { silentError: true })
 }
 
+/** 药敏与在用抗菌药个体对照：在用药各自药敏结论 + 药敏敏感但未在用清单 */
+export function fetchSensitivityContrast(patientId) {
+  return request.get(`/antibiotic/patients/${patientId}/sensitivity-contrast`, { silentError: true })
+}
+
 /** 患者抗感染 48～72 小时复评记录 */
 export function fetchReassessments(patientId) {
   return request.get(`/antibiotic/patients/${patientId}/reassessments`, { silentError: true })

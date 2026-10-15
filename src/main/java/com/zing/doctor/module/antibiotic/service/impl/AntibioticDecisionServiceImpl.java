@@ -18,6 +18,7 @@ import com.zing.doctor.module.antibiotic.service.AntibioticReassessmentService;
 import com.zing.doctor.module.system.service.SysParamService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -47,6 +48,13 @@ public class AntibioticDecisionServiceImpl implements AntibioticDecisionService 
     private final AdviceLogMapper adviceLogMapper;
     private final SysParamService sysParamService;
     private final AntibioticReassessmentService reassessmentService;
+
+    /**
+     * ICU 只读库取数（药敏明细 / 在用抗菌药）。字段注入而非并入 {@code @RequiredArgsConstructor}：
+     * 本类构造器被决策链路多处装配，为只读统计再加构造参数收益低、改动面大。
+     */
+    @Autowired
+    private com.zing.doctor.icu.mapper.IcuPatientMapper icuPatientMapper;
 
     @Override
     public List<IcuPatientBrief> listSuspectPatients(String departCode) {
@@ -367,5 +375,126 @@ public class AntibioticDecisionServiceImpl implements AntibioticDecisionService 
 
     private Integer boolToInt(Boolean b) {
         return Boolean.TRUE.equals(b) ? 1 : 0;
+    }
+
+    // ---------------------------------------------------------------- 药敏 ↔ 在用抗菌药对照
+
+    /**
+     * 药敏与在用抗菌药个体对照。
+     *
+     * <p>取数：培养/药敏明细 {@code selectMicrobiology}（item_name 含「药敏」的行为药敏结论，
+     * 名称去掉「药敏」二字即抗菌药名；含「培养」的行为菌名）+ 在用抗菌药 {@code selectCurrentAbxAdviceByNos}
+     * （开立链路 is_to_io 医嘱，过 InfectionRules.matchesAbx 排除溶媒）。
+     * 匹配规则：药敏药名与在用药名「一方包含另一方」（去空格，≥2 字）即视为同一药物；
+     * 名称对不上的保守报「无药敏记录」，不猜。
+     */
+    @Override
+    public java.util.Map<String, Object> sensitivityContrast(String patientId) {
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("dataStatus", "FOUND");
+        out.put("inUse", new ArrayList<>());
+        out.put("sensitiveNotUsed", new ArrayList<>());
+        out.put("note", null);
+        try {
+            IcuPatientBrief patient = icuPatientService.getPatientBrief(patientId);
+            if (patient == null || StrUtil.isBlank(patient.getInHospitalNo())) {
+                out.put("dataStatus", "EMPTY");
+                out.put("note", "未能解析患者住院号");
+                return out;
+            }
+            String no = patient.getInHospitalNo();
+
+            // 1) 药敏结论：药名 → 结论（敏感/耐药/中介），取最新一条（明细按 check_time 倒序）
+            Map<String, String> sensitivity = new java.util.LinkedHashMap<>();
+            List<Map<String, Object>> micro = icuPatientMapper.selectMicrobiology(no);
+            if (micro != null) {
+                for (Map<String, Object> r : micro) {
+                    String itemName = str(r.get("item_name"));
+                    String result = str(r.get("result"));
+                    if (itemName.isEmpty() || result.isEmpty() || !itemName.contains("药敏")) {
+                        continue;
+                    }
+                    String drug = itemName.replace("药敏", "").trim();
+                    if (drug.length() < 2) {
+                        continue;
+                    }
+                    sensitivity.putIfAbsent(drug, interpretAst(result));
+                }
+            }
+
+            // 2) 在用抗菌药（排除溶媒）
+            List<Map<String, Object>> abxRows = icuPatientMapper.selectCurrentAbxAdviceByNos(
+                    java.util.Collections.singletonList(no));
+            List<String> inUseNames = new ArrayList<>();
+            if (abxRows != null) {
+                for (Map<String, Object> r : abxRows) {
+                    String name = str(r.get("name"));
+                    if (!name.isEmpty() && com.zing.doctor.icu.support.InfectionRules.matchesAbx(name)
+                            && !com.zing.doctor.icu.support.InfectionRules.isSolvent(name)
+                            && !inUseNames.contains(name)) {
+                        inUseNames.add(name);
+                    }
+                }
+            }
+
+            // 3) 逐个在用药对照药敏；药敏敏感但不在用 → 提示列表
+            List<Map<String, Object>> inUse = new ArrayList<>();
+            java.util.Set<String> coveredDrugs = new java.util.HashSet<>();
+            for (String name : inUseNames) {
+                String key = matchSensitivity(name, sensitivity);
+                Map<String, Object> row = new java.util.LinkedHashMap<>();
+                row.put("name", name);
+                row.put("sensitivity", key == null ? "无药敏记录" : sensitivity.get(key));
+                row.put("matchedDrug", key);
+                if (key != null) {
+                    coveredDrugs.add(key);
+                }
+                inUse.add(row);
+            }
+            List<Map<String, Object>> notUsed = new ArrayList<>();
+            for (Map.Entry<String, String> e : sensitivity.entrySet()) {
+                if (!coveredDrugs.contains(e.getKey()) && "敏感".equals(e.getValue())) {
+                    Map<String, Object> row = new java.util.LinkedHashMap<>();
+                    row.put("drug", e.getKey());
+                    row.put("result", e.getValue());
+                    notUsed.add(row);
+                }
+            }
+            out.put("inUse", inUse);
+            out.put("sensitiveNotUsed", notUsed);
+            if (sensitivity.isEmpty()) {
+                out.put("note", "暂无药敏结论记录；药敏未出报告前经验方案不做降阶梯判断");
+            }
+        } catch (Exception e) {
+            log.warn("药敏对照查询失败 patientId={}", patientId, e);
+            out.put("dataStatus", "UNKNOWN");
+            out.put("note", "药敏对照数据暂不可用");
+        }
+        return out;
+    }
+
+    /** 药敏结果转「敏感/耐药/中介」：兼容 S/R/I 与中文写法；识别不了原样返回。 */
+    private static String interpretAst(String result) {
+        String s = result.trim().toUpperCase(Locale.ROOT);
+        if (s.equals("S") || s.startsWith("敏感")) return "敏感";
+        if (s.equals("R") || s.startsWith("耐药")) return "耐药";
+        if (s.equals("I") || s.startsWith("中介")) return "中介";
+        return result.trim();
+    }
+
+    /** 在用药名 ↔ 药敏药名互相包含（去空格、≥2 字）即视为同一药物；对不上返回 null。 */
+    private static String matchSensitivity(String abxName, Map<String, String> sensitivity) {
+        String a = abxName.replace(" ", "").replace("　", "");
+        for (String drug : sensitivity.keySet()) {
+            String b = drug.replace(" ", "").replace("　", "");
+            if (b.length() >= 2 && (a.contains(b) || b.contains(a))) {
+                return drug;
+            }
+        }
+        return null;
+    }
+
+    private static String str(Object o) {
+        return o == null ? "" : String.valueOf(o).trim();
     }
 }

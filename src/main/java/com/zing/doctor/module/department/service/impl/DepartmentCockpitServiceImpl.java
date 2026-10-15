@@ -75,6 +75,7 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
 
         fillTodaySnapshot(s, departCode, todayStart, todayEnd);
         fillResourceOverview(s, departCode);
+        fillResourceRatio(s, departCode);
         fillFlow(s, departCode, flowStart, todayEnd, range, today);
         // 本月首日：质控按月周期（MONTH periodStart），与质控中台同一周期边界
         String monthStart = today.withDayOfMonth(1).atTime(0, 0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
@@ -347,6 +348,40 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
         } catch (Exception e) {
             log.warn("驾驶舱-设备接入态势查询失败 departCode={}", departCode, e);
             s.setDeviceOverview(CockpitSnapshot.SnapshotBlock.unknown("设备配置或连接状态查询失败"));
+        }
+    }
+
+    /**
+     * 资源调配速览：在科患者数 / 在册护士数 / 各类器官支持设备绑定台数。
+     * 患者与设备口径分别与工作台、设备接入态势一致；护士为在册口径（config_staff），
+     * 不代表「今日当班」—— 源系统没有排班表，页面按在册展示，不得冒充排班。
+     */
+    private void fillResourceRatio(CockpitSnapshot s, String departCode) {
+        try {
+            CockpitSnapshot.ResourceRatio r = new CockpitSnapshot.ResourceRatio();
+            r.setPatientCount(cockpitMapper.countInDepartment(departCode));
+            try {
+                r.setNurseCount(cockpitMapper.countActiveNurses(departCode));
+            } catch (Exception e) {
+                log.warn("驾驶舱-在册护士统计失败 departCode={}", departCode, e);
+            }
+            // 设备绑定数直接复用「设备接入态势」同一查询，保证两块数字永远一致
+            List<Map<String, Object>> devices = cockpitMapper.selectDeviceOverview(departCode);
+            if (devices != null) {
+                for (Map<String, Object> row : devices) {
+                    String type = stringOf(row.get("device_type"));
+                    int bound = intOf(row.get("bound_count"));
+                    if ("ventilator".equalsIgnoreCase(type)) r.setVentilatorBound(bound);
+                    else if ("crrtDevice".equalsIgnoreCase(type)) r.setCrrtBound(bound);
+                    else if ("monitor".equalsIgnoreCase(type)) r.setMonitorBound(bound);
+                    else if ("ecmoDevice".equalsIgnoreCase(type)) r.setEcmoBound(bound);
+                }
+            }
+            r.setNote("患者=在科去重；设备=在科患者编码绑定；护士=在册（非排班）");
+            s.setResourceRatio(CockpitSnapshot.SnapshotBlock.of(r));
+        } catch (Exception e) {
+            log.warn("驾驶舱-资源调配统计失败 departCode={}", departCode, e);
+            s.setResourceRatio(CockpitSnapshot.SnapshotBlock.unknown("资源调配统计失败"));
         }
     }
 

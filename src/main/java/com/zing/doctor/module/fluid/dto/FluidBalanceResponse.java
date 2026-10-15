@@ -21,6 +21,9 @@ public class FluidBalanceResponse {
     private String rangeStart;
     private String rangeEnd;
 
+    /** 患者体重（kg，patient_info.weight 登记值；源系统无每日体重记录，仅供容量评估参考） */
+    private Double weight;
+
     /** 按来源分栏（每栏独立 dataStatus，不合并） */
     private List<Source> sources = new ArrayList<>();
 

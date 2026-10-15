@@ -24,8 +24,8 @@ export default defineConfig({
     port: 5173,
     host: '0.0.0.0',
     proxy: {
-      '/api': { target: 'http://localhost:8081', changeOrigin: true },
-      '/entry': { target: 'http://localhost:8081', changeOrigin: true }
+      '/api': { target: process.env.VITE_API_TARGET || 'http://localhost:8081', changeOrigin: true },
+      '/entry': { target: process.env.VITE_API_TARGET || 'http://localhost:8081', changeOrigin: true }
     }
   },
   test: {

@@ -516,7 +516,7 @@
           />
           <el-collapse v-else v-model="activeDomains" class="qb-collapse">
             <el-collapse-item
-              v-for="group in domainPanels"
+              v-for="group in orderedDomainPanels"
               :key="group.domain"
               :name="group.domain"
             >
@@ -524,6 +524,10 @@
                 <span class="domain-title">{{ group.domain }}</span>
                 <span class="domain-count">
                   {{ group.metrics.length }} 条 · 已出数 {{ group.okCount }}
+                </span>
+                <span class="domain-ops">
+                  <el-button link size="small" title="上移此分组" @click.stop="moveDomain(group.domain, -1)">↑</el-button>
+                  <el-button link size="small" title="下移此分组" @click.stop="moveDomain(group.domain, 1)">↓</el-button>
                 </span>
               </template>
               <el-table :data="group.metrics" stripe border size="small">
@@ -548,6 +552,17 @@
                   <template #default="{ row }">
                     <span v-if="isBlank(row.value)" class="empty-value">—</span>
                     <a v-else class="value-link" @click="openMetric(row)">{{ num(row.value) }}</a>
+                  </template>
+                </el-table-column>
+                <el-table-column width="120" align="right">
+                  <template #header>
+                    <el-tooltip :content="`与 ${overview.prevPeriodStart || '上一周期'} 比较；方向色为中性色，升降含义因指标而异`" placement="top">
+                      <span>环比</span>
+                    </el-tooltip>
+                  </template>
+                  <template #default="{ row }">
+                    <span v-if="isBlank(row.value) || isBlank(row.prevValue)" class="empty-value">—</span>
+                    <span v-else :class="['delta-chip', deltaClass(row)]">{{ deltaText(row) }}</span>
                   </template>
                 </el-table-column>
                 <el-table-column label="分子 / 分母" width="142" align="right">
@@ -1386,6 +1401,49 @@ const domainPanels = computed(() =>
     okCount: (g.metrics || []).filter((m) => m.calcStatus === 'OK').length
   }))
 )
+
+// ---------------- 域面板顺序（本机持久化） ----------------
+// 管理者想把常看的域放在最上面，这是展示偏好而非业务数据，localStorage 即可；
+// 没配置过的域按后端默认顺序排在已配置域之后（999 兜底）。
+const DOMAIN_ORDER_KEY = 'quality.domainOrder'
+const domainOrder = ref((() => {
+  try { return JSON.parse(localStorage.getItem(DOMAIN_ORDER_KEY) || '[]') } catch (e) { return [] }
+})())
+const orderedDomainPanels = computed(() => {
+  const idx = new Map(domainOrder.value.map((d, i) => [d, i]))
+  return domainPanels.value
+    .slice()
+    .sort((a, b) => (idx.has(a.domain) ? idx.get(a.domain) : 9999) - (idx.has(b.domain) ? idx.get(b.domain) : 9999))
+})
+function moveDomain(domain, dir) {
+  const names = orderedDomainPanels.value.map((g) => g.domain)
+  const i = names.indexOf(domain)
+  const j = i + dir
+  if (i < 0 || j < 0 || j >= names.length) return
+  ;[names[i], names[j]] = [names[j], names[i]]
+  domainOrder.value = names
+  try { localStorage.setItem(DOMAIN_ORDER_KEY, JSON.stringify(names)) } catch (e) { /* 隐私模式等：排序本次生效 */ }
+}
+
+// ---------------- 环比（上一周期） ----------------
+/** 环比差值展示：绝对差 + 相对百分比；方向色用中性色 —— 指标升降的含义因指标而异，不预设好坏。 */
+function deltaText(row) {
+  const cur = Number(row.value)
+  const prev = Number(row.prevValue)
+  if (!isFinite(cur) || !isFinite(prev)) return '—'
+  const d = cur - prev
+  if (Math.abs(d) < 1e-9) return '持平'
+  const sign = d > 0 ? '↑' : '↓'
+  const rel = prev !== 0 ? ` (${Math.abs((d / prev) * 100).toFixed(1)}%)` : ''
+  const abs = Math.abs(d)
+  return `${sign} ${abs < 1000 ? abs : abs.toFixed(0)}${rel}`
+}
+function deltaClass(row) {
+  const cur = Number(row.value)
+  const prev = Number(row.prevValue)
+  if (!isFinite(cur) || !isFinite(prev) || Math.abs(cur - prev) < 1e-9) return 'delta-flat'
+  return cur > prev ? 'delta-up' : 'delta-down'
+}
 
 /** 计算失败的指标名（最多点 6 条，其余只报数量），供顶部提示条直接点名。 */
 const errorMetricNames = computed(() => {
@@ -2951,6 +3009,23 @@ onMounted(async () => {
   border-radius: 8px;
   padding: 8px 10px;
 }
+/* 域分组排序按钮：悬浮才显形，避免常驻视觉噪音 */
+.domain-ops {
+  margin-left: 10px;
+  opacity: 0;
+  transition: opacity .15s;
+}
+:deep(.el-collapse-item__header:hover) .domain-ops {
+  opacity: 1;
+}
+/* 环比差值：中性色 —— 升降的含义因指标而异（有的指标升是恶化、有的是改善） */
+.delta-chip {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+.delta-up { color: #b45309; }
+.delta-down { color: #2563eb; }
+.delta-flat { color: #a8a29e; }
 
 .tab-body {
   min-height: 200px;

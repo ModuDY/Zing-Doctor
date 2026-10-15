@@ -180,4 +180,67 @@ public interface DepartmentCockpitMapper {
             " GROUP BY d.device_type ORDER BY d.device_type",
             "</script>"})
     List<Map<String, Object>> selectDeviceOverview(@Param("departCode") String departCode);
+
+    /**
+     * 设备状态明细（每台设备一行，只读）：供「设备状态」页展示使用/分布/采集连接状态。
+     *
+     * <p>口径与 {@link #selectDeviceOverview} 完全一致（配置=config_device 有效行、
+     * 绑定=在科患者四类设备编码精确匹配 device_id、状态=采集连接状态），只是从
+     * 「按类型聚合」降到底，聚合交由前端做 —— 两处数字必须能对上。</p>
+     *
+     * <p>绑定患者用标量子查询聚合（床号 + 姓名）：一个设备编码在同一科室同时至多绑一个在科患者，
+     * 但万一数据脏了也不让 JOIN 把同一台设备撑成多行 —— 明细页宁少显示一个绑定，不出重复行。
+     * device_status 只代表数据采集链路状态，不代表维修、库存或临床可用性。</p>
+     */
+    @Select({"<script>",
+            "SELECT d.id AS device_pk, d.device_id AS device_code, d.device_type AS device_type,",
+            "       d.depart_code AS depart_code, d.device_status AS device_status, d.update_time AS latest_update,",
+            "       (SELECT MAX(NVL(pi.bed_code, '') || ' ' || pi.name)",
+            "          FROM \"zing_icu_db_prod\".\"patient_info\" pi",
+            "         WHERE pi.del_flag = 0 AND pi.is_in_depart = 1 AND pi.depart_code = d.depart_code",
+            "           AND (pi.monitor_code = d.device_id OR pi.ventilator_code = d.device_id",
+            "                OR pi.crrt_device_code = d.device_id OR pi.ecmo_device_code = d.device_id)) AS bound_patient",
+            "  FROM \"zing_icu_db_prod\".\"config_device\" d",
+            " WHERE d.del_flag = 0 AND d.status = 1",
+            "   <if test=\"departCode != null and departCode != ''\">AND d.depart_code = #{departCode}</if>",
+            " ORDER BY d.device_type, d.depart_code, d.device_id",
+            "</script>"})
+    List<Map<String, Object>> selectDeviceStatusRows(@Param("departCode") String departCode);
+
+    /**
+     * 逐床明细（只读）：每张有效开放床位一行 + 当前占用患者（床号+姓名）。
+     * 口径与 {@link #selectBedOverview} 完全一致（del_flag + 启停区间 + depart_code+bed_code 双键匹配），
+     * 两处数字必须能对上；config_bed 没有 status 列（见 selectBedOverview 注释警告），不要加。
+     */
+    @Select({"<script>",
+            "SELECT b.bed_code AS bed_code, b.depart_code AS depart_code,",
+            "       b.begin_use_time AS begin_use_time, b.stop_use_time AS stop_use_time,",
+            "       (SELECT MAX(NVL(pi.bed_code, '') || ' ' || pi.name)",
+            "          FROM \"zing_icu_db_prod\".\"patient_info\" pi",
+            "         WHERE pi.del_flag = 0 AND pi.is_in_depart = 1",
+            "           AND pi.depart_code = b.depart_code AND pi.bed_code = b.bed_code) AS occupant",
+            "  FROM \"zing_icu_db_prod\".\"config_bed\" b",
+            " WHERE b.del_flag = 0",
+            "   AND (b.begin_use_time IS NULL OR b.begin_use_time &lt;= SYSDATE)",
+            "   AND (b.stop_use_time IS NULL OR b.stop_use_time &gt; SYSDATE)",
+            "   <if test=\"departCode != null and departCode != ''\">AND b.depart_code = #{departCode}</if>",
+            " ORDER BY b.depart_code, b.bed_code",
+            "</script>"})
+    List<Map<String, Object>> selectBedStatusRows(@Param("departCode") String departCode);
+
+    /** 当前在科患者数（is_in_depart=1，按住院号去重 —— 与工作台/驾驶舱流转同口径）。 */
+    @Select({"<script>",
+            "SELECT COUNT(DISTINCT pi.in_hospital_no) FROM \"zing_icu_db_prod\".\"patient_info\" pi",
+            " WHERE pi.del_flag = 0 AND pi.is_in_depart = 1",
+            "   <if test=\"departCode != null and departCode != ''\">AND pi.depart_code = #{departCode}</if>",
+            "</script>"})
+    int countInDepartment(@Param("departCode") String departCode);
+
+    /** 在册护士数（config_staff：is_nurse=1 且未停用未删除）。 */
+    @Select({"<script>",
+            "SELECT COUNT(*) FROM \"zing_doctor_db_prod\".\"config_staff\" s",
+            " WHERE s.del_flag = 0 AND s.status = 1 AND s.is_nurse = 1",
+            "   <if test=\"departCode != null and departCode != ''\">AND s.depart_code = #{departCode}</if>",
+            "</script>"})
+    int countActiveNurses(@Param("departCode") String departCode);
 }

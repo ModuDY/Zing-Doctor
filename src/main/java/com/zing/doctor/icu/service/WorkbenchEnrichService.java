@@ -77,6 +77,24 @@ public class WorkbenchEnrichService {
     @Autowired
     private SepsisBundleRecordMapper sepsisBundleMapper;
 
+    /** 俯卧位记录（同上：字段注入，避免改变被单测依赖的构造签名） */
+    @Autowired
+    private com.zing.doctor.module.ards.prone.mapper.ArdsProneRecordMapper proneRecordMapper;
+
+    /**
+     * 俯卧位超时阈值（小时）：常规单次俯卧位 12～16 小时，进行中的治疗起始超过 16 小时
+     * 未记录结束时间即提醒评估复位/终止。改动需同步 PatientWorkbench 的提示文案。
+     */
+    private static final int PRONE_OVERTIME_HOURS = 16;
+
+    /** 呼吸抑制阈值：监护观察项最新一次呼吸频率低于 8 次/min。 */
+    private static final BigDecimal RR_DEPRESSION_THRESHOLD = new BigDecimal("8");
+
+    /** 脑损伤诊断打标关键字（diag_name 包含即命中；「脑病」涵盖肺性/肝性/代谢性脑病等） */
+    private static final String[] BRAIN_INJURY_KEYWORDS = {
+            "脑出血", "脑梗死", "脑梗塞", "颅脑损伤", "脑挫伤", "蛛网膜下腔出血", "脑疝", "颅内感染", "脑病"
+    };
+
     /**
      * 给在科患者列表回填：最近 SOFA 总分、当日待办。
      * 直接修改入参列表，不返回新对象。
@@ -111,6 +129,12 @@ public class WorkbenchEnrichService {
         Map<String, Boolean> ardsFlags = ardsFlags(patientIds);
         // 5) 意识异常预警：今日 GCS 首查 → 最新一次下降 ≥2 分
         Map<String, int[]> gcsToday = gcsTodayFirstLast(patientIds);
+        // 6) 俯卧位超时预警：进行中的俯卧位治疗起始已超 16 小时未结束
+        Map<String, LocalDateTime> proneOpen = openProneStarts(patientIds);
+        // 7) 呼吸抑制预警：今日监护呼吸频率最新一次 < 8 次/min
+        Map<String, BigDecimal> latestRr = latestRrToday(patientIds);
+        // 8) 脑损伤打标：诊断含脑出血/脑梗死/颅脑损伤等关键字（监测类标记，非催办）
+        Set<String> brainInjury = brainInjuryPatients(patientIds);
 
         for (WorkbenchPatient p : patients) {
             SofaScoreRecord s = latestSofa.get(p.getPatientId());
@@ -132,6 +156,18 @@ public class WorkbenchEnrichService {
             int[] gcs = gcsToday.get(pid);
             if (gcs != null && gcs[0] - gcs[1] >= 2) {
                 todos.add("GCS_DROP_2");
+            }
+            LocalDateTime proneStart = proneOpen.get(pid);
+            if (proneStart != null
+                    && ChronoUnit.HOURS.between(proneStart, LocalDateTime.now()) >= PRONE_OVERTIME_HOURS) {
+                todos.add("PRONE_OVERTIME");
+            }
+            BigDecimal rr = latestRr.get(pid);
+            if (rr != null && rr.compareTo(RR_DEPRESSION_THRESHOLD) < 0) {
+                todos.add("RR_DEPRESSION");
+            }
+            if (brainInjury.contains(pid)) {
+                todos.add("BRAIN_INJURY");
             }
             // 共同前置：入科满 24 小时 —— 当天入科的患者不催，留出评估时间窗。
             // 刻意不用 icuDays >= 1：它被钳到最小值 1，条件恒真，等于没有前置。
@@ -219,6 +255,88 @@ public class WorkbenchEnrichService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * 进行中的俯卧位治疗（patient_doc_prone_record：status=1 且 end_time 为空），
+     * 每个患者取最早一次的 start_time —— 同一患者多次「进行中」属脏数据，
+     * 按最早算超时方向保守（宁可多提醒）。查询失败降级为空集，不制造假预警。
+     */
+    private Map<String, LocalDateTime> openProneStarts(List<String> patientIds) {
+        Map<String, LocalDateTime> out = new HashMap<>();
+        try {
+            QueryWrapper<com.zing.doctor.module.ards.prone.entity.ArdsProneRecord> qw = new QueryWrapper<>();
+            qw.select("patient_id", "start_time")
+                    .in("patient_id", patientIds)
+                    .eq("status", 1)
+                    .isNull("end_time")
+                    .orderByAsc("start_time");
+            for (com.zing.doctor.module.ards.prone.entity.ArdsProneRecord r : proneRecordMapper.selectList(qw)) {
+                if (r.getPatientId() == null || r.getStartTime() == null) {
+                    continue;
+                }
+                out.putIfAbsent(r.getPatientId(), r.getStartTime());
+            }
+        } catch (Exception e) {
+            log.warn("工作台俯卧位记录查询失败，本次不生成俯卧位超时待办", e);
+        }
+        return out;
+    }
+
+    /**
+     * 今日监护呼吸频率（观察项 oi_hxpl）：每个患者取最新一次的数值。
+     * item_value 带单位或非数字的记录跳过（解析失败视为无数据，不报警）。
+     */
+    private Map<String, BigDecimal> latestRrToday(List<String> patientIds) {
+        Map<String, BigDecimal> out = new HashMap<>();
+        try {
+            java.time.format.DateTimeFormatter f =
+                    java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            LocalDateTime start = LocalDate.now().atStartOfDay();
+            List<Map<String, Object>> rows = icuPatientMapper.selectRrByPatientIds(
+                    patientIds, start.format(f), start.plusDays(1).format(f));
+            for (Map<String, Object> r : rows == null ? Collections.<Map<String, Object>>emptyList() : rows) {
+                String pid = str(r.get("patient_id"));
+                if (pid.isEmpty() || out.containsKey(pid)) {
+                    continue;   // 已按时间倒序，首个即最新
+                }
+                BigDecimal v = InfectionRules.parseDecimalValue(r.get("item_value"));
+                if (v != null) {
+                    out.put(pid, v);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("工作台呼吸频率查询失败，本次不生成呼吸抑制待办", e);
+        }
+        return out;
+    }
+
+    /**
+     * 诊断含脑损伤关键字的患者集合（急性脑损伤监测打标）。
+     * 复用感染维度的批量诊断查询；这是监测类标记而非催办，前端按标签样式展示。
+     */
+    private Set<String> brainInjuryPatients(List<String> patientIds) {
+        Set<String> out = new HashSet<>();
+        try {
+            for (Map<String, Object> r : icuPatientMapper.selectDiagnosesByPatientIds(patientIds)) {
+                String name = str(r.get("diag_name"));
+                if (name.isEmpty()) {
+                    continue;
+                }
+                for (String kw : BRAIN_INJURY_KEYWORDS) {
+                    if (name.contains(kw)) {
+                        String pid = str(r.get("patient_id"));
+                        if (!pid.isEmpty()) {
+                            out.add(pid);
+                        }
+                        break;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("工作台诊断打标查询失败，本次不生成脑损伤标记", e);
+        }
+        return out;
     }
 
     /**

@@ -44,6 +44,18 @@
           <div class="stat-value">{{ summary.highRiskCount }}</div>
           <div class="stat-sub">总分 ≥ 20 分</div>
         </div>
+        <div class="stat-card">
+          <div class="card-kicker">ACTUAL</div>
+          <div class="stat-label">实际死亡数</div>
+          <div class="stat-value">{{ smrText.actual }}</div>
+          <div class="stat-sub">评过分的 {{ smr.patientCount }} 名患者 · 转归=死亡</div>
+        </div>
+        <div class="stat-card">
+          <div class="card-kicker">SMR</div>
+          <div class="stat-label">标准化死亡比</div>
+          <div class="stat-value" :class="smrLevelClass">{{ smrText.smr }}</div>
+          <div class="stat-sub">实际 ÷ 预测 {{ smrText.predicted }}（最新评分）</div>
+        </div>
       </div>
 
       <div class="chart-card">
@@ -147,6 +159,11 @@
             </template>
           </el-table-column>
           <el-table-column prop="scoreTime" label="评分时间" min-width="160" />
+          <el-table-column prop="createBy" label="评分人员" min-width="100">
+            <template #default="{ row }">
+              {{ operatorLabel(row.createBy) || '—' }}
+            </template>
+          </el-table-column>
         </el-table>
       </div>
     </div>
@@ -201,7 +218,25 @@ const summary = reactive({
   avgScore: 0,
   avgMortality: 0,
   highRiskCount: 0,
-  scoreDistribution: {}
+  scoreDistribution: {},
+  smr: { actualDeaths: null, predictedDeaths: null, smr: null, patientCount: 0, note: null }
+})
+
+// SMR 卡片展示文本：无值时显示「—」并保留备注，避免 0 误读为「统计过且为 0」
+const smrText = computed(() => {
+  const s = summary.smr || {}
+  const fmt = v => (v === null || v === undefined || v === '' ? '—' : fmt2(v))
+  return {
+    actual: fmt(s.actualDeaths),
+    predicted: fmt(s.predictedDeaths),
+    smr: fmt(s.smr)
+  }
+})
+// SMR 解读：<1 预测偏保守（实际低于预期），>1 实际高于预期；中性色，不直接下结论
+const smrLevelClass = computed(() => {
+  const v = summary.smr && summary.smr.smr
+  if (v === null || v === undefined) return ''
+  return v > 1 ? 'smr-high' : (v < 1 ? 'smr-low' : '')
 })
 
 const distributionChartRef = ref(null)
@@ -262,6 +297,7 @@ async function loadData() {
     summary.avgMortality = data.avgMortality || 0
     summary.highRiskCount = data.highRiskCount || 0
     summary.scoreDistribution = data.scoreDistribution || {}
+    summary.smr = data.smr || { actualDeaths: null, predictedDeaths: null, smr: null, patientCount: 0, note: '后端未返回 SMR 数据' }
     records.value = data.records || []
     await nextTick()
     renderDistributionChart()
@@ -470,7 +506,7 @@ function goToScorePage(row) {
 
 .stat-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   margin-bottom: 16px;
 }
@@ -507,6 +543,9 @@ function goToScorePage(row) {
   margin-bottom: 6px;
 }
 .stat-card.stat-danger .stat-value { color: #dc2626; }
+/* SMR 解读辅助色：>1 实际死亡高于预测（琥珀），<1 低于预测（蓝），中性含义不标红 */
+.stat-value.smr-high { color: #b45309; }
+.stat-value.smr-low { color: #2563eb; }
 .stat-unit {
   font-size: 18px;
   font-weight: 600;

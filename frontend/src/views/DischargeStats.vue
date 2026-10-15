@@ -75,6 +75,7 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, Download, Warning } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
@@ -96,10 +97,16 @@ const departName = ref(departCode.value)  // 默认显示编码，加载科室�
 const now = new Date()
 const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
 const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+const vueRoute = useRoute()
 const dateRange = ref([
   `${firstDay.getFullYear()}-${String(firstDay.getMonth() + 1).padStart(2, '0')}-${String(firstDay.getDate()).padStart(2, '0')}`,
   `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`
 ])
+// 驾驶舱流转图柱子下钻带参（vue-route query；与上面的外链 URLSearchParams 互不干扰）：
+// ?start=yyyy-MM-dd&end=yyyy-MM-dd
+if (vueRoute.query && /^\d{4}-\d{2}-\d{2}$/.test(String(vueRoute.query.start || ''))) {
+  dateRange.value = [String(vueRoute.query.start), /^\d{4}-\d{2}-\d{2}$/.test(String(vueRoute.query.end || '')) ? String(vueRoute.query.end) : String(vueRoute.query.start)]
+}
 
 function fmtTime(val) {
   if (!val) return '—'

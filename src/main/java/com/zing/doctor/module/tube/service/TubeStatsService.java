@@ -11,6 +11,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -121,6 +122,9 @@ public class TubeStatsService {
             if (d != null) t[7] += d[0];
         }
 
+        // 明细按危重等级置顶展示：高 → 中 → 低（同档内保持原顺序，稳定排序）
+        rows.sort(Comparator.comparingInt(r -> riskRank(String.valueOf(r.get("riskLevel")))));
+
         List<Map<String, Object>> groups = new ArrayList<>();
         for (Map.Entry<String, double[]> e : total.entrySet()) {
             Map<String, Object> g = new LinkedHashMap<>();
@@ -185,6 +189,13 @@ public class TubeStatsService {
         if ("气道导管".equals(group) || "CVC".equals(group)) return "高";
         if ("导尿管".equals(group)) return "中";
         return "低";
+    }
+
+    /** 危重等级排序权重：高=0、中=1、低=2（其余值按「低」兜底）。 */
+    private static int riskRank(String level) {
+        if ("高".equals(level)) return 0;
+        if ("中".equals(level)) return 1;
+        return 2;
     }
 
     /**

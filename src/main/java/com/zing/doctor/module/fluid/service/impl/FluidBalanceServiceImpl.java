@@ -56,6 +56,9 @@ public class FluidBalanceServiceImpl implements FluidBalanceService {
         if (p != null) {
             resp.setPatientName(p.getName());
             resp.setInHospitalNo(p.getInHospitalNo());
+            if (p.getWeight() != null) {
+                resp.setWeight(p.getWeight().doubleValue());
+            }
         }
 
         String s = start.format(ISO);

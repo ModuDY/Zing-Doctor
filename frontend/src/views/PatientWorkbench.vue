@@ -469,14 +469,20 @@ const TODO_LABELS = {
   APACHE_NOT_TODAY: '今日尚未评 APACHE II',
   ABX_REASSESSMENT_PENDING: '抗感染 48～72 小时复评待处理',
   ARDS_VENTILATED: '已标识 ARDS 且机械通气中，关注肺保护通气/俯卧位评估',
-  GCS_DROP_2: '今日 GCS 较首查下降 ≥2 分，警惕意识状态恶化'
+  GCS_DROP_2: '今日 GCS 较首查下降 ≥2 分，警惕意识状态恶化',
+  PRONE_OVERTIME: '俯卧位治疗进行中已超 16 小时未记录结束，请评估复位/终止',
+  RR_DEPRESSION: '今日监护呼吸频率最新一次 < 8 次/min，警惕呼吸抑制',
+  BRAIN_INJURY: '诊断含脑损伤（脑出血/脑梗死/颅脑损伤等），已纳入急性脑损伤监测'
 }
 const TODO_LABELS_ADMIT_24H = {
   SOFA_NOT_TODAY: '入科超 24 小时未评 SOFA',
   APACHE_NOT_TODAY: '入科超 24 小时未评 APACHE II',
   ABX_REASSESSMENT_PENDING: '抗感染 48～72 小时复评待处理',
   ARDS_VENTILATED: '已标识 ARDS 且机械通气中，关注肺保护通气/俯卧位评估',
-  GCS_DROP_2: '今日 GCS 较首查下降 ≥2 分，警惕意识状态恶化'
+  GCS_DROP_2: '今日 GCS 较首查下降 ≥2 分，警惕意识状态恶化',
+  PRONE_OVERTIME: '俯卧位治疗进行中已超 16 小时未记录结束，请评估复位/终止',
+  RR_DEPRESSION: '今日监护呼吸频率最新一次 < 8 次/min，警惕呼吸抑制',
+  BRAIN_INJURY: '诊断含脑损伤（脑出血/脑梗死/颅脑损伤等），已纳入急性脑损伤监测'
 }
 /** 评分待办口径：TODAY_NO_SCORE 当日无评分（默认）/ ADMIT_24H_NEVER 入科超 24h 从未评分 */
 const scoreTodoRule = ref('TODAY_NO_SCORE')
@@ -505,6 +511,18 @@ function goTodo(row, code) {
     return
   }
   if (code === 'GCS_DROP_2') {
+    jump('/page/neuro-monitor', row)
+    return
+  }
+  if (code === 'PRONE_OVERTIME') {
+    jump('/page/ards-prone-record', row)
+    return
+  }
+  if (code === 'RR_DEPRESSION') {
+    jump('/page/vital-signs', row)
+    return
+  }
+  if (code === 'BRAIN_INJURY') {
     jump('/page/neuro-monitor', row)
   }
 }
@@ -685,10 +703,13 @@ async function loadPatients() {
  * 弹窗点击跳「今日待办」视图；关掉也不丢 —— 徽章和视图里仍然看得到。
  */
 const notifiedTodos = new Set()
+/** 监测类打标不弹窗：BRAIN_INJURY 是长期标签而非恶化事件，弹窗会变噪音；徽章/待办视图仍可见 */
+const TODO_NO_ALERT = new Set(['BRAIN_INJURY'])
 function notifyTodoAlerts(list) {
   const fresh = []
   for (const p of list || []) {
     for (const code of p.todos || []) {
+      if (TODO_NO_ALERT.has(code)) continue
       const key = `${p.patientId}:${code}`
       if (notifiedTodos.has(key)) continue
       notifiedTodos.add(key)

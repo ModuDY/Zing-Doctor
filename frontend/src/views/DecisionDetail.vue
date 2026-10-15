@@ -91,6 +91,32 @@
         <div v-else class="culture-empty">无明确微生物培养 / 多耐药记录</div>
       </div>
 
+      <!-- 药敏 ↔ 在用抗菌药对照：个体覆盖情况，不是科室统计 -->
+      <div class="card">
+        <div class="block-title"><span class="dot dot-purple"></span>药敏与在用抗菌药对照</div>
+        <template v-if="sensitivityContrast">
+          <el-table v-if="(sensitivityContrast.inUse || []).length" :data="sensitivityContrast.inUse" size="small" border>
+            <el-table-column prop="name" label="在用抗菌药" min-width="180" />
+            <el-table-column label="药敏结论" width="110">
+              <template #default="{ row }">
+                <el-tag :type="row.sensitivity === '敏感' ? 'success' : row.sensitivity === '耐药' ? 'danger' : row.sensitivity === '中介' ? 'warning' : 'info'"
+                        size="small" effect="plain">{{ row.sensitivity }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="matchedDrug" label="药敏对应药名" min-width="160">
+              <template #default="{ row }">{{ row.matchedDrug || '—' }}</template>
+            </el-table-column>
+          </el-table>
+          <div v-else class="culture-empty">当前无在用抗菌药记录</div>
+          <div v-if="(sensitivityContrast.sensitiveNotUsed || []).length" class="sc-notused">
+            <span class="sc-label">药敏敏感但未在用：</span>
+            <el-tag v-for="(d, i) in sensitivityContrast.sensitiveNotUsed" :key="i" size="small" type="success" effect="plain" class="sc-tag">{{ d.drug }}</el-tag>
+          </div>
+          <div v-if="sensitivityContrast.note" class="culture-empty">{{ sensitivityContrast.note }}</div>
+        </template>
+        <div v-else class="culture-empty">药敏对照数据暂不可用</div>
+      </div>
+
       <!-- 抗感染 48～72 小时复评：与原始经验性决策分开留痕，避免覆盖历史方案 -->
       <div class="card reassessment-card">
         <div class="block-title reassessment-title">
@@ -275,7 +301,7 @@
 </template>
 
 <script>
-import { fetchAssessment, fetchAssessmentByNo, saveDecision, updateDecision, deleteDecision, fetchRecords, searchStaff, fetchReassessments, completeReassessment, skipReassessment } from '../api/antibiotic'
+import { fetchAssessment, fetchAssessmentByNo, saveDecision, updateDecision, deleteDecision, fetchRecords, fetchSensitivityContrast, searchStaff, fetchReassessments, completeReassessment, skipReassessment } from '../api/antibiotic'
 import LabTrendChart from './LabTrendChart.vue'
 import '../styles/abx-theme.css'
 import { markWorkbenchRefresh } from '../utils/patientContext'
@@ -294,6 +320,7 @@ export default {
       view: { patient: {}, assessment: {}, adviceList: [], planSummary: '', labTrends: [] },
       records: [],
       reassessments: [],
+      sensitivityContrast: null,
       reassessmentLoadError: '',
       reassessmentSaving: false,
       reassessmentForm: {
@@ -406,6 +433,11 @@ export default {
             this.loadError = '患者基础信息已加载，但决策历史暂不可用，请检查医生库连接后重试。'
           }
           await this.loadReassessments()
+          try {
+            this.sensitivityContrast = await fetchSensitivityContrast(this.patientId)
+          } catch (e) {
+            this.sensitivityContrast = null
+          }
         }
       } catch (e) {
         this.view = { patient: {}, assessment: {}, adviceList: [], planSummary: '', labTrends: [] }
@@ -733,6 +765,11 @@ export default {
   color: #92400e;
 }
 .culture-empty { color: #a8a29e; font-size: 13px; padding: 8px; }
+
+/* 药敏对照：敏感但未在用的补充提示行 */
+.sc-notused { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 8px; }
+.sc-label { font-size: 13px; color: #57534e; }
+.sc-tag { margin-right: 2px; }
 
 /* 48～72 小时复评 */
 .reassessment-card { margin-top: 16px; }

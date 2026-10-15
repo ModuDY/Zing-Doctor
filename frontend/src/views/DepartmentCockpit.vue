@@ -76,7 +76,7 @@
         <div v-if="qualityUnknown" class="state-box small"><div class="state-title">{{ blockNote(summary.qualityCards) }}</div></div>
         <div v-else-if="!qualityCards.length" class="state-box small"><div class="state-title">本月暂无指标结果</div></div>
         <div v-else class="q-list">
-          <div v-for="q in qualityCards" :key="q.code" class="q-card">
+          <div v-for="q in qualityCards" :key="q.code" class="q-card" :title="q.name">
             <div class="q-main">
               <div class="q-name">{{ q.name }}</div>
               <div class="q-sub">{{ q.calcStatus === 'OK' && q.denominator != null ? `分子/分母 ${q.numerator}/${q.denominator}` : q.note || qualityStatusText(q.calcStatus) }}</div>
@@ -95,7 +95,10 @@
       <article class="panel bed-panel">
         <div class="panel-head">
           <div><span class="panel-kicker">BED CAPACITY</span><h2 class="panel-title">床位负荷</h2></div>
-          <div class="panel-context">当前实时快照 <span>·</span> 有效开放床位</div>
+          <div class="panel-context">
+            当前实时快照 <span>·</span> 有效开放床位
+            <el-button link size="small" style="margin-left: 8px" @click="toggleBedDetail">{{ bedDetailVisible ? '收起明细' : '逐床明细' }}</el-button>
+          </div>
         </div>
         <div v-if="!bedOverview" class="state-box small"><div class="state-title">{{ blockNote(summary.bedUsage) || '床位资源暂无数据' }}</div></div>
         <div v-else class="bed-body">
@@ -118,6 +121,44 @@
           <small v-else class="bed-month-sub pending">{{ blockNote(summary.bedMonthUsage) || '本月质控结果未出' }}</small>
         </div>
         <div class="resource-foot">占用仅统计床号能匹配有效开放床位的当前在科患者，避免无效床号造成使用率超过 100%。</div>
+        <div v-if="bedDetailVisible" v-loading="bedDetailLoading" style="margin-top: 8px">
+          <el-table :data="bedDetailRows" size="small" max-height="260" style="width: 100%">
+            <el-table-column prop="bed_code" label="床号" width="90" />
+            <el-table-column prop="depart_code" label="科室" width="100" />
+            <el-table-column label="占用患者" min-width="120">
+              <template #default="{ row }">{{ row.occupant || '空闲' }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="80" align="center">
+              <template #default="{ row }">
+                <span :class="row.occupant ? 'bed-tag-in' : 'bed-tag-idle'">{{ row.occupant ? '占用' : '空闲' }}</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </article>
+
+      <article class="panel ratio-panel">
+        <div class="panel-head">
+          <div><span class="panel-kicker">RESOURCE RATIO</span><h2 class="panel-title">资源调配</h2></div>
+          <div class="panel-context">在科患者 · 器官支持设备 · 在册护士</div>
+        </div>
+        <div v-if="!ratioData" class="state-box small"><div class="state-title">{{ blockNote(summary.resourceRatio) || '资源统计暂无数据' }}</div></div>
+        <div v-else class="ratio-body">
+          <div class="ratio-main">
+            <div class="ratio-item"><span>在科患者</span><b>{{ ratioData.patientCount }}</b><i>人</i></div>
+            <div class="ratio-item"><span>在册护士</span><b>{{ ratioData.nurseCount }}</b><i>人</i></div>
+          </div>
+          <div class="ratio-sub">
+            <div><span>呼吸机</span><b>{{ ratioData.ventilatorBound }}</b><i>台在用</i></div>
+            <div><span>CRRT</span><b>{{ ratioData.crrtBound }}</b><i>台在用</i></div>
+            <div><span>监护仪</span><b>{{ ratioData.monitorBound }}</b><i>台在用</i></div>
+            <div><span>ECMO</span><b>{{ ratioData.ecmoBound }}</b><i>台在用</i></div>
+          </div>
+          <div class="resource-foot" v-if="ratioData.patientCount > 0">
+            患护比 1 : {{ ratioData.nurseCount > 0 ? (ratioData.nurseCount / ratioData.patientCount).toFixed(1) : '—' }}
+            · 护士为在册口径（非当班排班）
+          </div>
+        </div>
       </article>
 
       <article class="panel device-panel">
@@ -229,6 +270,7 @@ import { markRaw } from 'vue'
 import { Refresh, InfoFilled, FullScreen } from '@element-plus/icons-vue'
 import * as echarts from '../utils/echarts'
 import { fetchCockpitQualityExtra, fetchCockpitSummary } from '../api/workbench'
+import request from '../api/request'
 import { currentDepart } from '../utils/departContext'
 import StatCard from '../components/StatCard.vue'
 
@@ -251,6 +293,9 @@ export default {
       // 它要按任意窗口现算并读 12 个月结果，慢了不该拖住首屏。
       qualityExtra: null,
       extraLoading: false,
+      bedDetailVisible: false,
+      bedDetailLoading: false,
+      bedDetailRows: [],
       charts: {},
       sofaColors: ['#78a99b', '#5c9b8c', '#c3a35d', '#d18b4c', '#c96b52', '#a94442'],
       apacheColors: ['#8cb7d4', '#5e9fbd', '#3d859b', '#285c70']
@@ -294,6 +339,11 @@ export default {
     // 取不到时返回 null，由模板回落到质控引擎给的原因说明
     bedMonthUsage() {
       const block = this.summary && this.summary.bedMonthUsage
+      return block && block.status === 'OK' ? block.value : null
+    },
+    /** 资源调配速览（后端 SnapshotBlock，失败时 null → 面板显示原因） */
+    ratioData() {
+      const block = this.summary && this.summary.resourceRatio
       return block && block.status === 'OK' ? block.value : null
     },
     bedUsagePercent() {
@@ -548,7 +598,39 @@ export default {
           lineStyle: { color: '#ffae57', width: 2 },
           areaStyle: { color: 'rgba(255, 174, 87, .12)' }
         }]
+      }, true)
+      // 下钻：点月份点 → 年度质控报告页定位到该年
+      chart.off('click')
+      chart.on('click', (params) => {
+        const p = this.bundlePoints[params.dataIndex]
+        if (!p || !p.month) return
+        this.$router.push({
+          path: '/page/quality-monthly',
+          query: { ...this.$route.query, year: p.month.slice(0, 4), month: p.month }
+        })
       })
+    },
+    /** 床位逐床明细：展开时懒加载（口径与床位聚合完全一致，两处数字对得上） */
+    async toggleBedDetail() {
+      this.bedDetailVisible = !this.bedDetailVisible
+      if (this.bedDetailVisible && !this.bedDetailRows.length) {
+        await this.loadBedDetail()
+      }
+    },
+    async loadBedDetail() {
+      this.bedDetailLoading = true
+      try {
+        const list = await request.get('/department-cockpit/bed-status', {
+          params: { departCode: this.departCode || '' },
+          silentError: true
+        })
+        this.bedDetailRows = Array.isArray(list) ? list : []
+      } catch (e) {
+        console.error('[Cockpit] bed detail', e)
+        this.bedDetailRows = []
+      } finally {
+        this.bedDetailLoading = false
+      }
     },
     distPoints(block) {
       return block && block.value ? block.value : []
@@ -641,6 +723,16 @@ export default {
             itemStyle: { color: '#57d0cf', shadowBlur: 10, shadowColor: 'rgba(87,208,207,.25)', borderRadius: [3, 3, 0, 0] }
           }
         ]
+      }, true)
+      // 下钻：点某天的柱子 → 出科统计页按该日区间打开
+      chart.off('click')
+      chart.on('click', (params) => {
+        const p = this.flowPoints[params.dataIndex]
+        if (!p || !p.day) return
+        this.$router.push({
+          path: '/page/discharge-stats',
+          query: { ...this.$route.query, start: p.day, end: p.day }
+        })
       })
       chart.resize()
     }
@@ -723,7 +815,7 @@ export default {
    一屏里三种装饰语言叠在一起，就是"卡与卡不像一套"的主要来源。 */
 .kpi-row :deep(.snapshot-card)::after { position: absolute; right: 12px; top: 9px; color: rgba(159, 235, 222, .14); font-size: 22px; font-weight: 800; letter-spacing: -1.5px; }.kpi-row :deep(.census-card)::after { content: '01'; }.kpi-row :deep(.critical-card)::after { content: '02'; }.kpi-row :deep(.admission-card)::after { content: '03'; }.kpi-row :deep(.discharge-card)::after { content: '04'; }.kpi-row :deep(.stay-card)::after { content: '05'; }.kpi-row :deep(.bed-card)::after { content: '06'; }
 .kpi-row :deep(.critical-card)::before { background: #c87863; }.kpi-row :deep(.admission-card)::before { background: #d18b4c; }.kpi-row :deep(.discharge-card)::before { background: #5c9b9b; }.kpi-row :deep(.stay-card)::before { background: #8189ad; }.kpi-row :deep(.bed-card)::before { background: #e1a85d; }
-.kpi-row :deep(.card-label) { color: #83a4a8; font-size: var(--fs-label); letter-spacing: .3px; }.kpi-row :deep(.num) { color: #effffc; font-size: var(--fs-hero); line-height: 1.1; text-shadow: 0 0 20px rgba(119, 242, 220, .17); }.kpi-row :deep(.unit) { color: #8aa6ab; font-size: var(--fs-label); }.kpi-row :deep(.card-sub) { color: #78969a; font-size: var(--fs-sub); }
+.kpi-row :deep(.card-label) { display: block; overflow: hidden; color: #83a4a8; font-size: var(--fs-label); letter-spacing: .3px; white-space: nowrap; text-overflow: ellipsis; }.kpi-row :deep(.num) { color: #effffc; font-size: var(--fs-hero); line-height: 1.1; text-shadow: 0 0 20px rgba(119, 242, 220, .17); }.kpi-row :deep(.unit) { color: #8aa6ab; font-size: var(--fs-label); }.kpi-row :deep(.card-sub) { color: #78969a; font-size: var(--fs-sub); }
 /* StatCard 自带的浅色主题只被上面几条覆盖了「有数」这一种状态：
    待接数据 / 暂不可用 / 暂无 / 备注 仍是浅色主题的 13px 灰字与深红字，
    落在深色卡上既突兀又比同排卡矮一截。这里把四种状态补齐到同一套配色与字号。 */
@@ -733,7 +825,7 @@ export default {
 .kpi-row :deep(.card-value.empty) { color: #8aa6ab; font-size: var(--fs-value); line-height: 1.35; }
 .kpi-row :deep(.card-note) { margin-top: 4px; padding-right: 24px; color: #6b8a8d; font-size: var(--fs-sub); line-height: 1.45; }
 .primary-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(330px, .75fr); gap: 13px; margin-top: 14px; align-items: stretch; }
-.resource-grid { display: grid; grid-template-columns: minmax(330px, .72fr) minmax(0, 1.28fr); gap: 13px; margin-top: 13px; }
+.resource-grid { display: grid; grid-template-columns: minmax(330px, .72fr) minmax(0, 1.18fr) minmax(240px, .66fr); gap: 13px; margin-top: 13px; }
 .secondary-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(260px, .86fr); gap: 13px; margin-top: 13px; align-items: stretch; }
 .panel { position: relative; display: flex; flex-direction: column; min-width: 0; overflow: hidden; border: 1px solid var(--card-border); border-radius: var(--r-lg); background: var(--panel); box-shadow: var(--card-shadow); }
 .panel::after { content: ''; position: absolute; left: 0; top: 0; width: 46px; height: 1px; background: var(--cyan); box-shadow: 0 0 13px var(--cyan); }
@@ -757,8 +849,8 @@ export default {
 .q-result i { margin-left: 3px; color: #68898c; font-size: var(--fs-sub); font-style: normal; }
 .q-state { color: #6e8d91; font-size: var(--fs-label); }.q-state.pending { color: #d79a55; }
 .quality-foot { margin: 10px 14px 12px; padding-top: 8px; border-top: 1px solid rgba(120, 180, 180, .1); color: #58777c; font-size: var(--fs-sub); line-height: 1.5; }
-.bed-body { display: grid; grid-template-columns: 142px 1fr; align-items: center; gap: 18px; min-height: 184px; padding: 18px 20px 8px; }
-.bed-gauge { --bed-rate: 0%; position: relative; width: 132px; height: 132px; border-radius: 50%; background: conic-gradient(#ffae57 0 var(--bed-rate), rgba(108, 169, 169, .12) var(--bed-rate) 100%); box-shadow: 0 0 28px rgba(255, 174, 87, .1); }
+.bed-body { display: grid; grid-template-columns: minmax(120px, 132px) 1fr; align-items: center; gap: 18px; min-height: 184px; padding: 18px 20px 8px; }
+.bed-gauge { --bed-rate: 0%; position: relative; justify-self: center; width: 132px; height: 132px; border-radius: 50%; background: conic-gradient(#ffae57 0 var(--bed-rate), rgba(108, 169, 169, .12) var(--bed-rate) 100%); box-shadow: 0 0 28px rgba(255, 174, 87, .1); }
 .bed-gauge::before { content: ''; position: absolute; inset: 9px; border: 1px solid rgba(139, 210, 203, .12); border-radius: 50%; background: #0e2a34; box-shadow: inset 0 0 24px rgba(0, 0, 0, .28); }
 /* 环内文字改居中弹性布局：原来用 padding-top:41px + top:80px 按 132px 硬定位，
    仪表一缩到 100px 就偏心 —— 这正是矮屏下卡片"歪掉"的原因 */
@@ -777,13 +869,31 @@ export default {
 .bed-month-sub { color: #63868a; font-size: var(--fs-sub); }
 .bed-month-sub.pending { color: #d49a58; }
 .device-list { display: flex; min-height: 150px; flex-direction: column; justify-content: center; gap: 2px; padding: 8px 12px 6px; }
-.device-row { display: grid; grid-template-columns: 118px minmax(90px, 1fr) minmax(280px, 1.15fr); align-items: center; gap: 14px; min-height: var(--row-h); padding: 3px 8px; border-radius: var(--r-md); transition: background .2s ease; }
+.device-row { display: grid; grid-template-columns: 150px minmax(70px, 1fr) minmax(232px, 1.15fr); align-items: center; gap: 12px; min-height: var(--row-h); padding: 3px 8px; border-radius: var(--r-md); transition: background .2s ease; }
 .device-row:hover { background: rgba(255, 255, 255, .035); }
-.device-name { position: relative; padding-left: 14px; }
-.device-name b { display: block; color: #d7edeb; font-size: var(--fs-body); }
-/* 原来是 8px：挂墙大屏上根本读不出发送时间，提到次级档 */
-.device-name small { display: block; margin-top: 3px; color: #63868a; font-size: var(--fs-sub); }.device-pulse { position: absolute; left: 0; top: 3px; width: 6px; height: 6px; border-radius: 50%; background: #64d7be; box-shadow: 0 0 0 4px rgba(100, 215, 190, .08), 0 0 9px rgba(100, 215, 190, .5); }.device-pulse.warn { background: #d49a58; box-shadow: 0 0 0 4px rgba(212, 154, 88, .08), 0 0 9px rgba(212, 154, 88, .45); }.device-track { height: 7px; overflow: hidden; border-radius: var(--r-sm); background: rgba(95, 146, 148, .13); }.device-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #3d8f8e, #68d9c5); box-shadow: 0 0 11px rgba(92, 220, 199, .32); }.device-stats { display: grid; grid-template-columns: repeat(4, minmax(54px, 1fr)); gap: 6px; }.device-stats span { color: #607f83; font-size: var(--fs-sub); white-space: nowrap; }.device-stats b { margin-right: 2px; color: #bcd5d3; font-size: var(--fs-row-value); font-variant-numeric: tabular-nums; }.device-stats .receiving b { color: #69d8c0; }.device-stats .warn b { color: #e0a15d; }
+.device-name { position: relative; display: flex; align-items: baseline; gap: 7px; min-width: 0; padding-left: 14px; }
+.device-name b { flex: 0 0 auto; color: #d7edeb; font-size: var(--fs-body); white-space: nowrap; }
+/* 原来是 8px：挂墙大屏上根本读不出发送时间，提到次级档。
+   名称与更新时间改为同行：原来上下两行在矮视口被压到 ~28px 行高内互相重叠，
+   同行后每行只需单行高度，任何高度都不重叠；空间不够时更新时间省略号。 */
+.device-name small { min-width: 0; overflow: hidden; color: #63868a; font-size: var(--fs-sub); text-overflow: ellipsis; white-space: nowrap; }.device-pulse { position: absolute; left: 0; top: 50%; width: 6px; height: 6px; border-radius: 50%; background: #64d7be; box-shadow: 0 0 0 4px rgba(100, 215, 190, .08), 0 0 9px rgba(100, 215, 190, .5); transform: translateY(-50%); }.device-pulse.warn { background: #d49a58; box-shadow: 0 0 0 4px rgba(212, 154, 88, .08), 0 0 9px rgba(212, 154, 88, .45); }.device-track { height: 7px; overflow: hidden; border-radius: var(--r-sm); background: rgba(95, 146, 148, .13); }.device-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #3d8f8e, #68d9c5); box-shadow: 0 0 11px rgba(92, 220, 199, .32); }.device-stats { display: grid; grid-template-columns: repeat(4, minmax(48px, 1fr)); gap: 6px; }.device-stats span { color: #607f83; font-size: var(--fs-sub); white-space: nowrap; }.device-stats b { margin-right: 2px; color: #bcd5d3; font-size: var(--fs-row-value); font-variant-numeric: tabular-nums; }.device-stats .receiving b { color: #69d8c0; }.device-stats .warn b { color: #e0a15d; }
 .resource-foot { margin: 4px 16px 12px; padding-top: 8px; border-top: 1px solid rgba(120, 180, 180, .1); color: #58777c; font-size: var(--fs-sub); line-height: 1.55; }
+/* 逐床明细内的状态小标签（亮底表格里用） */
+.bed-tag-in, .bed-tag-idle { font-size: 11px; padding: 1px 8px; border-radius: 10px; }
+.bed-tag-in { background: rgba(255, 174, 87, .18); color: #ffae57; }
+.bed-tag-idle { background: rgba(120, 150, 155, .16); color: #8aa6ab; }
+/* 资源调配面板：主数字（患者/护士）+ 次数字（设备在用）两档 */
+.ratio-body { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 14px; }
+.ratio-main { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ratio-item { border: 1px solid var(--card-border); border-radius: var(--r-md); padding: 10px 12px; background: rgba(9, 30, 38, .5); }
+.ratio-item span { display: block; color: #7fa0a3; font-size: 11px; }
+.ratio-item b { font-size: 24px; color: var(--cyan-soft); font-variant-numeric: tabular-nums; margin-right: 4px; }
+.ratio-item i { color: #6b8a8d; font-size: 11px; font-style: normal; }
+.ratio-sub { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.ratio-sub > div { text-align: center; border: 1px dashed rgba(119, 185, 181, .2); border-radius: var(--r-sm); padding: 8px 4px; }
+.ratio-sub span { display: block; color: #7fa0a3; font-size: 10px; }
+.ratio-sub b { color: #dff6f2; font-size: 16px; font-variant-numeric: tabular-nums; margin-right: 2px; }
+.ratio-sub i { color: #6b8a8d; font-size: 10px; font-style: normal; }
 .score-content { display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 14px; min-height: 130px; padding: 10px 14px 12px; }
 .score-total { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 78px; border-right: 1px solid rgba(119, 179, 179, .12); }
 .score-total b { color: #9af0dc; font-size: var(--fs-hero); line-height: 1; font-variant-numeric: tabular-nums; text-shadow: 0 0 20px rgba(93, 230, 207, .25); }.score-total span { margin-top: 6px; color: #648489; font-size: var(--fs-sub); }
@@ -892,18 +1002,33 @@ export default {
   .flow-body { display: flex; flex-direction: column; padding-top: 2px; }
   .flow-chart { flex: 1 1 auto; height: auto; min-height: 92px; }
 
-  /* 质量指标：后端固定返回 6 项，两列 = 3 行。行高 minmax(26px, 1fr) 让三行均分
-     面板高度 —— 放得下就撑开，放不下收到 26px，永远不出现滚动条。 */
-  .q-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(26px, 1fr); flex: 1 1 auto; min-height: 0; gap: 5px; padding: 6px 11px 0; overflow: hidden; }
+  /* 质量指标：列数随面板宽度自适应 —— 大屏两列（每列 ≥220px 才能放下长指标名），
+     中等宽度（窗口模式、左侧菜单挤占）单列，不再硬撑两列导致名称被省略号截断。
+     行高 minmax(26px, 1fr) 让行均分面板高度，放得下撑开，放不下收 26px。
+     单列时 6 行高度由下方「窄宽紧凑」媒体查询改为单行卡片布局。 */
+  .q-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); grid-auto-rows: minmax(26px, 1fr); flex: 1 1 auto; min-height: 0; gap: 5px; padding: 6px 11px 0; overflow: hidden; }
   .q-card { min-height: 26px; padding: 3px 9px; }
   .quality-foot { flex: 0 0 auto; margin: 3px 11px 7px; padding-top: 5px; }
 
   /* 床位 / 设备 / 评分 / 器官支持：一律「行高弹性」。
      行少时撑满面板（单行最多 40px，再多就是没意义的空白），
      行多时收到 24px 下限 —— 7 行设备也只占 180px，一屏内必然放得下。 */
-  .bed-body { flex: 1 1 auto; min-height: 0; grid-template-columns: 112px 1fr; gap: 12px; padding: 8px 12px 5px; overflow: hidden; }
-  .bed-gauge { width: 100px; height: 100px; }
-  .device-list { flex: 1 1 auto; min-height: 0; gap: 2px; padding: 6px 11px 5px; justify-content: center; overflow: hidden; }
+  /* 床外面板里固定行（月份行、脚注）与弹性区（bed-body）必须分清：
+     原来 bed-body 是 flex:1 1 auto，gauge 固定高度与 2×2 指标卡把基础高度撑到 124px，
+     矮视口下面板只剩 165px，flex 收缩把 bed-body 压到 13px，gauge 与指标卡整体被裁。
+     改为 flex:1 1 0：bed-body 固定吃满「头/月份行/脚注」之外的剩余高度，
+     月份行与脚注 flex:0 0 auto 不再被压缩。 */
+  .bed-body { flex: 1 1 0; min-height: 0; grid-template-columns: minmax(0, 108px) 1fr; grid-template-rows: minmax(0, 1fr); gap: 12px; padding: 4px 12px 3px; overflow: hidden; }
+  /* 环形图高度跟随床外面板：原来固定 100px，矮视口下图表区只有 ~67px 时直接被
+     overflow:hidden 裁掉半个环；改为按容器高度等比缩放，宽度由 aspect-ratio 推导 */
+  .bed-gauge { justify-self: center; align-self: center; width: auto; height: 100%; min-height: 0; max-width: 108px; max-height: 100px; aspect-ratio: 1 / 1; }
+  /* 月份行固定单行（flex-wrap 会让口径小字换行白白多占一行高度），并收紧上下留白 */
+  .bed-month { flex: 0 0 auto; flex-wrap: nowrap; margin: 3px 16px 0; padding: 3px 10px; }
+  .bed-month small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* 脚注是两行小字：行高 1.6 偏松，锁高布局里收到 1.4，省出约 6px 给图表区 */
+  .resource-foot, .organ-foot { line-height: 1.4; }
+  /* 指标卡（2×2）在标准档保持纵向；紧凑档（max-height:1090）再改成横向单行 */
+  .device-list { flex: 1 1 0; min-height: 0; gap: 2px; padding: 6px 11px 5px; justify-content: center; overflow: hidden; }
   .device-row { flex: 1 1 0; min-height: var(--row-h); max-height: 40px; }
   .score-content { flex: 1 1 auto; min-height: 0; grid-template-columns: 76px 1fr; gap: 10px; padding: 8px 11px; overflow: hidden; }
   .score-total { height: 56px; }
@@ -920,11 +1045,15 @@ export default {
 
 /* 高度分档：优先收间距、收留白、收图表高度，绝不再靠"藏内容"或"出滚动条"解决。
    --------------------------------------------------------------------------
-   1080p + 125% 缩放 ≈ 864px、1440×900 / 150% ≈ 720px —— 挂墙大屏常见就是这几档。
+   1080p 全屏 100% 缩放（1080 CSS 高）、1080p + 125% 缩放 ≈ 864px、1440×900 / 150% ≈ 720px、
+   浏览器非全屏窗口 ≈ 946px —— 挂墙大屏常见就是这几档。
    尺度顺序是：先收间距与留白 → 再收图表高度（矢量元素，缩小不算内容丢失）→
    最后整档收一级字号（走 token，全页同步降，不会一块大一块小）。
-   字号下限锁在 10px，任何视口下都不再出现 8~9px；元素一律不隐藏。 */
-@media (min-width: 1181px) and (max-height: 940px) {
+   字号下限锁在 10px，任何视口下都不再出现 8~9px；元素一律不隐藏。
+   阈值 1090 覆盖 1080p 全屏：不覆盖时床位面板固定行（head+月份行+脚注）会把
+   环形图区域挤到不足 60px，三位数百分比在环内必然换行、标签被裁。
+   75% 缩放（约 1440 CSS 高）在阈值之上，保持挂墙大屏的完整布局。 */
+@media (min-width: 1181px) and (max-height: 1090px) {
   .cockpit-page { gap: 7px; padding: 8px 12px 9px; }
   .cockpit-hero { padding: 8px 14px; gap: 12px; }
   .hero-copy h1 { margin: 3px 0 2px; font-size: 20px; }
@@ -934,7 +1063,13 @@ export default {
   .kpi-row { gap: 8px; }
   .kpi-row :deep(.snapshot-card) { min-height: 66px; padding: 8px 11px 7px; }
 
-  .panel-head { min-height: 36px; padding: 6px 11px; }
+  /* 标题区模板是 <div><span class=panel-kicker/><h2 class=panel-title/></div>：
+     不处理这个包裹 div 时，span 改 inline 也仍会在 h2 上方独占一行。
+     包裹 div 改为 flex baseline，英文小标与中文标题才真正同行。 */
+  .panel-head { min-height: 28px; padding: 4px 11px; }
+  .panel-head > div:first-child { display: flex; align-items: baseline; gap: 7px; }
+  .panel-head .panel-kicker { display: inline; margin: 0; font-size: 9px; letter-spacing: .8px; }
+  .panel-head .panel-title { font-size: 13px; }
   .panel-body { padding: 7px 11px; }
 
   .flow-summary { gap: 20px; padding: 5px 11px 0; }
@@ -944,35 +1079,58 @@ export default {
   .q-list { gap: 4px; padding: 5px 10px 0; }
   .quality-foot { margin: 2px 10px 5px; padding-top: 4px; }
 
-  .bed-body { grid-template-columns: 104px 1fr; gap: 11px; padding: 6px 11px 4px; }
-  .bed-gauge { width: 94px; height: 94px; }
+  .bed-body { grid-template-columns: minmax(0, 96px) 1fr; grid-template-rows: minmax(0, 1fr); gap: 11px; padding: 3px 11px 2px; }
+  .bed-gauge { max-width: 96px; max-height: 94px; }
+  .bed-gauge::before, .bed-gauge-inner { inset: 7px; }
+  .bed-gauge-inner b { font-size: 22px; }
+  /* 2×2 指标卡由「标签在上、数字在下」改为「标签 + 数字」横向单行：
+     纵向单卡约 53px，两行至少 116px；横向单卡约 22px，两行约 52px */
+  .bed-metrics { align-self: center; gap: 4px; }
+  .bed-metrics > div { display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: 6px; min-height: 0; padding: 2px 9px; }
+  .bed-metrics span { margin-bottom: 0; white-space: nowrap; }
+  .bed-metrics b { font-size: 17px; }
+  .bed-month { margin: 1px 13px 0; padding: 2px 9px; }
+  .bed-month b { font-size: 18px; }
+  .resource-foot, .organ-foot { margin: 1px 10px 3px; padding-top: 2px; line-height: 1.35; }
   .device-list { padding: 5px 11px 4px; }
+  /* 器官支持：4 行固定，矮视口下 item 原始 min-height 30px（4 行 120px）超出
+     list 区域（约 98px）导致首行被头裁、末行压脚注。收到 22px 行高 + 2px 上下内边距 */
+  .organ-list { gap: 2px; padding: 2px 12px 2px; }
+  .organ-item { flex: 1 1 0; min-height: 22px; max-height: 30px; padding: 2px 8px; }
+  .organ-foot { margin: 1px 10px 3px; padding-top: 2px; line-height: 1.35; }
   .score-content { grid-template-columns: 72px 1fr; gap: 9px; padding: 6px 10px; }
   .score-total { height: 50px; }
   .readmit-body { padding: 8px 12px 3px; }
   .bundle-chart { min-height: 56px; }
-  .resource-foot, .organ-foot { margin: 2px 10px 5px; padding-top: 4px; }
 }
 
 /* 更矮（约 720px 起，150% 缩放 / 1366×768 全屏）：整档降一级字号（走 token），
    间距再收一轮；下限 10px，元素不隐藏 —— 同一套卡片体系，只是整体小一号 */
-@media (min-width: 1181px) and (max-height: 780px) {
+@media (min-width: 1181px) and (max-height: 880px) {
   .cockpit-page { --fs-hero: 24px; --fs-value: 18px; --fs-row-value: 14px; --fs-body: 11px; --fs-label: 10px; gap: 6px; padding: 6px 10px 8px; }
   .cockpit-hero { padding: 6px 12px; }
 
   .kpi-row { gap: 6px; }
   .kpi-row :deep(.snapshot-card) { min-height: 60px; padding: 7px 10px 6px; }
 
-  .panel-head { min-height: 32px; padding: 5px 9px; }
+  .panel-head { min-height: 26px; padding: 4px 9px; }
   .panel-body { padding: 6px 9px; }
   .flow-chart { min-height: 76px; }
 
   .q-list { gap: 3px; padding: 4px 9px 0; }
   .quality-foot { margin: 1px 9px 4px; padding-top: 3px; }
 
-  .bed-body { grid-template-columns: 92px 1fr; gap: 9px; padding: 5px 9px 3px; }
-  .bed-gauge { width: 84px; height: 84px; }
+  .bed-body { grid-template-columns: minmax(0, 86px) 1fr; grid-template-rows: minmax(0, 1fr); gap: 9px; padding: 2px 9px 2px; }
+  .bed-gauge { max-width: 86px; max-height: 84px; }
+  .bed-gauge::before, .bed-gauge-inner { inset: 6px; }
+  .bed-gauge-inner b { font-size: 18px; }
+  .bed-metrics { gap: 3px; }
+  .bed-metrics > div { padding: 1px 8px; }
+  .bed-month { margin: 2px 11px 0; padding: 1px 8px; }
   .device-list { padding: 4px 9px 3px; }
+  .organ-list { gap: 2px; padding: 1px 10px 1px; }
+  .organ-item { flex: 1 1 0; min-height: 18px; max-height: 28px; padding: 1px 8px; }
+  .organ-bar { height: 5px; }
   .score-content { grid-template-columns: 66px 1fr; gap: 8px; padding: 5px 9px; }
   .score-total { height: 44px; }
   .readmit-body { padding: 6px 10px 2px; }
@@ -980,7 +1138,29 @@ export default {
   .resource-foot, .organ-foot { margin: 1px 9px 4px; padding-top: 3px; }
 }
 
-@media (max-width: 1180px) { .cockpit-hero { grid-template-columns: 1fr auto; }.hero-actions { grid-column: 1 / -1; justify-content: flex-end; }.kpi-row { grid-template-columns: repeat(3, 1fr); }.secondary-grid { grid-template-columns: 1fr 1fr; }.organ-panel { grid-column: 1 / -1; }.device-row { grid-template-columns: 96px minmax(70px, .8fr) minmax(250px, 1.2fr); gap: 10px; } }
+/* 极矮档（1366×768 笔记本、150% 缩放 ≈ 720 高）：床位环在物理高度上已无法容纳
+   「三位数百分比 + 标签」（环直径不足 40px）。环内文字是当前床位使用率的视觉副本 ——
+   同一数值在顶部 KPI 第 6 卡（当前床位使用率）和月份行（本月床位使用率）都有呈现，
+   故此档仅隐藏环内文字，彩色进度环仍保留，不丢失任何信息。 */
+@media (min-width: 1181px) and (max-height: 800px) {
+  .bed-gauge-inner { opacity: 0; }
+  .bundle-chart { min-height: 40px; }
+}
+
+/* 窄宽紧凑（窗口模式带左侧菜单、或 125%/150% 系统缩放使 CSS 像素偏小时）：
+   质量面板 auto-fit 会退化成单列（6 行）。此时卡片改为单行横向结构 ——
+   指标名与「分子/分母」同一行、结果数值在右侧，6 行只占 ~120px，
+   既不截断指标名（单行可用宽度反而更大），也不垂直溢出。 */
+@media (min-width: 1181px) and (max-width: 1500px) {
+  .q-list { grid-template-columns: 1fr; grid-auto-rows: minmax(0, 1fr); gap: 3px; padding: 5px 10px 0; }
+  .q-card { min-height: 0; padding: 2px 9px; }
+  .q-main { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; width: 100%; }
+  .q-name { flex: 1 1 auto; min-width: 0; }
+  .q-sub { flex: 0 0 auto; margin-top: 0; }
+  .q-result { margin-left: 6px; }
+}
+
+@media (max-width: 1180px) { .cockpit-hero { grid-template-columns: 1fr auto; }.hero-actions { grid-column: 1 / -1; justify-content: flex-end; }.kpi-row { grid-template-columns: repeat(3, 1fr); }.secondary-grid { grid-template-columns: 1fr 1fr; }.organ-panel { grid-column: 1 / -1; }.device-row { grid-template-columns: 120px minmax(70px, .8fr) minmax(220px, 1.2fr); gap: 10px; } }
 @media (max-width: 820px) { .cockpit-page { padding: 12px; }.cockpit-hero { grid-template-columns: 1fr; gap: 14px; }.hero-meta { padding-left: 0; border-left: 0; }.hero-actions { grid-column: auto; justify-content: flex-start; flex-wrap: wrap; }.kpi-row { grid-template-columns: repeat(2, 1fr); }.primary-grid, .resource-grid, .secondary-grid { grid-template-columns: 1fr; }.organ-panel { grid-column: auto; }.panel-context { white-space: normal; text-align: right; }.device-row { grid-template-columns: 100px 1fr; }.device-stats { grid-column: 1 / -1; } }
 @media (max-width: 480px) { .kpi-row { grid-template-columns: 1fr; }.period-strip { align-items: flex-start; flex-direction: column; gap: 7px; }.data-gap { margin-left: 0; }.flow-summary { gap: 14px; }.score-content { grid-template-columns: 70px 1fr; padding-left: 10px; padding-right: 10px; }.score-row { grid-template-columns: 36px minmax(40px, 1fr) 22px 31px; gap: 5px; } }
 </style>

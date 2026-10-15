@@ -99,6 +99,44 @@ public class QualityQueryService {
      * <p>占位指标（PLACEHOLDER / PENDING_SOURCE / MANUAL）同样返回元信息，
      * 前端渲染成正常行、数值列显示「—」，因此页面永远是完整的 127 行。
      */
+    /**
+     * 环比基准区间：与当前周期同类型、紧邻上一段。
+     * CUSTOM 用等长窗口前移（区间长度取 start→end 实际差），其余类型整段平移。
+     */
+    private static PeriodRange previousOf(PeriodRange range) {
+        LocalDateTime s = range.getStart();
+        LocalDateTime e = range.getEnd();
+        switch (range.getPeriodType()) {
+            case "MONTH":
+                return new PeriodRange("MONTH", s.minusMonths(1), e.minusMonths(1));
+            case "QUARTER":
+                return new PeriodRange("QUARTER", s.minusMonths(3), e.minusMonths(3));
+            case "YEAR":
+                return new PeriodRange("YEAR", s.minusYears(1), e.minusYears(1));
+            case "DAY":
+                return new PeriodRange("DAY", s.minusDays(1), e.minusDays(1));
+            default: {
+                java.time.Duration d = java.time.Duration.between(s, e);
+                return new PeriodRange("CUSTOM", s.minus(d), e.minus(d));
+            }
+        }
+    }
+
+    /** 环比周期的展示标签（MONTH→yyyy-MM，QUARTER→yyyy-Qn，YEAR→yyyy，CUSTOM/DAY→日期）。 */
+    private static String prevLabel(PeriodRange range) {
+        LocalDateTime s = range.getStart();
+        switch (range.getPeriodType()) {
+            case "MONTH":
+                return String.format("%04d-%02d", s.getYear(), s.getMonthValue());
+            case "QUARTER":
+                return String.format("%04d-Q%d", s.getYear(), (s.getMonthValue() - 1) / 3 + 1);
+            case "YEAR":
+                return String.format("%04d", s.getYear());
+            default:
+                return PeriodRange.DAY.format(s.toLocalDate());
+        }
+    }
+
     public Map<String, Object> overview(String periodType, String periodStart, String departCode) {
         return overview(periodType, periodStart, null, departCode);
     }
@@ -124,6 +162,18 @@ public class QualityQueryService {
             // 未执行过计算的周期：返回纯字典视图，便于前端先行展示
         }
 
+        // 上一周期（环比基准）：MONTH→上月 / QUARTER→上季 / YEAR→上年 / DAY→昨日 / CUSTOM→等长窗口前移。
+        // 只读结果表，上一周期没跑过批的指标环比列留空 —— 不现算，看板加载必须快。
+        PeriodRange prevRange = previousOf(range);
+        Map<String, QualityMetricResult> prevMap = new LinkedHashMap<>();
+        try {
+            for (QualityMetricResult r : resultMapper.selectByPeriod(prevRange.getPeriodType(), prevRange.getStart(), dept)) {
+                prevMap.put(r.getMetricCode(), r);
+            }
+        } catch (Exception e) {
+            // 上一周期无结果：环比留空
+        }
+
         Map<String, List<Map<String, Object>>> groups = new LinkedHashMap<>();
         int ok = 0, placeholder = 0, noData = 0, error = 0;
         List<String> errorCodes = new ArrayList<>();
@@ -141,6 +191,8 @@ public class QualityQueryService {
             row.put("computable", "IMPL".equals(idx.getImplStatus()) ? 1 : 0);
             row.put("remark", idx.getRemark());
             row.put("value", r == null ? null : r.getMetricValue());
+            QualityMetricResult pr = prevMap.get(idx.getIndexCode());
+            row.put("prevValue", pr == null ? null : pr.getMetricValue());
             row.put("numerator", r == null ? null : r.getNumerator());
             row.put("denominator", r == null ? null : r.getDenominator());
             row.put("calcStatus", r == null ? "NOT_CALC" : r.getCalcStatus());
@@ -187,6 +239,7 @@ public class QualityQueryService {
         out.put("periodType", range.getPeriodType());
         out.put("periodStart", range.getStart());
         out.put("periodEnd", range.getEnd());
+        out.put("prevPeriodStart", prevLabel(prevRange));
         out.put("departCode", dept);
         out.put("summary", summary);
         out.put("groups", groupList);

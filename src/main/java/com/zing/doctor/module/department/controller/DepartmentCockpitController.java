@@ -33,6 +33,7 @@ public class DepartmentCockpitController {
     private final UserDepartScopeService departScopeService;
     private final DepartmentCockpitService cockpitService;
     private final CockpitQualityExtraService qualityExtraService;
+    private final com.zing.doctor.module.department.mapper.DepartmentCockpitMapper cockpitMapper;
 
     /**
      * 今日快照 + 近 N 天患者流转（阶段1 MVP）。
@@ -62,6 +63,34 @@ public class DepartmentCockpitController {
             HttpServletRequest request) {
         String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
         return Result.ok(qualityExtraService.extra(allowed));
+    }
+
+    /**
+     * 设备状态明细（只读）：每台有效配置设备一行 —— 设备编码 / 类型 / 科室 /
+     * 当前绑定患者（在科） / 采集连接状态 / 最近更新时间，汇总由前端按行算。
+     *
+     * <p>口径与驾驶舱「设备接入态势」同源同口径（DepartmentCockpitMapper 两方法并列）；
+     * {@code device_status} 只代表数据采集链路状态（正在接收/端口已连接/初始化/停止/异常），
+     * <b>不代表维修、库存或临床可用性</b> —— 源系统没有设备维护台账，页面不得虚构该语义。</p>
+     */
+    @GetMapping("/device-status")
+    public Result<java.util.List<java.util.Map<String, Object>>> deviceStatus(
+            @RequestParam(required = false) String departCode,
+            HttpServletRequest request) {
+        String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+        return Result.ok(cockpitMapper.selectDeviceStatusRows(allowed));
+    }
+
+    /**
+     * 逐床明细（只读）：每张有效开放床位一行 + 当前占用患者。
+     * 口径与驾驶舱「床位资源」聚合完全一致，两处数字必须能对上。
+     */
+    @GetMapping("/bed-status")
+    public Result<java.util.List<java.util.Map<String, Object>>> bedStatus(
+            @RequestParam(required = false) String departCode,
+            HttpServletRequest request) {
+        String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+        return Result.ok(cockpitMapper.selectBedStatusRows(allowed));
     }
 
     /** 当前登录账号；外链免登录时返回 null（与其它控制器同一取法）。 */
