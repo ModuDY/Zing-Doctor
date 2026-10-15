@@ -124,7 +124,9 @@ export default {
           formatter: (ps) => {
             if (!ps || !ps.length) return ''
             const p = ps[0]
-            return p.axisValue + '<br/>' + t.itemName + ': <b>' + p.value + '</b>'
+            // axisValue 是类目字符串（如 2026-10-15T13:00:00），转成临床可读的 年-月-日 时:分
+            const tv = String(p.axisValue).replace('T', ' ').slice(0, 16)
+            return tv + '<br/>' + t.itemName + ': <b>' + p.value + '</b>'
           }
         },
         xAxis: {

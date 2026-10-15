@@ -107,6 +107,10 @@ public class WorkbenchEnrichService {
         boolean admit24hRule = SysParamService.WORKBENCH_TODO_ADMIT_24H.equals(rule);
         Set<String> sofaEver = admit24hRule ? scoredEver("sofa", patientIds) : Collections.emptySet();
         Set<String> apacheEver = admit24hRule ? scoredEver("apache", patientIds) : Collections.emptySet();
+        // 4) ARDS 机械通气预警（is_ards=1 且呼吸机中）
+        Map<String, Boolean> ardsFlags = ardsFlags(patientIds);
+        // 5) 意识异常预警：今日 GCS 首查 → 最新一次下降 ≥2 分
+        Map<String, int[]> gcsToday = gcsTodayFirstLast(patientIds);
 
         for (WorkbenchPatient p : patients) {
             SofaScoreRecord s = latestSofa.get(p.getPatientId());
@@ -119,11 +123,19 @@ public class WorkbenchEnrichService {
                 p.setLastApacheMortality(a.getMortalityRate());
             }
 
-            List<String> todos = new ArrayList<>(3);
+            List<String> todos = new ArrayList<>(5);
+            String pid = p.getPatientId();
+            // 恶化类预警不受「满 24h」前置约束：ARDS/意识变化与在科时长无关，越早提示越好
+            if (Boolean.TRUE.equals(ardsFlags.get(pid)) && Boolean.TRUE.equals(p.getVentilated())) {
+                todos.add("ARDS_VENTILATED");
+            }
+            int[] gcs = gcsToday.get(pid);
+            if (gcs != null && gcs[0] - gcs[1] >= 2) {
+                todos.add("GCS_DROP_2");
+            }
             // 共同前置：入科满 24 小时 —— 当天入科的患者不催，留出评估时间窗。
             // 刻意不用 icuDays >= 1：它被钳到最小值 1，条件恒真，等于没有前置。
             if (over24Hours(p.getInDepartmentTime())) {
-                String pid = p.getPatientId();
                 // 口径一：当日无评分（含从未评分）；口径二：从未评分
                 boolean sofaDone = admit24hRule ? sofaEver.contains(pid) : sofaToday.contains(pid);
                 if (!sofaDone) {
@@ -136,6 +148,76 @@ public class WorkbenchEnrichService {
             }
             p.setTodos(todos);
             p.setTodoCount(todos.size());
+        }
+    }
+
+    /**
+     * 患者的 ARDS 标记（patient_info.is_ards）。
+     * 查询失败按空集降级：与 {@link #scoredToday} 同方向 —— 宁可本次不预警，不凭空制造假预警。
+     */
+    private Map<String, Boolean> ardsFlags(List<String> patientIds) {
+        Map<String, Boolean> out = new HashMap<>();
+        try {
+            for (Map<String, Object> r : icuPatientMapper.selectArdsFlagByPatientIds(patientIds)) {
+                out.put(str(r.get("patient_id")), truthy(r.get("is_ards")));
+            }
+        } catch (Exception e) {
+            log.warn("工作台 ARDS 标记查询失败，本次不生成 ARDS 预警", e);
+        }
+        return out;
+    }
+
+    /**
+     * 今日 GCS「首查 → 最新一次」的数值总分 [first, latest]。
+     * 只有当日 ≥2 条可评全记录（totalScore 纯数字）才返回；插管记录（含 VT）口径不可比，
+     * 直接跳过 —— 单次评分没有比较基准，不能凭空报警。
+     * 查询失败清空结果（不预警），与评分待办的降级方向一致。
+     */
+    private Map<String, int[]> gcsTodayFirstLast(List<String> patientIds) {
+        Map<String, int[]> out = new HashMap<>();
+        try {
+            LocalDateTime start = LocalDate.now().atStartOfDay();
+            LocalDateTime end = start.plusDays(1);
+            java.time.format.DateTimeFormatter f =
+                    java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            List<Map<String, Object>> rows =
+                    icuPatientMapper.selectGcsRecordsByPatientIds(patientIds, start.format(f), end.format(f));
+            for (Map<String, Object> r : rows == null ? Collections.<Map<String, Object>>emptyList() : rows) {
+                Integer total = gcsTotal(r.get("score_json"));
+                if (total == null) {
+                    continue;
+                }
+                String pid = str(r.get("patient_id"));
+                int[] v = out.computeIfAbsent(pid, k -> new int[]{-1, -1});
+                if (v[0] < 0) {
+                    v[0] = total;
+                }
+                v[1] = total;   // 行按 record_time 升序，最后一次覆盖即最新
+            }
+        } catch (Exception e) {
+            log.warn("工作台 GCS 意识预警查询失败，本次不生成意识异常待办", e);
+            out.clear();
+        }
+        return out;
+    }
+
+    /**
+     * 从 GCS 文书 score_json 解析数值总分：totalScore 纯数字才有效。
+     * 插管记录形如 "1+VT+2"（言语不可评，记 3T）—— 与可评全记录直接比较口径不一致，跳过不比。
+     */
+    private static Integer gcsTotal(Object scoreJson) {
+        if (scoreJson == null) {
+            return null;
+        }
+        try {
+            JSONObject obj = JSONUtil.parseObj(String.valueOf(scoreJson));
+            Object t = obj.get("totalScore");
+            if (t == null) {
+                return null;
+            }
+            return Integer.valueOf(String.valueOf(t).trim());
+        } catch (Exception e) {
+            return null;
         }
     }
 

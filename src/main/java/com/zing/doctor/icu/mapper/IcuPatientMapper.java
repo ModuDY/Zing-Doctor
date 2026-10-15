@@ -1642,6 +1642,37 @@ public interface IcuPatientMapper {
                                                           @Param("endTime") String endTime);
 
     /**
+     * 批量取患者的 ARDS 标记（patient_info.is_ards，1=业务侧已标识 ARDS）。
+     * 工作台「ARDS 机械通气」预警用：一次查询覆盖整批在科患者，避免逐患者 N+1。
+     */
+    @Select("<script>SELECT pi.id AS patient_id, pi.is_ards AS is_ards "
+            + "FROM \"zing_icu_db_prod\".\"patient_info\" pi "
+            + "WHERE pi.del_flag = 0 AND pi.id IN "
+            + "<foreach collection='patientIds' item='id' open='(' separator=',' close=')'>#{id}</foreach>"
+            + "</script>")
+    List<Map<String, Object>> selectArdsFlagByPatientIds(@Param("patientIds") List<String> patientIds);
+
+    /**
+     * 批量取时间窗内（通常=今日）的 GCS 正式评分文书（doc_code=Z_ICU_GCS），按评估时间升序。
+     * 工作台「意识异常预警」（今日首查 → 最新一次下降 ≥2 分）用：一次查询替代逐患者 N+1。
+     * score_json_value 为 TEXT，CAST 成 VARCHAR；totalScore 形如 "3+4+6"，插管记录形如
+     * "1+VT+2"（言语不可评）—— 不可比的记录由调用方按非数字跳过。
+     */
+    @Select("<script>SELECT * FROM ("
+            + "SELECT pdr.patient_id AS patient_id, pdr.record_time AS record_time, "
+            + "CAST(pdrs.score_json_value AS VARCHAR(2000)) AS score_json "
+            + "FROM \"zing_icu_db_prod\".\"patient_doc_record\" pdr "
+            + "INNER JOIN \"zing_icu_db_prod\".\"patient_doc_record_score\" pdrs ON pdr.id = pdrs.doc_record_id "
+            + "WHERE pdr.doc_code = 'Z_ICU_GCS' AND pdr.del_flag = 0 AND pdrs.del_flag = 0 "
+            + "AND pdr.patient_id IN <foreach collection='patientIds' item='id' open='(' separator=',' close=')'>#{id}</foreach> "
+            + "AND pdr.record_time &gt;= #{startTime} AND pdr.record_time &lt; #{endTime} "
+            + "ORDER BY pdr.record_time ASC"
+            + ") WHERE ROWNUM &lt;= 2000</script>")
+    List<Map<String, Object>> selectGcsRecordsByPatientIds(@Param("patientIds") List<String> patientIds,
+                                                           @Param("startTime") String startTime,
+                                                           @Param("endTime") String endTime);
+
+    /**
      * 当前在科且入科已超过指定小时数的患者（用于 APACHE II 自动初评）。
      * 达梦日期减法用 SYSDATE - n（单位天），hours/24 即小时换算；departCode 为空时不限科室。
      */

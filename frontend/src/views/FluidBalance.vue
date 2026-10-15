@@ -49,7 +49,7 @@
         <span class="block-note">共 {{ recordCount || 0 }} 条</span>
       </div>
       <el-table :data="allRows" size="small" max-height="380" empty-text="窗口内无记录">
-        <el-table-column prop="time" label="时间" width="165" />
+        <el-table-column prop="time" label="时间" width="175" :formatter="(r, c, v) => fmtDateTime(v)" />
         <el-table-column label="来源" width="130">
           <template #default="{ row }">{{ sourceName(row.source) }}</template>
         </el-table-column>
@@ -66,6 +66,7 @@
 import { Refresh, Warning } from '@element-plus/icons-vue'
 import * as echarts from '../utils/echarts'
 import { fetchFluidBalance } from '../api/workbench'
+import { fmtDateTime } from '../utils/datetime'
 
 export default {
   name: 'FluidBalance',
@@ -112,6 +113,7 @@ export default {
     this.charts = {}
   },
   methods: {
+    fmtDateTime(t) { return fmtDateTime(t) },
     async load() {
       if (!this.patientId) {
         this.$message.error('缺少 patientId 参数，请从患者工作台进入')

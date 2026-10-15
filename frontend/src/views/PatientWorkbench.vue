@@ -280,6 +280,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Refresh, Search, ArrowDown, Clock } from '@element-plus/icons-vue'
+import { ElNotification } from 'element-plus'
 import { externalParam } from '../utils/external'
 import '../styles/quality-theme.css'
 import { fetchInpatients, fetchDepartScope } from '../api/workbench'
@@ -466,12 +467,16 @@ function riskClass(level) {
 const TODO_LABELS = {
   SOFA_NOT_TODAY: '今日尚未评 SOFA',
   APACHE_NOT_TODAY: '今日尚未评 APACHE II',
-  ABX_REASSESSMENT_PENDING: '抗感染 48～72 小时复评待处理'
+  ABX_REASSESSMENT_PENDING: '抗感染 48～72 小时复评待处理',
+  ARDS_VENTILATED: '已标识 ARDS 且机械通气中，关注肺保护通气/俯卧位评估',
+  GCS_DROP_2: '今日 GCS 较首查下降 ≥2 分，警惕意识状态恶化'
 }
 const TODO_LABELS_ADMIT_24H = {
   SOFA_NOT_TODAY: '入科超 24 小时未评 SOFA',
   APACHE_NOT_TODAY: '入科超 24 小时未评 APACHE II',
-  ABX_REASSESSMENT_PENDING: '抗感染 48～72 小时复评待处理'
+  ABX_REASSESSMENT_PENDING: '抗感染 48～72 小时复评待处理',
+  ARDS_VENTILATED: '已标识 ARDS 且机械通气中，关注肺保护通气/俯卧位评估',
+  GCS_DROP_2: '今日 GCS 较首查下降 ≥2 分，警惕意识状态恶化'
 }
 /** 评分待办口径：TODAY_NO_SCORE 当日无评分（默认）/ ADMIT_24H_NEVER 入科超 24h 从未评分 */
 const scoreTodoRule = ref('TODAY_NO_SCORE')
@@ -493,6 +498,14 @@ function goTodo(row, code) {
   }
   if (code === 'ABX_REASSESSMENT_PENDING') {
     goDecision(row)
+    return
+  }
+  if (code === 'ARDS_VENTILATED') {
+    jump('/page/ards-monitor', row)
+    return
+  }
+  if (code === 'GCS_DROP_2') {
+    jump('/page/neuro-monitor', row)
   }
 }
 
@@ -652,12 +665,48 @@ async function loadPatients() {
   try {
     patients.value = await fetchInpatients(departCode.value)
     updatedAt.value = new Date().toLocaleString('zh-CN', { hour12: false })
+    // 主动预警：本轮「新出现」的待办弹系统通知（同一患者同一待办只弹一次，
+    // 直到它被处理消失后再次出现才重新弹 —— 刷新页面不会反复轰炸）
+    notifyTodoAlerts(patients.value)
   } catch (e) {
     patients.value = []
     patientsLoadError.value = 'ICU 数据源暂不可用，患者列表未加载；请检查连接后重试。'
   } finally {
     loading.value = false
   }
+}
+
+/**
+ * 主动预警弹窗：本轮列表中「新出现」的待办逐条汇总为一条系统通知。
+ *
+ * 去重键 = patientId + todoCode：同一条待办在整个会话期只弹一次；
+ * 处理掉（待办消失）后再次出现才重新弹 —— 否则每次刷新（定时器/手动）都弹一遍，
+ * 医生会把通知当成噪音关掉，预警就失效了。
+ * 弹窗点击跳「今日待办」视图；关掉也不丢 —— 徽章和视图里仍然看得到。
+ */
+const notifiedTodos = new Set()
+function notifyTodoAlerts(list) {
+  const fresh = []
+  for (const p of list || []) {
+    for (const code of p.todos || []) {
+      const key = `${p.patientId}:${code}`
+      if (notifiedTodos.has(key)) continue
+      notifiedTodos.add(key)
+      fresh.push({ name: p.name || p.bedNo || p.patientNo || p.patientId, label: todoLabel(code) })
+    }
+  }
+  if (!fresh.length) return
+  const lines = fresh.slice(0, 4).map((f) => `${f.name}：${f.label}`)
+  if (fresh.length > 4) lines.push(`……等共 ${fresh.length} 条`)
+  ElNotification({
+    title: '今日待办预警',
+    type: 'warning',
+    duration: 0,
+    dangerouslyUseHTMLString: true,
+    message: lines.map((l) => `<div style="margin:2px 0">${l}</div>`).join('')
+      + '<div style="margin-top:6px;color:#a8a29e;font-size:12px">点击本条查看「今日待办」视图</div>',
+    onClick: () => switchView('todo')
+  })
 }
 
 // 读参数设置里的默认视图模式（WORKBENCH_VIEW_MODE=table/cards）；sessionStorage 有临时覆盖时优先

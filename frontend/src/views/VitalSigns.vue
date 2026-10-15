@@ -49,7 +49,7 @@
         <span class="block-note">共 {{ recordCount || 0 }} 条（时间 / 项目 / 值 / 记录人）</span>
       </div>
       <el-table :data="records" size="small" max-height="380" empty-text="窗口内无记录">
-        <el-table-column prop="time" label="时间" width="170" />
+        <el-table-column prop="time" label="时间" width="175" :formatter="(r, c, v) => fmtDateTime(v)" />
         <el-table-column prop="itemName" label="项目" min-width="120" />
         <el-table-column prop="value" label="值" width="90" />
         <el-table-column prop="itemCode" label="编码" width="110" />
@@ -64,6 +64,7 @@ import { markRaw } from 'vue'
 import { Refresh, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
 import * as echarts from '../utils/echarts'
 import { fetchVitals } from '../api/workbench'
+import { fmtDateTime } from '../utils/datetime'
 
 // 配色：以项目琥珀棕 #b45309 为主色，搭配临床监护常用的高区分度色，
 // 每条固定一色，便于在同一时间轴上区分不同指标。
@@ -123,6 +124,7 @@ export default {
     if (this.chart) { this.chart.dispose(); this.chart = null }
   },
   methods: {
+    fmtDateTime(t) { return fmtDateTime(t) },
     async load() {
       if (!this.patientId) {
         this.$message.error('缺少 patientId 参数，请从患者工作台进入')

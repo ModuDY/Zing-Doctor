@@ -24,8 +24,15 @@ function isBlank(v) {
   return v == null || v === '' || v === 'null'
 }
 
-/** 规整：Date 按本地时间展开，字符串去掉 ISO 的 T 分隔符 */
+/** 规整：Date 按本地时间展开，字符串去掉 ISO 的 T 分隔符。
+ *  额外接收 ECharts time 轴给的毫秒时间戳（number）—— 否则 fmtDateTime 会原样
+ *  吐出 "1760523600000" 这种数字，折线图悬浮提示就成了一串看不懂的时间戳。 */
 function normalize(v) {
+  if (v instanceof Date) {
+    return `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())} `
+      + `${pad(v.getHours())}:${pad(v.getMinutes())}:${pad(v.getSeconds())}`
+  }
+  if (typeof v === 'number') v = new Date(v)
   if (v instanceof Date) {
     return `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())} `
       + `${pad(v.getHours())}:${pad(v.getMinutes())}:${pad(v.getSeconds())}`

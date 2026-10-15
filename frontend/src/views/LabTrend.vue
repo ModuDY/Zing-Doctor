@@ -46,7 +46,7 @@
         <span class="block-note">共 {{ recordCount || 0 }} 条（检验时间 / 项目 / 结果 / 参考范围）</span>
       </div>
       <el-table :data="records" size="small" max-height="380" empty-text="窗口内无记录">
-        <el-table-column prop="time" label="检验时间" width="165" />
+        <el-table-column prop="time" label="检验时间" width="175" :formatter="(r, c, v) => fmtDateTime(v)" />
         <el-table-column prop="itemName" label="项目" min-width="150" show-overflow-tooltip />
         <el-table-column prop="value" label="结果" width="90" />
         <el-table-column prop="refText" label="参考范围" width="130">
@@ -63,6 +63,7 @@
 import { Refresh, InfoFilled } from '@element-plus/icons-vue'
 import * as echarts from '../utils/echarts'
 import { fetchLabTrend } from '../api/workbench'
+import { fmtDateTime } from '../utils/datetime'
 
 /**
  * 三个面板共用本组件，标题与提示集中在这里维护。
@@ -148,6 +149,7 @@ export default {
     this.disposeCharts()
   },
   methods: {
+    fmtDateTime(t) { return fmtDateTime(t) },
     async load() {
       if (!this.patientId) {
         this.$message.error('缺少 patientId 参数，请从患者工作台进入')
@@ -207,7 +209,7 @@ export default {
               formatter: (ps) => {
                 if (!ps || !ps.length) return ''
                 const p = ps[0]
-                const t = String(p.axisValue).slice(5, 16).replace('T', ' ')
+                const t = fmtDateTime(p.axisValue)
                 return t + '<br/>' + s.name + '：<b>' + p.value[1] + '</b>'
               }
             },
