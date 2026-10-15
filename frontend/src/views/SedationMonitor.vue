@@ -21,25 +21,7 @@
         </div>
       </div>
       <div class="header-right">
-        <el-radio-group v-model="hours" size="small" @change="onQuickRangeChange">
-          <el-radio-button :label="24">近24小时</el-radio-button>
-          <el-radio-button :label="72">近3天</el-radio-button>
-          <el-radio-button :label="168">近7天</el-radio-button>
-          <el-radio-button :label="720">近30天</el-radio-button>
-        </el-radio-group>
-        <el-date-picker
-          v-model="customRange"
-          type="datetimerange"
-          size="small"
-          class="range-picker"
-          range-separator="至"
-          start-placeholder="自定义开始"
-          end-placeholder="自定义结束"
-          value-format="YYYY-MM-DDTHH:mm:ss"
-          :default-time="defaultTime"
-          :clearable="true"
-          @change="onCustomRangeChange"
-        />
+        <TimeRangeBar granule="datetime" :default-preset="'24h'" @change="onRangeChange" />
         <el-button :icon="Refresh" size="small" :loading="loading" @click="loadData">刷新</el-button>
       </div>
     </section>
@@ -235,6 +217,38 @@
           <div class="scale-note">{{ cam.note }}</div>
         </div>
 
+        <!-- 镇痛药使用与评分关联：同窗口的阿片类执行医嘱 -->
+        <div class="scale-card">
+          <div class="scale-head">
+            <span class="scale-title">镇痛药使用（阿片类执行医嘱，与评分同窗口）</span>
+            <span class="scale-badge st-ok">{{ analgesia.length }}</span>
+          </div>
+          <div v-if="analgesiaError" class="scale-note" style="color:#b91c1c">{{ analgesiaError }}</div>
+          <el-table v-if="analgesia.length" :data="analgesia" size="small" stripe max-height="300">
+            <el-table-column prop="drug_name" label="药品" min-width="130" show-overflow-tooltip />
+            <el-table-column label="单次剂量" width="100">
+              <template #default="{ row }">
+                {{ row.drug_one_dosage != null ? row.drug_one_dosage + (row.drug_one_dosage_unit || '') : '—' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="spec" label="规格" min-width="110" show-overflow-tooltip />
+            <el-table-column label="泵速" width="90">
+              <template #default="{ row }">
+                {{ row.drug_now_speed != null ? row.drug_now_speed + ' ' + (row.drug_speed_unit || '') : '—' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="开始" width="140">
+              <template #default="{ row }">{{ fmtDateTime(row.start_time) }}</template>
+            </el-table-column>
+            <el-table-column label="结束" width="140">
+              <template #default="{ row }">{{ row.end_time ? fmtDateTime(row.end_time) : '进行中' }}</template>
+            </el-table-column>
+            <el-table-column prop="advice_name" label="医嘱" min-width="130" show-overflow-tooltip />
+          </el-table>
+          <div v-else class="chart-empty">窗口内无阿片类镇痛药执行记录（芬太尼/吗啡/地佐辛等）</div>
+          <div class="scale-note">与上方 NRS / CPOT 评分同时间窗对照阅读：用药后评分应下降；本块仅列执行事实，不做镇痛效果判定。</div>
+        </div>
+
         <!-- 评估明细：可追溯下钻 -->
         <div class="scale-card detail-card">
           <div class="scale-head">
@@ -276,9 +290,9 @@
 
 <script>
 import * as echarts from '../utils/echarts'
-import { ElMessage } from 'element-plus'
 import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
-import { fetchSedationMonitor } from '../api/workbench'
+import { fetchSedationMonitor, fetchAnalgesia } from '../api/workbench'
+import TimeRangeBar from '../components/TimeRangeBar.vue'
 import { setCurrentPatient } from '../utils/patientContext'
 
 const SCALE_META = {
@@ -292,12 +306,11 @@ const EMPTY_BLOCK = () => ({ dataStatus: 'NOT_RECORDED', latest: null, points: [
 
 export default {
   name: 'SedationMonitor',
-  components: { ArrowLeft, Refresh },
+  components: { ArrowLeft, Refresh, TimeRangeBar },
   data() {
     return {
       hours: 24,
       customRange: [null, null],
-      defaultTime: [new Date(2000, 0, 1, 0, 0, 0), new Date(2000, 0, 1, 23, 59, 59)],
       loading: false,
       loadError: '',
       patient: null,
@@ -307,6 +320,8 @@ export default {
       cpot: EMPTY_BLOCK(),
       rass: EMPTY_BLOCK(),
       cam: { dataStatus: 'NOT_RECORDED', points: [], total: 0, positive: 0, negative: 0, utaSuspect: 0, pairUnknown: 0, unparsed: 0, note: '' },
+      analgesia: [],
+      analgesiaError: '',
       detailFilter: 'all',
       charts: {}
     }
@@ -390,6 +405,8 @@ export default {
         }
         this.patient = data.patient
         this.window = data.window || { startTime: '', endTime: '' }
+        // 镇痛药执行医嘱与评分同窗口对照；失败不阻塞主块（独立提示）
+        this.loadAnalgesia(patientId, options)
         this.nrs = data.nrs || EMPTY_BLOCK()
         this.vas = data.vas || EMPTY_BLOCK()
         this.cpot = data.cpot || EMPTY_BLOCK()
@@ -415,30 +432,29 @@ export default {
     goBack() {
       this.$router.push('/page/patient-workbench')
     },
-    /** 切换快捷范围：退出自定义模式 */
-    onQuickRangeChange() {
-      this.customRange = [null, null]
-      this.loadData()
+    /** 镇痛药执行医嘱（窗口与评分一致）；静默失败，仅区块内提示 */
+    async loadAnalgesia(patientId, options) {
+      this.analgesiaError = ''
+      try {
+        const list = await fetchAnalgesia(patientId, options)
+        this.analgesia = Array.isArray(list) ? list : []
+      } catch (e) {
+        this.analgesia = []
+        this.analgesiaError = e.message || '镇痛药查询失败'
+      }
     },
-    /** 自定义起止：与快捷互斥，前端先做 30 天上限校验（后端兜底） */
-    onCustomRangeChange(val) {
-      if (!val || !val[0] || !val[1]) {
-        if (!this.hours) this.hours = 24
-        this.loadData()
-        return
-      }
-      const spanMs = new Date(val[1]).getTime() - new Date(val[0]).getTime()
-      if (spanMs > 30 * 24 * 3600 * 1000) {
-        ElMessage.warning('自定义时间范围不能超过 30 天')
+    /** 统一时间区间条：快捷档回退 hours，自定义走 start/end（后端要 ISO 'T'） */
+    onRangeChange(p) {
+      if (p.preset) {
+        this.hours = p.hours || 24
         this.customRange = [null, null]
-        return
-      }
-      if (spanMs <= 0) {
-        ElMessage.warning('结束时间必须晚于开始时间')
+      } else if (p.start && p.end) {
+        this.hours = null
+        this.customRange = [p.start.replace(' ', 'T'), p.end.replace(' ', 'T')]
+      } else {
+        this.hours = 24
         this.customRange = [null, null]
-        return
       }
-      this.hours = null
       this.loadData()
     },
     handleResize() {

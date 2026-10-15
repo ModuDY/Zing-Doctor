@@ -62,6 +62,32 @@ public class SedationMonitorController {
         }
     }
 
+    /**
+     * 窗口内阿片类镇痛药执行医嘱（与镇痛评分同窗口对照）。
+     * 参数口径与 {@link #sedation} 完全一致，前端把两块放同一时间轴。
+     */
+    @GetMapping("/patients/{patientId}/analgesia")
+    public Result<java.util.List<java.util.Map<String, Object>>> analgesia(@PathVariable String patientId,
+                                                                           @RequestParam(required = false) Integer hours,
+                                                                           @RequestParam(required = false) String start,
+                                                                           @RequestParam(required = false) String end,
+                                                                           HttpServletRequest request) {
+        WorkbenchPatient patient = icuPatientService.getWorkbenchPatientAny(patientId);
+        if (patient == null) {
+            return Result.fail("患者不存在");
+        }
+        String allowed = departScopeService.resolveQueryDepart(
+                currentUsername(request), patient.getDepartCode());
+        if (allowed == null) {
+            return Result.fail("无该患者科室权限");
+        }
+        try {
+            return Result.ok(sedationMonitorService.analgesiaDrugs(patient, hours, start, end));
+        } catch (IllegalArgumentException e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
     /** 当前登录账号；外链免登录时返回 null */
     private static String currentUsername(HttpServletRequest request) {
         Object u = request.getAttribute(ExternalLinkInterceptor.ATTR_LOGIN_USER);

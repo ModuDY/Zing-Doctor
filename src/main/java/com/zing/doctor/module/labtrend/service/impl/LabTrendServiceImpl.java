@@ -81,6 +81,16 @@ public class LabTrendServiceImpl implements LabTrendService {
     /** 肾功能与电解质：组名 → 项目定义。 */
     private static final LinkedHashMap<String, String[][]> RENAL = new LinkedHashMap<>();
 
+    /** 感染指标（院感分析）：白细胞 / 降钙素原 / C反应蛋白 / 白介素6。 */
+    private static final String[][] INFECTION = {
+            // 排除：各类尿液/体液标本白细胞（血常规才是感染判读口径）
+            {"白细胞", "WBC 白细胞", "尿|脊液|胸水|腹水|关节液|精"},
+            // 降钙素原无第二套命名，直接按名匹配（肾功能面板的「钙」已排除它，此处正相反）
+            {"降钙素原", "PCT 降钙素原"},
+            {"C反应蛋白", "CRP C反应蛋白", "超敏"},
+            {"白介素6", "IL-6 白介素6"},
+    };
+
     static {
         LIVER.put("肝细胞损伤", new String[][]{
                 {"丙氨酸氨基转移酶", "ALT 丙氨酸氨基转移酶"},
@@ -187,6 +197,9 @@ public class LabTrendServiceImpl implements LabTrendService {
         }
         if ("renal".equals(type)) {
             return RENAL;
+        }
+        if ("infection".equals(type)) {
+            return singleGroup("感染指标", INFECTION);
         }
         return LIVER;
     }

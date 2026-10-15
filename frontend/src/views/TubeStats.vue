@@ -4,6 +4,7 @@
       <el-radio-group v-model="viewMode" @change="load">
         <el-radio-button label="month">月度</el-radio-button>
         <el-radio-button label="year">年度</el-radio-button>
+        <el-radio-button label="day">按日</el-radio-button>
       </el-radio-group>
       <el-date-picker
         v-if="viewMode === 'month'"
@@ -15,6 +16,14 @@
         popper-class="qb-popper"
         @change="load"
       />
+      <TimeRangeBar
+        v-else-if="viewMode === 'day'"
+        granule="date"
+        :presets="DAY_PRESETS"
+        default-preset="month"
+        :max-span-days="92"
+        @change="onDayRangeChange"
+      />
       <el-date-picker
         v-else
         v-model="year"
@@ -25,8 +34,9 @@
         popper-class="qb-popper"
         @change="load"
       />
-      <el-button :disabled="!hasData" @click="exportXlsx">导出 Excel</el-button>
-      <span class="hint">置管/拔管/带出按事件发生{{ viewMode === 'month' ? '月份' : '月份（按月分桶）' }}统计；留置日未拔者算到患者出科时间</span>
+      <el-button v-if="viewMode !== 'day'" :disabled="!hasData" @click="exportXlsx">导出 Excel</el-button>
+      <el-button @click="openCfg">导管类型管理</el-button>
+      <span class="hint">置管/拔管/带出按事件发生{{ viewMode === 'month' ? '月份' : viewMode === 'day' ? '日期（支持自定义起止区间，上限 92 天）' : '月份（按月分桶）' }}统计；留置日未拔者算到患者出科时间</span>
     </div>
 
     <el-alert
@@ -81,6 +91,11 @@
           <span class="g-tag" :class="groupClass(row.group)">{{ groupLabel(row.group) }}</span>
         </template>
       </el-table-column>
+      <el-table-column label="危重等级" width="80">
+        <template #default="{ row }">
+          <span class="risk-tag" :class="{ 'r-high': row.riskLevel === '高', 'r-mid': row.riskLevel === '中' }">{{ row.riskLevel || '低' }}</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="placed" label="置管" width="70" />
       <el-table-column prop="broughtIn" label="带入" width="70" />
       <el-table-column prop="selfPlaced" label="本科置管" width="80" />
@@ -129,31 +144,152 @@
         </el-table-column>
       </el-table>
     </template>
+
+    <!-- 按日视图：每天 × 分组的 新置/拔管/非计划/在管 -->
+    <template v-if="viewMode === 'day'">
+      <el-table :data="dailyData.days" size="small" border stripe>
+        <el-table-column prop="date" label="日期" width="100" />
+        <el-table-column v-for="g in dayGroupList" :key="g" :label="groupLabel(g)" align="center">
+          <el-table-column :label="'新置'" width="60">
+            <template #default="{ row }">{{ dayCell(row, g, 'newPlaced') }}</template>
+          </el-table-column>
+          <el-table-column :label="'拔管'" width="60">
+            <template #default="{ row }">{{ dayCell(row, g, 'removed') }}</template>
+          </el-table-column>
+          <el-table-column :label="'非计划'" width="60">
+            <template #default="{ row }">
+              <span :class="{ 'num-hit': dayCell(row, g, 'unplanned') > 0 }">{{ dayCell(row, g, 'unplanned') }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column :label="'在管'" width="60">
+            <template #default="{ row }">{{ dayCell(row, g, 'indwelling') }}</template>
+          </el-table-column>
+        </el-table-column>
+      </el-table>
+    </template>
+
+    <!-- 导管类型管理：自定义 tube_code 归组 + 危重等级，保存后统计立即按新配置归类 -->
+    <el-dialog v-model="cfgVisible" title="导管类型管理" width="880px" append-to-body>
+      <el-alert
+        title="归类优先级：此处配置 > 系统默认（CVC/导尿管/气道导管白名单）> 其他；危重等级默认高（气道/CVC）、中（导尿管）、低（其余）"
+        type="info" :closable="false" style="margin-bottom: 12px" />
+      <el-form inline size="small" class="cfg-form">
+        <el-form-item label="导管编码">
+          <el-input v-model="cfgForm.tubeCode" placeholder="如 tube_PICC管" style="width: 150px" />
+        </el-form-item>
+        <el-form-item label="展示名">
+          <el-input v-model="cfgForm.tubeName" placeholder="如 PICC" style="width: 120px" />
+        </el-form-item>
+        <el-form-item label="归入组">
+          <el-select v-model="cfgForm.groupName" filterable allow-create default-first-option style="width: 130px">
+            <el-option v-for="g in cfgGroupOptions" :key="g" :label="groupLabel(g)" :value="g" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="危重等级">
+          <el-select v-model="cfgForm.riskLevel" style="width: 90px">
+            <el-option label="高" value="高" />
+            <el-option label="中" value="中" />
+            <el-option label="低" value="低" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="排序">
+          <el-input-number v-model="cfgForm.sortNo" :min="0" style="width: 100px" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="saveCfg">{{ cfgForm.id ? '更新' : '新增' }}</el-button>
+          <el-button v-if="cfgForm.id" @click="resetCfgForm">取消编辑</el-button>
+        </el-form-item>
+      </el-form>
+      <el-table :data="cfgRows" size="small" border max-height="360">
+        <el-table-column prop="tubeCode" label="导管编码" min-width="140" />
+        <el-table-column prop="tubeName" label="展示名" width="110" />
+        <el-table-column label="归入组" width="110">
+          <template #default="{ row }">
+            <span class="g-tag" :class="groupClass(row.groupName)">{{ groupLabel(row.groupName) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="危重等级" width="80">
+          <template #default="{ row }">
+            <span class="risk-tag" :class="{ 'r-high': row.riskLevel === '高', 'r-mid': row.riskLevel === '中' }">{{ row.riskLevel }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="sortNo" label="排序" width="60" />
+        <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
+        <el-table-column label="状态" width="70">
+          <template #default="{ row }">
+            <span :style="{ color: row.status === 1 ? '#059669' : '#a8a29e' }">{{ row.status === 1 ? '启用' : '停用' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click="editCfg(row)">编辑</el-button>
+            <el-button link type="danger" size="small" @click="delCfg(row)">停用</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
 import request from '../api/request'
+import TimeRangeBar from '../components/TimeRangeBar.vue'
 
 const GROUPS = ['CVC', '导尿管', '气道导管', '其他']
 const GROUP_COLORS = { CVC: '#2563eb', 导尿管: '#d97706', 气道导管: '#0891b2', 其他: '#a8a29e' }
 
+/** 按日视图快捷档：本月 / 近7天 / 近30天 / 本年（后端区间上限 92 天，超出会被挡回） */
+const DAY_PRESETS = [
+  { value: 'month', label: '本月', from: 'month' },
+  { value: '7d', label: '近7天', hours: 168 },
+  { value: '30d', label: '近30天', hours: 720 },
+  { value: 'year', label: '本年', from: 'year' }
+]
+
 const viewMode = ref('month')
 const month = ref(new Date().toISOString().slice(0, 7))
 const year = ref(new Date().getFullYear().toString())
+// 按日视图窗口（日期级 yyyy-MM-dd），由 TimeRangeBar 维护；初始本月
+const dayRange = reactive({
+  start: new Date().toISOString().slice(0, 8) + '01',
+  end: new Date().toISOString().slice(0, 10)
+})
 const data = reactive({ groups: [], rows: [], infectionNote: '' })
 const yearData = reactive({ months: [], yearSum: {} })
+const dailyData = reactive({ days: [], groups: [] })
 const yearChart = ref(null)
 
-const hasData = computed(() =>
-  viewMode.value === 'month'
-    ? (data.groups || []).length > 0 || (data.rows || []).length > 0
-    : (yearData.months || []).some((m) => (m.groups || []).some((g) => g.placed > 0 || g.removed > 0))
-)
+// 导管类型管理
+const cfgVisible = ref(false)
+const cfgRows = ref([])
+const cfgForm = reactive({ id: null, tubeCode: '', tubeName: '', groupName: '其他', riskLevel: '中', sortNo: 0, remark: '' })
+
+const hasData = computed(() => {
+  if (viewMode.value === 'month')
+    return (data.groups || []).length > 0 || (data.rows || []).length > 0
+  if (viewMode.value === 'day')
+    return (dailyData.days || []).some((d) => (d.groups || []).some((g) => g.newPlaced > 0 || g.removed > 0))
+  return (yearData.months || []).some((m) => (m.groups || []).some((g) => g.placed > 0 || g.removed > 0))
+})
 
 const yearRows = computed(() => yearData.months || [])
+const dayGroupList = computed(() => (dailyData.groups || []).length ? dailyData.groups : GROUPS)
+
+/** 按日视图时间区间条：更新窗口并重查（快捷档与自定义都走这里） */
+function onDayRangeChange(p) {
+  if (!p.start || !p.end) return
+  dayRange.start = p.start.slice(0, 10)
+  dayRange.end = p.end.slice(0, 10)
+  load()
+}
+const cfgGroupOptions = computed(() => {
+  const set = new Set(GROUPS)
+  for (const r of cfgRows.value) if (r.groupName) set.add(r.groupName)
+  return [...set]
+})
 
 function groupLabel(g) {
   return { CVC: '中心静脉导管(CVC)', 导尿管: '导尿管', 气道导管: '气道导管(插管/气切)', 其他: '其他导管' }[g] || g
@@ -164,6 +300,66 @@ function groupClass(g) {
 function cell(row, group, field) {
   const g = (row.groups || []).find((x) => x.group === group)
   return g ? g[field] : 0
+}
+function dayCell(row, group, field) {
+  return cell(row, group, field)
+}
+
+// ---------- 导管类型管理 ----------
+async function openCfg() {
+  cfgVisible.value = true
+  await loadCfg()
+}
+async function loadCfg() {
+  try {
+    const res = await request.get('/tube/groups')
+    const list = Array.isArray(res) ? res : (res && res.data) || []
+    cfgRows.value = list
+  } catch (e) {
+    console.error(e)
+  }
+}
+function editCfg(row) {
+  Object.assign(cfgForm, {
+    id: row.id, tubeCode: row.tubeCode, tubeName: row.tubeName || '',
+    groupName: row.groupName || '其他', riskLevel: row.riskLevel || '中',
+    sortNo: row.sortNo || 0, remark: row.remark || ''
+  })
+}
+function resetCfgForm() {
+  Object.assign(cfgForm, { id: null, tubeCode: '', tubeName: '', groupName: '其他', riskLevel: '中', sortNo: 0, remark: '' })
+}
+async function saveCfg() {
+  if (!cfgForm.tubeCode || !cfgForm.tubeCode.trim()) {
+    ElMessage.warning('请填写导管编码')
+    return
+  }
+  try {
+    await request.post('/tube/groups/save', { ...cfgForm, tubeCode: cfgForm.tubeCode.trim() })
+    ElMessage.success(cfgForm.id ? '已更新' : '已新增')
+    resetCfgForm()
+    await loadCfg()
+    if (viewMode.value !== 'year') load()
+  } catch (e) {
+    // request 拦截器已弹过友好提示，这里不再重复
+  }
+}
+async function delCfg(row) {
+  try {
+    await ElMessageBox.confirm(`停用后「${row.tubeCode}」恢复系统默认归类（历史配置保留），确定停用？`, '停用配置', {
+      confirmButtonText: '停用', cancelButtonText: '取消', type: 'warning'
+    })
+  } catch (e) {
+    return
+  }
+  try {
+    await request.delete(`/tube/groups/${row.id}`)
+    ElMessage.success('已停用')
+    await loadCfg()
+    if (viewMode.value !== 'year') load()
+  } catch (e) {
+    // request 拦截器已弹过友好提示
+  }
 }
 
 function exportXlsx() {
@@ -181,6 +377,13 @@ async function load() {
       // 换用裸 axios 会拿到 {code,message,data}。整包 Object.assign 的后果是
       // data.groups 永远为空 —— 页面「暂无数据」而接口明明返回了 4 组 30 行。
       Object.assign(data, res && res.groups ? res : (res && res.data) || {})
+    } else if (viewMode.value === 'day') {
+      // 自定义区间优先（含快捷档解析出的区间）；初始 dayRange=本月
+      const res = await request.get('/tube/daily', {
+        params: { startDate: dayRange.start, endDate: dayRange.end }
+      })
+      const d = res && res.days ? res : (res && res.data) || {}
+      Object.assign(dailyData, { days: d.days || [], groups: d.groups || [] })
     } else {
       const res = await request.get('/tube/yearly', { params: { year: year.value } })
       Object.assign(yearData, res && res.months ? res : (res && res.data) || {})
@@ -268,5 +471,11 @@ onMounted(load)
 .tube-risk.hit span { color: #b91c1c; }
 .tube-risk.hit b { color: #dc2626; }
 .g-tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #f1f5f9; color: #475569; }
+/* 危重等级标签：高危红、中危琥珀、低危默认灰 */
+.risk-tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #f5f5f4; color: #78716c; }
+.risk-tag.r-high { background: #fef2f2; color: #dc2626; font-weight: 700; }
+.risk-tag.r-mid { background: #fffbeb; color: #b45309; }
+.num-hit { color: #dc2626; font-weight: 700; }
+.cfg-form .el-form-item { margin-bottom: 8px; }
 /* 列数由 auto-fit 自适应（minmax 210px），窄屏自动降到 2 列 / 1 列，无需断点 */
 </style>

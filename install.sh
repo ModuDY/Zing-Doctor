@@ -289,6 +289,14 @@ FULL_SQL=(
     "51_quality_rule_local_gap.sql"
     # 52 导管相关感染确诊页注册
     "52_device_infection_page.sql"
+    # 53 导管类型分组配置表（自定义导管类型 + 危重等级）
+    "53_tube_group_config.sql"
+    # 54 院感分析 / ARDS 全院筛查页面注册
+    "54_infection_ards_pages.sql"
+    # 55 血流动力学与心功能 / ADL（Barthel）手工录入表
+    "55_hemodynamics_adl.sql"
+    # 56 血流动力学 / 床旁超声教学页面注册
+    "56_manual_pages.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -355,6 +363,14 @@ FULL_SQL_JDBC=(
     "51_quality_rule_local_gap.sql"
     # 52 导管相关感染确诊页注册
     "52_device_infection_page.sql"
+    # 53 导管类型分组配置表（自定义导管类型 + 危重等级）
+    "53_tube_group_config.sql"
+    # 54 院感分析 / ARDS 全院筛查页面注册
+    "54_infection_ards_pages.sql"
+    # 55 血流动力学与心功能 / ADL（Barthel）手工录入表
+    "55_hemodynamics_adl.sql"
+    # 56 血流动力学 / 床旁超声教学页面注册
+    "56_manual_pages.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -439,6 +455,14 @@ INCREMENTAL_SQL=(
     "51_quality_rule_local_gap.sql"
     # 52 导管相关感染确诊页注册
     "52_device_infection_page.sql"
+    # 53 导管类型分组配置表（自定义导管类型 + 危重等级）
+    "53_tube_group_config.sql"
+    # 54 院感分析 / ARDS 全院筛查页面注册
+    "54_infection_ards_pages.sql"
+    # 55 血流动力学与心功能 / ADL（Barthel）手工录入表
+    "55_hemodynamics_adl.sql"
+    # 56 血流动力学 / 床旁超声教学页面注册
+    "56_manual_pages.sql"
 )
 
 # ---------------- SQL 清单自检 ----------------

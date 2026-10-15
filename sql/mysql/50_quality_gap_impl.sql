@@ -117,9 +117,39 @@ UPDATE `quality_fact_def`
        `note`               = 'ICU 医护人员花名册（config_staff）；排班表未启用，以档案科室近似全职口径',
        `update_time`        = CURRENT_TIMESTAMP
  WHERE `fact_name` = 'fact_staff';
+UPDATE `quality_fact_def`
+   SET `status`             = 'ACTIVE',
+       `domain_code`        = '患者流转',
+       `source_table`       = 'patient_info',
+       `alias`              = 'pi',
+       `patient_key`        = NULL,
+       `in_hospital_no_key` = NULL,
+       `patient_name_key`   = NULL,
+       `depart_key`         = 'depart_code',
+       `select_cols`        = '["pi.id AS patient_id", "pi.in_hospital_no AS in_hospital_no", "pi.name AS patient_name", "pi.gender AS gender", "pi.age AS age", "pi.depart_code AS depart_code", "pi.ward_name AS ward_name", "pi.out_vest_type AS out_vest_type", "pi.charge_doctor_name AS charge_doctor_name", "pi.in_depart_time AS in_depart_time", "pi.out_depart_time AS out_depart_time", "pi.out_hospital_time AS out_hospital_time", "pi.is_plan AS is_plan", "pi.bed_code AS bed_code", "CAST(pi.diagnosis_content AS VARCHAR(2000)) AS diagnosis_content"]',
+       `derive_cols`        = '["CASE WHEN pi.in_depart_time >= :periodStart THEN 1 ELSE 0 END AS admitted_in_period", "CASE WHEN pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS out_in_period", "CASE WHEN pi.out_vest_type = 3 THEN 1 ELSE 0 END AS died", "CASE WHEN pi.out_vest_type = 3 AND pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS died_in_period", "CASE WHEN (pi.out_vest_type IS NULL OR pi.out_vest_type <> 3) AND pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS survived_out_in_period", "DATEDIFF(DAY, CASE WHEN pi.in_depart_time < :periodStart THEN :periodStart ELSE pi.in_depart_time END, CASE WHEN (pi.out_depart_time IS NULL OR pi.out_depart_time > :periodEnd) THEN :periodEnd ELSE pi.out_depart_time END) AS stay_days", "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE ''%术后%'' OR d.diag_name LIKE ''%手术后%'')) THEN 1 ELSE 0 END AS post_op", "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info\" p2 WHERE p2.in_hospital_no = pi.in_hospital_no AND p2.id <> pi.id AND p2.del_flag = 0 AND p2.out_depart_time IS NOT NULL AND p2.out_depart_time < pi.in_depart_time AND DATEDIFF(HOUR, p2.out_depart_time, pi.in_depart_time) <= 48) THEN 1 ELSE 0 END AS readmit_48h"]',
+       `where_conds`        = '["pi.del_flag = 0", "pi.in_depart_time IS NOT NULL", "pi.in_depart_time < :periodEnd", "(pi.out_depart_time IS NULL OR pi.out_depart_time >= :periodStart)"]',
+       `group_cols`         = '[]',
+       `note`               = 'ICU 患者主表；床日按「本周期 ∩ 在院区间」取交集，跨月自动切分',
+       `update_time`        = CURRENT_TIMESTAMP
+ WHERE `fact_name` = 'fact_patient_stay';
 
 -- ---- 指标定义更新 ----
 
+UPDATE `quality_metric_def`
+   SET `impl_status`            = 'IMPL',
+       `value_type`             = 'COUNT',
+       `agg`                    = 'PT_COUNT',
+       `scale`                  = NULL,
+       `expr_where`             = 'post_op = 1 AND is_plan = 0 AND admitted_in_period = 1',
+       `expr_numerator`         = NULL,
+       `expr_denominator_where` = NULL,
+       `dims`                   = '["depart_code"]',
+       `patient_fields`         = NULL,
+       `remark`                 = '2026-10-15落地：源字段 patient_info.is_plan=0（非计划转入，业务方确认口径）+诊断文本术后；2024版ICU-14的「非早期预警/麻醉诱导前无计划」细分需麻醉记录，当前按源系统计划标记计',
+       `expr_version`           = `expr_version` + 1,
+       `update_time`            = CURRENT_TIMESTAMP
+ WHERE `index_code` = 'quality_20';
 UPDATE `quality_metric_def`
    SET `impl_status`            = 'IMPL',
        `value_type`             = 'COUNT',

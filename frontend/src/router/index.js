@@ -66,6 +66,30 @@ const routes = [
     meta: { title: '肾功能与电解质趋势' }
   },
   {
+    path: '/page/infection-watch',
+    name: 'infectionWatch',
+    component: () => import('../views/InfectionWatch.vue'),
+    meta: { title: '院感分析' }
+  },
+  {
+    path: '/page/ards-screen',
+    name: 'ardsScreen',
+    component: () => import('../views/ArdsScreen.vue'),
+    meta: { title: 'ARDS 全院筛查' }
+  },
+  {
+    path: '/page/hemodynamics',
+    name: 'hemodynamics',
+    component: () => import('../views/Hemodynamics.vue'),
+    meta: { title: '血流动力学与心功能' }
+  },
+  {
+    path: '/page/echo-teaching',
+    name: 'echoTeaching',
+    component: () => import('../views/EchoTeaching.vue'),
+    meta: { title: '床旁超声教学' }
+  },
+  {
     path: '/page/department-cockpit',
     name: 'departmentCockpit',
     component: () => import('../views/DepartmentCockpit.vue'),

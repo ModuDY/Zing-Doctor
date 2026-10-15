@@ -108,6 +108,24 @@ export function fetchSedationMonitor(patientId, options = {}) {
 }
 
 /**
+ * 窗口内阿片类镇痛药执行医嘱（只读）：芬太尼/瑞芬/舒芬、吗啡、地佐辛等。
+ * 与 fetchSedationMonitor 同窗口参数，供监测页「镇痛药使用与评分关联」对照。
+ */
+export function fetchAnalgesia(patientId, options = {}) {
+  const params = {}
+  if (options.start && options.end) {
+    params.start = options.start
+    params.end = options.end
+  } else {
+    params.hours = options.hours || 24
+  }
+  return request.get(`/workbench/patients/${patientId}/analgesia`, {
+    params,
+    silentError: true
+  })
+}
+
+/**
  * 单患者营养支持分析（只读）：按医嘱实际给入量（逐小时明细）× 配方密度，
  * 估算肠内/肠外能量(kcal)与蛋白质(g)。
  *

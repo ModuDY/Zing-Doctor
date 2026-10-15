@@ -44,6 +44,8 @@
     - "pi.in_depart_time AS in_depart_time"
     - "pi.out_depart_time AS out_depart_time"
     - "pi.out_hospital_time AS out_hospital_time"
+    # 是否计划转入（2024版ICU-14「非计划转入」判定源，1=计划 0=非计划）
+    - "pi.is_plan AS is_plan"
     # 患者明细的默认列「床号 / 诊断」直接取自患者主表。
     # 这两列不参与任何指标表达式，只为让明细里那两列有值 —— 明细 SQL 只 select
     # 事实层投影过的列，不在这里带出来，页面上就只能是空白。
@@ -68,7 +70,8 @@
     - "CASE WHEN (pi.out_vest_type IS NULL OR pi.out_vest_type <> 3) AND pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS survived_out_in_period"
     # 床日数：本周期与在院区间的交集天数（跨月切分的实现点）
     - "DATEDIFF(DAY, CASE WHEN pi.in_depart_time < :periodStart THEN :periodStart ELSE pi.in_depart_time END, CASE WHEN (pi.out_depart_time IS NULL OR pi.out_depart_time > :periodEnd) THEN :periodEnd ELSE pi.out_depart_time END) AS stay_days"
-    # 术后转入：诊断文本含「术后」。非计划标识（手术计划状态）当前无源，见 quality_20 说明
+    # 术后转入：诊断文本含「术后」。非计划标识接源字段 is_plan（2026-10-15 连库确认：
+    # patient_info.is_plan tinyint，1=计划转入 0=非计划转入），见 quality_20 说明
     - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE '%术后%' OR d.diag_name LIKE '%手术后%')) THEN 1 ELSE 0 END AS post_op"
     # 48h 内重返 ICU：同一住院号下存在更早的一次转出，且与本转入间隔 <= 48h
     - "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info\" p2 WHERE p2.in_hospital_no = pi.in_hospital_no AND p2.id <> pi.id AND p2.del_flag = 0 AND p2.out_depart_time IS NOT NULL AND p2.out_depart_time < pi.in_depart_time AND DATEDIFF(HOUR, p2.out_depart_time, pi.in_depart_time) <= 48) THEN 1 ELSE 0 END AS readmit_48h"

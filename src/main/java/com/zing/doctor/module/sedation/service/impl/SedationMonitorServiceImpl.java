@@ -31,6 +31,7 @@ import java.util.Map;
 public class SedationMonitorServiceImpl implements SedationMonitorService {
 
     private final SedationAssessMapper sedationAssessMapper;
+    private final com.zing.doctor.icu.mapper.IcuPatientMapper icuPatientMapper;
 
     /** 时间窗上下限（小时），与前端快捷项一致，自定义不得超过 30 天。 */
     private static final int DEFAULT_HOURS = 24;
@@ -165,5 +166,34 @@ public class SedationMonitorServiceImpl implements SedationMonitorService {
         r.getCpot().setNote("数据暂不可用");
         r.getRass().setNote("数据暂不可用");
         r.getCam().setNote("数据暂不可用");
+    }
+
+    @Override
+    public java.util.List<java.util.Map<String, Object>> analgesiaDrugs(WorkbenchPatient patient, Integer hours,
+                                                                        String startIso, String endIso) {
+        boolean hasStart = startIso != null && !startIso.trim().isEmpty();
+        boolean hasEnd = endIso != null && !endIso.trim().isEmpty();
+        if (hasStart != hasEnd) {
+            throw new IllegalArgumentException("自定义起止时间需同时提供开始与结束");
+        }
+        LocalDateTime end;
+        LocalDateTime start;
+        if (hasStart) {
+            start = parseIso(startIso.trim(), "开始");
+            end = parseIso(endIso.trim(), "结束");
+            if (!end.isAfter(start)) {
+                throw new IllegalArgumentException("结束时间必须晚于开始时间");
+            }
+            if (Duration.between(start, end).toMinutes() > (long) MAX_HOURS * 60) {
+                throw new IllegalArgumentException("自定义时间范围不能超过 30 天");
+            }
+        } else {
+            int windowHours = normalizeHours(hours);
+            end = LocalDateTime.now();
+            start = end.minusHours(windowHours);
+        }
+        DateTimeFormatter iso = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+        return icuPatientMapper.selectOpioidExecuteByRange(
+                patient.getInHospitalNo(), start.format(iso), end.format(iso));
     }
 }

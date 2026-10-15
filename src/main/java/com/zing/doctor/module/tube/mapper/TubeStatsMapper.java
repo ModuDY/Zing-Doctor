@@ -109,4 +109,27 @@ public interface TubeStatsMapper {
     List<Map<String, Object>> yearlyCounts(@Param("start") String start,
                                            @Param("end") String end,
                                            @Param("departCode") String departCode);
+
+    /**
+     * 按日明细的原始行：本周期内有置管/拔管/带出事件、或整段留置覆盖本周期的导管行。
+     * 每日计数（当日新置/拔管/非计划/在管）由 Service 按天切分计算。
+     */
+    @Select("SELECT "
+            + "  pt.tube_code AS tube_code, "
+            + "  MAX(pt.tube_name) AS tube_name, "
+            + "  pt.tube_set_start_time AS start_time, "
+            + "  pt.tube_set_end_time AS end_time, "
+            + "  pt.tube_take_away_time AS take_away_time, "
+            + "  MAX(pt.is_not_plan_extubation) AS is_not_plan_extubation, "
+            + "  MAX(pt.is_reintubation24) AS is_reintubation24 "
+            + "FROM \"zing_icu_db_prod\".\"patient_tube\" pt "
+            + "JOIN \"zing_icu_db_prod\".\"patient_info\" pi ON pi.id = pt.patient_id "
+            + "WHERE pt.del_flag = 0 AND pi.del_flag = 0 "
+            + "  AND (#{departCode} IS NULL OR #{departCode} = 'ALL' OR pi.depart_code = #{departCode}) "
+            + "  AND pt.tube_set_start_time < #{end} "
+            + "  AND COALESCE(pt.tube_set_end_time, pt.tube_take_away_time, #{end}) >= #{start} "
+            + "GROUP BY pt.tube_code, pt.tube_set_start_time, pt.tube_set_end_time, pt.tube_take_away_time")
+    List<Map<String, Object>> dailyRows(@Param("start") String start,
+                                        @Param("end") String end,
+                                        @Param("departCode") String departCode);
 }

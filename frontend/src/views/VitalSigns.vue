@@ -71,7 +71,9 @@ const COLORS = ['#b45309', '#0e7490', '#dc2626', '#2563eb', '#059669', '#7c3aed'
 
 export default {
   name: 'VitalSigns',
-  components: { Refresh, InfoFilled, WarningFilled },
+  // Refresh 不进 components：模板用的是 :icon="refreshIcon"（属性查找），
+  // 注册成组件反而会被 ESLint 判为未使用组件。
+  components: { InfoFilled, WarningFilled },
   data() {
     return {
       // 图标必须作为实例属性暴露给模板：`:icon="Refresh"` 是属性查找，而不是组件解析，

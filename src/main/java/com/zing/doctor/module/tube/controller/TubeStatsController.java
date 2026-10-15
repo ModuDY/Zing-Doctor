@@ -64,6 +64,33 @@ public class TubeStatsController {
         return Result.ok(tubeStatsService.yearly(year, allowed));
     }
 
+    /**
+     * 按日视图：每天 × 导管类型组的置管/拔管/非计划/在管计数。
+     *
+     * @param yearMonth 形如 2026-09（startDate/endDate 缺省时按整月）
+     * @param startDate 自定义区间开始（yyyy-MM-dd，含），与 endDate 同时提供；上限 92 天
+     * @param endDate   自定义区间结束（yyyy-MM-dd，含），与 startDate 同时提供
+     */
+    @GetMapping("/daily")
+    public Result<Map<String, Object>> daily(@RequestParam(required = false) String yearMonth,
+                                             @RequestParam(required = false) String startDate,
+                                             @RequestParam(required = false) String endDate,
+                                             @RequestParam(required = false) String departCode,
+                                             HttpServletRequest request) {
+        String allowed = departScopeService.resolveQueryDepart(currentUsername(request), departCode);
+        try {
+            if ((startDate == null || startDate.isEmpty()) != (endDate == null || endDate.isEmpty())) {
+                return Result.fail("自定义区间需同时提供开始与结束日期");
+            }
+            if ((startDate == null || startDate.isEmpty()) && (yearMonth == null || yearMonth.isEmpty())) {
+                return Result.fail("yearMonth 或自定义区间必填其一");
+            }
+            return Result.ok(tubeStatsService.daily(yearMonth, startDate, endDate, allowed));
+        } catch (IllegalArgumentException e) {
+            return Result.fail(e.getMessage());
+        }
+    }
+
     /** 月度明细导出（xlsx：明细 + 汇总两个 sheet）。 */
     @GetMapping("/export/monthly")
     public void exportMonthly(@RequestParam String yearMonth,

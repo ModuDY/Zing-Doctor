@@ -6,16 +6,7 @@
         <span v-if="departName" class="depart-pill">{{ departName }}</span>
       </div>
       <div class="header-right">
-        <el-date-picker
-          v-model="dateRange"
-          type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-          value-format="YYYY-MM-DD"
-          :clearable="false"
-          class="date-picker"
-        />
+        <TimeRangeBar granule="date" :presets="APACHE_PRESETS" default-preset="month" :max-span-days="0" @change="onRangeChange" />
         <el-button type="primary" @click="loadData" class="query-btn">
           <el-icon><Search /></el-icon> 查询
         </el-button>
@@ -172,6 +163,15 @@ import { appendExternalContext } from '../utils/external'
 import { operatorLabel } from '../utils/operator'
 import * as echarts from '../utils/echarts'
 import { currentDepart } from '../utils/departContext'
+import TimeRangeBar from '../components/TimeRangeBar.vue'
+
+/** 快捷档：本月 / 近30天 / 近90天 / 本年；自定义不限跨度（分析期可跨年） */
+const APACHE_PRESETS = [
+  { value: 'month', label: '本月', from: 'month' },
+  { value: '30d', label: '近30天', hours: 720 },
+  { value: '90d', label: '近90天', hours: 2160 },
+  { value: 'year', label: '本年', from: 'year' }
+]
 
 const route = useRoute()
 const router = useRouter()
@@ -191,6 +191,7 @@ const departCodeInvalidText = computed(() => {
   return '缺少科室权限参数，请通过外链访问'
 })
 
+/** 查询窗口（YYYY-MM-DD 日期级），由 TimeRangeBar 的 change 维护；默认本月 */
 const dateRange = ref([])
 const records = ref([])
 const loading = ref(false)
@@ -234,6 +235,13 @@ onUnmounted(() => {
     distributionChart = null
   }
 })
+
+/** 统一时间区间条：把空间格式窗口转成日期级 yyyy-MM-dd 后查询（快捷档变化即时查询） */
+function onRangeChange(p) {
+  if (!p.start || !p.end) return
+  dateRange.value = [p.start.slice(0, 10), p.end.slice(0, 10)]
+  loadData()
+}
 
 async function loadData() {
   if (!dateRange.value || dateRange.value.length < 2) {

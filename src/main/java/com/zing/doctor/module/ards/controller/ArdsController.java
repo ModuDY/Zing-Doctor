@@ -20,6 +20,9 @@ public class ArdsController {
     @Autowired
     private ArdsService ardsService;
 
+    @Autowired
+    private com.zing.doctor.icu.service.UserDepartScopeService departScopeService;
+
     /**
      * ARDS总览：统计数据 + 患者列表
      */
@@ -65,6 +68,29 @@ public class ArdsController {
             return Result.ok(list);
         } catch (Exception e) {
             log.error("获取氧合指数历史失败: patientId={}", patientId, e);
+            return Result.fail("获取失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * ARDS 全院筛查：本周期内「在院或已出科」且诊断含 ARDS 的患者（不限科室清单视图）。
+     * 科室权限：管理员/空 = 全院（ALL），普通账号收敛到本科室。
+     *
+     * @param startTime 周期开始（含），yyyy-MM-dd HH:mm:ss
+     * @param endTime   周期结束（不含），yyyy-MM-dd HH:mm:ss
+     */
+    @GetMapping("/hospital-screen")
+    public Result<Map<String, Object>> hospitalScreen(@RequestParam String startTime,
+                                                      @RequestParam String endTime,
+                                                      @RequestParam(required = false) String departCode,
+                                                      javax.servlet.http.HttpServletRequest request) {
+        try {
+            String username = request.getAttribute(com.zing.doctor.external.ExternalLinkInterceptor.ATTR_LOGIN_USER) == null
+                    ? null : String.valueOf(request.getAttribute(com.zing.doctor.external.ExternalLinkInterceptor.ATTR_LOGIN_USER));
+            String allowed = departScopeService.resolveQueryDepart(username, departCode);
+            return Result.ok(ardsService.hospitalScreen(startTime, endTime, allowed));
+        } catch (Exception e) {
+            log.error("ARDS全院筛查失败: startTime={}, endTime={}", startTime, endTime, e);
             return Result.fail("获取失败: " + e.getMessage());
         }
     }

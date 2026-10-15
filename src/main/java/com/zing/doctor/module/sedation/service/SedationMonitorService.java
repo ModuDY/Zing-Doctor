@@ -29,4 +29,17 @@ public interface SedationMonitorService {
      * @throws IllegalArgumentException 起止只传一个、格式错误、结束不晚于开始或窗口超过 30 天
      */
     SedationMonitorResponse analyze(WorkbenchPatient patient, Integer hours, String startIso, String endIso);
+
+    /**
+     * 窗口内阿片类镇痛药执行医嘱（芬太尼/瑞芬/舒芬、吗啡、地佐辛等），
+     * 供监测页「镇痛药使用与评分关联」区块 —— 药物暴露与 NRS/CPOT 评分同时间轴对照。
+     *
+     * @param patient  已通过科室权限校验的患者
+     * @param hours    自定义起止为空时的回溯小时数；null 默认 24，范围 1~720
+     * @param startIso 与 endIso 同时提供则优先（格式与约束同 {@link #analyze}）
+     * @param endIso   与 startIso 同时提供则优先
+     * @throws IllegalArgumentException 起止只传一个、格式错误或窗口超过 30 天
+     */
+    java.util.List<java.util.Map<String, Object>> analgesiaDrugs(WorkbenchPatient patient, Integer hours,
+                                                                 String startIso, String endIso);
 }

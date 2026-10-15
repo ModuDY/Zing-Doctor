@@ -19,9 +19,9 @@
 -- 本脚本由 tools/gen_sync_sql.py 从 classpath YAML 生成，
 -- 与 src/main/resources/quality/** 中 CHANGED_FACTS / CHANGED_METRICS 列出的条目逐字段一致；
 -- YAML 改动后需重跑生成器（python tools/gen_sync_sql.py）再执行本脚本。
--- 未纳入清单的条目不会被本脚本覆盖，即使 YAML 侧有改动 —— 整字段 SET 会给库里
--- 既有列写入 YAML 值，对「只改了 remark」的条目（quality_20 / quality_410 /
--- quality_421）风险大于收益，故刻意保持不同步，其口径备注以 YAML 为准。
+-- 未纳入 CHANGED 清单的条目不会被本脚本覆盖，即使 YAML 侧有改动 ——
+-- 整字段 SET 会给库里既有列写 YAML 值，仅改 remark 的条目（quality_410 /
+-- quality_421）风险大于收益，刻意保持不同步，口径备注以 YAML 为准。
 --
 -- 执行方式（SYSDBA）：
 --   disql SYSDBA/口令@host:port
@@ -174,11 +174,41 @@ UPDATE "zing_doctor_db_prod"."quality_fact_def"
        "note"               = 'ICU 医护人员花名册（config_staff）；排班表未启用，以档案科室近似全职口径',
        "update_time"        = CURRENT_TIMESTAMP
  WHERE "fact_name" = 'fact_staff';
+UPDATE "zing_doctor_db_prod"."quality_fact_def"
+   SET "status"             = 'ACTIVE',
+       "domain_code"        = '患者流转',
+       "source_table"       = 'patient_info',
+       "alias"              = 'pi',
+       "patient_key"        = NULL,
+       "in_hospital_no_key" = NULL,
+       "patient_name_key"   = NULL,
+       "depart_key"         = 'depart_code',
+       "select_cols"        = '["pi.id AS patient_id", "pi.in_hospital_no AS in_hospital_no", "pi.name AS patient_name", "pi.gender AS gender", "pi.age AS age", "pi.depart_code AS depart_code", "pi.ward_name AS ward_name", "pi.out_vest_type AS out_vest_type", "pi.charge_doctor_name AS charge_doctor_name", "pi.in_depart_time AS in_depart_time", "pi.out_depart_time AS out_depart_time", "pi.out_hospital_time AS out_hospital_time", "pi.is_plan AS is_plan", "pi.bed_code AS bed_code", "CAST(pi.diagnosis_content AS VARCHAR(2000)) AS diagnosis_content"]',
+       "derive_cols"        = '["CASE WHEN pi.in_depart_time >= :periodStart THEN 1 ELSE 0 END AS admitted_in_period", "CASE WHEN pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS out_in_period", "CASE WHEN pi.out_vest_type = 3 THEN 1 ELSE 0 END AS died", "CASE WHEN pi.out_vest_type = 3 AND pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS died_in_period", "CASE WHEN (pi.out_vest_type IS NULL OR pi.out_vest_type <> 3) AND pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS survived_out_in_period", "DATEDIFF(DAY, CASE WHEN pi.in_depart_time < :periodStart THEN :periodStart ELSE pi.in_depart_time END, CASE WHEN (pi.out_depart_time IS NULL OR pi.out_depart_time > :periodEnd) THEN :periodEnd ELSE pi.out_depart_time END) AS stay_days", "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 AND (d.diag_name LIKE ''%术后%'' OR d.diag_name LIKE ''%手术后%'')) THEN 1 ELSE 0 END AS post_op", "CASE WHEN EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info\" p2 WHERE p2.in_hospital_no = pi.in_hospital_no AND p2.id <> pi.id AND p2.del_flag = 0 AND p2.out_depart_time IS NOT NULL AND p2.out_depart_time < pi.in_depart_time AND DATEDIFF(HOUR, p2.out_depart_time, pi.in_depart_time) <= 48) THEN 1 ELSE 0 END AS readmit_48h"]',
+       "where_conds"        = '["pi.del_flag = 0", "pi.in_depart_time IS NOT NULL", "pi.in_depart_time < :periodEnd", "(pi.out_depart_time IS NULL OR pi.out_depart_time >= :periodStart)"]',
+       "group_cols"         = '[]',
+       "note"               = 'ICU 患者主表；床日按「本周期 ∩ 在院区间」取交集，跨月自动切分',
+       "update_time"        = CURRENT_TIMESTAMP
+ WHERE "fact_name" = 'fact_patient_stay';
 
 -- ---------------------------------------------------------------------
 -- C) 指标定义更新（impl_status/口径三要素，与 classpath YAML 一致）
 --    expr_version +1：口径变化可回溯历史值。
 -- ---------------------------------------------------------------------
+UPDATE "zing_doctor_db_prod"."quality_metric_def"
+   SET "impl_status"            = 'IMPL',
+       "value_type"             = 'COUNT',
+       "agg"                    = 'PT_COUNT',
+       "scale"                  = NULL,
+       "expr_where"             = 'post_op = 1 AND is_plan = 0 AND admitted_in_period = 1',
+       "expr_numerator"         = NULL,
+       "expr_denominator_where" = NULL,
+       "dims"                   = '["depart_code"]',
+       "patient_fields"         = NULL,
+       "remark"                 = '2026-10-15落地：源字段 patient_info.is_plan=0（非计划转入，业务方确认口径）+诊断文本术后；2024版ICU-14的「非早期预警/麻醉诱导前无计划」细分需麻醉记录，当前按源系统计划标记计',
+       "expr_version"           = "expr_version" + 1,
+       "update_time"            = CURRENT_TIMESTAMP
+ WHERE "index_code" = 'quality_20';
 UPDATE "zing_doctor_db_prod"."quality_metric_def"
    SET "impl_status"            = 'IMPL',
        "value_type"             = 'COUNT',

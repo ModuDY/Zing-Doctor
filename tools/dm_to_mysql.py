@@ -520,7 +520,10 @@ if __name__ == '__main__':
     MANUAL = {'25_rename_doctor_tables.sql', '26_rename_clinical_tables.sql',
               '27_restore_config_snapshot.sql',
               '50_quality_gap_impl.sql', '51_quality_rule_local_gap.sql',
-              '52_device_infection_page.sql'}
+              '52_device_infection_page.sql',
+              # 53-56 为手写脚本（达梦版含 PL/SQL 判重块，MySQL 镜像人工维护）
+              '53_tube_group_config.sql', '54_infection_ards_pages.sql',
+              '55_hemodynamics_adl.sql', '56_manual_pages.sql'}
 
     files = sorted(f for f in os.listdir(src_dir)
                    if f.endswith('.sql') and f not in MANUAL)

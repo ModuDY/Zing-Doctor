@@ -1529,6 +1529,34 @@ public interface IcuPatientMapper {
                                                     @Param("endTime") String endTime);
 
     /**
+     * ARDS 全院筛查（管理视角，不限定科室）：诊断含「急性呼吸窘迫综合征 / ARDS」、
+     * 且在本周期内「在院或已出科」的患者。与 {@link #selectArdsPatients} 的差异：
+     * <ul>
+     *   <li>不限定 {@code depart_code}（由参数注入，传 ALL = 全院，普通账号由 Service 收敛本科室）；</li>
+     *   <li>在院窗口取「入科 < 周期结束 且 (未出科 或 出科 >= 周期开始)」，与 fact_patient_stay
+     *       的周期口径一致 —— 出科时间窗口只看「已出科者」会漏掉筛查时点仍在科的患者；</li>
+     *   <li>带出科室列，供全院视图按科室分组。</li>
+     * </ul>
+     */
+    @Select("SELECT * FROM ("
+            + "SELECT pi.id AS patient_id, pi.in_hospital_no, pi.name AS patient_name, "
+            + "pi.bed_code, pi.gender, pi.depart_code, pi.ward_name, "
+            + "pi.in_depart_time, pi.out_depart_time, pi.is_ards "
+            + "FROM \"zing_icu_db_prod\".\"patient_info\" pi "
+            + "WHERE pi.del_flag = 0 "
+            + "AND (#{departCode} IS NULL OR #{departCode} = 'ALL' OR pi.depart_code = #{departCode}) "
+            + "AND pi.in_depart_time < #{endTime} "
+            + "AND (pi.out_depart_time IS NULL OR pi.out_depart_time >= #{startTime}) "
+            + "AND EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" pid "
+            + "  WHERE pid.in_hospital_no = pi.in_hospital_no AND pid.del_flag = 0 "
+            + "  AND (pid.diag_name LIKE '%急性呼吸窘迫综合征%' OR pid.diag_name LIKE '%ARDS%')) "
+            + "ORDER BY pi.in_depart_time DESC"
+            + ") WHERE ROWNUM <= 2000")
+    List<Map<String, Object>> selectArdsHospitalScreen(@Param("startTime") String startTime,
+                                                       @Param("endTime") String endTime,
+                                                       @Param("departCode") String departCode);
+
+    /**
      * 批量查询患者最新呼吸机参数（每个患者每个item取最新一条）。
      * item_code: oi_呼末潮气量, oi_peep, oi_FiO2(设置值), oi_呼吸频率(设置值), oi_呼末分钟通气量
      */
@@ -1705,6 +1733,37 @@ public interface IcuPatientMapper {
                                                               @Param("startTime") String startTime,
                                                               @Param("endTime") String endTime,
                                                               @Param("statusFilter") String statusFilter);
+
+    /**
+     * 阿片类镇痛药执行医嘱（与 {@link #selectVasopressorExecuteByRange} 同套路，
+     * 药名关键词换成镇痛药）：芬太尼关键词天然覆盖瑞芬太尼 / 舒芬太尼。
+     * 供镇痛镇静监测页的「镇痛药使用与评分关联」区块取数。
+     *
+     * <p>窗口口径与血管活性药一致：{@code start_time < 窗口结束 且 (未结束 或 结束 >= 窗口开始)}，
+     * 即「窗口内有给药动作」的执行单。
+     */
+    @Select("<script>"
+            + "SELECT e.id AS execute_id, e.in_hospital_no AS in_hospital_no, e.name AS advice_name, "
+            + "e.drug_now_speed AS drug_now_speed, e.drug_start_speed AS drug_start_speed, "
+            + "e.drug_speed_unit AS drug_speed_unit, "
+            + "e.start_time AS start_time, e.end_time AS end_time, "
+            + "d.drug_name AS drug_name, d.drug_dose AS drug_dose, d.drug_dose_unit AS drug_dose_unit, "
+            + "d.drug_one_dosage AS drug_one_dosage, d.drug_one_dosage_unit AS drug_one_dosage_unit, "
+            + "d.spec AS spec, d.liquid_amount AS drug_volume "
+            + "FROM \"zing_icu_db_prod\".\"patient_advice_execute\" e "
+            + "INNER JOIN \"zing_icu_db_prod\".\"patient_advice_execute_drug\" d "
+            + "  ON d.execute_id = e.id AND d.del_flag = 0 "
+            + "WHERE e.del_flag = 0 AND e.in_hospital_no = #{inHospitalNo} "
+            + "AND e.start_time &lt; #{endTime} "
+            + "AND (e.end_time IS NULL OR e.end_time &gt;= #{startTime}) "
+            + "AND (d.drug_name LIKE '%芬太尼%' OR d.drug_name LIKE '%吗啡%' "
+            + "  OR d.drug_name LIKE '%地佐辛%' OR d.drug_name LIKE '%布托啡诺%' "
+            + "  OR d.drug_name LIKE '%纳布啡%' OR d.drug_name LIKE '%氢吗啡酮%') "
+            + "ORDER BY e.start_time ASC"
+            + "</script>")
+    List<Map<String, Object>> selectOpioidExecuteByRange(@Param("inHospitalNo") String inHospitalNo,
+                                                         @Param("startTime") String startTime,
+                                                         @Param("endTime") String endTime);
 
     /**
      * 批量取血管活性药调速历史（用于还原取数窗口内的最高泵速）。

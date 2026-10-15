@@ -204,6 +204,41 @@ public class ArdsServiceImpl implements ArdsService {
         return list != null ? list : new ArrayList<>();
     }
 
+    @Override
+    public Map<String, Object> hospitalScreen(String startTime, String endTime, String departCode) {
+        List<Map<String, Object>> rows = icuPatientMapper.selectArdsHospitalScreen(startTime, endTime, departCode);
+        List<Map<String, Object>> patients = new ArrayList<>();
+        int inDept = 0;
+        Set<String> depts = new LinkedHashSet<>();
+        if (rows != null) {
+            for (Map<String, Object> p : rows) {
+                Map<String, Object> r = new LinkedHashMap<>(p);
+                LocalDateTime in = parseTime(str(p.get("in_depart_time")));
+                LocalDateTime out = p.get("out_depart_time") != null ? parseTime(str(p.get("out_depart_time"))) : null;
+                int stayDays = 0;
+                if (in != null) {
+                    LocalDateTime bound = out != null ? out : LocalDateTime.now();
+                    stayDays = (int) Math.max(0, java.time.Duration.between(in, bound).toDays());
+                }
+                r.put("stay_days", stayDays);
+                r.put("in_department", out == null);
+                if (out == null) inDept++;
+                String dc = str(p.get("depart_code"));
+                if (!dc.isEmpty()) depts.add(dc);
+                patients.add(r);
+            }
+        }
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("total", patients.size());
+        summary.put("in_department", inDept);
+        summary.put("discharged", patients.size() - inDept);
+        summary.put("depart_count", depts.size());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("summary", summary);
+        result.put("patients", patients);
+        return result;
+    }
+
     // ==================== 工具方法 ====================
 
     private Map<String, Object> buildEmptyResult() {

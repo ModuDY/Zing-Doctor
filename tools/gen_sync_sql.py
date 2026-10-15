@@ -16,12 +16,14 @@ def load(pattern):
 facts = {d['fact']: d for d in load('src/main/resources/quality/facts/*.yaml')}
 metrics = {d['code']: d for d in load('src/main/resources/quality/metrics/*.yaml')}
 
-CHANGED_FACTS = ['fact_dvt', 'fact_device', 'fact_bed', 'fact_ards', 'fact_staff']
+CHANGED_FACTS = ['fact_dvt', 'fact_device', 'fact_bed', 'fact_ards', 'fact_staff', 'fact_patient_stay']
 # 只同步「口径/实现真正变了」的指标：下面的 UPDATE 是整字段覆盖，会把库里的
 # dims / patient_fields 等列一并写成 YAML 值。因此仅改过 remark 的指标
-# （quality_20 / quality_410 / quality_421）刻意不入清单 —— 它们不参与计算，
+# （quality_410 / quality_421）刻意不入清单 —— 它们不参与计算，
 # 文案以 YAML 为准即可，不值得为此冒覆盖库内既有列的风险。
 CHANGED_METRICS = [
+    # 患者流转：术后非计划转入（2024版 ICU-14，源 patient_info.is_plan）
+    'quality_20',
     # DVT 预防（2024版 ICU-07）
     'quality_14', 'quality_404', 'quality_405', 'quality_406', 'quality_407',
     'quality_408', 'quality_409', 'quality_411', 'quality_412', 'quality_413',
@@ -72,9 +74,9 @@ dm.append("""-- ================================================================
 -- 本脚本由 tools/gen_sync_sql.py 从 classpath YAML 生成，
 -- 与 src/main/resources/quality/** 中 CHANGED_FACTS / CHANGED_METRICS 列出的条目逐字段一致；
 -- YAML 改动后需重跑生成器（python tools/gen_sync_sql.py）再执行本脚本。
--- 未纳入清单的条目不会被本脚本覆盖，即使 YAML 侧有改动 —— 整字段 SET 会给库里
--- 既有列写入 YAML 值，对「只改了 remark」的条目（quality_20 / quality_410 /
--- quality_421）风险大于收益，故刻意保持不同步，其口径备注以 YAML 为准。
+-- 未纳入 CHANGED 清单的条目不会被本脚本覆盖，即使 YAML 侧有改动 ——
+-- 整字段 SET 会给库里既有列写 YAML 值，仅改 remark 的条目（quality_410 /
+-- quality_421）风险大于收益，刻意保持不同步，口径备注以 YAML 为准。
 --
 -- 执行方式（SYSDBA）：
 --   disql SYSDBA/口令@host:port

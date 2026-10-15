@@ -29,7 +29,7 @@ public class LabTrendController {
 
     /** 支持的面板类型；不在白名单内直接挡回，不让未知 type 落到 Service 的兜底分支上。 */
     private static final Set<String> TYPES =
-            new HashSet<>(Arrays.asList("liver", "coag", "renal"));
+            new HashSet<>(Arrays.asList("liver", "coag", "renal", "infection"));
 
     private final IcuPatientService icuPatientService;
     private final UserDepartScopeService departScopeService;
@@ -54,7 +54,7 @@ public class LabTrendController {
             return Result.fail("无该患者科室权限");
         }
         if (!TYPES.contains(type)) {
-            return Result.fail("type 仅支持 liver / coag / renal");
+            return Result.fail("type 仅支持 liver / coag / renal / infection");
         }
         return Result.ok(labTrendService.trend(patientId, type, hours));
     }

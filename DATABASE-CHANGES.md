@@ -1450,3 +1450,40 @@ SELECT param_key, param_value, default_value FROM sys_param WHERE param_key = 'W
 - ⚠️ **50/51/52 的 MySQL 镜像属人工维护**：50 由 `tools/gen_sync_sql.py` 从 YAML 一并生成达梦版与 MySQL 版，51/52 为手写（达梦版带 schema 前缀与 PL/SQL 块）。三者已登记进 `tools/dm_to_mysql.py` 的 `MANUAL`，否则重跑转换器会用机械结果覆盖它们。
 - 50 号脚本头部声明的「与 YAML 逐字段一致」只覆盖 `CHANGED_FACTS` / `CHANGED_METRICS` 清单内的条目。只改过 `remark` 的 `quality_20` / `quality_410` / `quality_421` 刻意不入清单：UPDATE 是整字段覆盖，会连带把库内既有的 `dims` / `patient_fields` 写成 YAML 值，风险大于收益，它们的文案以 YAML 为准。
 - `quality_302` / `quality_303` 改为自动计数后，单测 `QualityDerivedMetricTest` 的断言同步由 `MANUAL` 改为 `IMPL`。
+
+---
+
+### 2026-10-15 · 53~56 导管分组配置 / 院感与 ARDS 页 / 血流动力学与 ADL / 超声教学页
+
+同日第二批。**新建 3 张表**，注册 4 个页面，不涉及质控指标口径。
+
+**涉及对象**
+
+- 新表 `config_tube_group`（导管类型分组配置：`tube_code` → 分组名 / 危重等级 / 排序 / 说明；唯一索引
+  `uk_config_tube_group_code` 保证一 code 一配置）。**无种子数据，空表起步**：未配置时
+  `TubeStatsService#groupOf` 回落到内置白名单（CVC / 导尿管 / 气道导管），再兜底 `FALLBACK_TUBE_CODE`，
+  最后归「其他」—— 配置表只做覆盖，不构成启动依赖，所以漏跑此脚本的后果是「分组不可配」而非功能不可用。
+- 新表 `patient_doc_hemodynamics`（血流动力学与心功能录入：CVP / CO / CI / SVR / ScvO₂ / LVEF / 心超所见等）。
+- 新表 `patient_doc_adl`（ADL 日常生活能力评分录入）。
+- 页面注册 4 条：`infection-watch`（单患者院感分析）、`ards-screen`（全院 ARDS 筛查，挂质控/管理菜单组）、
+  `hemodynamics`（血流动力学与心功能，含 ADL 页签）、`echo-teaching`（床旁超声教学）。
+
+**执行脚本**（顺序 53 → 54 → 55 → 56；54/56 只注册页面，53/55 建表，彼此无依赖）
+
+| 内容 | 达梦 | MySQL / MariaDB |
+|---|---|---|
+| 导管分组配置表 | `sql/53_tube_group_config.sql` | `sql/mysql/53_tube_group_config.sql` |
+| 院感 + ARDS 页注册 | `sql/54_infection_ards_pages.sql` | `sql/mysql/54_infection_ards_pages.sql` |
+| 血流动力学 + ADL 表 | `sql/55_hemodynamics_adl.sql` | `sql/mysql/55_hemodynamics_adl.sql` |
+| 血流动力学 + 超声教学页注册 | `sql/56_manual_pages.sql` | `sql/mysql/56_manual_pages.sql` |
+
+**备注**
+
+- 53 号达梦版用 PL/SQL 做列/索引存在性判断 + 动态 DDL，无法机械转换，四个 MySQL 镜像统一登记进
+  `tools/dm_to_mysql.py` 的 `MANUAL`，属人工维护（同 25/26/50/51/52）。
+- 四个脚本已同步登记进 `install.sh`（三处数组）、`install-mariadb-debian.sh` 的 `MAIN_SQL`、
+  `tools/build-delivery.ps1` 的 `myOrder` —— 50~52 刚在这三处漏登记踩过坑，这批没有重演。
+- `patient_doc_hemodynamics` / `patient_doc_adl` 的读写接口沿用确诊表的权限模型
+  （科室范围校验 + `id` 与 `patientId` 双重匹配的归属校验）。三处 Controller 的权限校验代码
+  （`Permission` 内部类 + `checkRead/checkWrite`）目前是**逐字拷贝**关系，将来加规则（如按角色限制删除）
+  必须同步改三处，否则会出现「有的页面能删、有的不能」的不一致。

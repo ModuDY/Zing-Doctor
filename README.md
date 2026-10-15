@@ -48,6 +48,10 @@
 | 辅助 | 导管统计分析（CVC / 导尿 / 气道三管置管、拔管、非计划拔管与留置日） | `tube-stats` | `/page/tube-stats` |
 | 辅助 | 导管相关感染确诊（VAP / CRBSI / CAUTI 医生确诊录入，质控指标源） | `device-infection` | `/page/device-infection` |
 | 辅助 | 科室驾驶舱（患者负荷、器官支持、床位与设备、评分分布、本月质控） | `department-cockpit` | `/page/department-cockpit` |
+| 辅助 | 血流动力学与心功能（CVP / CO / CI / SVR / ScvO₂ / LVEF 趋势，含 ADL 评分） | `hemodynamics` | `/page/hemodynamics` |
+| 辅助 | 院感分析（单患者感染指标、培养与药敏、抗菌药使用时间轴） | `infection-watch` | `/page/infection-watch` |
+| 辅助 | 床旁超声教学（标准切面与测量教学材料） | `echo-teaching` | `/page/echo-teaching` |
+| 质控 | ARDS 全院筛查（按柏林标准筛出未识别 ARDS，挂质控/管理菜单组） | `ards-screen` | `/page/ards-screen` |
 | 系统 | 参数设置（归档接口地址、归档目录等系统参数，含「ARDS 数据映射」页签入口） | `param-config` | `/page/param-config` |
 | 系统 | 交付自检（医生库 / ICU 数据源 / 复评表 / 当前运行包构建信息） | `system-check` | `/page/system-check` |
 | 质控 | 质控指标看板（127 条指标按域分组，含口径血缘下钻、覆盖率报告、事实层与计算批次） | `quality-board` | `/page/quality-board` |
@@ -55,7 +59,7 @@
 | 质控 | 患者月度质控指标（单患者 1-12 月质控明细） | `quality-patient-monthly` | `/page/quality-patient-monthly` |
 | 质控 | 质控指标配置（口径编辑、事实层配置、变更历史与回滚、批量导入导出，保存即热生效） | `quality-config` | `/page/quality-config` |
 
-> 共 41 个已注册外链页面（`sys_page_config` 内共 43 条，另 2 条是下面提到的明细页）；
+> 共 45 个已注册外链页面（`sys_page_config` 内共 47 条，另 2 条是下面提到的明细页）；
 > `abx-ddd-patients` / `abx-mdro-patients` 为总览页内部跳转的明细页，不经 `/entry` 外链进入。
 >
 > `ards-prone-config` 已注册、可外链直达，但常规入口是**系统设置 → 参数设置 →「ARDS 数据映射」页签**：映射是「37 项 × 多通道」的规则表（通道/匹配方式/匹配值/优先级/时间窗/单位换算），塞进键值型参数只能编辑一坨 JSON，无法表格浏览、候选选择与试采核对，故单独建表 `config_prone_item`，只把入口合进参数设置。

@@ -707,6 +707,12 @@ step "导入建表与种子脚本（幂等，可重复执行）"
     50_quality_gap_impl.sql
     51_quality_rule_local_gap.sql
     52_device_infection_page.sql
+    # 53 导管类型分组配置表 / 54 院感分析+ARDS筛查页注册
+    # 55 血流动力学+ADL 手工录入表 / 56 血流动力学+超声教学页注册
+    53_tube_group_config.sql
+    54_infection_ards_pages.sql
+    55_hemodynamics_adl.sql
+    56_manual_pages.sql
     41_patient_summary_page.sql
     )
   # 清单自检：登记的脚本必须存在；目录里也不能有未登记的孤岛脚本

@@ -16,25 +16,7 @@
         </div>
       </div>
       <div class="header-right">
-        <el-radio-group v-model="hours" size="small" @change="onQuickRangeChange">
-          <el-radio-button :label="24">近24小时</el-radio-button>
-          <el-radio-button :label="72">近3天</el-radio-button>
-          <el-radio-button :label="168">近7天</el-radio-button>
-          <el-radio-button :label="720">近30天</el-radio-button>
-        </el-radio-group>
-        <el-date-picker
-          v-model="customRange"
-          type="datetimerange"
-          size="small"
-          class="range-picker"
-          range-separator="至"
-          start-placeholder="自定义开始"
-          end-placeholder="自定义结束"
-          value-format="YYYY-MM-DDTHH:mm:ss"
-          :default-time="defaultTime"
-          :clearable="true"
-          @change="onCustomRangeChange"
-        />
+        <TimeRangeBar granule="datetime" :default-preset="'24h'" @change="onRangeChange" />
         <el-button :icon="Refresh" size="small" :loading="loading" @click="loadData">刷新</el-button>
       </div>
     </section>
@@ -122,13 +104,13 @@
 
 <script>
 import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import TimeRangeBar from '../components/TimeRangeBar.vue'
 import { fetchNutritionMonitor } from '../api/workbench'
 import { setCurrentPatient } from '../utils/patientContext'
 
 export default {
   name: 'NutritionMonitor',
-  components: { ArrowLeft, Refresh },
+  components: { ArrowLeft, Refresh, TimeRangeBar },
   data() {
     return {
       loading: false,
@@ -137,7 +119,6 @@ export default {
       window: { startTime: '', endTime: '' },
       hours: 24,
       customRange: [null, null],
-      defaultTime: new Date(2000, 0, 1, 0, 0, 0),
       totals: {
         enteralMl: 0, enteralKcal: 0, enteralProteinG: 0,
         parenteralMl: 0, parenteralKcal: 0, parenteralProteinG: 0,
@@ -169,28 +150,18 @@ export default {
     goBack() {
       this.$router.push('/page/patient-workbench')
     },
-    onQuickRangeChange() {
-      this.customRange = [null, null]
-      this.loadData()
-    },
-    onCustomRangeChange(val) {
-      if (!val || !val[0] || !val[1]) {
-        if (!this.hours) this.hours = 24
-        this.loadData()
-        return
-      }
-      const spanMs = new Date(val[1]).getTime() - new Date(val[0]).getTime()
-      if (spanMs > 30 * 24 * 3600 * 1000) {
-        ElMessage.warning('自定义时间范围不能超过 30 天')
+    /** 统一时间区间条：快捷档回退 hours，自定义走 start/end（后端要 ISO 'T'） */
+    onRangeChange(p) {
+      if (p.preset) {
+        this.hours = p.hours || 24
         this.customRange = [null, null]
-        return
-      }
-      if (spanMs <= 0) {
-        ElMessage.warning('结束时间必须晚于开始时间')
+      } else if (p.start && p.end) {
+        this.hours = null
+        this.customRange = [p.start.replace(' ', 'T'), p.end.replace(' ', 'T')]
+      } else {
+        this.hours = 24
         this.customRange = [null, null]
-        return
       }
-      this.hours = null
       this.loadData()
     },
     async loadData() {

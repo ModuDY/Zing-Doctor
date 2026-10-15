@@ -287,7 +287,10 @@ if (Test-Path $myDir) {
         # 50/51/52 质控缺口落地：新建 patient_doc_device_infection 表 + 27 条指标改 IMPL、
         # CAUTI 发病率 LOCAL 规则、导管相关感染确诊页注册。与 install-mariadb-debian.sh 的
         # MAIN_SQL 保持同步，否则 install-all.sql 装出的库缺表缺页面，而直连安装的库正常
-        '50_quality_gap_impl.sql', '51_quality_rule_local_gap.sql', '52_device_infection_page.sql')
+        '50_quality_gap_impl.sql', '51_quality_rule_local_gap.sql', '52_device_infection_page.sql',
+        # 53-56 本轮缺口落地：导管类型配置表、院感分析/ARDS筛查页注册、血流动力学+ADL 录入表、对应页注册
+        '53_tube_group_config.sql', '54_infection_ards_pages.sql',
+        '55_hemodynamics_adl.sql', '56_manual_pages.sql')
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine('-- ============================================================')
     [void]$sb.AppendLine('-- zing-doctor MySQL/MariaDB 一次性初始化脚本（打包时自动合成，勿手工编辑）')
