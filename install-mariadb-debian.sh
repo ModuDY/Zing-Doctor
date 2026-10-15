@@ -698,6 +698,15 @@ step "导入建表与种子脚本（幂等，可重复执行）"
     47_quality_patient_monthly_page.sql
     48_external_link_pages.sql
     49_lab_renal_page.sql
+    # 50 质控缺口落地：导管事件源 / DVT 预防 / 床位资源 / ARDS 支持时长（事实层 + 27 条指标改 IMPL）
+    #    并新建表 patient_doc_device_infection（导管相关感染确诊录入）。内含建表 + 建索引，须排最前。
+    # 51 CAUTI 发病率 LOCAL 规则（其余比率规则 ICU 侧已有，原子项落地后自动出数）
+    # 52 导管相关感染确诊页注册（依赖 50 建的 patient_doc_device_infection 表）
+    # 三处清单必须同步：install.sh 的 FULL_SQL / FULL_SQL_JDBC / INCREMENTAL_SQL 与
+    # tools/build-delivery.ps1 的 myOrder（漏登记 → MariaDB 库或 install-all.sql 装出的库缺表缺页面）
+    50_quality_gap_impl.sql
+    51_quality_rule_local_gap.sql
+    52_device_infection_page.sql
     41_patient_summary_page.sql
     )
   # 清单自检：登记的脚本必须存在；目录里也不能有未登记的孤岛脚本

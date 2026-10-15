@@ -1,20 +1,23 @@
 # =====================================================================
 # 指标层 · DVT 预防（11 条）
 #
-# 数据源现状：诊断侧可算（DVT 诊断、DVT 相关死亡）；医嘱侧（药物预防 /
-# 机械预防 / 下腔静脉滤器）暂无源，因此这些指标标为 PENDING_SOURCE。
-# 关键在于：页面会显示「待接数据源」，而不是像老系统空壳脚本那样返回 0 ——
-# 一个像真数据的 0 比明确的「缺数据源」危险得多。
+# 数据源：fact_dvt（ACTIVE）。诊断侧 = patient_info_diagnosis 关键词 + 转归；
+# 预防侧 = 医嘱（药物 patient_advice_execute_drug / 机械与滤器 patient_advice_original），
+# 关键词按《重症医学专业医疗质量控制指标（2024 年版）》ICU-07 官方口径：
+#   药物预防 = 肝素或低分子肝素等抗凝药物（依诺肝素、那曲肝素、利伐沙班等口服抗凝剂）；
+#   机械预防 = 肢体加压泵、梯度压力弹力袜等；另有下腔静脉滤器。
+# 业务指标「DVT 预防率」由规则层配置（quality_14 ÷ quality_0 × 100，
+# 见 sql/51_quality_rule_local_gap.sql），本层只出原子项。
 # =====================================================================
 
-- {code: quality_14,  name: "进行深静脉血栓预防的患者数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 8,  remark: "待接 useDvtAdviceList（医嘱侧预防措施）。事实层需补 prevent_drug / prevent_mech / prevent_filter 三列"}
-- {code: quality_404, name: "仅进行深静脉血栓药物预防的患者数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 41, remark: "待接医嘱侧药物预防数据"}
-- {code: quality_405, name: "进行深静脉血栓药物预防的患者总数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 42, remark: "待接医嘱侧药物预防数据"}
-- {code: quality_406, name: "仅进行深静脉血栓机械预防的患者数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 43, remark: "待接医嘱侧机械预防数据（间歇充气加压 / 弹力袜）"}
-- {code: quality_407, name: "进行深静脉血栓机械预防的患者总数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 44, remark: "待接医嘱侧机械预防数据"}
-- {code: quality_408, name: "仅进行下腔静脉滤器置入的患者数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 45, remark: "待接下腔静脉滤器置入记录"}
-- {code: quality_409, name: "进行下腔静脉滤器置入的患者总数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 46, remark: "待接下腔静脉滤器置入记录"}
-- {code: quality_410, name: "深静脉血栓相关死亡人数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, where: "dvt_death = 1", dims: [depart_code], version: 1, sortNo: 47, remark: "基于诊断（深静脉血栓/下肢静脉血栓/肺栓塞）+ 转归死亡，是当前唯一有可靠源的一条"}
-- {code: quality_411, name: "进行深静脉血栓预防并诊断深静脉血栓的患者数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 48, remark: "空壳：分子需「进行预防」，依赖医嘱侧源；口径待定，先占位"}
-- {code: quality_412, name: "进行深静脉血栓预防并死亡的患者总数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 49, remark: "待接医嘱侧预防数据"}
-- {code: quality_413, name: "进行深静脉血栓预防、诊断深静脉血栓并死亡的患者总数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 50, remark: "待接医嘱侧预防数据"}
+- {code: quality_14,  name: "进行深静脉血栓预防的患者数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, where: "dvt_prevent_status = 1", dims: [depart_code], version: 2, sortNo: 8,  remark: "任一预防措施（药物/机械/滤器）即计入；2024版ICU-07口径，源为医嘱侧"}
+- {code: quality_404, name: "仅进行深静脉血栓药物预防的患者数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, where: "dvt_only_drug = 1", dims: [depart_code], version: 2, sortNo: 41, remark: "仅药物预防（未做机械预防、未置滤器）"}
+- {code: quality_405, name: "进行深静脉血栓药物预防的患者总数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, where: "dvt_drug_status = 1", dims: [depart_code], version: 2, sortNo: 42, remark: "含合并其他预防措施者"}
+- {code: quality_406, name: "仅进行深静脉血栓机械预防的患者数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, where: "dvt_only_mech = 1", dims: [depart_code], version: 2, sortNo: 43, remark: "仅机械预防（肢体加压泵/梯度压力弹力袜等）"}
+- {code: quality_407, name: "进行深静脉血栓机械预防的患者总数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, where: "dvt_mech_status = 1", dims: [depart_code], version: 2, sortNo: 44, remark: "含合并其他预防措施者"}
+- {code: quality_408, name: "仅进行下腔静脉滤器置入的患者数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, where: "dvt_only_filter = 1", dims: [depart_code], version: 2, sortNo: 45, remark: "仅滤器（未做药物/机械预防）"}
+- {code: quality_409, name: "进行下腔静脉滤器置入的患者总数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, where: "dvt_filter_status = 1", dims: [depart_code], version: 2, sortNo: 46, remark: "含合并其他预防措施者"}
+- {code: quality_410, name: "深静脉血栓相关死亡人数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, where: "dvt_death = 1", dims: [depart_code], version: 1, sortNo: 47, remark: "基于诊断（深静脉血栓/下肢静脉血栓/肺栓塞）+ 转归死亡"}
+- {code: quality_411, name: "进行深静脉血栓预防并诊断深静脉血栓的患者数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, where: "dvt_prevent_status = 1 AND dvt_diag = 1", dims: [depart_code], version: 2, sortNo: 48, remark: "预防 + 诊断（诊断文本含深静脉血栓/下肢静脉血栓/肺栓塞）"}
+- {code: quality_412, name: "进行深静脉血栓预防并死亡的患者总数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, where: "dvt_prevent_status = 1 AND died_in_period = 1", dims: [depart_code], version: 2, sortNo: 49, remark: "预防 + 本周期内死亡"}
+- {code: quality_413, name: "进行深静脉血栓预防、诊断深静脉血栓并死亡的患者总数", domain: DVT预防, fact: fact_dvt, unit: "人", valueType: COUNT, where: "dvt_prevent_status = 1 AND dvt_diag = 1 AND died_in_period = 1", dims: [depart_code], version: 2, sortNo: 50, remark: "预防 + 诊断 + 本周期内死亡"}

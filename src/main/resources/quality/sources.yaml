@@ -34,6 +34,14 @@ tables:
   observe_record:          { ds: icu,    name: patient_observe_module_item_record, pk: id, timeField: item_time }
   observe_item:            { ds: icu,    name: patient_observe_module_item,        pk: id }
   config_observe_item:     { ds: icu,    name: config_observe_item,                pk: id }
+  # 导管事件表（已实库验证：tube 模块在用，见 TubeStatsMapper）。
+  # fact_device 的事实来源：置入/拔管/带出/非计划拔管/48h 再插管标记。
+  patient_tube:            { ds: icu,    name: patient_tube,                      pk: id, timeField: tube_set_start_time }
+  # DVT 预防医嘱源（DB 种子 40_qc_fact_def_seed.sql 已按这两张表草拟取数列）：
+  #   药物预防 → patient_advice_execute_drug（按 patient_id）
+  #   机械预防 / 下腔静脉滤器 → patient_advice_original（按 in_hospital_serial_no）
+  patient_advice_execute_drug: { ds: icu, name: patient_advice_execute_drug,      pk: id, timeField: start_time }
+  patient_advice_original: { ds: icu,    name: patient_advice_original,            pk: id, timeField: start_time }
   
 
   # ---------- 已实库验证：医生库 ----------

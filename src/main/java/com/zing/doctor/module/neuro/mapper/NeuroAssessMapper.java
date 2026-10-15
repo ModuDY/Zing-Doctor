@@ -84,4 +84,24 @@ public interface NeuroAssessMapper {
     List<Map<String, Object>> selectGcsDoc(@Param("patientId") String patientId,
                                            @Param("startTime") String startTime,
                                            @Param("endTime") String endTime);
+
+    /**
+     * 时间窗内正式评分文书（按 doc_code 参数化，当前用于 FOUR 评分 Z_ICU_FOUR）。
+     * 行结构与 {@link #selectGcsDoc} 一致：score_value + score_json。
+     */
+    @Select("<script>"
+            + "SELECT * FROM (SELECT r.record_time AS record_time, "
+            + "r.record_staff_name AS staff_name, r.is_audit AS is_audit, "
+            + "s.score_value AS score_value, CAST(s.score_json_value AS VARCHAR(4000)) AS score_json "
+            + "FROM \"zing_icu_db_prod\".\"patient_doc_record\" r "
+            + "INNER JOIN \"zing_icu_db_prod\".\"patient_doc_record_score\" s "
+            + "  ON s.doc_record_id = r.id AND s.del_flag = 0 "
+            + "WHERE r.patient_id = #{patientId} AND r.del_flag = 0 AND r.doc_code = #{docCode} "
+            + "AND r.record_time &gt;= #{startTime} AND r.record_time &lt; #{endTime} "
+            + "ORDER BY r.record_time ASC) WHERE ROWNUM &lt;= 1000"
+            + "</script>")
+    List<Map<String, Object>> selectScoreDoc(@Param("patientId") String patientId,
+                                             @Param("docCode") String docCode,
+                                             @Param("startTime") String startTime,
+                                             @Param("endTime") String endTime);
 }

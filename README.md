@@ -14,6 +14,7 @@
 | 第一维度 | 疑似感染患者列表 | `abx-patient-list` | `/page/abx-patient-list` |
 | 第一维度 | 经验性抗感染治疗决策（规则引擎推荐 + 医生决策留痕） | `abx-decision` | `/page/abx-decision` |
 | 第二维度 | PK/PD 抗菌药物剂量优化（肾功能/体重/低蛋白/CRRT，TDM 目标） | `abx-pkpd` | `/page/abx-pkpd` |
+| 第二维度 | PK/PD 药物知识库配置（抗菌药物 PK/PD 参数界面化配置，优先于内置枚举） | `abx-pkpd-config` | `/page/abx-pkpd-config` |
 | 第三维度 | 抗菌药物使用强度（DDD）分析 | `abx-ddd` | `/page/abx-ddd` |
 | 第三维度 | 抗菌药物使用患者明细（由总览页内部跳转） | — | `/page/abx-ddd-patients` |
 | 第三维度 | DDD 值配置管理 | `abx-ddd-config` | `/page/abx-ddd-config` |
@@ -33,21 +34,40 @@
 | 辅助 | SOFA 评分（序贯器官衰竭评估，6 项 0~24 分；含文书 PDF、指标趋势） | `sofa-score` | `/page/sofa-score` |
 | 辅助 | SOFA 评分总览（总分分布 + ΔSOFA 恶化预警） | `sofa-overview` | `/page/sofa-overview` |
 | 辅助 | SOFA 配置管理（取数项映射 / 升压药阈值 / 换算系数 / 默认体重） | `sofa-config` | `/page/sofa-config` |
+| 辅助 | 患者工作台（ICU 在科患者检索、床位概览与快捷入口） | `patient-workbench` | `/page/patient-workbench` |
+| 辅助 | 患者诊疗摘要（基本信息、生命支持、评分、感染指标、当前抗菌药、待办） | `patient-summary` | `/page/patient-summary` |
+| 辅助 | 历史患者检索（历史在科 / 已出科） | `history-patients` | `/page/history-patients` |
+| 辅助 | 生命体征趋势（多指标同时间轴叠加，时间窗 6h / 24h / 3天 / 7天） | `vital-signs` | `/page/vital-signs` |
+| 辅助 | 体液平衡分析（入量 / 出量 / 净平衡按时间窗汇总与明细） | `fluid-balance` | `/page/fluid-balance` |
+| 辅助 | 肝功能趋势（ALT / AST / 胆红素 / 白蛋白等按参考范围展示） | `lab-liver` | `/page/lab-liver` |
+| 辅助 | 肾功能与电解质趋势（肌酐 / 尿素 + 血气与生化两套电解质命名） | `lab-renal` | `/page/lab-renal` |
+| 辅助 | 凝血功能趋势（PLT / PT / INR / APTT / Fib / D-二聚体） | `lab-coag` | `/page/lab-coag` |
+| 辅助 | 镇痛镇静监测（RASS / CPOT 趋势与用药） | `sedation-monitor` | `/page/sedation-monitor` |
+| 辅助 | 神经功能监测（神经功能评分趋势） | `neuro-monitor` | `/page/neuro-monitor` |
+| 辅助 | 营养支持分析（热量 / 蛋白目标达成与营养制剂） | `nutrition-monitor` | `/page/nutrition-monitor` |
+| 辅助 | 导管统计分析（CVC / 导尿 / 气道三管置管、拔管、非计划拔管与留置日） | `tube-stats` | `/page/tube-stats` |
+| 辅助 | 导管相关感染确诊（VAP / CRBSI / CAUTI 医生确诊录入，质控指标源） | `device-infection` | `/page/device-infection` |
+| 辅助 | 科室驾驶舱（患者负荷、器官支持、床位与设备、评分分布、本月质控） | `department-cockpit` | `/page/department-cockpit` |
+| 系统 | 参数设置（归档接口地址、归档目录等系统参数，含「ARDS 数据映射」页签入口） | `param-config` | `/page/param-config` |
+| 系统 | 交付自检（医生库 / ICU 数据源 / 复评表 / 当前运行包构建信息） | `system-check` | `/page/system-check` |
 | 质控 | 质控指标看板（127 条指标按域分组，含口径血缘下钻、覆盖率报告、事实层与计算批次） | `quality-board` | `/page/quality-board` |
 | 质控 | 质控月度汇总（1-12 月横排，含季度/全年合计/月均/极值月与 Excel 导出） | `quality-monthly` | `/page/quality-monthly` |
+| 质控 | 患者月度质控指标（单患者 1-12 月质控明细） | `quality-patient-monthly` | `/page/quality-patient-monthly` |
+| 质控 | 质控指标配置（口径编辑、事实层配置、变更历史与回滚、批量导入导出，保存即热生效） | `quality-config` | `/page/quality-config` |
 
-> 共 22 个已注册外链页面；`abx-ddd-patients` / `abx-mdro-patients` 为总览页内部跳转的明细页，不经 `/entry` 外链进入。
+> 共 41 个已注册外链页面（`sys_page_config` 内共 43 条，另 2 条是下面提到的明细页）；
+> `abx-ddd-patients` / `abx-mdro-patients` 为总览页内部跳转的明细页，不经 `/entry` 外链进入。
 >
 > `ards-prone-config` 已注册、可外链直达，但常规入口是**系统设置 → 参数设置 →「ARDS 数据映射」页签**：映射是「37 项 × 多通道」的规则表（通道/匹配方式/匹配值/优先级/时间窗/单位换算），塞进键值型参数只能编辑一坨 JSON，无法表格浏览、候选选择与试采核对，故单独建表 `config_prone_item`，只把入口合进参数设置。
 >
-> 质控两个页面由 YAML 配置驱动（`src/main/resources/quality/`），指标增删改只改配置并调一次 `POST /api/quality/sync-index`，不改接口与前端。详见 [质控指标中台 · 产品设计](docs/15-质控指标中台-产品设计.md)。
+> 质控四个页面（看板 / 月度汇总 / 患者月度 / 指标配置）由 YAML 配置驱动（`src/main/resources/quality/`），指标增删改只改配置并调一次 `POST /api/quality/sync-index`，不改接口与前端。详见 [质控指标中台 · 产品设计](docs/15-质控指标中台-产品设计.md)。
 
 ## 快速开始
 
 ```bash
 # 1. 初始化达梦数据库（推荐直接跑 install.sh，自动建模式 zing_doctor_db_prod 并按依赖顺序建表/补列）
 #    手动方式：SYSDBA 执行 00_init_user.sql 建模式，再执行 01/02 建表与种子数据；
-#    03~23 为分模块增量脚本（按编号顺序执行），逐条说明与漏执行后果见 DATABASE-CHANGES.md
+#    03~52 为分模块增量脚本（按编号顺序执行），逐条说明与漏执行后果见 DATABASE-CHANGES.md
 disql SYSDBA/Sa_20250815@100.120.1.102:14236
 SQL> start /opt/zing-doctor/sql/00_init_user.sql
 SQL> start /opt/zing-doctor/sql/01_schema.sql
@@ -94,7 +114,7 @@ CI_SECURITY_SCAN=1 bash tools/ci.sh   # 额外跑后端依赖漏洞扫描（需�
 
 | 校验项 | 命令 | 通过门槛 |
 |---|---|---|
-| 后端单元测试 | `mvn test` | 全绿（当前 208 个用例） |
+| 后端单元测试 | `mvn test` | 全绿（当前 307 个用例） |
 | 前端代码检查 | `cd frontend && npm run lint` | error 为 0（warning 不阻塞） |
 | 前端依赖漏洞 | `cd frontend && npm run audit:ci` | 生产依赖不允许 high 及以上 |
 | 后端依赖漏洞 | `mvn -Psecurity-check verify` | CVSS ≥ 7 中断（需联网） |

@@ -24,6 +24,8 @@ public class SedationMonitorResponse {
 
     /** NRS 数字疼痛评分（能自述患者，0-10） */
     private ScaleBlock nrs = new ScaleBlock();
+    /** VAS 视觉模拟评分（能自述患者，0-10；2024版 ICU-09 认可工具，源接入后出数） */
+    private ScaleBlock vas = new ScaleBlock();
     /** CPOT 重症疼痛观察工具（无法自述 / 机械通气患者，0-8） */
     private ScaleBlock cpot = new ScaleBlock();
     /** RASS 镇静躁动评分（-5~+4） */

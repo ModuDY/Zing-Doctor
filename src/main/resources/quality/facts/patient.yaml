@@ -103,54 +103,69 @@
     - "CASE WHEN a.total_score >= 15 THEN 1 ELSE 0 END AS apache_ge15"
 
 # ---------------------------------------------------------------------
-# 【待接】ICU 医护人员花名册
-# quality_302 / quality_303 的表达式已就绪：接入后由它们直接生效，
-# 无需改 Java、无需改指标配置，只需把本事实层的 status 改为 ACTIVE。
+# ICU 医护人员（fact_staff）—— 已连库激活（2026-10-15）
 # 注意 patientKey=user_id：资源类指标的计数对象是「人」，不是患者。
+# 实库核实：config_staff 有数据（全院 3691 人，ICU 相关科室约 150 人）；
+# icu_nurse_working_schedule / icu_doctor_working_schedule 均为 0 行（排班功能未启用），
+# 因此「在岗」无法按班次过滤，以人员档案所在科室近似官方口径
+# （2024版 ICU-02：全职从事 ICU 工作的执业医师 / 注册护士）。
+# 科室筛选：depart_name 含 ICU 或「重症」，但排除「呼吸与危重症医学科」
+# （该名称含"重症医学科"子串但不是 ICU）。
 # ---------------------------------------------------------------------
 - fact: fact_staff
   domain: 评分_资源
-  status: PENDING_SOURCE
+  status: ACTIVE
   source: config_staff
   alias: s
   patientKey: user_id
   inHospitalNoKey: work_no
   patientNameKey: realname
-  departKey: depart_name
-  note: 待接 ICU 医护人员花名册（config_staff：科室 + 岗位）。口径确认后置 ACTIVE 即生效
+  departKey: depart_code
+  note: ICU 医护人员花名册（config_staff）；排班表未启用，以档案科室近似全职口径
   select:
     - "s.id AS user_id"
     - "s.realname AS realname"
     - "s.work_no AS work_no"
+    - "s.depart_code AS depart_code"
     - "s.depart_name AS depart_name"
+    - "s.post_name AS post_name"
+    - "s.office_date AS office_date"
+    - "s.leave_date AS leave_date"
   where:
     - "s.del_flag = 0"
+    - "s.leave_date IS NULL"
+    - "(s.depart_name LIKE '%ICU%' OR (s.depart_name LIKE '%重症%' AND s.depart_name NOT LIKE '%呼吸与危重症%'))"
   derive:
     - "CASE WHEN s.post_name LIKE '%医师%' THEN 1 ELSE 0 END AS is_doctor"
-    - "CASE WHEN s.post_name LIKE '%护士%' THEN 1 ELSE 0 END AS is_nurse"
+    - "CASE WHEN s.post_name LIKE '%护士%' OR s.post_name LIKE '%护师%' THEN 1 ELSE 0 END AS is_nurse"
 
 # ---------------------------------------------------------------------
-# 【待接】床位开放记录
-# quality_301（同期 ICU 实际开放总床日数）/ quality_304（实际开放床位数）
-# 依赖此表。床日同样需要按周期切分，接入后沿用 fact_patient_stay 的交集写法。
+# 床位开放记录（fact_bed）
+# 字段与 DB 种子（sql/40_qc_fact_def_seed.sql，2026-09-17 已置 ACTIVE）保持一致：
+#   bed_id / bed_code / bed_name / depart_code / begin_use_time / stop_use_time。
+# bed_days 按「本周期 ∩ 开放区间」切分，与 fact_patient_stay.stay_days 同构，
+# 因此「床位使用率 = 占用总床日 ÷ 开放总床日」两条腿同一把尺子。
 # ---------------------------------------------------------------------
 - fact: fact_bed
-  domain: 评分_资源
-  status: PENDING_SOURCE
+  domain: 床位_资源
+  status: ACTIVE
   source: config_bed
   alias: b
   patientKey: bed_id
   inHospitalNoKey: ""
   patientNameKey: ""
-  departKey: depart_name
-  note: 待接床位开放记录。缺该源，因此 quality_301/304 无法计算（页面显示「待接数据源」而非 0）
+  departKey: depart_code
+  note: 床位开放记录（config_bed）；支撑床位使用率/医师床位比/护士床位比分母
   select:
     - "b.id AS bed_id"
     - "b.bed_code AS bed_code"
-    - "b.depart_name AS depart_name"
-    - "b.open_date AS open_date"
-    - "b.close_date AS close_date"
+    - "b.bed_name AS bed_name"
+    - "b.depart_code AS depart_code"
+    - "b.begin_use_time AS begin_use_time"
+    - "b.stop_use_time AS stop_use_time"
   where:
     - "b.del_flag = 0"
   derive:
-    - "CASE WHEN b.close_date IS NULL OR b.close_date > :periodEnd THEN :periodEnd ELSE b.close_date END AS open_to"
+    - "CASE WHEN b.begin_use_time IS NULL OR b.begin_use_time > :periodEnd THEN :periodEnd ELSE b.begin_use_time END AS open_to"
+    - "DATEDIFF(DAY, CASE WHEN b.begin_use_time < :periodStart THEN :periodStart ELSE b.begin_use_time END, CASE WHEN (b.stop_use_time IS NULL OR b.stop_use_time > :periodEnd) THEN :periodEnd ELSE b.stop_use_time END) AS bed_days"
+    - "CASE WHEN (b.begin_use_time IS NULL OR b.begin_use_time < :periodEnd) AND (b.stop_use_time IS NULL OR b.stop_use_time >= :periodStart) THEN 1 ELSE 0 END AS open_in_period"

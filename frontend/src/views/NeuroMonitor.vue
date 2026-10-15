@@ -125,6 +125,40 @@
             <div class="scale-note">{{ gcs.note }}</div>
           </div>
 
+          <!-- FOUR（2024版 ICU-18 意识评估口径认可 GCS 或 FOUR；插管可评，V 记 0） -->
+          <div class="scale-card">
+            <div class="scale-head">
+              <span class="scale-title">FOUR 评分</span>
+              <span :class="['scale-badge', statusClass(four.dataStatus)]">{{ statusText(four.dataStatus) }}</span>
+            </div>
+            <div class="scale-main">
+              <div class="latest">
+                <div class="latest-value">{{ four.latest && four.latest.total != null ? four.latest.total : '—' }}</div>
+                <div class="latest-sub">
+                  <span>分（0–16，插管可评）</span>
+                  <span v-if="four.latest" class="latest-time">{{ fmtShort(four.latest.time) }}</span>
+                </div>
+              </div>
+              <div class="mini-stats">
+                <div><label>次数</label><b>{{ four.count || 0 }}</b></div>
+                <div><label>E 睁眼</label><b>{{ four.latest && four.latest.e != null ? four.latest.e : '—' }}</b></div>
+                <div><label>V 言语</label><b>{{ four.latest && four.latest.v != null ? four.latest.v : '—' }}</b></div>
+                <div><label>B 脑干</label><b>{{ four.latest && four.latest.b != null ? four.latest.b : '—' }}</b></div>
+              </div>
+            </div>
+            <div class="chart-wrap">
+              <div v-if="hasFourPlot" ref="fourChart" class="chart"></div>
+              <div v-else :class="['chart-empty', { 'is-error': four.dataStatus === 'UNKNOWN' }]">
+                <template v-if="four.dataStatus === 'UNKNOWN'">
+                  数据暂不可用
+                  <el-button link type="primary" @click="loadData">点击重试</el-button>
+                </template>
+                <template v-else>窗口内暂无 FOUR 评估文书</template>
+              </div>
+            </div>
+            <div class="scale-note">{{ four.note }}</div>
+          </div>
+
           <!-- 神志 -->
           <div class="scale-card">
             <div class="scale-head">
@@ -281,6 +315,7 @@ export default {
       window: { startTime: '', endTime: '' },
       diagnosis: EMPTY_DIAG(),
       gcs: EMPTY_LIST(),
+      four: EMPTY_LIST(),
       consciousness: EMPTY_LIST(),
       pupils: EMPTY_LIST(),
       icp: EMPTY_ICP(),
@@ -291,6 +326,9 @@ export default {
   computed: {
     hasGcsPlot() {
       return this.gcs.dataStatus !== 'UNKNOWN' && (this.gcs.points || []).some((p) => p.total != null)
+    },
+    hasFourPlot() {
+      return this.four.dataStatus !== 'UNKNOWN' && (this.four.points || []).some((p) => p.total != null)
     },
     hasConsciousnessPlot() {
       return this.consciousness.dataStatus !== 'UNKNOWN' && (this.consciousness.points || []).some((p) => p.code != null)
@@ -366,7 +404,16 @@ export default {
           timeText: this.fmtDateTime(p.time),
           result: `${p.display || '—'} 分`,
           detail: `E睁眼 ${p.e != null ? p.e : '—'}，V言语 ${v}，M运动 ${p.m != null ? p.m : '—'}${p.audited ? '；已审核' : '；未审核'}`,
-          staffName: p.staffName || '—'
+        })
+      })
+      ;(this.four.points || []).forEach((p) => {
+        out.push({
+          kind: 'four',
+          itemName: 'FOUR',
+          time: p.time,
+          timeText: this.fmtDateTime(p.time),
+          result: `${p.total != null ? p.total + ' 分' : '—'}`,
+          detail: `E睁眼 ${p.e != null ? p.e : '—'}，V言语 ${p.v != null ? p.v : '—'}，M运动 ${p.m != null ? p.m : '—'}，B脑干反射 ${p.b != null ? p.b : '—'}${p.audited ? '；已审核' : '；未审核'}`,
         })
       })
       ;(this.icp.points || []).forEach((p) => {
@@ -419,6 +466,7 @@ export default {
         this.window = data.window || { startTime: '', endTime: '' }
         this.diagnosis = data.diagnosis || EMPTY_DIAG()
         this.gcs = data.gcs || EMPTY_LIST()
+        this.four = data.four || EMPTY_LIST()
         this.consciousness = data.consciousness || EMPTY_LIST()
         this.pupils = data.pupils || EMPTY_LIST()
         this.icp = data.icp || EMPTY_ICP()
@@ -474,6 +522,7 @@ export default {
         }
       }
       safe('gcs', () => this.renderGcs())
+      safe('four', () => this.renderFour())
       safe('consciousness', () => this.renderConsciousness())
       safe('icp', () => this.renderIcp())
       safe('pupils', () => this.renderPupils())
@@ -545,6 +594,50 @@ export default {
           connectNulls: false,
           symbol: 'circle',
           lineStyle: { width: 2, color: '#ea580c' }
+        }]
+      })
+      chart.resize()
+    },
+    renderFour() {
+      const el = this.$refs.fourChart
+      if (!el || !this.hasFourPlot) return
+      const pts = (this.four.points || []).filter((p) => p.total != null)
+      const chart = this.getChart('four', el)
+      chart.setOption({
+        backgroundColor: 'transparent',
+        animationDuration: 300,
+        grid: this.baseGrid(),
+        tooltip: {
+          trigger: 'axis',
+          confine: true,
+          backgroundColor: 'rgba(255,255,255,0.97)',
+          borderColor: '#e7e5e4',
+          textStyle: { color: '#292524', fontSize: 11 },
+          formatter: (ps) => {
+            if (!ps || !ps.length) return ''
+            const pt = ps[0].data && ps[0].data.point
+            if (!pt) return ''
+            return `${this.fmtDateTime(pt.time)}<br/>FOUR 总分：<b>${pt.total}</b><br/>E ${pt.e != null ? pt.e : '—'} / V ${pt.v != null ? pt.v : '—'} / M ${pt.m != null ? pt.m : '—'} / B ${pt.b != null ? pt.b : '—'}`
+          }
+        },
+        xAxis: this.timeAxis(),
+        yAxis: {
+          type: 'value', min: 0, max: 16, interval: 4,
+          axisLabel: { color: '#a8a29e', fontSize: 10 },
+          splitLine: { lineStyle: { color: '#f5f5f4' } }
+        },
+        series: [{
+          type: 'line',
+          data: pts.map((p, idx) => ({
+            value: [this.toDate(p.time), p.total],
+            point: p,
+            symbolSize: idx === pts.length - 1 ? 9 : 6,
+            itemStyle: { color: '#0891b2' }
+          })),
+          smooth: false,
+          connectNulls: false,
+          symbol: 'circle',
+          lineStyle: { width: 2, color: '#0891b2' }
         }]
       })
       chart.resize()

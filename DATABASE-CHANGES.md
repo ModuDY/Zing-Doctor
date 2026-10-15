@@ -27,7 +27,8 @@
 1. 用 DM 管理工具 / disql 连到达梦（SYSDBA 或同权限账号）
 2. 翻到下面「批次记录」，从自己**还没执行**的批次开始，按 ①②③ 顺序执行
 3. 某一块报「已存在 / already exists」→ 说明已执行过，**跳过该块继续**
-4. 全新部署不用来这里，`sql/` 目录下按序号（01 → 28）依次全跑即可（25/26 是 rename，空库无旧表会整段跳过）
+4. 全新部署不用来这里，`sql/` 目录下按序号（01 → 52）依次全跑即可
+   （25/26 是 rename，空库无旧表会整段跳过；直接跑 `install.sh` / `install-mariadb-debian.sh` 更省事，依赖顺序已维护在脚本清单里）
 
 ---
 
@@ -61,6 +62,10 @@
    **漏登记 `INCREMENTAL_SQL` → 老库升级不补表**，页面报「无效的表或视图名」（`22_ards_prone_config.sql` 就这么踩过）。
 4. **登记 MariaDB 侧一处清单**：`install-mariadb-debian.sh` 的 `MAIN_SQL` 数组，插到依赖脚本之后。
    该清单每次全跑，所以只需一处；漏登记的表现是新装环境直接缺表 —— 比达梦侧更早暴露、更好查。
+   ⚠️ 还有一处容易漏的同步点：`tools/build-delivery.ps1` 的 `myOrder`（用于合成交付包内的 `install-all.sql`）。
+   它漏登记时不会报错，但「用 `install-all.sql` 初始化的库」会缺表缺页面，而「直连安装的库」正常 ——
+   同一版本两种部署方式行为不一致，现场极难排查（`50`~`52` 就这么踩过）。
+   若脚本属于 `MANUAL` 人工维护名单，第 2 步的转换器会跳过它，此时改为「手写 MySQL 版 + 登记 `MANUAL`」。
 
 ### 一次性脚本与人工动作（两边都一样）
 
@@ -102,10 +107,13 @@ ls sql/*.sql | wc -l && ls sql/mysql/*.sql | wc -l   # 除 00b/00c/24_fix/instal
 
 > 常见漂移原因：① 只改了达梦版忘了跑 `dm_to_mysql.py`；② 直接手改了 `sql/mysql/` 里的文件 —— 下次转换会被覆盖回去，改动凭空消失。
 >
-> **例外（不受上面②约束）**：`sql/mysql/25_rename_doctor_tables.sql` 与 `sql/mysql/26_rename_clinical_tables.sql`
-> 是**人工改写**并长期维护的 —— 达梦版用 PL/SQL 游标 + 动态 DDL，转换器只能吐出语法碎片，
-> 因此这两个文件已在 `tools/dm_to_mysql.py` 的 `MANUAL` 列表里登记跳过（重跑工具会打印 `SKIP`）。
-> **改达梦版 25/26 时必须同步手改这两个 MySQL 版**，反之不要指望跑一次工具就能同步。
+> **例外（不受上面②约束）**：下面这些 MySQL 版是**人工维护**的，已在 `tools/dm_to_mysql.py` 的
+> `MANUAL` 列表里登记跳过（重跑工具会打印 `SKIP`，不会被机械转换覆盖）。
+> **改达梦版时必须同步手改对应的 MySQL 版**，不要指望跑一次工具就能同步：
+>
+> - `25_rename_doctor_tables.sql` / `26_rename_clinical_tables.sql`：达梦版用 PL/SQL 游标 + 动态 DDL，转换器只能吐出语法碎片。
+> - `50_quality_gap_impl.sql`：由 `tools/gen_sync_sql.py` 从 YAML 一并生成达梦版与 MySQL 版，保证与配置逐字段一致。
+> - `51_quality_rule_local_gap.sql` / `52_device_infection_page.sql`：达梦版带 schema 前缀与 PL/SQL 块，手写镜像。
 
 ## 执行状态速查
 
@@ -1411,3 +1419,34 @@ SELECT param_key, param_value, default_value FROM sys_param WHERE param_key = 'W
 - **登记**：`install.sh`（三处数组）、`install-mariadb-debian.sh`、`build-delivery.ps1` 均已加入 `49_lab_renal_page.sql`。
 - 前端参数设置「外链页面」一览已补该页（参数同 `lab-liver` / `lab-coag`：`patientId`、`inHospitalNo` 必填，`inDepartTime`、`departCode` 选填）。
 - **项目口径已核查**（2026-10-14，达梦 `172.88.1.184:34567` 近 90 天实测，见 docs/25 §9）：血生化八项 `*肌酐 *尿素 *钾 *钠 *氯 *钙 *镁 *磷`（code 100210 / 100200 / 100140~100190）各覆盖 3.6~4.3 万患者，电解质组按编码连号的 K/Na/Cl/Ca/Mg/P 六项做；血气侧第二套命名 `钾离子 / 钠离子 / 氯离子浓度 / 离子钙 / 钙离子浓度(PH7.4)`（各约 3,382 患者）按名称匹配自动纳入。同名异物已逐项排除：降钙素原 / 降钙素 / 肌钙蛋白 / 骨钙素 / 钙盐结晶（含「钙」）、脑钠肽前体 / 苯妥英钠（含「钠」）、氯氮平 / 氯胺酮 / 氯化物测定（含「氯」）、尿素-肌酐比值 / 清除率 / 腹透液 / 尿液标本、微量元素面板。
+
+---
+
+### 2026-10-15 · 50/51/52 质控缺口落地（新表 + 事实层改造 + 29 条指标口径 + CAUTI 规则 + 确诊页）
+
+一次落地 28 条此前为 `PENDING_SOURCE` / `PLACEHOLDER` 的指标（全部转 `IMPL`）。涉及**新表、事实层改造、指标口径更新、规则层补一条、页面注册**，是近期体量最大的一批。
+
+**涉及对象**
+
+- 新表 `patient_doc_device_infection`（导管相关感染确诊录入：VAP / CRBSI / CAUTI，医生确诊），含表/列注释与索引 `idx_pdi_patient_type`。以它为源驱动 `quality_24/26/425`（三型感染例数）与规则层三条千导管日发病率；`patient_tube.is_infect` 旧源标记不再使用。
+- 事实层 5 条改造（`quality_fact_def`）：`fact_device`（改接 `patient_tube` 并关联确诊表）、`fact_dvt`（补预防列）、`fact_bed`（激活并对齐实库字段）、`fact_ards`（补 `mv_days` / `prone_min`）、`fact_staff`（连库激活 `config_staff`，排班表为空故以档案科室近似全职口径）。
+- 指标定义 29 条 UPDATE（`quality_metric_def`，清单见 `tools/gen_sync_sql.py` 的 `CHANGED_METRICS`）：插管三指标 `quality_17/18/19`；导管感染与天数 `quality_24/25/26/27/425/426`；DVT 预防 `quality_404`~`quality_413` 与 `quality_14`；床位与医护 `quality_301/302/303/304`；ARDS `quality_477/486/487/488/489/490`。`quality_302/303` 由人工填报改为自动计数。
+- 规则层 1 条：`LOCAL_CAUTI_RATE`（本院自建，2015 版口径 = CAUTI 发生例数 ÷ 导尿管留置总天数 × 1000‰，原子项 `quality_425 ÷ quality_426`）。**其余比率规则 ICU 侧已有，不要重复自建**（同一指标两条规则会在看板出现两行）。
+- 页面注册 1 条：`device-infection`（`/page/device-infection`，导管相关感染确诊录入页）。
+
+**执行脚本**（顺序 50 → 51 → 52，52 依赖 50 建的表）
+
+| 内容 | 达梦 | MySQL / MariaDB |
+|---|---|---|
+| 建表 + 事实层/指标层同步 | `sql/50_quality_gap_impl.sql` | `sql/mysql/50_quality_gap_impl.sql` |
+| CAUTI 规则 | `sql/51_quality_rule_local_gap.sql` | `sql/mysql/51_quality_rule_local_gap.sql` |
+| 页面注册 | `sql/52_device_infection_page.sql` | `sql/mysql/52_device_infection_page.sql` |
+
+三者均幂等（建表带存在性判断、UPDATE 反复执行结果一致、规则与页面按主键判重）。执行后必须重算才会更新看板：`POST /api/quality/recalc`（或等 `QualityDailyTask` 每日批算）。
+
+**本轮踩到的坑**
+
+- ⚠️ **三个脚本都曾落在清单外**：`install-mariadb-debian.sh` 的 `MAIN_SQL` 与 `tools/build-delivery.ps1` 的 `myOrder` 双双漏登记（达梦侧 `install.sh` 三处数组已含）。后果是 MariaDB 直连安装与用 `install-all.sql` 初始化的库**都缺表缺页面** —— 确诊页因 `patient_doc_device_infection` 不存在直接 500，`device-infection` 外链判「未注册的页面」404，而安装日志只 warn 不报错、看起来是成功的。已补齐。
+- ⚠️ **50/51/52 的 MySQL 镜像属人工维护**：50 由 `tools/gen_sync_sql.py` 从 YAML 一并生成达梦版与 MySQL 版，51/52 为手写（达梦版带 schema 前缀与 PL/SQL 块）。三者已登记进 `tools/dm_to_mysql.py` 的 `MANUAL`，否则重跑转换器会用机械结果覆盖它们。
+- 50 号脚本头部声明的「与 YAML 逐字段一致」只覆盖 `CHANGED_FACTS` / `CHANGED_METRICS` 清单内的条目。只改过 `remark` 的 `quality_20` / `quality_410` / `quality_421` 刻意不入清单：UPDATE 是整字段覆盖，会连带把库内既有的 `dims` / `patient_fields` 写成 YAML 值，风险大于收益，它们的文案以 YAML 为准。
+- `quality_302` / `quality_303` 改为自动计数后，单测 `QualityDerivedMetricTest` 的断言同步由 `MANUAL` 改为 `IMPL`。

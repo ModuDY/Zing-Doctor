@@ -26,6 +26,8 @@ public class NeuroMonitorResponse {
 
     private DiagnosisBlock diagnosis = new DiagnosisBlock();
     private GcsBlock gcs = new GcsBlock();
+    /** FOUR 评分（全面无反应性量表，0-16；2024版 ICU-18 意识评估口径认可 GCS 或 FOUR） */
+    private FourBlock four = new FourBlock();
     private ConsciousnessBlock consciousness = new ConsciousnessBlock();
     private PupilBlock pupils = new PupilBlock();
     private IcpBlock icp = new IcpBlock();
@@ -184,6 +186,36 @@ public class NeuroMonitorResponse {
         private String display;
         /** 是否插管 / 气切（言语不可评） */
         private boolean intubated;
+        private String rawScore;
+        private String rawJson;
+        private Boolean audited;
+    }
+
+    /** FOUR 区块（Full Outline of UnResponsiveness，0-16）。 */
+    @Data
+    public static class FourBlock {
+        /** FOUND / NOT_RECORDED / PARTIAL（分项缺失）/ UNKNOWN */
+        private String dataStatus = "NOT_RECORDED";
+        private FourPoint latest;
+        private List<FourPoint> points = new ArrayList<>();
+        private int count;
+        private String note;
+    }
+
+    @Data
+    public static class FourPoint {
+        private String time;
+        private String staffName;
+        /** 睁眼 E（0-4） */
+        private Integer e;
+        /** 言语 V（0-5，0=插管 / 气切） */
+        private Integer v;
+        /** 运动 M（0-6） */
+        private Integer m;
+        /** 脑干反射 B（0-4） */
+        private Integer b;
+        /** 总分 0-16（分项齐全时自动求和） */
+        private Integer total;
         private String rawScore;
         private String rawJson;
         private Boolean audited;

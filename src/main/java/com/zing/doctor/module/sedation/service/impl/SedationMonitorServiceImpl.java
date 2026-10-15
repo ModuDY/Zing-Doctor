@@ -39,6 +39,7 @@ public class SedationMonitorServiceImpl implements SedationMonitorService {
 
     private static final List<String> DOC_CODES = Arrays.asList(
             SedationScoreParser.DOC_NRS,
+            SedationScoreParser.DOC_VAS,
             SedationScoreParser.DOC_CPOT,
             SedationScoreParser.DOC_RASS,
             SedationScoreParser.DOC_CAM);
@@ -97,6 +98,7 @@ public class SedationMonitorServiceImpl implements SedationMonitorService {
             SedationScoreParser.Result parsed =
                     SedationScoreParser.parse(rows, displayStart, end, lookback);
             resp.setNrs(parsed.nrs);
+            resp.setVas(parsed.vas);
             resp.setCpot(parsed.cpot);
             resp.setRass(parsed.rass);
             resp.setCam(parsed.cam);

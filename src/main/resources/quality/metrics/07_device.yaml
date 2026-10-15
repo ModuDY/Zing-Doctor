@@ -1,21 +1,27 @@
 # =====================================================================
 # 指标层 · 导管 / 管路 / 院感（9 条）
 #
-# 全部依赖同一条缺失数据源：管路/导管事件表。事实层 fact_device 已写好
-# （置入/拔除时间、是否计划拔管、是否相关感染），缺的只是源头那张表。
-# 因此这里全部标 PENDING_SOURCE / PLACEHOLDER，页面显示「待接数据源」。
+# 数据源：fact_device（ACTIVE）= patient_tube（置入/拔管/带出/非计划拔管/48h再插管）。
+# 感染例数（VAP / CRBSI / CAUTI）以医生确诊录入表 patient_doc_device_infection 为准
+# （见 module/deviceinfection 与 sql/50_device_infection.sql），
+# 口径见《重症医学专业医疗质量控制指标》：
+#   2024版 ICU-12/13：非计划拔管率、拔管后48h再插管率（分母均为拔管总例数，
+#                      再插管率分子不含非计划拔管后再插管）；
+#   2015版 十三/十四/十五：VAP / CRBSI / CAUTI 发病率 = 新发例数 ÷ 累计使用天数 ×1000‰；
+#   2024版 ICU-16/17：VAP=使用有创呼吸机期间或停用48h内新发肺部感染；
+#                     CRBSI=留置期间或拔出48h内原发性血流感染（CVC/PICC/PORT/脐静脉导管）。
+# 业务发病率由规则层配置（见 sql/51_quality_rule_local_gap.sql），本层只出原子项。
 #
-# 为什么不全标 PENDING_SOURCE：VAP / 导管留置天数这类指标的口径本身也还待定
-# （VAP 需要呼吸机相关肺炎判定标准、留置天数需要装置与周期的切分规则），
-# 与「有口径但缺源」不是同一类问题，分开标注便于和业务方对话。
+# quality_25（有创机械通气天数）当前以气道导管留置天数代理（呼吸机使用记录
+# 未接入）；接入呼吸机参数/设备记录后，只改事实层一列即可全量生效。
 # =====================================================================
 
-- {code: quality_17,  name: "非计划气管插管拔管数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 11, remark: "待接 tubeList。事实层已备 device_pair 与 unplanned_removal，缺源。老脚本存在循环变量泄漏（多条管路互相覆盖），新实现按 device_id 逐条判定"}
-- {code: quality_18,  name: "ICU患者气管插管拔管数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 12, remark: "待接 tubeList"}
-- {code: quality_19,  name: "气管插管计划拔管后48h内再插管数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 13, remark: "待接 tubeList。老脚本时间桶错位（把拔管当天的再插管算到次日），新实现按 time_window 算子在同一患者内配对，避免跨患者误配"}
-- {code: quality_24,  name: "发生呼吸机相关性肺炎（VAP）数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 18, remark: "空壳：VAP 判定标准待与院感科确认（是否采用 CDC/NHSN 的 VAE 定义、感染窗口多长）"}
-- {code: quality_25,  name: "患者有创机械通气天数", domain: 导管_管路_院感, fact: fact_device, unit: "天", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 19, remark: "空壳：需明确「同一次住院多次上机是否合并、跨月如何切分」"}
-- {code: quality_26,  name: "发生血管内导管相关血流感染（CRBSI）数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, implStatus: PENDING_SOURCE, version: 1, sortNo: 20, remark: "待接管路表。老脚本数据源错配（指向脓毒症 bundle），此处按管路表 + infection_flag 实现，不复用旧口径"}
-- {code: quality_27,  name: "患者血管内导管留置天数", domain: 导管_管路_院感, fact: fact_device, unit: "天", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 21, remark: "空壳：口径待定，同 quality_25"}
-- {code: quality_425, name: "导尿管相关泌尿系感染发生例数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 62, remark: "空壳：CAUTI 判定标准待与院感科确认"}
-- {code: quality_426, name: "导尿管留置总天数", domain: 导管_管路_院感, fact: fact_device, unit: "天", valueType: COUNT, implStatus: PLACEHOLDER, version: 1, sortNo: 63, remark: "空壳：口径待定"}
+- {code: quality_17,  name: "非计划气管插管拔管数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, where: "unplanned_removal = 1 AND device_kind = '气道导管'", dims: [depart_code], version: 2, sortNo: 11, remark: "2024版ICU-12分子：patient_tube.is_not_plan_extubation=1；源与导管统计页同表同口径"}
+- {code: quality_18,  name: "ICU患者气管插管拔管数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, where: "removed_in_period = 1 AND device_kind = '气道导管'", dims: [depart_code], version: 2, sortNo: 12, remark: "2024版ICU-12/13共同分母：本周期内拔管例数"}
+- {code: quality_19,  name: "气管插管计划拔管后48h内再插管数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, where: "reintubation_48h = 1 AND device_kind = '气道导管'", dims: [depart_code], version: 2, sortNo: 13, remark: "2024版ICU-13分子：计划拔管后48h再插管（is_reintubation24 字段名为24、实际口径48h，见 TubeStatsMapper）；源字段无法区分再插管是否继发于非计划拔管，按排除非计划拔管行近似"}
+- {code: quality_24,  name: "发生呼吸机相关性肺炎（VAP）数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, where: "device_infection = 1 AND device_kind = '气道导管'", dims: [depart_code], patientFields: [{key: insert_time, label: 置管时间, width: 160}, {key: remove_time, label: 拔管时间, width: 160}], version: 2, sortNo: 18, remark: "2024版ICU-16分子：以医生确诊录入（patient_doc_device_infection, VAP）为准，确诊时间落在置入～拔除+48h窗口；需先在「导管相关感染确诊」页录入"}
+- {code: quality_25,  name: "患者有创机械通气天数", domain: 导管_管路_院感, fact: fact_device, unit: "天", valueType: SUM, agg: SUM, numerator: "device_days", where: "device_kind = '气道导管'", dims: [depart_code], version: 2, sortNo: 19, remark: "2024版ICU-16分母。当前以气管插管/气切留置天数代理有创通气天数（呼吸机使用记录接入后替换事实层取数列）"}
+- {code: quality_26,  name: "发生血管内导管相关血流感染（CRBSI）数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, where: "device_infection = 1 AND device_kind = 'CVC'", dims: [depart_code], patientFields: [{key: insert_time, label: 置管时间, width: 160}, {key: remove_time, label: 拔管时间, width: 160}], version: 2, sortNo: 20, remark: "2024版ICU-17分子：医生确诊录入（CRBSI），窗口=置入～拔除+48h；血管导管含CVC/PICC/PORT/脐静脉导管，当前按CVC白名单覆盖"}
+- {code: quality_27,  name: "患者血管内导管留置天数", domain: 导管_管路_院感, fact: fact_device, unit: "天", valueType: SUM, agg: SUM, numerator: "device_days", where: "device_kind = 'CVC'", dims: [depart_code], version: 2, sortNo: 21, remark: "2024版ICU-17分母：CVC留置天数，按「本周期∩留置区间」切分，未拔截止转出带管/周期末"}
+- {code: quality_425, name: "导尿管相关泌尿系感染发生例数", domain: 导管_管路_院感, fact: fact_device, unit: "人", valueType: COUNT, where: "device_infection = 1 AND device_kind = '导尿管'", dims: [depart_code], patientFields: [{key: insert_time, label: 置管时间, width: 160}, {key: remove_time, label: 拔管时间, width: 160}], version: 2, sortNo: 62, remark: "2015版十五：CAUTI发生例数，以医生确诊录入（CAUTI）为准，窗口=置入～拔除+48h"}
+- {code: quality_426, name: "导尿管留置总天数", domain: 导管_管路_院感, fact: fact_device, unit: "天", valueType: SUM, agg: SUM, numerator: "device_days", where: "device_kind = '导尿管'", dims: [depart_code], version: 2, sortNo: 63, remark: "2015版十五分母：导尿管留置总天数（例/千导尿管日）"}

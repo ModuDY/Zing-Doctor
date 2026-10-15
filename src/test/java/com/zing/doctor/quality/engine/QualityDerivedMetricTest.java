@@ -52,11 +52,13 @@ class QualityDerivedMetricTest {
     }
 
     @Test
-    @DisplayName("配置：医师/护士总数已改为人工填报")
-    void staffMetricsAreManual() {
+    @DisplayName("配置：医师/护士总数已连库自动计算（不再人工填报）")
+    void staffMetricsAreComputed() {
         QualityDslLoader dsl = load();
-        assertEquals("MANUAL", dsl.getMetrics().get("quality_302").getImplStatus());
-        assertEquals("MANUAL", dsl.getMetrics().get("quality_303").getImplStatus());
+        // 2026-10-15 fact_staff（config_staff 人员档案）连库激活：
+        // quality_302 / quality_303 由人工填报改为按档案科室自动计数（implStatus 回到默认 IMPL）。
+        assertEquals("IMPL", dsl.getMetrics().get("quality_302").getImplStatus());
+        assertEquals("IMPL", dsl.getMetrics().get("quality_303").getImplStatus());
     }
 
     @Test

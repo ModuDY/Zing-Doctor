@@ -513,8 +513,14 @@ if __name__ == '__main__':
     #   自动灌快照会导致每次升级把现场配置重置成导出当天的值，故 MySQL 侧不提供自动版，
     #   重建后用 tools/restore-config/restore_config_mysql_*.sql 人工执行一次。
     #   放进这里以免重跑本工具时把人工版本覆盖掉、或凭空生成一个不该存在的 MySQL 版。
+    #   50/51/52 的 MySQL 镜像同样是人工维护的，不能机械转换：
+    #   50 由 tools/gen_sync_sql.py 一并生成达梦版与 MySQL 版（保证与 YAML 逐字段一致）、
+    #   51/52 为手写（达梦版带 schema 前缀与 PL/SQL 块，机械转换结果无法直接使用）。
+    #   不登记的话，重跑本工具会用机械转换结果覆盖掉这些人工版本。
     MANUAL = {'25_rename_doctor_tables.sql', '26_rename_clinical_tables.sql',
-              '27_restore_config_snapshot.sql'}
+              '27_restore_config_snapshot.sql',
+              '50_quality_gap_impl.sql', '51_quality_rule_local_gap.sql',
+              '52_device_infection_page.sql'}
 
     files = sorted(f for f in os.listdir(src_dir)
                    if f.endswith('.sql') and f not in MANUAL)

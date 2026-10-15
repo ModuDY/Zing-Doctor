@@ -283,6 +283,12 @@ FULL_SQL=(
     "47_quality_patient_monthly_page.sql"
     "48_external_link_pages.sql"
     "49_lab_renal_page.sql"
+    # 50 质控缺口落地：导管事件源/DVT预防/床位/ARDS（事实层+指标 27 条改 IMPL）+ 导管感染确诊表
+    "50_quality_gap_impl.sql"
+    # 51 CAUTI 发病率 LOCAL 规则（其余比率规则 ICU 侧已有，原子项落地后自动出数）
+    "51_quality_rule_local_gap.sql"
+    # 52 导管相关感染确诊页注册
+    "52_device_infection_page.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -343,6 +349,12 @@ FULL_SQL_JDBC=(
     "47_quality_patient_monthly_page.sql"
     "48_external_link_pages.sql"
     "49_lab_renal_page.sql"
+    # 50 质控缺口落地：导管事件源/DVT预防/床位/ARDS（事实层+指标 27 条改 IMPL）+ 导管感染确诊表
+    "50_quality_gap_impl.sql"
+    # 51 CAUTI 发病率 LOCAL 规则（其余比率规则 ICU 侧已有，原子项落地后自动出数）
+    "51_quality_rule_local_gap.sql"
+    # 52 导管相关感染确诊页注册
+    "52_device_infection_page.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -421,6 +433,12 @@ INCREMENTAL_SQL=(
     "47_quality_patient_monthly_page.sql"
     "48_external_link_pages.sql"
     "49_lab_renal_page.sql"
+    # 50 质控缺口落地：导管事件源/DVT预防/床位/ARDS（事实层+指标 27 条改 IMPL）+ 导管感染确诊表
+    "50_quality_gap_impl.sql"
+    # 51 CAUTI 发病率 LOCAL 规则（其余比率规则 ICU 侧已有，原子项落地后自动出数）
+    "51_quality_rule_local_gap.sql"
+    # 52 导管相关感染确诊页注册
+    "52_device_infection_page.sql"
 )
 
 # ---------------- SQL 清单自检 ----------------

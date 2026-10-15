@@ -128,7 +128,7 @@
   status: ACTIVE
   source: patient_info
   alias: pi
-  note: ARDS 人群/分度/病因/呼吸支持方式
+  note: ARDS 人群/分度/病因/呼吸支持方式；含机械通气天数与俯卧位时长（分钟）
   select:
     - "pi.id AS patient_id"
     - "pi.in_hospital_no AS in_hospital_no"
@@ -175,5 +175,11 @@
     # ---- 人口学 ----
     - "CASE WHEN pi.gender = '男' OR pi.gender = '1' OR pi.gender = 'M' THEN 1 ELSE 0 END AS sex_male"
     - "CASE WHEN REGEXP_LIKE(TRIM(pi.age), '^[0-9]{1,3}$') THEN CAST(TRIM(pi.age) AS INT) END AS age_num"
+    # ---- 支持时长（按周期切分；quality_477 / quality_486 的分子）----
+    # 机械通气天数：以气管插管/气切留置天数代理（呼吸机使用记录接入后可替换本列）。
+    # 每条导管按「本周期 ∩ 留置区间」切分，患者多维持多段则求和。
+    - "(SELECT SUM(DATEDIFF(DAY, CASE WHEN pt.tube_set_start_time < :periodStart THEN :periodStart ELSE pt.tube_set_start_time END, CASE WHEN pt.tube_set_end_time IS NOT NULL AND pt.tube_set_end_time < :periodEnd THEN pt.tube_set_end_time WHEN pt.tube_take_away_time IS NOT NULL AND pt.tube_take_away_time < :periodEnd THEN pt.tube_take_away_time ELSE :periodEnd END)) FROM \"zing_icu_db_prod\".\"patient_tube\" pt WHERE pt.patient_id = pi.id AND pt.del_flag = 0 AND pt.tube_set_start_time < :periodEnd AND (pt.tube_set_end_time IS NULL OR pt.tube_set_end_time >= :periodStart) AND (pt.tube_code LIKE '%气管插管%' OR pt.tube_code LIKE '%气管切开%' OR pt.tube_name LIKE '%气管%')) AS mv_days"
+    # 俯卧位时长（分钟）：取自俯卧位通气治疗记录（已提交），起止跨周期不切分（按记录计）
+    - "(SELECT SUM(DATEDIFF(MINUTE, pr.start_time, pr.end_time)) FROM \"zing_doctor_db_prod\".\"patient_doc_prone_record\" pr WHERE pr.patient_id = pi.id AND pr.status = 1 AND pr.record_status = 'submitted' AND pr.start_time < :periodEnd AND (pr.end_time IS NULL OR pr.end_time >= :periodStart)) AS prone_min"
     # ---- 转归 ----
     - "CASE WHEN pi.out_vest_type = 3 AND pi.out_depart_time >= :periodStart AND pi.out_depart_time < :periodEnd THEN 1 ELSE 0 END AS died_in_period"

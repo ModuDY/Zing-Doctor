@@ -152,6 +152,18 @@ public class NeuroMonitorServiceImpl implements NeuroMonitorService {
             failed.add(SRC_GCS);
         }
 
+        // 4) FOUR 评分文书（2024版 ICU-18 认可的意识评估工具；源未接入时 NOT_RECORDED，
+        //    不计入 failedSources —— 源上线前不出数属预期状态，不算查询失败）
+        try {
+            List<Map<String, Object>> fourRows = neuroAssessMapper.selectScoreDoc(
+                    pid, NeuroScoreParser.DOC_FOUR, startStr, endStr);
+            resp.setFour(NeuroScoreParser.parseFour(fourRows));
+        } catch (Exception e) {
+            log.warn("神经监测-FOUR文书查询失败(patientId={})", pid, e);
+            resp.getFour().setDataStatus("UNKNOWN");
+            resp.getFour().setNote("数据暂不可用");
+        }
+
         resp.setFailedSources(failed);
         if (failed.isEmpty()) {
             resp.setDataStatus("FOUND");

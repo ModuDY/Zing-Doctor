@@ -57,7 +57,7 @@
           <span class="window-src">数据来自重症系统正式评分文书（只读，不与监测镜像合并）</span>
         </div>
 
-        <!-- 三个数值量表：NRS / CPOT / RASS，各自独立坐标，禁止合并 -->
+        <!-- 数值量表：NRS / VAS / CPOT / RASS，各自独立坐标，禁止合并 -->
         <div class="scale-grid">
           <!-- NRS -->
           <div class="scale-card">
@@ -91,6 +91,39 @@
             </div>
             <div v-if="nrs.dataStatus === 'PARTIAL'" class="partial-hint">部分记录分项缺失</div>
             <div class="scale-note">{{ nrs.note }}</div>
+          </div>
+
+          <!-- VAS（2024版 ICU-09 认可的疼痛评估工具；源文书接入后出数） -->
+          <div class="scale-card">
+            <div class="scale-head">
+              <span class="scale-title">VAS 疼痛评分</span>
+              <span :class="['scale-badge', statusClass(vas.dataStatus)]">{{ statusText(vas.dataStatus) }}</span>
+            </div>
+            <div class="scale-main">
+              <div class="latest">
+                <div class="latest-value">{{ latestScore(vas) }}</div>
+                <div class="latest-sub">
+                  <span>分 · 0-10</span>
+                  <span v-if="vas.latest" class="latest-time">{{ fmtShort(vas.latest.time) }}</span>
+                </div>
+              </div>
+              <div class="mini-stats">
+                <div><label>次数</label><b>{{ vas.count || 0 }}</b></div>
+                <div><label>最低</label><b>{{ vas.min != null ? vas.min : '—' }}</b></div>
+                <div><label>最高</label><b>{{ vas.max != null ? vas.max : '—' }}</b></div>
+              </div>
+            </div>
+            <div class="chart-wrap">
+              <div v-if="hasPlot('vas')" ref="vasChart" class="chart"></div>
+              <div v-else :class="['chart-empty', { 'is-error': vas.dataStatus === 'UNKNOWN' }]">
+                <template v-if="vas.dataStatus === 'UNKNOWN'">
+                  数据暂不可用
+                  <el-button link type="primary" @click="loadData">点击重试</el-button>
+                </template>
+                <template v-else>窗口内暂无 VAS 评估记录</template>
+              </div>
+            </div>
+            <div class="scale-note">{{ vas.note }}</div>
           </div>
 
           <!-- CPOT -->
@@ -209,6 +242,7 @@
             <el-radio-group v-model="detailFilter" size="small">
               <el-radio-button label="all">全部</el-radio-button>
               <el-radio-button label="nrs">NRS</el-radio-button>
+              <el-radio-button label="vas">VAS</el-radio-button>
               <el-radio-button label="cpot">CPOT</el-radio-button>
               <el-radio-button label="rass">RASS</el-radio-button>
               <el-radio-button label="cam">CAM-ICU</el-radio-button>
@@ -249,6 +283,7 @@ import { setCurrentPatient } from '../utils/patientContext'
 
 const SCALE_META = {
   nrs: { name: 'NRS 疼痛', min: 0, max: 10, color: '#ea580c' },
+  vas: { name: 'VAS 疼痛', min: 0, max: 10, color: '#f97316' },
   cpot: { name: 'CPOT 疼痛', min: 0, max: 8, color: '#d97706' },
   rass: { name: 'RASS 镇静', min: -5, max: 4, color: '#57534e' }
 }
@@ -268,6 +303,7 @@ export default {
       patient: null,
       window: { startTime: '', endTime: '' },
       nrs: EMPTY_BLOCK(),
+      vas: EMPTY_BLOCK(),
       cpot: EMPTY_BLOCK(),
       rass: EMPTY_BLOCK(),
       cam: { dataStatus: 'NOT_RECORDED', points: [], total: 0, positive: 0, negative: 0, utaSuspect: 0, pairUnknown: 0, unparsed: 0, note: '' },
@@ -296,6 +332,7 @@ export default {
         })
       }
       pushNum('nrs', this.nrs)
+      pushNum('vas', this.vas)
       pushNum('cpot', this.cpot)
       pushNum('rass', this.rass)
       ;(this.cam.points || []).forEach((c) => {
@@ -354,6 +391,7 @@ export default {
         this.patient = data.patient
         this.window = data.window || { startTime: '', endTime: '' }
         this.nrs = data.nrs || EMPTY_BLOCK()
+        this.vas = data.vas || EMPTY_BLOCK()
         this.cpot = data.cpot || EMPTY_BLOCK()
         this.rass = data.rass || EMPTY_BLOCK()
         this.cam = data.cam || this.cam
@@ -414,7 +452,7 @@ export default {
       return (block.points || []).some((p) => p.score != null)
     },
     renderAllCharts() {
-      ;['nrs', 'cpot', 'rass'].forEach((k) => {
+      ;['nrs', 'vas', 'cpot', 'rass'].forEach((k) => {
         try {
           this.renderScale(k)
         } catch (e) {

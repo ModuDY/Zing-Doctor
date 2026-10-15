@@ -32,6 +32,12 @@ public final class SedationScoreParser {
     public static final String DOC_CPOT = "Z_ICU_SCORE_CPOT";
     public static final String DOC_RASS = "Z_ICU_RASS";
     public static final String DOC_CAM = "Z_ICU_ZWPF_CAM";
+    /**
+     * VAS 视觉模拟评分（2024版 ICU-09/10 官方口径认可的三种疼痛评估工具之一：
+     * NRS / VAS / BPS；CPOT 为补充）。0-10 数值标尺，解析口径与 NRS 相同。
+     * 源文书编码按命名惯例预留，接入后即出数（未接入时该块 NOT_RECORDED，不出假 0）。
+     */
+    public static final String DOC_VAS = "Z_ICU_SCORE_VAS";
 
     /** CAM 可评估性配对：评估时间之前、该小时数以内的最近一次 RASS 视为有效配对（待临床确认）。 */
     public static final int DEFAULT_RASS_PAIR_LOOKBACK_HOURS = 12;
@@ -62,6 +68,7 @@ public final class SedationScoreParser {
         List<TimedPoint> rassAll = new ArrayList<>();   // 含前推扩展窗，配对用
         List<TimedPoint> nrsAll = new ArrayList<>();
         List<TimedPoint> cpotAll = new ArrayList<>();
+        List<TimedPoint> vasAll = new ArrayList<>();
         List<Map<String, Object>> camInWindow = new ArrayList<>();  // CAM 仅展示窗口内
 
         if (rows != null) {
@@ -76,6 +83,9 @@ public final class SedationScoreParser {
                         break;
                     case DOC_NRS:
                         if (inWindow) nrsAll.add(new TimedPoint(parseNrs(row), t));
+                        break;
+                    case DOC_VAS:
+                        if (inWindow) vasAll.add(new TimedPoint(parseVas(row), t));
                         break;
                     case DOC_CPOT:
                         if (inWindow) cpotAll.add(new TimedPoint(parseCpot(row), t));
@@ -95,6 +105,7 @@ public final class SedationScoreParser {
         }
 
         r.nrs = buildNumericBlock(nrsAll, false);
+        r.vas = buildNumericBlock(vasAll, false);
         r.cpot = buildNumericBlock(cpotAll, true);
         r.rass = buildNumericBlock(rassDisplay, false);
         r.cam = buildCamBlock(camInWindow, rassAll, rassLookback);
@@ -107,6 +118,16 @@ public final class SedationScoreParser {
 
     private static SedationPoint parseNrs(Map<String, Object> row) {
         SedationPoint p = basePoint(DOC_NRS, row);
+        JsonNode node = readJson(p.getRawJson());
+        Integer total = firstIntRange(node, "totalScore", 0, 10);
+        if (total == null) total = intRange(str(row.get("score_value")), 0, 10);
+        p.setScore(total);
+        return p;
+    }
+
+    /** VAS 与 NRS 同为 0-10 数值标尺，解析口径一致（视觉模拟尺按刻度折算录入）。 */
+    private static SedationPoint parseVas(Map<String, Object> row) {
+        SedationPoint p = basePoint(DOC_VAS, row);
         JsonNode node = readJson(p.getRawJson());
         Integer total = firstIntRange(node, "totalScore", 0, 10);
         if (total == null) total = intRange(str(row.get("score_value")), 0, 10);
@@ -407,6 +428,7 @@ public final class SedationScoreParser {
     /** 解析结果持有者。 */
     public static final class Result {
         public ScaleBlock nrs;
+        public ScaleBlock vas;
         public ScaleBlock cpot;
         public ScaleBlock rass;
         public CamBlock cam;

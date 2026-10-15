@@ -6,6 +6,8 @@ import com.zing.doctor.module.neuro.dto.NeuroMonitorResponse.ConsciousPoint;
 import com.zing.doctor.module.neuro.dto.NeuroMonitorResponse.ConsciousnessBlock;
 import com.zing.doctor.module.neuro.dto.NeuroMonitorResponse.Diagnosis;
 import com.zing.doctor.module.neuro.dto.NeuroMonitorResponse.DiagnosisBlock;
+import com.zing.doctor.module.neuro.dto.NeuroMonitorResponse.FourBlock;
+import com.zing.doctor.module.neuro.dto.NeuroMonitorResponse.FourPoint;
 import com.zing.doctor.module.neuro.dto.NeuroMonitorResponse.GcsBlock;
 import com.zing.doctor.module.neuro.dto.NeuroMonitorResponse.GcsPoint;
 import com.zing.doctor.module.neuro.dto.NeuroMonitorResponse.IcpBlock;
@@ -45,6 +47,9 @@ public final class NeuroScoreParser {
     public static final String ITEM_PUPIL_LEFT = "oi_tkz";
     public static final String ITEM_PUPIL_RIGHT = "oi_tky";
     public static final String ITEM_ICP = "oi_lny";
+
+    /** FOUR 评分文书编码（按 Z_ICU_GCS 命名惯例，待护理部 / 源系统确认后生效）。 */
+    public static final String DOC_FOUR = "Z_ICU_FOUR";
 
     public static final String CAT_SAH = "SAH";
     public static final String CAT_ICH = "ICH";
@@ -420,6 +425,95 @@ public final class NeuroScoreParser {
         block.setNote("GCS 来自重症系统正式评分文书（E 睁眼 / V 言语 / M 运动）；插管或气切时言语不可评，"
                 + "总分按 E+M 并标 T（如 3T），不把占位言语分计入，也不反哺 SOFA 评分。");
         return block;
+    }
+
+    // ============================ FOUR doc ============================
+
+    /**
+     * FOUR 评分（Full Outline of UnResponsiveness）文书解析：E 睁眼 0-4 / V 言语 0-5
+     * （0=插管气切）/ M 运动 0-6 / B 脑干反射 0-4，总分 0-16。2024 版国家质控指标
+     * ICU-18（意识评估率）认可 GCS 或 FOUR；FOUR 对插管患者可评（V 记 0），
+     * 弥补 GCS 插管标 T 的缺陷。
+     *
+     * <p>源文书编码按 Z_ICU_GCS 命名惯例取 {@code Z_ICU_FOUR}，待与护理部确认后
+     * 即可出数（未接入时该块 NOT_RECORDED，不出假 0）。JSON 字段沿用 item1-E /
+     * item2-V / item3-M / item4-B / totalScore 约定。</p>
+     */
+    public static FourBlock parseFour(List<Map<String, Object>> rows) {
+        FourBlock block = new FourBlock();
+        List<FourPoint> points = new ArrayList<>();
+        if (rows != null) {
+            for (Map<String, Object> row : rows) {
+                String json = asStr(row.get("score_json"));
+                String scoreValue = asStr(row.get("score_value"));
+                FourPoint p = new FourPoint();
+                p.setTime(toIso(row.get("record_time")));
+                p.setStaffName(asStr(row.get("staff_name")));
+                p.setRawScore(scoreValue);
+                p.setRawJson(json);
+                Object audited = row.get("is_audit");
+                if (audited != null) {
+                    p.setAudited("1".equals(String.valueOf(audited)));
+                }
+                JsonNode node = null;
+                if (json != null && !json.isEmpty()) {
+                    try {
+                        node = JSON.readTree(json);
+                    } catch (Exception ignore) {
+                        node = null;
+                    }
+                }
+                Integer e = itemInt(node, "item1", 0, 4);
+                Integer v = itemInt(node, "item2", 0, 5);
+                Integer m = itemInt(node, "item3", 0, 6);
+                Integer b = itemInt(node, "item4", 0, 4);
+                if (node == null && scoreValue != null && scoreValue.matches("-?\\d{1,2}")) {
+                    try {
+                        int t = Integer.parseInt(scoreValue.trim());
+                        if (t >= 0 && t <= 16) p.setTotal(t);
+                    } catch (NumberFormatException ignored) {
+                    }
+                } else {
+                    Integer total = itemInt(node, "totalScore", 0, 16);
+                    if (total == null && e != null && v != null && m != null && b != null) {
+                        total = e + v + m + b;
+                    }
+                    p.setTotal(total);
+                }
+                p.setE(e);
+                p.setV(v);
+                p.setM(m);
+                p.setB(b);
+                if (e == null && v == null && m == null && b == null && p.getTotal() == null) {
+                    continue;
+                }
+                points.add(p);
+            }
+        }
+        block.setPoints(points);
+        block.setCount(points.size());
+        block.setLatest(points.isEmpty() ? null : points.get(points.size() - 1));
+        if (!points.isEmpty()) {
+            boolean allComplete = points.stream().allMatch(p -> p.getE() != null && p.getV() != null
+                    && p.getM() != null && p.getB() != null && p.getTotal() != null);
+            block.setDataStatus(allComplete ? "FOUND" : "PARTIAL");
+        }
+        block.setNote("FOUR 全面无反应性量表（E 睁眼 / V 言语 / M 运动 / B 脑干反射，0-16）；"
+                + "插管 / 气切患者言语记 0，仍可评估 —— 与 GCS 标 T 相比对昏迷患者分级更细"
+                + "（2024版 ICU-18 意识评估口径认可 GCS 或 FOUR）。源文书编码待护理部确认。");
+        return block;
+    }
+
+    private static Integer itemInt(JsonNode node, String key, int lo, int hi) {
+        if (node == null || !node.hasNonNull(key)) return null;
+        String s = node.get(key).asText("").trim();
+        if (!s.matches("-?\\d+")) return null;
+        try {
+            int v = Integer.parseInt(s);
+            return (v >= lo && v <= hi) ? v : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private static void parseScoreValueFallback(String scoreValue, GcsPoint p) {

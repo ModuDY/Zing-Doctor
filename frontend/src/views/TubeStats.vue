@@ -1,7 +1,12 @@
 <template>
   <div class="tube-stats">
     <div class="filter-bar">
+      <el-radio-group v-model="viewMode" @change="load">
+        <el-radio-button label="month">月度</el-radio-button>
+        <el-radio-button label="year">年度</el-radio-button>
+      </el-radio-group>
       <el-date-picker
+        v-if="viewMode === 'month'"
         v-model="month"
         type="month"
         placeholder="选择月份"
@@ -10,7 +15,18 @@
         popper-class="qb-popper"
         @change="load"
       />
-      <span class="hint">置管/拔管/带出按事件发生月份统计；留置日未拔者算到患者出科时间</span>
+      <el-date-picker
+        v-else
+        v-model="year"
+        type="year"
+        placeholder="选择年份"
+        value-format="YYYY"
+        :clearable="false"
+        popper-class="qb-popper"
+        @change="load"
+      />
+      <el-button :disabled="!hasData" @click="exportXlsx">导出 Excel</el-button>
+      <span class="hint">置管/拔管/带出按事件发生{{ viewMode === 'month' ? '月份' : '月份（按月分桶）' }}统计；留置日未拔者算到患者出科时间</span>
     </div>
 
     <el-alert
@@ -22,7 +38,7 @@
     />
 
     <!-- 三管汇总：做成「一个模块三列」，而不是三张互不相干的浮动卡片 -->
-    <section class="tube-summary" aria-label="三管事件汇总">
+    <section class="tube-summary" aria-label="三管事件汇总" v-if="viewMode === 'month'">
       <div class="summary-head">
         <h2>三管事件汇总</h2>
       </div>
@@ -57,8 +73,8 @@
       </div>
     </section>
 
-    <!-- 明细 -->
-    <el-table :data="data.rows" size="small" border stripe style="margin-top:16px">
+    <!-- 明细（月度视图） -->
+    <el-table v-if="viewMode === 'month'" :data="data.rows" size="small" border stripe style="margin-top:16px">
       <el-table-column prop="tubeName" label="导管类型" min-width="140" />
       <el-table-column label="归类" width="90">
         <template #default="{ row }">
@@ -87,15 +103,57 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <!-- 年度视图：12 个月置管量柱状图 + 月×类型表 -->
+    <template v-if="viewMode === 'year'">
+      <section class="year-chart-card" aria-label="年度置管趋势">
+        <div class="summary-head"><h2>年度置管趋势（按月分桶）</h2></div>
+        <div ref="yearChart" class="year-chart"></div>
+        <el-empty v-if="!hasData" description="该年度暂无导管事件记录" />
+      </section>
+      <el-table :data="yearRows" size="small" border stripe style="margin-top:16px">
+        <el-table-column prop="ym" label="月份" width="90" />
+        <el-table-column v-for="g in GROUPS" :key="g" :label="groupLabel(g)" align="center">
+          <el-table-column :label="'置管'" width="70">
+            <template #default="{ row }">{{ cell(row, g, 'placed') }}</template>
+          </el-table-column>
+          <el-table-column :label="'拔管'" width="70">
+            <template #default="{ row }">{{ cell(row, g, 'removed') }}</template>
+          </el-table-column>
+          <el-table-column :label="'非计划'" width="70">
+            <template #default="{ row }">{{ cell(row, g, 'unplannedRemoval') }}</template>
+          </el-table-column>
+          <el-table-column :label="'再插管'" width="70">
+            <template #default="{ row }">{{ cell(row, g, 'reintubation24h') }}</template>
+          </el-table-column>
+        </el-table-column>
+      </el-table>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
+import * as echarts from 'echarts'
 import request from '../api/request'
 
+const GROUPS = ['CVC', '导尿管', '气道导管', '其他']
+const GROUP_COLORS = { CVC: '#2563eb', 导尿管: '#d97706', 气道导管: '#0891b2', 其他: '#a8a29e' }
+
+const viewMode = ref('month')
 const month = ref(new Date().toISOString().slice(0, 7))
+const year = ref(new Date().getFullYear().toString())
 const data = reactive({ groups: [], rows: [], infectionNote: '' })
+const yearData = reactive({ months: [], yearSum: {} })
+const yearChart = ref(null)
+
+const hasData = computed(() =>
+  viewMode.value === 'month'
+    ? (data.groups || []).length > 0 || (data.rows || []).length > 0
+    : (yearData.months || []).some((m) => (m.groups || []).some((g) => g.placed > 0 || g.removed > 0))
+)
+
+const yearRows = computed(() => yearData.months || [])
 
 function groupLabel(g) {
   return { CVC: '中心静脉导管(CVC)', 导尿管: '导尿管', 气道导管: '气道导管(插管/气切)', 其他: '其他导管' }[g] || g
@@ -103,25 +161,77 @@ function groupLabel(g) {
 function groupClass(g) {
   return { CVC: 'cvc', 导尿管: 'urine', 气道导管: 'airway' }[g] || ''
 }
+function cell(row, group, field) {
+  const g = (row.groups || []).find((x) => x.group === group)
+  return g ? g[field] : 0
+}
+
+function exportXlsx() {
+  const url = viewMode.value === 'month'
+    ? `/api/tube/export/monthly?yearMonth=${encodeURIComponent(month.value)}`
+    : `/api/tube/export/yearly?year=${encodeURIComponent(year.value)}`
+  window.open(url, '_blank')
+}
 
 async function load() {
   try {
-    const res = await request.get('/tube/monthly', { params: { yearMonth: month.value } })
-    // 兼容两种信封：统一 request 已解包（直接是业务对象），但若上层改动或
-    // 换用裸 axios 会拿到 {code,message,data}。整包 Object.assign 的后果是
-    // data.groups 永远为空 —— 页面「暂无数据」而接口明明返回了 4 组 30 行。
-    Object.assign(data, res && res.groups ? res : (res && res.data) || {})
+    if (viewMode.value === 'month') {
+      const res = await request.get('/tube/monthly', { params: { yearMonth: month.value } })
+      // 兼容两种信封：统一 request 已解包（直接是业务对象），但若上层改动或
+      // 换用裸 axios 会拿到 {code,message,data}。整包 Object.assign 的后果是
+      // data.groups 永远为空 —— 页面「暂无数据」而接口明明返回了 4 组 30 行。
+      Object.assign(data, res && res.groups ? res : (res && res.data) || {})
+    } else {
+      const res = await request.get('/tube/yearly', { params: { year: year.value } })
+      Object.assign(yearData, res && res.months ? res : (res && res.data) || {})
+      await nextTick()
+      renderYearChart()
+    }
   } catch (e) {
     console.error(e)
   }
 }
+
+function renderYearChart() {
+  const el = yearChart.value
+  if (!el) return
+  const months = yearData.months || []
+  const chart = echarts.getInstanceByDom(el) || echarts.init(el)
+  chart.setOption({
+    backgroundColor: 'transparent',
+    animationDuration: 300,
+    tooltip: { trigger: 'axis', confine: true },
+    legend: { top: 0, textStyle: { fontSize: 11, color: '#57534e' } },
+    grid: { left: 40, right: 16, top: 32, bottom: 28 },
+    xAxis: { type: 'category', data: months.map((m) => m.ym), axisLabel: { fontSize: 10, color: '#a8a29e' } },
+    yAxis: { type: 'value', minInterval: 1, axisLabel: { fontSize: 10, color: '#a8a29e' } },
+    series: GROUPS.map((g) => ({
+      name: groupLabel(g),
+      type: 'bar',
+      stack: 'placed',
+      data: months.map((m) => {
+        const x = (m.groups || []).find((x) => x.group === g)
+        return x ? x.placed : 0
+      }),
+      itemStyle: { color: GROUP_COLORS[g] },
+      barMaxWidth: 26
+    }))
+  })
+  chart.resize()
+}
+
+watch(yearChart, (el) => { if (el) renderYearChart() })
+window.addEventListener('resize', () => { if (viewMode.value === 'year') renderYearChart() })
+
 onMounted(load)
 </script>
 
 <style scoped>
 .tube-stats { padding: 16px; }
-.filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
 .hint { color: #78716c; font-size: 12px; }
+.year-chart-card { margin-top: 16px; }
+.year-chart { width: 100%; height: 300px; }
 /* 三管汇总：一个模块三列，发丝线分隔。
    旧版是三张浅灰浮卡 + 3px 彩色顶边 —— 那是后台模板套出来的观感，而且八项
    数字等权平铺，看不出哪个才是要盯的。现在改为：统一白底模块、色点做分组

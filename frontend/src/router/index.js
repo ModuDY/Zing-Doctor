@@ -250,6 +250,12 @@ const routes = [
     meta: { title: '导管统计分析' }
   },
   {
+    path: '/page/device-infection',
+    name: 'deviceInfection',
+    component: () => import('../views/DeviceInfection.vue'),
+    meta: { title: '导管相关感染确诊' }
+  },
+  {
     path: '/page/quality-patient-monthly',
     name: 'qualityPatientMonthly',
     component: () => import('../views/QualityPatientMonthly.vue'),
@@ -319,7 +325,9 @@ const PATIENT_PAGES = new Set([
   // 使用者要的正是这个。但必须连入科时间一起给：新建记录时后端靠
   // (住院号 + 入科时间) 定位到哪一次入科，只有住院号会退化成「最近一次入科」，
   // 同一住院号多次入科（转科 / 再入院）时会挂错人。
-  '/page/ards-prone-list'
+  '/page/ards-prone-list',
+  // 导管相关感染确诊录入：必须带患者上下文（确诊记录挂在患者维度）
+  '/page/device-infection'
   // 俯卧位「填写页」刻意不在内：它只认 record id，没有 id 会直接提示
   // 「请从列表页进入」—— 患者归属在列表页点新建、后端建记录那一刻就固化了，
   // 给它注入任何患者字段都不会被读取。

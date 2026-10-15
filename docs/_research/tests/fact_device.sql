@@ -1,0 +1,20 @@
+SELECT pt.id AS device_id,
+  pt.patient_id AS patient_id,
+  pt.tube_code AS tube_code,
+  pt.tube_name AS tube_name,
+  pt.tube_set_start_time AS insert_time,
+  pt.tube_set_end_time AS remove_time,
+  pt.take_source AS take_source,
+  pt.is_not_plan_extubation AS is_not_plan_extubation,
+  pt.is_reintubation24 AS is_reintubation24,
+  (SELECT pi0.depart_code FROM "zing_icu_db_prod"."patient_info" pi0 WHERE pi0.id = pt.patient_id) AS depart_code,
+  (SELECT pi0.name FROM "zing_icu_db_prod"."patient_info" pi0 WHERE pi0.id = pt.patient_id) AS patient_name,
+  (SELECT pi0.in_hospital_no FROM "zing_icu_db_prod"."patient_info" pi0 WHERE pi0.id = pt.patient_id) AS in_hospital_no,
+  CASE WHEN pt.tube_code LIKE '%CVC%' OR pt.tube_code LIKE '%中心静脉%' OR pt.tube_name LIKE '%中心静脉%' OR pt.tube_name LIKE '%PICC%' THEN 'CVC' WHEN pt.tube_code LIKE '%气管插管%' OR pt.tube_code LIKE '%气管切开%' OR pt.tube_name LIKE '%气管%' THEN '气道导管' WHEN pt.tube_code LIKE '%导尿%' OR pt.tube_name LIKE '%导尿%' THEN '导尿管' ELSE '其他' END AS device_kind,
+  CASE WHEN pt.tube_set_end_time IS NOT NULL AND pt.tube_set_end_time >= TIMESTAMP '2026-09-01 00:00:00' AND pt.tube_set_end_time < TIMESTAMP '2026-10-01 00:00:00' THEN 1 ELSE 0 END AS removed_in_period,
+  CASE WHEN pt.tube_set_end_time IS NOT NULL AND pt.tube_set_end_time >= TIMESTAMP '2026-09-01 00:00:00' AND pt.tube_set_end_time < TIMESTAMP '2026-10-01 00:00:00' AND pt.is_not_plan_extubation = 1 THEN 1 ELSE 0 END AS unplanned_removal,
+  CASE WHEN pt.tube_set_end_time IS NOT NULL AND pt.tube_set_end_time >= TIMESTAMP '2026-09-01 00:00:00' AND pt.tube_set_end_time < TIMESTAMP '2026-10-01 00:00:00' AND pt.is_not_plan_extubation = 0 AND pt.is_reintubation24 = 1 THEN 1 ELSE 0 END AS reintubation_48h,
+  DATEDIFF(DAY, CASE WHEN pt.tube_set_start_time < TIMESTAMP '2026-09-01 00:00:00' THEN TIMESTAMP '2026-09-01 00:00:00' ELSE pt.tube_set_start_time END, CASE WHEN pt.tube_set_end_time IS NOT NULL AND pt.tube_set_end_time < TIMESTAMP '2026-10-01 00:00:00' THEN pt.tube_set_end_time WHEN pt.tube_take_away_time IS NOT NULL AND pt.tube_take_away_time < TIMESTAMP '2026-10-01 00:00:00' THEN pt.tube_take_away_time ELSE TIMESTAMP '2026-10-01 00:00:00' END) AS device_days,
+  CASE WHEN (pt.tube_code LIKE '%CVC%' OR pt.tube_code LIKE '%中心静脉%' OR pt.tube_name LIKE '%中心静脉%' OR pt.tube_name LIKE '%PICC%') AND EXISTS (SELECT 1 FROM "zing_doctor_db_prod"."patient_doc_device_infection" r WHERE r.patient_id = pt.patient_id AND r.status = 1 AND r.infection_type = 'CRBSI' AND r.confirm_time >= pt.tube_set_start_time AND r.confirm_time <= TIMESTAMP '2026-10-01 00:00:00' AND (pt.tube_set_end_time IS NULL OR DATEDIFF(HOUR, pt.tube_set_end_time, r.confirm_time) BETWEEN 0 AND 48)) THEN 1 WHEN (pt.tube_code LIKE '%气管插管%' OR pt.tube_code LIKE '%气管切开%' OR pt.tube_name LIKE '%气管%') AND EXISTS (SELECT 1 FROM "zing_doctor_db_prod"."patient_doc_device_infection" r WHERE r.patient_id = pt.patient_id AND r.status = 1 AND r.infection_type = 'VAP' AND r.confirm_time >= pt.tube_set_start_time AND r.confirm_time <= TIMESTAMP '2026-10-01 00:00:00' AND (pt.tube_set_end_time IS NULL OR DATEDIFF(HOUR, pt.tube_set_end_time, r.confirm_time) BETWEEN 0 AND 48)) THEN 1 WHEN (pt.tube_code LIKE '%导尿%' OR pt.tube_name LIKE '%导尿%') AND EXISTS (SELECT 1 FROM "zing_doctor_db_prod"."patient_doc_device_infection" r WHERE r.patient_id = pt.patient_id AND r.status = 1 AND r.infection_type = 'CAUTI' AND r.confirm_time >= pt.tube_set_start_time AND r.confirm_time <= TIMESTAMP '2026-10-01 00:00:00' AND (pt.tube_set_end_time IS NULL OR DATEDIFF(HOUR, pt.tube_set_end_time, r.confirm_time) BETWEEN 0 AND 48)) THEN 1 ELSE 0 END AS device_infection
+FROM "zing_icu_db_prod"."patient_tube" pt
+WHERE (pt.del_flag = 0) AND (pt.tube_set_start_time < TIMESTAMP '2026-10-01 00:00:00') AND ((pt.tube_set_end_time IS NULL OR pt.tube_set_end_time >= TIMESTAMP '2026-09-01 00:00:00'))

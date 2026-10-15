@@ -79,4 +79,34 @@ public interface TubeStatsMapper {
     List<Map<String, Object>> placementDurations(@Param("start") String start,
                                                   @Param("end") String end,
                                                   @Param("departCode") String departCode);
+
+    /**
+     * 按月×导管类型聚合（年度视图），口径与 {@link #monthlyCounts} 完全一致，
+     * 只是 GROUP BY 多带一列月份（SUBSTR(tube_set_start_time,1,7)，形如 2026-01）。
+     * 拔管/带出/非计划拔管按「事件时间所在月」归属，与月度口径一致；
+     * 「当月新置管中 48h 再插管」列在年度视图里按置管月归属（is_reintubation24 挂在置管行上）。
+     */
+    @Select("SELECT "
+            + "  SUBSTR(pt.tube_set_start_time, 1, 7) AS ym, "
+            + "  pt.tube_code AS tube_code, "
+            + "  MAX(pt.tube_name) AS tube_name, "
+            + "  SUM(CASE WHEN pt.tube_set_start_time >= #{start} AND pt.tube_set_start_time < #{end} THEN 1 ELSE 0 END) AS placed, "
+            + "  SUM(CASE WHEN pt.tube_set_start_time >= #{start} AND pt.tube_set_start_time < #{end} AND pt.take_source IN (1,2) THEN 1 ELSE 0 END) AS brought_in, "
+            + "  SUM(CASE WHEN pt.tube_set_start_time >= #{start} AND pt.tube_set_start_time < #{end} AND pt.take_source = 3 THEN 1 ELSE 0 END) AS self_placed, "
+            + "  SUM(CASE WHEN pt.tube_set_end_time >= #{start} AND pt.tube_set_end_time < #{end} THEN 1 ELSE 0 END) AS removed, "
+            + "  SUM(CASE WHEN pt.tube_take_away_time >= #{start} AND pt.tube_take_away_time < #{end} THEN 1 ELSE 0 END) AS taken_away, "
+            + "  SUM(CASE WHEN pt.tube_set_end_time >= #{start} AND pt.tube_set_end_time < #{end} AND pt.is_not_plan_extubation = 1 THEN 1 ELSE 0 END) AS unplanned_removal, "
+            + "  SUM(CASE WHEN pt.tube_set_start_time >= #{start} AND pt.tube_set_start_time < #{end} AND pt.is_reintubation24 = 1 THEN 1 ELSE 0 END) AS reintubation_24h "
+            + "FROM \"zing_icu_db_prod\".\"patient_tube\" pt "
+            + "JOIN \"zing_icu_db_prod\".\"patient_info\" pi ON pi.id = pt.patient_id "
+            + "WHERE pt.del_flag = 0 AND pi.del_flag = 0 "
+            + "  AND (#{departCode} IS NULL OR #{departCode} = 'ALL' OR pi.depart_code = #{departCode}) "
+            + "  AND (pt.tube_set_start_time >= #{start} AND pt.tube_set_start_time < #{end} "
+            + "       OR pt.tube_set_end_time >= #{start} AND pt.tube_set_end_time < #{end} "
+            + "       OR pt.tube_take_away_time >= #{start} AND pt.tube_take_away_time < #{end}) "
+            + "GROUP BY SUBSTR(pt.tube_set_start_time, 1, 7), pt.tube_code "
+            + "ORDER BY ym, placed DESC")
+    List<Map<String, Object>> yearlyCounts(@Param("start") String start,
+                                           @Param("end") String end,
+                                           @Param("departCode") String departCode);
 }
