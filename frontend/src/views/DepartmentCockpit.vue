@@ -188,7 +188,7 @@
         <div v-else class="score-content">
           <div class="score-total"><b>{{ distTotal(summary.sofaDist) }}</b><span>名患者</span></div>
           <div class="score-rows">
-            <div v-for="(row, index) in scoreRows(summary.sofaDist)" :key="row.label" class="score-row">
+            <div v-for="(row, index) in scoreRows(summary.sofaDist)" :key="row.label" class="score-cell">
               <span class="score-range">{{ row.label }}</span><div class="score-track"><i :style="{ width: row.percent + '%', background: sofaColors[index % sofaColors.length] }"></i></div><b>{{ row.count }}</b><small>{{ row.share }}%</small>
             </div>
           </div>
@@ -204,7 +204,7 @@
         <div v-else class="score-content">
           <div class="score-total"><b>{{ distTotal(summary.apache2Dist) }}</b><span>名患者</span></div>
           <div class="score-rows">
-            <div v-for="(row, index) in scoreRows(summary.apache2Dist)" :key="row.label" class="score-row">
+            <div v-for="(row, index) in scoreRows(summary.apache2Dist)" :key="row.label" class="score-cell">
               <span class="score-range">{{ row.label }}</span><div class="score-track"><i :style="{ width: row.percent + '%', background: apacheColors[index % apacheColors.length] }"></i></div><b>{{ row.count }}</b><small>{{ row.share }}%</small>
             </div>
           </div>
@@ -897,12 +897,20 @@ export default {
 .score-content { display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 14px; min-height: 130px; padding: 10px 14px 12px; }
 .score-total { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 78px; border-right: 1px solid rgba(119, 179, 179, .12); }
 .score-total b { color: #9af0dc; font-size: var(--fs-hero); line-height: 1; font-variant-numeric: tabular-nums; text-shadow: 0 0 20px rgba(93, 230, 207, .25); }.score-total span { margin-top: 6px; color: #648489; font-size: var(--fs-sub); }
-.score-rows { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; justify-content: center; gap: 2px; }
-.score-row { display: grid; grid-template-columns: 42px minmax(50px, 1fr) 26px 36px; align-items: center; gap: 7px; min-height: var(--row-h); padding: 3px 6px; border-radius: var(--r-md); transition: background .2s ease; }
-.score-row:hover { background: rgba(255, 255, 255, .035); }
-.score-range { color: #78979a; font-size: var(--fs-body); font-variant-numeric: tabular-nums; }
-.score-track { height: 7px; overflow: hidden; border-radius: var(--r-sm); background: rgba(111, 169, 169, .12); }.score-track i { display: block; height: 100%; min-width: 2px; border-radius: inherit; box-shadow: 0 0 8px currentColor; }
-.score-row b { color: #bdd6d5; font-size: var(--fs-row-value); text-align: right; font-variant-numeric: tabular-nums; }.score-row small { color: #5d7c81; font-size: var(--fs-sub); text-align: right; font-variant-numeric: tabular-nums; }
+/* 评分分布：两列网格。
+   原来是一列一行的列表，APACHE II 有 8 个区间、SOFA 有 6 个，而本行在 100vh 布局里
+   只分到约 0.95 份（容器高度 ~119px，见 .secondary-grid 的 flex 系数）。
+   8 行 × 最低行高 24px = 192px 根本放不下，min-height:0 强行压缩后只能把字号缩到 9px，
+   结果是「字小 + 行挤 + 条细」，驾驶舱大屏上基本读不了。
+   改两列后行数直接减半（8→4 行、6→3 行），高度需求降到 ~130px，字号能回到正常值，
+   每格还变宽到 ~240px，区间名 / 人数 / 占比各自占位不再互相挤。 */
+.score-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 18px; align-content: center; }
+.score-cell { display: grid; grid-template-columns: max-content minmax(12px, 1fr) max-content max-content; align-items: center; gap: 6px; padding: 2px 5px; border-radius: var(--r-md); transition: background .2s ease; }
+.score-cell:hover { background: rgba(255, 255, 255, .035); }
+.score-range { color: #8fb3b5; font-size: var(--fs-body); line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.score-track { height: 5px; overflow: hidden; border-radius: var(--r-sm); background: rgba(111, 169, 169, .12); }.score-track i { display: block; height: 100%; min-width: 2px; border-radius: inherit; box-shadow: 0 0 8px currentColor; }
+.score-cell b { color: #dff6f2; font-size: var(--fs-row-value); line-height: 1.15; text-align: right; font-variant-numeric: tabular-nums; }
+.score-cell small { color: #6b8a8d; font-size: var(--fs-sub); line-height: 1.15; text-align: right; font-variant-numeric: tabular-nums; }
 .organ-panel { min-height: 224px; }
 /* 器官支持 / 设备接入 / 评分分布三处都是「列表行」：同一套内边距、圆角与 hover，
    全页因此只剩两种卡片形态（卡中卡 + 列表行），不再一处一个样。 */
@@ -1032,8 +1040,10 @@ export default {
   .device-row { flex: 1 1 0; min-height: var(--row-h); max-height: 40px; }
   .score-content { flex: 1 1 auto; min-height: 0; grid-template-columns: 76px 1fr; gap: 10px; padding: 8px 11px; overflow: hidden; }
   .score-total { height: 56px; }
-  .score-rows { gap: 2px; }
-  .score-row { flex: 1 1 0; max-height: 40px; }
+  /* 两列网格后行数已减半（APACHE 8→4 行），不再需要把字号压到 9px 硬塞。
+     这里只收紧行间距与格内边距，字号维持 --fs-* 正常值，保证大屏可读。 */
+  .score-rows { gap: 3px 14px; }
+  .score-cell { padding: 1px 5px; gap: 6px; }
   .organ-list { flex: 1 1 auto; min-height: 0; overflow: hidden; }
   .organ-item { flex: 1 1 0; max-height: 40px; }
   .resource-foot, .organ-foot { flex: 0 0 auto; margin: 3px 13px 7px; padding-top: 5px; }
@@ -1196,5 +1206,5 @@ export default {
 
 @media (max-width: 1180px) { .cockpit-hero { grid-template-columns: 1fr auto; }.hero-actions { grid-column: 1 / -1; justify-content: flex-end; }.kpi-row { grid-template-columns: repeat(3, 1fr); }.secondary-grid { grid-template-columns: 1fr 1fr; }.organ-panel { grid-column: 1 / -1; }.device-row { grid-template-columns: 120px minmax(70px, .8fr) minmax(220px, 1.2fr); gap: 10px; } }
 @media (max-width: 820px) { .cockpit-page { padding: 12px; }.cockpit-hero { grid-template-columns: 1fr; gap: 14px; }.hero-meta { padding-left: 0; border-left: 0; }.hero-actions { grid-column: auto; justify-content: flex-start; flex-wrap: wrap; }.kpi-row { grid-template-columns: repeat(2, 1fr); }.primary-grid, .resource-grid, .secondary-grid { grid-template-columns: 1fr; }.organ-panel { grid-column: auto; }.panel-context { white-space: normal; text-align: right; }.device-row { grid-template-columns: 100px 1fr; }.device-stats { grid-column: 1 / -1; } }
-@media (max-width: 480px) { .kpi-row { grid-template-columns: 1fr; }.period-strip { align-items: flex-start; flex-direction: column; gap: 7px; }.data-gap { margin-left: 0; }.flow-summary { gap: 14px; }.score-content { grid-template-columns: 70px 1fr; padding-left: 10px; padding-right: 10px; }.score-row { grid-template-columns: 36px minmax(40px, 1fr) 22px 31px; gap: 5px; } }
+@media (max-width: 480px) { .kpi-row { grid-template-columns: 1fr; }.period-strip { align-items: flex-start; flex-direction: column; gap: 7px; }.data-gap { margin-left: 0; }.flow-summary { gap: 14px; }.score-content { grid-template-columns: 70px 1fr; padding-left: 10px; padding-right: 10px; }.score-rows { gap: 4px 10px; }.score-cell { padding: 2px 5px; } }
 </style>
