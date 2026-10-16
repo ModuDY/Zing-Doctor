@@ -44,6 +44,31 @@ public final class MsgPushKeys {
     public static final String KEY_CERTIFICATE = "MSGPUSH_CERTIFICATE";
     /** 区划代码（apply / exec 共用） */
     public static final String KEY_DISTRICT_CODE = "MSGPUSH_DISTRICT_CODE";
+
+    // ---- 以下 11 项来自平台提供的真实成功示例（他厂家报文），平台按厂家分配 ----
+    /** 发送方代码 senderCode（示例为体检系统 PE，本系统需现场分配） */
+    public static final String KEY_SENDER_CODE = "MSGPUSH_SENDER_CODE";
+    /** 接收方代码 receivedCode（示例为 MP） */
+    public static final String KEY_RECEIVED_CODE = "MSGPUSH_RECEIVED_CODE";
+    /** 目标类型 targetType（示例 1） */
+    public static final String KEY_TARGET_TYPE = "MSGPUSH_TARGET_TYPE";
+    /** 转换类型 convertType（示例 0） */
+    public static final String KEY_CONVERT_TYPE = "MSGPUSH_CONVERT_TYPE";
+    /** 数据格式 format（示例 HL7V3；注意不是 "xml"） */
+    public static final String KEY_FORMAT = "MSGPUSH_FORMAT";
+    /** 服务标识 serviceId（示例与 serverName 同值） */
+    public static final String KEY_SERVICE_ID = "MSGPUSH_SERVICE_ID";
+    /** 调用方 IP visitorIp；留空则自动取本机 IP（平台按此记录来访来源） */
+    public static final String KEY_VISITOR_IP = "MSGPUSH_VISITOR_IP";
+    /** 接收服务 receiverServer（示例为字符串 null，不是空节点） */
+    public static final String KEY_RECEIVER_SERVER = "MSGPUSH_RECEIVER_SERVER";
+    /** 接收地址 receiverUrl（示例为字符串 null） */
+    public static final String KEY_RECEIVER_URL = "MSGPUSH_RECEIVER_URL";
+    /** 发送方机构码 senderOrgCode（示例为空，可留空） */
+    public static final String KEY_SENDER_ORG_CODE = "MSGPUSH_SENDER_ORG_CODE";
+    /** 接收方机构码 receivedOrgCode（示例为空，可留空） */
+    public static final String KEY_RECEIVED_ORG_CODE = "MSGPUSH_RECEIVED_ORG_CODE";
+
     /** 接收号码，逗号分隔 */
     public static final String KEY_RECEIVERS = "MSGPUSH_RECEIVERS";
     /** 触发推送的预警类型，逗号分隔（本期仅登记，不自动推送） */
@@ -58,12 +83,39 @@ public final class MsgPushKeys {
     /** 场景：预警推送（后续接入自动推送时使用） */
     public static final String SCENE_ALERT = "alert";
 
+    /**
+     * 平台统一入口名（msgHeader 的 serverName）。
+     *
+     * <p>文档写明平台只暴露一个 WebService，所有业务靠 serverName 路由，
+     * 真实报文里 serverName 与 serviceId 都是这个值，故固定为常量、不做成参数。</p>
+     */
+    public static final String SERVER_NAME = "sendMessagesToCenterPlatform";
+
     /** 信封里引用两个片段的占位符（原样嵌入，不做转义） */
     public static final String PH_HEADER = "msgHeader";
     public static final String PH_BODY = "msgBody";
 
-    /** 信封模板缺省值：把 msgHeader / msgBody 两段包在一起。
-     *  走 SOAP 的现场按 WSDL 在此套上 soap:Envelope 即可，无需改代码。 */
+    /**
+     * 信封模板缺省值（兜底；正常由参数 MSGPUSH_ENVELOPE 提供）。
+     *
+     * <p>按平台提供的他厂家真实成功报文：SOAP **1.2**（2003/05 命名空间，不是 schemas.xmlsoap.org），
+     * 命名空间 {@code xmlns:zys="http://www.zysoft.com.cn/"}，操作元素是
+     * {@code <zys:CallInterface>}（不是 serverName 同名元素），两个入参是带命名空间的
+     * {@code <zys:msgHeader>} / {@code <zys:msgBody>}，内容各自用 CDATA 承载一份独立 XML 文档。
+     *
+     * <p>SOAP 1.2 不再使用 SOAPAction 请求头（改由 Content-Type: application/soap+xml 标识），
+     * 故 MSGPUSH_SOAP_ACTION 默认为空。
+     */
     public static final String DEFAULT_ENVELOPE =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<root>\n#msgHeader#\n#msgBody#\n</root>";
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\""
+            + " xmlns:zys=\"http://www.zysoft.com.cn/\">\n"
+            + "  <soap:Header/>\n"
+            + "  <soap:Body>\n"
+            + "    <zys:CallInterface>\n"
+            + "      <zys:msgHeader><![CDATA[#msgHeader#]]></zys:msgHeader>\n"
+            + "      <zys:msgBody><![CDATA[#msgBody#]]></zys:msgBody>\n"
+            + "    </zys:CallInterface>\n"
+            + "  </soap:Body>\n"
+            + "</soap:Envelope>";
 }

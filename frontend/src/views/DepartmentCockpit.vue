@@ -1101,6 +1101,32 @@ export default {
   .bed-month small, .bed-month-sub { font-size: 9px; line-height: 1.2; }
   .resource-foot, .organ-foot { margin: 1px 10px 3px; padding-top: 2px; line-height: 1.35; }
   .device-list { padding: 5px 11px 4px; }
+  /* 设备行三列最小宽（150+70+232+gap）远超窄面板（~275px），1fr 列被 min 卡住
+     不压缩 → 整行水平溢出卡片右侧 200px（overflow:visible 直接画出边框）。
+     收窄：名称+时间列 138px（时间 ellipsis 兜底）、进度条列 24px、
+     统计列自适应；统计 4 项改 flex wrap 两行（每行 2 项），列宽只需 ~60px */
+  .device-row { grid-template-columns: 138px 24px minmax(0, 1fr); gap: 8px; }
+  .device-name { gap: 5px; }
+  .device-name b { font-size: 11px; }
+  .device-name small { font-size: 9px; }
+  .device-track { height: 6px; }
+  .device-stats { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 8px; row-gap: 1px; }
+  .device-stats span { font-size: 9px; }
+  .device-stats b { font-size: 12px; }
+  /* 资源调配面板 base 档是宽松纵向（main 67 + sub 52 + foot 16 + gap + padding ≈ 185px），
+     在 169px 面板里底部 50px 被 overflow:hidden 裁掉。整档紧凑化，压缩到 ~102px */
+  .ratio-body { gap: 5px; padding: 5px 12px 4px; }
+  .ratio-main { gap: 6px; }
+  .ratio-item { padding: 4px 10px; }
+  .ratio-item span { font-size: 9px; }
+  .ratio-item b { font-size: 18px; line-height: 1.1; }
+  .ratio-item i { font-size: 9px; }
+  .ratio-sub { gap: 5px; }
+  .ratio-sub > div { padding: 2px 3px; }
+  .ratio-sub span { font-size: 9px; }
+  .ratio-sub b { font-size: 13px; line-height: 1.1; }
+  .ratio-sub i { font-size: 9px; }
+  .resource-foot { margin: 0 10px 2px; padding-top: 3px; line-height: 1.3; font-size: 9px; }
   /* 器官支持：4 行固定，矮视口下 item 原始 min-height 30px（4 行 120px）超出
      list 区域（约 98px）导致首行被头裁、末行压脚注。收到 22px 行高 + 2px 上下内边距 */
   .organ-list { gap: 2px; padding: 2px 12px 2px; }

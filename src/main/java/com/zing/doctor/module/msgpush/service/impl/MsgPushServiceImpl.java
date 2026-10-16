@@ -14,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -283,13 +285,39 @@ public class MsgPushServiceImpl implements MsgPushService {
     private Map<String, String> vars(String mobile, String content, String ruleCode,
                                      String patientId, String patientName, String bedNo, String deptCode) {
         Map<String, String> v = new LinkedHashMap<>();
-        // 消息 ID：32 位 UUID 去横杠，文档要求不可重复 —— 每次发送重新生成
-        v.put("hipMessageNo", UUID.randomUUID().toString().replace("-", ""));
-        v.put("hipAction", str(sysParamService.value(MsgPushKeys.KEY_ACTION)));
+        // ---- 平台要求不可重复的 ID：每次发送重新生成 ----
+        // hipMessageNo / msgUuid / convertId 是 32 位 UUID 去横杠；reqUuid 是带横杠的 36 位
+        v.put("hipMessageNo", uuid32());
+        v.put("msgUuid", uuid32());
+        v.put("convertId", uuid32());
+        v.put("reqUuid", UUID.randomUUID().toString());
+        v.put("msgUuidOrion", "orion_" + uuid32());
+        v.put("stepNo", "0");
+
+        // ---- 凭证与身份 ----
         v.put("hipToken", str(sysParamService.value(MsgPushKeys.KEY_HIP_TOKEN)));
-        v.put("callOperator", str(sysParamService.value(MsgPushKeys.KEY_CALL_OPERATOR)));
         v.put("certificate", str(sysParamService.value(MsgPushKeys.KEY_CERTIFICATE)));
+        v.put("callOperator", str(sysParamService.value(MsgPushKeys.KEY_CALL_OPERATOR)));
         v.put("districtCode", str(sysParamService.value(MsgPushKeys.KEY_DISTRICT_CODE)));
+        v.put("serverName", MsgPushKeys.SERVER_NAME);
+
+        // ---- 平台报文头里按厂家分配的字段（真实示例中逐项对应）----
+        v.put("serviceId", str(sysParamService.value(MsgPushKeys.KEY_SERVICE_ID)));
+        v.put("format", str(sysParamService.value(MsgPushKeys.KEY_FORMAT)));
+        v.put("senderCode", str(sysParamService.value(MsgPushKeys.KEY_SENDER_CODE)));
+        v.put("receivedCode", str(sysParamService.value(MsgPushKeys.KEY_RECEIVED_CODE)));
+        v.put("targetType", str(sysParamService.value(MsgPushKeys.KEY_TARGET_TYPE)));
+        v.put("convertType", str(sysParamService.value(MsgPushKeys.KEY_CONVERT_TYPE)));
+        v.put("receiverServer", str(sysParamService.value(MsgPushKeys.KEY_RECEIVER_SERVER)));
+        v.put("receiverUrl", str(sysParamService.value(MsgPushKeys.KEY_RECEIVER_URL)));
+        v.put("senderOrgCode", str(sysParamService.value(MsgPushKeys.KEY_SENDER_ORG_CODE)));
+        v.put("receivedOrgCode", str(sysParamService.value(MsgPushKeys.KEY_RECEIVED_ORG_CODE)));
+        // visitorIp：平台按它记录来访来源。留空则取本机 IP，现场不用为这个专门配参数
+        String visitorIp = str(sysParamService.value(MsgPushKeys.KEY_VISITOR_IP));
+        v.put("visitorIp", visitorIp.isEmpty() ? localIp() : visitorIp);
+
+        // ---- 业务字段 ----
+        v.put("hipAction", str(sysParamService.value(MsgPushKeys.KEY_ACTION)));
         v.put("mobile", str(mobile));
         v.put("startTime", LocalDateTime.now().format(DT));
         v.put("content", content == null ? "" : content);
@@ -299,6 +327,26 @@ public class MsgPushServiceImpl implements MsgPushService {
         v.put("deptCode", str(deptCode));
         v.put("ruleName", str(ruleCode));
         return v;
+    }
+
+    /** 32 位 UUID（去横杠）：平台要求 hipMessageNo / msgUuid / convertId 不可重复。 */
+    private static String uuid32() {
+        return UUID.randomUUID().toString().replace("-", "");
+    }
+
+    /**
+     * 本机 IP：作为 visitorIp 的兜底。
+     *
+     * <p>取不到就返回空串（而不是抛异常或写死 127.0.0.1）—— visitorIp 只是平台侧
+     * 的来访记录字段，不该因为取不到 IP 就让整条短信发不出去。</p>
+     */
+    private static String localIp() {
+        try {
+            return InetAddress.getLocalHost().getHostAddress();
+        } catch (UnknownHostException e) {
+            log.debug("取本机 IP 失败，visitorIp 留空", e);
+            return "";
+        }
     }
 
     // ------------------------------------------------------------------
