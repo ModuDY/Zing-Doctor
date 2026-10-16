@@ -294,7 +294,9 @@ if (Test-Path $myDir) {
         # 57 设备状态页注册（只读，config_device）
         '57_device_status_page.sql',
         # 58 高风险预警消息推送：参数分组 + 配置项 + 发送审计表
-        '58_msg_push.sql')
+        '58_msg_push.sql',
+        # 59 修正 58 的报文模板默认值（片段不应带 XML 声明）
+        '59_fix_msgpush_template.sql')
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine('-- ============================================================')
     [void]$sb.AppendLine('-- zing-doctor MySQL/MariaDB 一次性初始化脚本（打包时自动合成，勿手工编辑）')

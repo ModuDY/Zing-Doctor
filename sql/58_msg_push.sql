@@ -112,18 +112,17 @@ INSERT INTO "zing_doctor_db_prod"."sys_param"
      "status", "param_type", "options", "default_value", "required", "regex", "remark")
 SELECT (SELECT NVL(MAX("id"), 0) + 1 FROM "zing_doctor_db_prod"."sys_param"),
        'MSGPUSH_HEADER_XML', 'msgHeader 报文模板',
-       '<?xml version="1.0" encoding="utf-8"?>' || CHR(10)
-       || '<root>' || CHR(10)
+       '<msgHeader>' || CHR(10)
        || '<serverName>sendMessagesToCenterPlatform</serverName>' || CHR(10)
        || '<format>xml</format>' || CHR(10)
        || '<callOperator>#callOperator#</callOperator>' || CHR(10)
        || '<certificate>#certificate#</certificate>' || CHR(10)
        || '<applyDistrictCode>#districtCode#</applyDistrictCode>' || CHR(10)
        || '<execDistrictCode>#districtCode#</execDistrictCode>' || CHR(10)
-       || '</root>',
+       || '</msgHeader>',
        'msgpush', 8, 1, 'textarea',
        NULL, '', 0, NULL,
-       '可用占位符：#callOperator# #certificate# #districtCode# #hipMessageNo# #startTime#。按现场 WSDL 调整。'
+       'msgHeader 片段（勿写 XML 声明，声明只在信封里）。占位符：#callOperator# #certificate# #districtCode#。按现场 WSDL 调整。'
   FROM DUAL
  WHERE NOT EXISTS (SELECT 1 FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'MSGPUSH_HEADER_XML');
 
@@ -132,18 +131,17 @@ INSERT INTO "zing_doctor_db_prod"."sys_param"
      "status", "param_type", "options", "default_value", "required", "regex", "remark")
 SELECT (SELECT NVL(MAX("id"), 0) + 1 FROM "zing_doctor_db_prod"."sys_param"),
        'MSGPUSH_BODY_XML', 'msgBody 报文模板',
-       '<?xml version="1.0" encoding="UTF-8"?>' || CHR(10)
-       || '<root>' || CHR(10)
+       '<msgBody>' || CHR(10)
        || '<hipMessageNo>#hipMessageNo#</hipMessageNo>' || CHR(10)
        || '<hipAction>#hipAction#</hipAction>' || CHR(10)
        || '<hipToken>#hipToken#</hipToken>' || CHR(10)
        || '<mobile>#mobile#</mobile>' || CHR(10)
        || '<startTime>#startTime#</startTime>' || CHR(10)
        || '<content>#content#</content>' || CHR(10)
-       || '</root>',
+       || '</msgBody>',
        'msgpush', 9, 1, 'textarea',
        NULL, '', 0, NULL,
-       '可用占位符：#hipMessageNo#（32位UUID，系统生成）#hipAction# #hipToken# #mobile# #startTime# #content# #patientName# #bedNo# #ruleName#。'
+       'msgBody 片段（勿写 XML 声明）。占位符：#hipMessageNo#（32位UUID，系统生成）#hipAction# #hipToken# #mobile# #startTime# #content# #patientName# #bedNo# #ruleName#。'
   FROM DUAL
  WHERE NOT EXISTS (SELECT 1 FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'MSGPUSH_BODY_XML');
 

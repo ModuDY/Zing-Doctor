@@ -301,6 +301,8 @@ FULL_SQL=(
     "57_device_status_page.sql"
     # 58 高风险预警消息推送：参数分组 + 配置项 + 发送审计表
     "58_msg_push.sql"
+    # 59 修正 58 的报文模板默认值（片段不应带 XML 声明）
+    "59_fix_msgpush_template.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -379,6 +381,8 @@ FULL_SQL_JDBC=(
     "57_device_status_page.sql"
     # 58 高风险预警消息推送：参数分组 + 配置项 + 发送审计表
     "58_msg_push.sql"
+    # 59 修正 58 的报文模板默认值（片段不应带 XML 声明）
+    "59_fix_msgpush_template.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -475,6 +479,8 @@ INCREMENTAL_SQL=(
     "57_device_status_page.sql"
     # 58 高风险预警消息推送：参数分组 + 配置项 + 发送审计表
     "58_msg_push.sql"
+    # 59 修正 58 的报文模板默认值（片段不应带 XML 声明）
+    "59_fix_msgpush_template.sql"
 )
 
 # ---------------- SQL 清单自检 ----------------

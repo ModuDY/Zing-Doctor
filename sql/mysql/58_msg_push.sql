@@ -78,18 +78,17 @@ INSERT INTO `sys_param`
     (`param_key`, `param_name`, `param_value`, `param_group`, `sort_no`,
      `status`, `param_type`, `options`, `default_value`, `required`, `regex`, `remark`)
 SELECT 'MSGPUSH_HEADER_XML', 'msgHeader 报文模板',
-       CONCAT('<?xml version="1.0" encoding="utf-8"?>', '\n',
-              '<root>', '\n',
+       CONCAT('<msgHeader>', '\n',
               '<serverName>sendMessagesToCenterPlatform</serverName>', '\n',
               '<format>xml</format>', '\n',
               '<callOperator>#callOperator#</callOperator>', '\n',
               '<certificate>#certificate#</certificate>', '\n',
               '<applyDistrictCode>#districtCode#</applyDistrictCode>', '\n',
               '<execDistrictCode>#districtCode#</execDistrictCode>', '\n',
-              '</root>'),
+              '</msgHeader>'),
        'msgpush', 8, 1, 'textarea',
        NULL, '', 0, NULL,
-       '可用占位符：#callOperator# #certificate# #districtCode# #hipMessageNo# #startTime#。按现场 WSDL 调整。'
+       'msgHeader 片段（勿写 XML 声明，声明只在信封里）。占位符：#callOperator# #certificate# #districtCode#。按现场 WSDL 调整。'
   FROM DUAL
  WHERE NOT EXISTS (SELECT 1 FROM `sys_param` WHERE `param_key` = 'MSGPUSH_HEADER_XML');
 
@@ -97,18 +96,17 @@ INSERT INTO `sys_param`
     (`param_key`, `param_name`, `param_value`, `param_group`, `sort_no`,
      `status`, `param_type`, `options`, `default_value`, `required`, `regex`, `remark`)
 SELECT 'MSGPUSH_BODY_XML', 'msgBody 报文模板',
-       CONCAT('<?xml version="1.0" encoding="UTF-8"?>', '\n',
-              '<root>', '\n',
+       CONCAT('<msgBody>', '\n',
               '<hipMessageNo>#hipMessageNo#</hipMessageNo>', '\n',
               '<hipAction>#hipAction#</hipAction>', '\n',
               '<hipToken>#hipToken#</hipToken>', '\n',
               '<mobile>#mobile#</mobile>', '\n',
               '<startTime>#startTime#</startTime>', '\n',
               '<content>#content#</content>', '\n',
-              '</root>'),
+              '</msgBody>'),
        'msgpush', 9, 1, 'textarea',
        NULL, '', 0, NULL,
-       '可用占位符：#hipMessageNo#（32位UUID，系统生成）#hipAction# #hipToken# #mobile# #startTime# #content# #patientName# #bedNo# #ruleName#。'
+       'msgBody 片段（勿写 XML 声明）。占位符：#hipMessageNo#（32位UUID，系统生成）#hipAction# #hipToken# #mobile# #startTime# #content# #patientName# #bedNo# #ruleName#。'
   FROM DUAL
  WHERE NOT EXISTS (SELECT 1 FROM `sys_param` WHERE `param_key` = 'MSGPUSH_BODY_XML');
 

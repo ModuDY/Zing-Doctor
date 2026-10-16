@@ -1477,6 +1477,7 @@ SELECT param_key, param_value, default_value FROM sys_param WHERE param_key = 'W
 | 血流动力学 + ADL 表 | `sql/55_hemodynamics_adl.sql` | `sql/mysql/55_hemodynamics_adl.sql` |
 | 血流动力学 + 超声教学页注册 | `sql/56_manual_pages.sql` | `sql/mysql/56_manual_pages.sql` |
 | 高风险预警消息推送参数 + 审计表 | `sql/58_msg_push.sql` | `sql/mysql/58_msg_push.sql` |
+| 修正消息推送报文模板默认值 | `sql/59_fix_msgpush_template.sql` | `sql/mysql/59_fix_msgpush_template.sql` |
 
 **备注**
 

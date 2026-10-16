@@ -716,6 +716,8 @@ step "导入建表与种子脚本（幂等，可重复执行）"
     57_device_status_page.sql
     # 58 高风险预警消息推送：参数分组 + 配置项 + 发送审计表
     58_msg_push.sql
+    # 59 修正 58 的报文模板默认值（片段不应带 XML 声明）
+    59_fix_msgpush_template.sql
     41_patient_summary_page.sql
     )
   # 清单自检：登记的脚本必须存在；目录里也不能有未登记的孤岛脚本
