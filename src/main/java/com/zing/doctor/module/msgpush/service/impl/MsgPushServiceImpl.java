@@ -50,14 +50,6 @@ public class MsgPushServiceImpl implements MsgPushService {
     /** 信封里的片段占位符（#msgHeader# / #msgBody#） */
     private static final Pattern FRAGMENT = Pattern.compile("#(msgHeader|msgBody)#");
 
-    /**
-     * 平台对授权码（msgHeader 的 certificate）的格式要求：32 位 UUID、不含横杠。
-     *
-     * <p>不符合就不发：网关只会回「无效的授权码: 授权码格式不正确，应为32位UUID(不包含横杠)」，
-     * 而且它是 HTTP 200，返回成功标识没配时会被误判成发送成功。</p>
-     */
-    private static final Pattern CERT32 = Pattern.compile("[0-9a-fA-F]{32}");
-
     /** msg_push_log.resp_body 是 VARCHAR(2000)，留出余量 */
     private static final int RESP_KEEP = 1900;
     /** msg_push_log.content 是 VARCHAR(2000) */
@@ -98,20 +90,9 @@ public class MsgPushServiceImpl implements MsgPushService {
         boolean dryRun = sysParamService.bool(MsgPushKeys.KEY_DRY_RUN, true)
                 && !Boolean.TRUE.equals(req.getForceReal());
 
-        // 授权码（certificate）不合格就不发：平台只认 32 位 UUID（不含横杠），填错时网关返回
-        // 「无效的授权码: 授权码格式不正确，应为32位UUID(不包含横杠)」，且是 HTTP 200 ——
-        // 与其让它跑一趟再被误记成成功，不如在本地就把话说清楚。演练模式不发，不拦。
-        if (!dryRun) {
-            String cert = str(sysParamService.value(MsgPushKeys.KEY_CERTIFICATE)).trim();
-            if (!CERT32.matcher(cert).matches()) {
-                throw new IllegalStateException("授权码（certificate）不符合平台要求：需 32 位 UUID、不含横杠"
-                        + "（带横杠的 UUID 请去掉横杠再填）。当前值："
-                        + (cert.isEmpty() ? "（空）" : cert)
-                        + "。请在「参数设置 → 消息推送 → 授权码 certificate」填入平台分配的值"
-                        + "（注意它不是 hipToken，不能填同一串）");
-            }
-        }
-
+        // 授权码（certificate）不做本地格式校验：形式上以平台分配的为准，
+        // 现场按平台实际给的值填即可（填成与 hipToken 一样的值也放行），
+        // 是否合格由网关判定 —— 它若返回 50002，报文与响应原文都会留在测试页与推送日志里。
         MsgPushTestResult result = new MsgPushTestResult();
         result.setDryRun(dryRun);
         result.setUrl(url.trim());
