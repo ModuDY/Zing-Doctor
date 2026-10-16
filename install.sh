@@ -301,8 +301,12 @@ FULL_SQL=(
     "57_device_status_page.sql"
     # 58 高风险预警消息推送：参数分组 + 配置项 + 发送审计表
     "58_msg_push.sql"
-    # 59 修正 58 的报文模板默认值（片段不应带 XML 声明）
+    # 59 按平台真实成功报文升级 58 的报文模板与配套参数（幂等，可重复执行）
     "59_fix_msgpush_template.sql"
+    # 60 血管活性药分析页注册（只读，取数与 SOFA 循环项同源）
+    #    原为 58 号，与 58_msg_push.sql 撞号导致本脚本一直未被任何清单登记、
+    #    装出来的库缺这个页面。现改为 60 号并登记进三处清单。
+    "60_vasoactive_page.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -381,8 +385,12 @@ FULL_SQL_JDBC=(
     "57_device_status_page.sql"
     # 58 高风险预警消息推送：参数分组 + 配置项 + 发送审计表
     "58_msg_push.sql"
-    # 59 修正 58 的报文模板默认值（片段不应带 XML 声明）
+    # 59 按平台真实成功报文升级 58 的报文模板与配套参数（幂等，可重复执行）
     "59_fix_msgpush_template.sql"
+    # 60 血管活性药分析页注册（只读，取数与 SOFA 循环项同源）
+    #    原为 58 号，与 58_msg_push.sql 撞号导致本脚本一直未被任何清单登记、
+    #    装出来的库缺这个页面。现改为 60 号并登记进三处清单。
+    "60_vasoactive_page.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -479,8 +487,12 @@ INCREMENTAL_SQL=(
     "57_device_status_page.sql"
     # 58 高风险预警消息推送：参数分组 + 配置项 + 发送审计表
     "58_msg_push.sql"
-    # 59 修正 58 的报文模板默认值（片段不应带 XML 声明）
+    # 59 按平台真实成功报文升级 58 的报文模板与配套参数（幂等，可重复执行）
     "59_fix_msgpush_template.sql"
+    # 60 血管活性药分析页注册（只读，取数与 SOFA 循环项同源）
+    #    原为 58 号，与 58_msg_push.sql 撞号导致本脚本一直未被任何清单登记、
+    #    装出来的库缺这个页面。现改为 60 号并登记进三处清单。
+    "60_vasoactive_page.sql"
 )
 
 # ---------------- SQL 清单自检 ----------------
@@ -626,6 +638,9 @@ apply_incremental() {
   fi
   verify_quality_columns
   verify_quality_tables
+  # 消息推送：增量失败只 warn 的代价在这里补上 —— 缺分组时页面无任何报错，
+  # 现场只能靠猜。与上面两个校验同思路：执行后复查对象，缺一即中止并给出手动执行指引。
+  verify_msgpush_objects
 }
 
 # ---------------- 增量升级校验：配置真源三张表到底建了没有 ----------------
@@ -676,6 +691,57 @@ SQL
   err "  缺 quality_def_history → 配置变更历史 Tab 不可用，且保存配置时无法留痕"
   err "  缺 quality_metric_def → 配置真源回退 yaml，页面只能看、没有新增按钮"
   err "  请先手动执行 sql/10_quality_config.sql（幂等可重复），再重启服务"
+  exit 1
+}
+
+# ---------------- 增量升级校验：消息推送的对象到底建了没有 ----------------
+# 与 verify_quality_tables 同理。58_msg_push.sql 若在增量通道里被 disql 的返回码
+# 干扰而没生效，现象是「参数设置页左侧根本没有消息推送分组」——
+# 因为分组导航完全由 sys_param_group 驱动，缺记录就不显示，且后端日志里没有任何报错，
+# 现场只能从「我明明部署了新包」开始猜。这里显式复查三件事并缺一即中止。
+verify_msgpush_objects() {
+  local vf="$TMP_WORK/zing-verify-msgpush.sql"
+  local log="$LOG_DIR/zing-verify-msgpush.log"
+  cat > "$vf" <<'SQL'
+DECLARE
+  v_no_table INT := 0;
+  v_no_group INT := 0;
+  v_param_cnt INT := 0;
+BEGIN
+  SELECT COUNT(*) INTO v_no_table FROM ALL_TABLES
+   WHERE UPPER(TABLE_NAME) = 'MSG_PUSH_LOG';
+  SELECT COUNT(*) INTO v_no_group FROM "zing_doctor_db_prod"."sys_param_group"
+   WHERE "group_code" = 'msgpush';
+  SELECT COUNT(*) INTO v_param_cnt FROM "zing_doctor_db_prod"."sys_param"
+   WHERE "param_group" = 'msgpush';
+  -- 三个 v_* 都是「查到了几行」，所以判定是 =0（没查到才是缺），不是 >0
+  IF v_no_table = 0 OR v_no_group = 0 OR v_param_cnt < 30 THEN
+    RAISE_APPLICATION_ERROR(-20003,
+      '消息推送对象缺失 —— 审计表:' || CASE WHEN v_no_table = 0 THEN '缺' ELSE '有' END
+      || ' msgpush分组:' || CASE WHEN v_no_group = 0 THEN '缺' ELSE '有' END
+      || ' 参数条数:' || TO_CHAR(v_param_cnt) || '(应 30)'
+      || ' —— 请手动执行 sql/58_msg_push.sql（幂等可重复）');
+  END IF;
+END;
+/
+SQL
+
+  local rc=0
+  db_exec "$log" "$vf" || rc=$?
+  if [ "$rc" = "2" ]; then
+    warn "无可用的数据库通道，跳过消息推送校验；请自行确认 58_msg_push.sql 已执行"
+    return 0
+  fi
+  if [ "$rc" = "0" ]; then
+    info "消息推送校验通过（msg_push_log 表 + msgpush 分组 + 30 条参数）"
+    return 0
+  fi
+
+  err "消息推送对象缺失，停止部署（详见 $log）"
+  err "  缺 msg_push_log 表 → 发送审计无处落库，测试发送直接失败"
+  err "  缺 msgpush 分组   → 参数设置页左侧不显示「消息推送」，功能完全看不到（且后端无任何报错）"
+  err "  参数不足 30 条    → 平台真实报文所需字段（如 senderCode/format）无处可填，网关判参数校验不通过"
+  err "  请先手动执行 sql/58_msg_push.sql（幂等可重复），再重启服务"
   exit 1
 }
 

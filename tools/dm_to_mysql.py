@@ -528,7 +528,9 @@ if __name__ == '__main__':
               # 58 消息推送参数与审计表（达梦版含 PL/SQL 判重块，MySQL 镜像人工维护）
               '58_msg_push.sql',
               # 59 报文模板修正（达梦版含 PL/SQL 判重块，MySQL 镜像人工维护）
-              '59_fix_msgpush_template.sql'}
+              '59_fix_msgpush_template.sql',
+              # 60 血管活性药分析页注册（达梦版含 PL/SQL 判重块，MySQL 镜像人工维护）
+              '60_vasoactive_page.sql'}
 
     files = sorted(f for f in os.listdir(src_dir)
                    if f.endswith('.sql') and f not in MANUAL)

@@ -1,7 +1,8 @@
 -- =====================================================================
--- 58_vasoactive_page.sql（MySQL 镜像）
--- 对应达梦版：sql/58_vasoactive_page.sql
+-- 60_vasoactive_page.sql（MySQL 镜像）
+-- 对应达梦版：sql/60_vasoactive_page.sql
 -- 幂等：按 page_code 判重。
+-- 编号变更：原为 58 号，与 58_msg_push.sql 撞号，已改为 60 号并补登记到全部清单。
 -- =====================================================================
 SET NAMES utf8mb4;
 USE `zing_doctor_db_prod`;

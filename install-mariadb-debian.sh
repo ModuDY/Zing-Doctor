@@ -586,6 +586,31 @@ verify_quality_tables() {
   info "配置真源表校验通过（quality_metric_def / quality_fact_def / quality_def_history）"
 }
 
+# ---------------- 消息推送对象校验：表 / 分组 / 参数条数 ----------------
+# 与达梦版 install.sh 的 verify_msgpush_objects 对应。58_msg_push.sql 执行失败只 warn，
+# 而「缺 msgpush 分组」的表现是参数设置页左侧根本没有这一项 —— 页面不报错、
+# 后端日志也没线索，现场只能从「我明明部署了新包」开始猜。这里显式复查并中止。
+verify_msgpush_objects() {
+  local no_table no_group param_cnt
+  no_table="$(admin_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$DOCTOR_DB' AND TABLE_NAME='msg_push_log';" "$DOCTOR_DB" 2>/dev/null || echo 1)"
+  no_group="$(admin_query "SELECT COUNT(*) FROM sys_param_group WHERE group_code='msgpush';" "$DOCTOR_DB" 2>/dev/null || echo 1)"
+  param_cnt="$(admin_query "SELECT COUNT(*) FROM sys_param WHERE param_group='msgpush';" "$DOCTOR_DB" 2>/dev/null || echo 0)"
+
+  # 三个值都是「查到了几行」，所以判定是 =0（没查到才是缺），不是 !=0
+  if [ "$no_table" = "0" ] || [ "$no_group" = "0" ] || [ "${param_cnt:-0}" -lt 30 ]; then
+    err "消息推送对象缺失，停止部署"
+    err "  审计表 msg_push_log：$([ "$no_table" = "0" ] && echo 缺 || echo 有)"
+    err "  msgpush 分组：$([ "$no_group" = "0" ] && echo 缺 || echo 有)"
+    err "  参数条数：${param_cnt:-0}（应 30）"
+    err "  缺 msg_push_log 表 → 发送审计无处落库，测试发送直接失败"
+    err "  缺 msgpush 分组   → 参数设置页左侧不显示「消息推送」，功能完全看不到且后端无任何报错"
+    err "  参数不足 30 条    → 平台真实报文所需字段（如 senderCode/format）无处可填，网关判参数校验不通过"
+    err "  请先手动执行 sql/mysql/58_msg_push.sql（幂等可重复），再重启服务"
+    exit 1
+  fi
+  info "消息推送校验通过（msg_push_log 表 + msgpush 分组 + $param_cnt 条参数）"
+}
+
 if [ "$CONFIG_ONLY" = "yes" ]; then
   info "跳过：建库/建账号/授权、SQL 导入（--config-only 只更新运行环境）"
 elif [ -z "$DB_CLI" ]; then
@@ -716,8 +741,10 @@ step "导入建表与种子脚本（幂等，可重复执行）"
     57_device_status_page.sql
     # 58 高风险预警消息推送：参数分组 + 配置项 + 发送审计表
     58_msg_push.sql
-    # 59 修正 58 的报文模板默认值（片段不应带 XML 声明）
+    # 59 按平台真实成功报文升级 58 的报文模板与配套参数（幂等，可重复执行）
     59_fix_msgpush_template.sql
+    # 60 血管活性药分析页注册（原为 58 号，与 58_msg_push.sql 撞号一直未被登记）
+    60_vasoactive_page.sql
     41_patient_summary_page.sql
     )
   # 清单自检：登记的脚本必须存在；目录里也不能有未登记的孤岛脚本
@@ -728,6 +755,7 @@ step "导入建表与种子脚本（幂等，可重复执行）"
   done
   info "主库表数量：$(admin_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$DOCTOR_DB';")"
   verify_quality_tables
+  verify_msgpush_objects
 
   # 可选识别词库（默认不导，需要时取消注释）
   # for f in 03_word_inc_v23111.sql 03_word_inc_v2319.sql 04_abx_word_training.sql; do

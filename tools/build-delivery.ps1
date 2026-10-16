@@ -295,8 +295,10 @@ if (Test-Path $myDir) {
         '57_device_status_page.sql',
         # 58 高风险预警消息推送：参数分组 + 配置项 + 发送审计表
         '58_msg_push.sql',
-        # 59 修正 58 的报文模板默认值（片段不应带 XML 声明）
-        '59_fix_msgpush_template.sql')
+        # 59 按平台真实成功报文升级 58 的报文模板与配套参数（幂等，可重复执行）
+        '59_fix_msgpush_template.sql',
+        # 60 血管活性药分析页注册（原为 58 号，与 58_msg_push.sql 撞号一直未被登记）
+        '60_vasoactive_page.sql')
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine('-- ============================================================')
     [void]$sb.AppendLine('-- zing-doctor MySQL/MariaDB 一次性初始化脚本（打包时自动合成，勿手工编辑）')
