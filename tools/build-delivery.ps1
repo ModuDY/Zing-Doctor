@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   zing-doctor 交付包打包脚本（Windows / PowerShell）
 
