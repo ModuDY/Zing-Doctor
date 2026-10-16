@@ -1065,11 +1065,13 @@ export default {
 
   /* 标题区模板是 <div><span class=panel-kicker/><h2 class=panel-title/></div>：
      不处理这个包裹 div 时，span 改 inline 也仍会在 h2 上方独占一行。
-     包裹 div 改为 flex baseline，英文小标与中文标题才真正同行。 */
-  .panel-head { min-height: 28px; padding: 4px 11px; }
-  .panel-head > div:first-child { display: flex; align-items: baseline; gap: 7px; }
-  .panel-head .panel-kicker { display: inline; margin: 0; font-size: 9px; letter-spacing: .8px; }
-  .panel-head .panel-title { font-size: 13px; }
+     包裹 div 改为 flex baseline，英文小标与中文标题才真正同行；
+     flex:1 让标题区吃掉 panel-head 的剩余宽度（context 是独立 flex item 靠右），
+     否则窄面板（如床位/资源）里 kicker 长度会挤压 h2，使中文标题被压换行、head 虚高。 */
+  .panel-head { min-height: 26px; padding: 3px 11px; }
+  .panel-head > div:first-child { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 7px; }
+  .panel-head .panel-kicker { display: inline; margin: 0; font-size: 9px; letter-spacing: .8px; white-space: nowrap; line-height: 1.2; }
+  .panel-head .panel-title { font-size: 13px; white-space: nowrap; line-height: 1.2; }
   .panel-body { padding: 7px 11px; }
 
   .flow-summary { gap: 20px; padding: 5px 11px 0; }
@@ -1081,16 +1083,22 @@ export default {
 
   .bed-body { grid-template-columns: minmax(0, 96px) 1fr; grid-template-rows: minmax(0, 1fr); gap: 11px; padding: 3px 11px 2px; }
   .bed-gauge { max-width: 96px; max-height: 94px; }
-  .bed-gauge::before, .bed-gauge-inner { inset: 7px; }
-  .bed-gauge-inner b { font-size: 22px; }
+  .bed-gauge::before, .bed-gauge-inner { inset: 6px; }
+  /* head 压缩后 body 变高、环随之变大（约 60-80px），内圆 50px+：
+     数字回落到 18px、% 12px 可完整容纳 4-5 字符百分比；
+     标签 9px 单行（white-space:nowrap 保证 4 字不换行），纵高约 30px，不再溢出 */
+  .bed-gauge-inner b { font-size: 18px; }
+  .bed-gauge-inner span { font-size: 12px; }
+  .bed-gauge-inner small { flex: 0 0 100%; margin-top: 2px; font-size: 9px; line-height: 1.15; white-space: nowrap; }
   /* 2×2 指标卡由「标签在上、数字在下」改为「标签 + 数字」横向单行：
      纵向单卡约 53px，两行至少 116px；横向单卡约 22px，两行约 52px */
   .bed-metrics { align-self: center; gap: 4px; }
   .bed-metrics > div { display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: 6px; min-height: 0; padding: 2px 9px; }
   .bed-metrics span { margin-bottom: 0; white-space: nowrap; }
   .bed-metrics b { font-size: 17px; }
-  .bed-month { margin: 1px 13px 0; padding: 2px 9px; }
-  .bed-month b { font-size: 18px; }
+  .bed-month { margin: 1px 13px 0; padding: 1px 9px; }
+  .bed-month b { font-size: 15px; line-height: 1.2; }
+  .bed-month small, .bed-month-sub { font-size: 9px; line-height: 1.2; }
   .resource-foot, .organ-foot { margin: 1px 10px 3px; padding-top: 2px; line-height: 1.35; }
   .device-list { padding: 5px 11px 4px; }
   /* 器官支持：4 行固定，矮视口下 item 原始 min-height 30px（4 行 120px）超出
