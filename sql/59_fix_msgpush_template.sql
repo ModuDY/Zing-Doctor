@@ -100,12 +100,15 @@ UPDATE "zing_doctor_db_prod"."sys_param"
    AND "param_value" IS NOT NULL
    AND TRIM("param_value") <> '';
 
--- 6) 凭证与 callOperator 换成真实报文里的值
+-- 6) hipToken 换成真实报文里的值；callOperator 换成 PEIS
 --    （条件：仍是文档初版样例值才改，现场已填过真值的不动）
+--    ⚠️ 只动 hipToken：certificate 是平台分配的「授权码」（32 位 UUID，见 61 号脚本），
+--       当初把它一起改成 hipToken 同值是错的 —— 网关会直接回
+--       「无效的授权码: 授权码格式不正确，应为32位UUID(不包含横杠)」。
 UPDATE "zing_doctor_db_prod"."sys_param"
    SET "param_value" = '8H5eFjupeFJ/7BYZB1eTYL8jUZFMBMzG8jCVX79/WzY=',
        "remark" = '平台按厂家分发。默认值取自平台提供的真实报文，若非本院可用凭证请替换。'
- WHERE "param_key" IN ('MSGPUSH_HIP_TOKEN', 'MSGPUSH_CERTIFICATE')
+ WHERE "param_key" = 'MSGPUSH_HIP_TOKEN'
    AND "param_value" LIKE 'uHto9nM6CWyLHAno%';
 
 UPDATE "zing_doctor_db_prod"."sys_param"

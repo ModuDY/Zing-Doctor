@@ -309,6 +309,8 @@ FULL_SQL=(
     #    原为 58 号，与 58_msg_push.sql 撞号导致本脚本一直未被任何清单登记、
     #    装出来的库缺这个页面。现改为 60 号并登记进三处清单。
     "60_vasoactive_page.sql"
+    # 61 纠正「授权码 certificate」：它不是 hipToken，平台要求 32 位 UUID（幂等，可重复执行）
+    "61_fix_msgpush_certificate.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -393,6 +395,8 @@ FULL_SQL_JDBC=(
     #    原为 58 号，与 58_msg_push.sql 撞号导致本脚本一直未被任何清单登记、
     #    装出来的库缺这个页面。现改为 60 号并登记进三处清单。
     "60_vasoactive_page.sql"
+    # 61 纠正「授权码 certificate」：它不是 hipToken，平台要求 32 位 UUID（幂等，可重复执行）
+    "61_fix_msgpush_certificate.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -495,6 +499,8 @@ INCREMENTAL_SQL=(
     #    原为 58 号，与 58_msg_push.sql 撞号导致本脚本一直未被任何清单登记、
     #    装出来的库缺这个页面。现改为 60 号并登记进三处清单。
     "60_vasoactive_page.sql"
+    # 61 纠正「授权码 certificate」：它不是 hipToken，平台要求 32 位 UUID（幂等，可重复执行）
+    "61_fix_msgpush_certificate.sql"
 )
 
 # ---------------- SQL 清单自检 ----------------

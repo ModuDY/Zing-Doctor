@@ -173,10 +173,10 @@ SELECT 'MSGPUSH_CALL_OPERATOR', '调用方标识 callOperator', 'PEIS', 'msgpush
 INSERT INTO `sys_param`
     (`param_key`, `param_name`, `param_value`, `param_group`, `sort_no`,
      `status`, `param_type`, `options`, `default_value`, `required`, `regex`, `remark`)
-SELECT 'MSGPUSH_CERTIFICATE', '平台凭证 certificate', '8H5eFjupeFJ/7BYZB1eTYL8jUZFMBMzG8jCVX79/WzY=',
+SELECT 'MSGPUSH_CERTIFICATE', '授权码 certificate', '',
        'msgpush', 13, 1, 'text',
-       NULL, '', 0, NULL,
-       '平台按厂家分发。默认值取自平台提供的真实报文，若非本院可用凭证请替换。'
+       NULL, '', 0, '^[0-9a-fA-F]{32}$',
+       '平台按厂家分配的授权码：32 位 UUID、不含横杠（如 0f1e2d3c4b5a69788796a5b4c3d2e1f0，向医院集成平台索取本院的值）。填错时网关直接返回 {"code":"50002","message":"无效的授权码: 授权码格式不正确，应为32位UUID(不包含横杠)"}。注意它与 hipToken 不是一回事 —— hipToken 是 msgBody 里的令牌，两者不能填同一串。'
   FROM DUAL
  WHERE NOT EXISTS (SELECT 1 FROM `sys_param` WHERE `param_key` = 'MSGPUSH_CERTIFICATE');
 
