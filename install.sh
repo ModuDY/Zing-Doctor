@@ -162,7 +162,9 @@ ADMIN_USER="$(extract 'DOCTOR_USERNAME: \K\S+')"
 ADMIN_PASS="$(extract 'DOCTOR_PASSWORD: \K\S+')"
 [ -z "$ADMIN_USER" ] && { ADMIN_USER="SYSDBA"; ADMIN_PASS="Sa_20250815"; }
 if [ -z "$DM_HOST_PORT" ]; then
-  err "docker-compose.yml 中未找到达梦地址（DOCTOR_URL），请先按 docs/04-安装部署手册.md 配置"
+  # 这里指的是**交付包内**的文档路径。build-delivery.ps1 刻意把仓库里 docs/<分类>/ 下
+    # 的文档平铺回包内 docs/ 下（部署方只需三份，不需要分类层级），故此处不带分类目录。
+    err "docker-compose.yml 中未找到达梦地址（DOCTOR_URL），请先按 docs/04-安装部署手册.md 配置"
   exit 1
 fi
 info "达梦：$DM_HOST_PORT  连接账号：$ADMIN_USER（目标模式 zing_doctor_db_prod，显式前缀访问）"

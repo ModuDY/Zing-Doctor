@@ -6,7 +6,7 @@
 > ⚠ RISK-002、RISK-005 残余风险（3×2=中）已由临床评审明确接受（Q2''），**系统中不实现任何告警或补偿代码**，异常发现依赖界面标红与打印件人工核对。
 > 依据：纸质《ARDS 俯卧位通气治疗记录表》（58 行 × 14 列，37 项参数 × 11 个时点）
 > 方法：V 模型 + INCOSE 需求工程 + ISO 14971 风险管理 + ISO 13485 设计控制
-> 配套原型（附件目录 `docs/ards-prone/`）：`index.html`（目录）/ `list.html`（列表）/ `record.html`（填写 · 时点配置抽屉 · 打印预览与 HIS 回传）
+> 配套原型与受控登记表（原附件目录 `docs/ards-prone/`，**该目录已不在本仓库**）：`index.html`（目录）/ `list.html`（列表）/ `record.html`（填写 · 时点配置抽屉 · 打印预览与 HIS 回传）
 
 ## 0. 适用范围声明
 
@@ -128,7 +128,7 @@
 | H13 | APACHE II 显示开关误关或只关部分位置 → 页面与文书输出不一致、文书缺项 | 2 | 2 | ①一处开关管四处（填写页/预览/打印/回传）保持一致；②默认显示；③关闭后整行重排不留空位；④打印预览所见即所得可核对；⑤开关变更留痕 | SR-21 |
 
 > 注：控制措施优先级为「本质安全设计 → 防护措施 → 安全信息」。本设计未将「培训/提示」作为任何 S3 危害的唯一手段。
-> 编号对应：上表 H01…H13 = 受控登记表 `docs/ards-prone/risk-management-table.csv` 中的 RISK-001…RISK-013（H12→RISK-012、H13→RISK-013）。
+> 编号对应：上表 H01…H13 = 受控登记表（原 `docs/ards-prone/risk-management-table.csv`，已不在本仓库）中 RISK-001…RISK-013（H12→RISK-012、H13→RISK-013）。
 
 ---
 
@@ -193,7 +193,7 @@
 | UR-09 | SR-17 | — | 列表页 | 演示 |
 | UR-10 | SR-21 | H13 | 参数设置 / 填写页 / 打印预览 | 演示：关闭开关后四处均无 APACHE II 且版式重排无空位 |
 
-**受控登记表（附件目录 `docs/ards-prone/`）**：`requirements.csv`（UR 10 / SR 22）、`risk-management-table.csv`（RISK-001…013）、`traceability-matrix.csv`（23 行）。
+**受控登记表（原附件目录 `docs/ards-prone/`，已不在本仓库；下方清单保留以备重建）**：`requirements.csv`（UR 10 / SR 22）、`risk-management-table.csv`（RISK-001…013）、`traceability-matrix.csv`（23 行）。
 
 结构完整性质量门已运行（`validate_traceability.py`）：**阻断性错误 0、警告 0，结论「可提交评审」**。
 该脚本只校验结构完整性（ID 唯一与层级、风险控制是否转化为需求、需求-设计-验证是否断链），不替代临床与风险评审。

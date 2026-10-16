@@ -11,7 +11,7 @@
 --   7) sys_param_group + sys_param  参数分组与参数种子
 --      （归档接口地址 ARCHIVE_API_URL、归档目录 ARCHIVE_DIR 与 SOFA/APACHE II 共用，本脚本不重复建）
 --
--- 设计依据：docs/ards-prone/设计方案.md v4.1
+-- 设计依据：docs/05-临床监测/17-ARDS俯卧位通气治疗记录-产品设计.md
 --   · 不做告警、不做阈值配置、不沿用历史值、提交后不限时更正
 --   · 归档调用现有归档接口，与 APACHE II、SOFA 同一接口同一传参，仅 doc_code 不同（ARDS_PRONE_REC）
 --   · APACHE II 由参数开关 ARDS_PRONE_APACHE2_SHOW 控制（默认显示、全院统一）

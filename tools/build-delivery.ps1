@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   zing-doctor 交付包打包脚本（Windows / PowerShell）
 
@@ -331,16 +331,31 @@ if (Test-Path "$root\DATABASE-CHANGES.md") {
     Copy-Item "$root\DATABASE-CHANGES.md" $work -Force
 }
 
-# 文档：默认只给部署/对接真正用得到的三份（install.sh 的提示也指向 04）。
-# 产品设计（05~17）、ARDS 原型 docs/ards-prone、设计稿 docs/quality-board-redesign、
-# 指标映射 CSV 与一次性脚本，属内部资料，不进外发包。
-$depDocs = Join-Path $work 'docs'
-New-Item -ItemType Directory -Force -Path $depDocs | Out-Null
-foreach ($d in @('02-外链传参规范.md', '03-部署说明.md', '04-安装部署手册.md')) {
-    if (Test-Path "$root\docs\$d") { Copy-Item "$root\docs\$d" $depDocs -Force }
+# 文档：默认只给部署/对接真正用得到的三份（install.sh 的提示也指向**包内** docs/04-安装部署手册.md）。
+# 产品设计（05~26）、指标映射 CSV 与一次性脚本，属内部资料，不进外发包。
+#
+# ⚠️ 仓库里 docs/ 已按主题分目录（01-架构与规范 / 02-部署运维 / …），源路径与包内路径不同名。
+#    这里从新位置取，但在包内**仍平铺**到 docs/ 下：部署方只需要这三份，不需要分类层级，
+#    扁平路径更短、更好找，install.sh 与部署手册里的 docs/xx.md 引用也无需跟着改。
+#    曾经写成 foreach 直接拷 docs/ 下的同名文件，目录化后会静默漏文件（不报错、只是包里没有），
+#    所以这里逐个显式给源路径，缺文件要喊出来。
+$depDocMap = [ordered]@{
+    '02-外链传参规范.md'   = 'docs\01-架构与规范\02-外链传参规范.md'
+    '03-部署说明.md'       = 'docs\02-部署运维\03-部署说明.md'
+    '04-安装部署手册.md'   = 'docs\02-部署运维\04-安装部署手册.md'
+}
+New-Item -ItemType Directory -Force -Path (Join-Path $work 'docs') | Out-Null
+foreach ($name in $depDocMap.Keys) {
+    $src = Join-Path $root $depDocMap[$name]
+    if (Test-Path $src) {
+        Copy-Item $src (Join-Path $work "docs\$name") -Force
+    } else {
+        Write-Host ">>> 警告：缺少部署文档 $($depDocMap[$name])" -ForegroundColor Yellow
+    }
 }
 if ($KeepDocs) {
-    Copy-Item "$root\docs\*" $depDocs -Recurse -Force
+    # 全量文档：连同仓库里的分类目录结构一起带出（-Recurse 覆盖子目录）
+    Copy-Item "$root\docs\*" (Join-Path $work 'docs') -Recurse -Force
     Copy-Item "$root\README.md" $work -Force
 }
 
