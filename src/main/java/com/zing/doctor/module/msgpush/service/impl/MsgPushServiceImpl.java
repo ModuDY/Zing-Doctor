@@ -2,7 +2,9 @@ package com.zing.doctor.module.msgpush.service.impl;
 
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
+import com.zing.doctor.module.msgpush.MsgPushAlertTemplates;
 import com.zing.doctor.module.msgpush.MsgPushKeys;
+import com.zing.doctor.module.msgpush.dto.MsgPushAlertRequest;
 import com.zing.doctor.module.msgpush.dto.MsgPushTestRequest;
 import com.zing.doctor.module.msgpush.dto.MsgPushTestResult;
 import com.zing.doctor.module.msgpush.entity.MsgPushLog;
@@ -43,6 +45,15 @@ import java.util.regex.Pattern;
 public class MsgPushServiceImpl implements MsgPushService {
 
     private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    /**
+     * 短信正文里的 #time# 用短格式。
+     *
+     * <p>刻意不复用报文 startTime 的 yyyy-MM-dd HH:mm:ss：短信按条计费，
+     * 年份对收信人没有信息量（当天收到的短信，写「10-16 08:30」足够判断先后），
+     * 省下的字符用来放住院号与处置提示更值。
+     */
+    private static final DateTimeFormatter SMS_TIME = DateTimeFormatter.ofPattern("MM-dd HH:mm");
 
     /** 占位符：#变量名#（与 ARCHIVE_DIR 的 #占位符# 风格一致） */
     private static final Pattern PH = Pattern.compile("#([A-Za-z0-9_]+)#");
@@ -99,11 +110,72 @@ public class MsgPushServiceImpl implements MsgPushService {
 
         for (String mobile : mobiles) {
             result.getItems().add(sendOne(url.trim(), headerTpl, bodyTpl, envelope, mobile, content,
-                    MsgPushKeys.SCENE_TEST, null, null, null, null, null, dryRun, operator));
+                    MsgPushKeys.SCENE_TEST, null, null, null, null, null, null, dryRun, operator));
         }
         log.info("消息推送测试发送完成: url={}, 号码数={}, dryRun={}, operator={}",
                 url, mobiles.size(), dryRun, operator);
         return result;
+    }
+
+    @Override
+    public int pushAlert(MsgPushAlertRequest req) {
+        if (req == null || !StringUtils.hasText(req.getRuleCode())) {
+            return 0;
+        }
+        String ruleCode = req.getRuleCode().trim().toUpperCase(java.util.Locale.ROOT);
+        // 总开关只约束自动推送；测试发送不受它限制（通道没通之前必须先能试发）
+        if (!sysParamService.bool(MsgPushKeys.KEY_ENABLED, false)) {
+            return 0;
+        }
+        String url = sysParamService.value(MsgPushKeys.KEY_URL);
+        String bodyTpl = sysParamService.value(MsgPushKeys.KEY_BODY_XML);
+        if (!StringUtils.hasText(url) || !StringUtils.hasText(bodyTpl)) {
+            log.warn("预警推送跳过（缺推送地址或 msgBody 模板）: rule={}, patientId={}", ruleCode, req.getPatientId());
+            return 0;
+        }
+        String headerTpl = sysParamService.value(MsgPushKeys.KEY_HEADER_XML);
+        String envelope = sysParamService.value(MsgPushKeys.KEY_ENVELOPE);
+        if (!StringUtils.hasText(envelope)) {
+            envelope = MsgPushKeys.DEFAULT_ENVELOPE;
+        }
+
+        List<String> mobiles = alertMobiles();
+        if (mobiles.isEmpty()) {
+            log.warn("预警推送跳过（未配置接收号码）: rule={}, patientId={}", ruleCode, req.getPatientId());
+            return 0;
+        }
+
+        // 文案：模板优先取参数 MSGPUSH_CONTENT_<规则>，未配置则用内置默认值。
+        // 两级渲染的顺序不能反：先用变量渲染文案，再把文案当作 #content# 的值嵌进报文；
+        // 反过来会让文案里出现的 #xx#（患者姓名等真实文本里也可能有）被当占位符二次替换。
+        Map<String, String> biz = new LinkedHashMap<>();
+        if (req.getVars() != null) {
+            biz.putAll(req.getVars());
+        }
+        biz.put("time", LocalDateTime.now().format(SMS_TIME));
+        String tpl = sysParamService.value(MsgPushKeys.contentKey(ruleCode));
+        if (!StringUtils.hasText(tpl)) {
+            tpl = MsgPushAlertTemplates.defaultTemplate(ruleCode);
+        }
+        if (!StringUtils.hasText(tpl)) {
+            log.warn("预警推送跳过（规则无文案模板且无默认值）: rule={}", ruleCode);
+            return 0;
+        }
+        String content = MsgPushAlertTemplates.render(tpl, biz);
+
+        boolean dryRun = sysParamService.bool(MsgPushKeys.KEY_DRY_RUN, true);
+        int ok = 0;
+        for (String mobile : mobiles) {
+            MsgPushTestResult.Item item = sendOne(url.trim(), headerTpl, bodyTpl, envelope, mobile, content,
+                    MsgPushKeys.SCENE_ALERT, ruleCode, req.getPatientId(), req.getPatientName(),
+                    req.getBedNo(), req.getDeptCode(), biz, dryRun, null);
+            if (item.isSuccess()) {
+                ok++;
+            }
+        }
+        log.info("预警推送完成: rule={}, patientId={}, 号码数={}, 成功={}, dryRun={}, content={}",
+                ruleCode, req.getPatientId(), mobiles.size(), ok, dryRun, abbrev(content, 200));
+        return ok;
     }
 
     // ------------------------------------------------------------------
@@ -113,9 +185,10 @@ public class MsgPushServiceImpl implements MsgPushService {
     private MsgPushTestResult.Item sendOne(String url, String headerTpl, String bodyTpl, String envelope,
                                            String mobile, String content, String scene, String ruleCode,
                                            String patientId, String patientName, String bedNo, String deptCode,
-                                           boolean dryRun, String operator) {
+                                           Map<String, String> bizVars, boolean dryRun, String operator) {
         long start = System.currentTimeMillis();
-        Map<String, String> vars = vars(mobile, content, ruleCode, patientId, patientName, bedNo, deptCode);
+        Map<String, String> vars = vars(mobile, content, ruleCode, patientId, patientName, bedNo, deptCode,
+                bizVars);
         String requestBody = buildRequest(headerTpl, bodyTpl, envelope, vars);
 
         MsgPushTestResult.Item item = new MsgPushTestResult.Item();
@@ -286,8 +359,14 @@ public class MsgPushServiceImpl implements MsgPushService {
     }
 
     private Map<String, String> vars(String mobile, String content, String ruleCode,
-                                     String patientId, String patientName, String bedNo, String deptCode) {
+                                     String patientId, String patientName, String bedNo, String deptCode,
+                                     Map<String, String> bizVars) {
+        // 业务变量先铺底，平台字段后覆盖：预警带来的 gcsFrom/proneHours 等是补充，
+        // 但凭证、号码、报文时间这类字段绝不能被业务数据顶掉。
         Map<String, String> v = new LinkedHashMap<>();
+        if (bizVars != null) {
+            v.putAll(bizVars);
+        }
         // ---- 平台要求不可重复的 ID：每次发送重新生成 ----
         // hipMessageNo / msgUuid / convertId 是 32 位 UUID 去横杠；reqUuid 是带横杠的 36 位
         v.put("hipMessageNo", uuid32());
@@ -323,6 +402,12 @@ public class MsgPushServiceImpl implements MsgPushService {
         v.put("hipAction", str(sysParamService.value(MsgPushKeys.KEY_ACTION)));
         v.put("mobile", str(mobile));
         v.put("startTime", LocalDateTime.now().format(DT));
+        // 短信正文里的时间：按短信体例用短格式（见 SMS_TIME）。
+        // 预警推送在渲染文案时已定好 time，此处不覆盖 —— 否则跨分钟边界时
+        // 「正文里的时间」与「报文里的时间」会差 1 分钟，现场对不上会觉得发了旧消息。
+        if (!v.containsKey("time")) {
+            v.put("time", LocalDateTime.now().format(SMS_TIME));
+        }
         v.put("content", content == null ? "" : content);
         v.put("patientId", str(patientId));
         v.put("patientName", str(patientName));
@@ -355,6 +440,16 @@ public class MsgPushServiceImpl implements MsgPushService {
     // ------------------------------------------------------------------
     // 参数解析
     // ------------------------------------------------------------------
+
+    /**
+     * 预警推送的号码：参数 MSGPUSH_ALERT_RECEIVERS 优先，留空回退 MSGPUSH_RECEIVERS。
+     *
+     * <p>分开的理由见 {@link MsgPushKeys#KEY_ALERT_RECEIVERS}：联调号码和值班号码各配各的。
+     */
+    private List<String> alertMobiles() {
+        String alert = sysParamService.value(MsgPushKeys.KEY_ALERT_RECEIVERS);
+        return mobilesOf(StringUtils.hasText(alert) ? alert : null);
+    }
 
     /** 号码来源：弹窗入参优先，其次参数 MSGPUSH_RECEIVERS；支持中文逗号与分号分隔。 */
     private List<String> mobilesOf(String fromRequest) {

@@ -69,9 +69,23 @@ public final class MsgPushKeys {
     /** 接收方机构码 receivedOrgCode（示例为空，可留空） */
     public static final String KEY_RECEIVED_ORG_CODE = "MSGPUSH_RECEIVED_ORG_CODE";
 
-    /** 接收号码，逗号分隔 */
+    /** 接收号码，逗号分隔（测试发送用；预警推送留空时也回退到这里） */
     public static final String KEY_RECEIVERS = "MSGPUSH_RECEIVERS";
-    /** 触发推送的预警类型，逗号分隔（本期仅登记，不自动推送） */
+    /**
+     * 预警推送的接收号码，逗号分隔。
+     *
+     * <p>与 {@link #KEY_RECEIVERS} 分开是为了「测试号码」和「值班号码」能各配各的：
+     * 联调时往自己手机上发，正式启用后改这一项指向值班手机/护士站，
+     * 不必把测试号码从公共项里删掉。留空则回退 MSGPUSH_RECEIVERS。
+     */
+    public static final String KEY_ALERT_RECEIVERS = "MSGPUSH_ALERT_RECEIVERS";
+    /**
+     * 触发推送的预警类型，逗号分隔（取值见 {@code MsgPushAlertTemplates.ALL_RULES}）。
+     *
+     * <p>留空 = <b>不推送任何预警</b>：未配置就往外发短信是现场最难解释的事故，
+     * 所以这里刻意不做「空即全推」的兜底。逐条文案见
+     * {@link #contentKey(String)} 对应的参数。
+     */
     public static final String KEY_RULES = "MSGPUSH_RULES";
     /** 返回成功标识：返回体包含该串即判成功；留空按 HTTP 2xx 判定 */
     public static final String KEY_SUCCESS_KEY = "MSGPUSH_SUCCESS_KEY";
@@ -80,8 +94,22 @@ public final class MsgPushKeys {
 
     /** 场景：测试发送 */
     public static final String SCENE_TEST = "test";
-    /** 场景：预警推送（后续接入自动推送时使用） */
+    /** 场景：预警推送（自动扫描工作台待办后发出） */
     public static final String SCENE_ALERT = "alert";
+
+    /**
+     * 预警文案参数键前缀：{@code MSGPUSH_CONTENT_<规则代码>}。
+     *
+     * <p>如 {@code MSGPUSH_CONTENT_GCS_DROP_2}。现场在参数页逐条改写措辞，
+     * 改哪条发哪条变，不必发版。
+     */
+    public static final String CONTENT_KEY_PREFIX = "MSGPUSH_CONTENT_";
+
+    /** 预警文案参数键。 */
+    public static String contentKey(String ruleCode) {
+        return CONTENT_KEY_PREFIX
+                + (ruleCode == null ? "" : ruleCode.trim().toUpperCase(java.util.Locale.ROOT));
+    }
 
     /**
      * 平台统一入口名（msgHeader 的 serverName）。

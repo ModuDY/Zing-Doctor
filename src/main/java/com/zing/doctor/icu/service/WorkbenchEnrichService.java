@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -90,6 +91,10 @@ public class WorkbenchEnrichService {
     /** 呼吸抑制阈值：监护观察项最新一次呼吸频率低于 8 次/min。 */
     private static final BigDecimal RR_DEPRESSION_THRESHOLD = new BigDecimal("8");
 
+    /** 短信文案里的时间体例（与 {@code MsgPushServiceImpl.SMS_TIME} 保持一致：MM-dd HH:mm）。 */
+    private static final java.time.format.DateTimeFormatter SMS_TIME =
+            java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm");
+
     /** 脑损伤诊断打标关键字（diag_name 包含即命中；「脑病」涵盖肺性/肝性/代谢性脑病等） */
     private static final String[] BRAIN_INJURY_KEYWORDS = {
             "脑出血", "脑梗死", "脑梗塞", "颅脑损伤", "脑挫伤", "蛛网膜下腔出血", "脑疝", "颅内感染", "脑病"
@@ -133,8 +138,10 @@ public class WorkbenchEnrichService {
         Map<String, LocalDateTime> proneOpen = openProneStarts(patientIds);
         // 7) 呼吸抑制预警：今日监护呼吸频率最新一次 < 8 次/min
         Map<String, BigDecimal> latestRr = latestRrToday(patientIds);
-        // 8) 脑损伤打标：诊断含脑出血/脑梗死/颅脑损伤等关键字（监测类标记，非催办）
-        Set<String> brainInjury = brainInjuryPatients(patientIds);
+        // 8) 脑损伤打标：诊断含脑出血/脑梗死/颅脑损伤等关键字（监测类标记，非催办）。
+        //    存「命中的关键字」而不是整条诊断原文：诊断原文常有上百字（含既往史、分级），
+        //    塞进短信会被拆成好几条；短信只需要说清「凭什么提示」。
+        Map<String, String> brainInjury = brainInjuryDiagnoses(patientIds);
 
         for (WorkbenchPatient p : patients) {
             SofaScoreRecord s = latestSofa.get(p.getPatientId());
@@ -166,7 +173,7 @@ public class WorkbenchEnrichService {
             if (rr != null && rr.compareTo(RR_DEPRESSION_THRESHOLD) < 0) {
                 todos.add("RR_DEPRESSION");
             }
-            if (brainInjury.contains(pid)) {
+            if (brainInjury.containsKey(pid)) {
                 todos.add("BRAIN_INJURY");
             }
             // 共同前置：入科满 24 小时 —— 当天入科的患者不催，留出评估时间窗。
@@ -184,7 +191,49 @@ public class WorkbenchEnrichService {
             }
             p.setTodos(todos);
             p.setTodoCount(todos.size());
+            // 顺手把预警短信要用的数值带上：这些值都是本次现算的，库里没有第二份来源。
+            p.setAlertVars(alertVarsOf(p, gcs, proneStart, rr, brainInjury.get(pid)));
         }
+    }
+
+    /**
+     * 组装预警短信的渲染变量（键与 {@code MsgPushAlertTemplates} 的默认模板一一对应）。
+     *
+     * <p><b>缺值就不放这个键</b>：模板里的占位符会原样留在短信中（如「GCS由#gcsFrom#降至9」）。
+     * 一条看得出缺数据的短信可以人工核对；反过来，用 0 或空串兜底会变成
+     * 「GCS由0降至9」这种看似正常、实际错误的提醒 —— 医生按它做判断是要出事的。
+     */
+    private static Map<String, String> alertVarsOf(WorkbenchPatient p, int[] gcs, LocalDateTime proneStart,
+                                                   BigDecimal rr, String brainDiag) {
+        Map<String, String> v = new LinkedHashMap<>();
+        v.put("patientName", nvl(p.getName()));
+        v.put("bedNo", nvl(p.getBedNo()));
+        v.put("departName", nvl(p.getDepartName()));
+        v.put("wardName", nvl(p.getWardName()));
+        v.put("inHospitalNo", nvl(p.getInHospitalNo()));
+        v.put("age", p.getAge() == null ? "" : String.valueOf(p.getAge()));
+        v.put("gender", nvl(p.getGender()));
+        if (gcs != null) {
+            v.put("gcsFrom", String.valueOf(gcs[0]));
+            v.put("gcsTo", String.valueOf(gcs[1]));
+            v.put("gcsDrop", String.valueOf(Math.max(0, gcs[0] - gcs[1])));
+        }
+        if (proneStart != null) {
+            v.put("proneStart", proneStart.format(SMS_TIME));
+            v.put("proneHours", String.valueOf(ChronoUnit.HOURS.between(proneStart, LocalDateTime.now())));
+        }
+        if (rr != null) {
+            // 去掉多余的 0（7.0 → 7）：短信里「呼吸频率7次/分」比「7.0次/分」更像人话
+            v.put("rrValue", rr.stripTrailingZeros().toPlainString());
+        }
+        if (brainDiag != null && !brainDiag.isEmpty()) {
+            v.put("brainDiag", brainDiag);
+        }
+        return v;
+    }
+
+    private static String nvl(String s) {
+        return s == null ? "" : s;
     }
 
     /**
@@ -312,11 +361,14 @@ public class WorkbenchEnrichService {
     }
 
     /**
-     * 诊断含脑损伤关键字的患者集合（急性脑损伤监测打标）。
+     * 诊断含脑损伤关键字的患者 → 命中的那个关键字（急性脑损伤监测打标）。
      * 复用感染维度的批量诊断查询；这是监测类标记而非催办，前端按标签样式展示。
+     *
+     * <p>同一个患者命中多条诊断时取第一条命中的关键字：短信是提醒，
+     * 不是诊断清单，堆一串病名既发不完也没人看。
      */
-    private Set<String> brainInjuryPatients(List<String> patientIds) {
-        Set<String> out = new HashSet<>();
+    private Map<String, String> brainInjuryDiagnoses(List<String> patientIds) {
+        Map<String, String> out = new HashMap<>();
         try {
             for (Map<String, Object> r : icuPatientMapper.selectDiagnosesByPatientIds(patientIds)) {
                 String name = str(r.get("diag_name"));
@@ -327,7 +379,7 @@ public class WorkbenchEnrichService {
                     if (name.contains(kw)) {
                         String pid = str(r.get("patient_id"));
                         if (!pid.isEmpty()) {
-                            out.add(pid);
+                            out.putIfAbsent(pid, kw);
                         }
                         break;
                     }
@@ -338,6 +390,7 @@ public class WorkbenchEnrichService {
         }
         return out;
     }
+
 
     /**
      * 评分待办口径。取值见 {@code WORKBENCH_SCORE_TODO_RULE}；

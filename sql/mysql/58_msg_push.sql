@@ -209,11 +209,13 @@ SELECT 'MSGPUSH_RULES', '触发推送的预警类型', 'ARDS_VENTILATED,GCS_DROP
 INSERT INTO `sys_param`
     (`param_key`, `param_name`, `param_value`, `param_group`, `sort_no`,
      `status`, `param_type`, `options`, `default_value`, `required`, `regex`, `remark`)
-SELECT 'MSGPUSH_SUCCESS_KEY', '返回成功标识', '', 'msgpush', 17, 1, 'text',
-       NULL, '', 0, NULL,
-       CONCAT('网关返回 JSON（如 {"code":"50002","message":"参数校验不通过"}）而非 XML，',
-              '且业务失败也返回 HTTP 200。留空按 2xx 判定会误报成功 —— ',
-              '拿到成功返回后把成功标志（如 "code":"0"）填这里。')
+SELECT 'MSGPUSH_SUCCESS_KEY', '返回成功标识', '"code":"00000"', 'msgpush', 17, 1, 'text',
+       NULL, '"code":"00000"', 0, NULL,
+       CONCAT('网关把业务结果放在 SOAP 信封里，payload 的 CDATA 才是 JSON：',
+              '成功 {"code":"00000","data":"发送消息处理中....","message":"","error":""}；',
+              '失败如 {"code":"50002","message":"无效的授权码: 授权码格式不正确，应为32位UUID(不包含横杠)"}，',
+              '且业务失败同样返回 HTTP 200。本项按「返回体包含该串」判成功，',
+              '留空会退化成按 2xx 判定、把业务失败误记成发送成功。')
   FROM DUAL
  WHERE NOT EXISTS (SELECT 1 FROM `sys_param` WHERE `param_key` = 'MSGPUSH_SUCCESS_KEY');
 

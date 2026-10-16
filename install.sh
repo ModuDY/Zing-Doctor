@@ -309,8 +309,14 @@ FULL_SQL=(
     #    原为 58 号，与 58_msg_push.sql 撞号导致本脚本一直未被任何清单登记、
     #    装出来的库缺这个页面。现改为 60 号并登记进三处清单。
     "60_vasoactive_page.sql"
-    # 61 纠正「授权码 certificate」：它不是 hipToken，平台要求 32 位 UUID（幂等，可重复执行）
+    # 61 纠正「授权码 certificate」：它不是 hipToken，且不做格式限制（幂等，可重复执行）
     "61_fix_msgpush_certificate.sql"
+    # 62 「返回成功标识」按平台真实返回填 "code":"00000"：业务失败也是 HTTP 200，
+    #    留空按 2xx 判定会把失败记成成功（只在参数为空时填，幂等）
+    "62_msgpush_success_key.sql"
+    # 63 预警自动推送：每类预警一条短信文案（MSGPUSH_CONTENT_*）、预警接收号码、
+    #    规则清单补全为 7 类（幂等，可重复执行）
+    "63_msgpush_alert.sql"
 )
 
 # JDBC 通道比 disql 通道多两个：03 ICU 库性能索引、05 APACHE2 PDF 列（历史上 disql 通道就没带，保持原样）
@@ -395,8 +401,14 @@ FULL_SQL_JDBC=(
     #    原为 58 号，与 58_msg_push.sql 撞号导致本脚本一直未被任何清单登记、
     #    装出来的库缺这个页面。现改为 60 号并登记进三处清单。
     "60_vasoactive_page.sql"
-    # 61 纠正「授权码 certificate」：它不是 hipToken，平台要求 32 位 UUID（幂等，可重复执行）
+    # 61 纠正「授权码 certificate」：它不是 hipToken，且不做格式限制（幂等，可重复执行）
     "61_fix_msgpush_certificate.sql"
+    # 62 「返回成功标识」按平台真实返回填 "code":"00000"：业务失败也是 HTTP 200，
+    #    留空按 2xx 判定会把失败记成成功（只在参数为空时填，幂等）
+    "62_msgpush_success_key.sql"
+    # 63 预警自动推送：每类预警一条短信文案（MSGPUSH_CONTENT_*）、预警接收号码、
+    #    规则清单补全为 7 类（幂等，可重复执行）
+    "63_msgpush_alert.sql"
 )
 
 # ---------- 增量升级（幂等脚本，可重复执行）----------
@@ -499,8 +511,14 @@ INCREMENTAL_SQL=(
     #    原为 58 号，与 58_msg_push.sql 撞号导致本脚本一直未被任何清单登记、
     #    装出来的库缺这个页面。现改为 60 号并登记进三处清单。
     "60_vasoactive_page.sql"
-    # 61 纠正「授权码 certificate」：它不是 hipToken，平台要求 32 位 UUID（幂等，可重复执行）
+    # 61 纠正「授权码 certificate」：它不是 hipToken，且不做格式限制（幂等，可重复执行）
     "61_fix_msgpush_certificate.sql"
+    # 62 「返回成功标识」按平台真实返回填 "code":"00000"：业务失败也是 HTTP 200，
+    #    留空按 2xx 判定会把失败记成成功（只在参数为空时填，幂等）
+    "62_msgpush_success_key.sql"
+    # 63 预警自动推送：每类预警一条短信文案（MSGPUSH_CONTENT_*）、预警接收号码、
+    #    规则清单补全为 7 类（幂等，可重复执行）
+    "63_msgpush_alert.sql"
 )
 
 # ---------------- SQL 清单自检 ----------------

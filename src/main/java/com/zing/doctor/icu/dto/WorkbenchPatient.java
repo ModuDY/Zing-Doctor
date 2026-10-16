@@ -4,9 +4,11 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
- * 患者工作台列表的最小展示模型；姓名脱敏，住院号保留前后段用于人工核对。
+ * 患者工作台列表的最小展示模型；姓名与住院号给原文（工作台是 ICU 内网使用），
+ * {@code patientNo} 另给一份脱敏值供需要时展示。
  *
  * <p>标识口径（三个字段各司其职，不要互相替代）：
  * <ul>
@@ -95,6 +97,18 @@ public class WorkbenchPatient {
     private List<String> todos = java.util.Collections.emptyList();
     /** 待办数（=todos.size()，前端直接用） */
     private Integer todoCount = 0;
+
+    /**
+     * 预警短信的文案渲染变量（键与 {@code MsgPushKeys} 的 #占位符# 约定一致）。
+     *
+     * <p>由 {@code WorkbenchEnrichService.enrich} 填充，供 {@code MsgPushAlertTask}
+     * 生成短信正文，工作台页面不消费（多出这个字段不影响前端）。
+     *
+     * <p><b>为什么要随 DTO 带出来</b>：GCS 首查/最新分、俯卧位已持续小时数、呼吸频率
+     * 这些数值都是生成待办时现算的，库里没有任何表存它们；推送侧不可能再算一遍
+     * （再算一遍就等于同一套阈值有了两份实现，两边算出来不一致时无法解释）。
+     */
+    private Map<String, String> alertVars = new java.util.LinkedHashMap<>();
 
     // ---- 抗感染 48～72 小时复评 ----
     /** 当前患者尚未完成的复评任务数。正常情况下为 0 或 1。 */
