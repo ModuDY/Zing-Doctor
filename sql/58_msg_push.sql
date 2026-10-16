@@ -93,8 +93,8 @@ INSERT INTO "zing_doctor_db_prod"."sys_param"
     ("id", "param_key", "param_name", "param_value", "param_group", "sort_no",
      "status", "param_type", "options", "default_value", "required", "regex", "remark")
 SELECT (SELECT NVL(MAX("id"), 0) + 1 FROM "zing_doctor_db_prod"."sys_param"),
-       'MSGPUSH_SOAP_ACTION', 'SOAPAction', '', 'msgpush', 6, 1, 'text',
-       NULL, '', 0, NULL, '留空则不发送该请求头；SOAP 1.1 网关通常填与方法同名的动作。'
+       'MSGPUSH_SOAP_ACTION', 'SOAPAction', '"sendMessagesToCenterPlatform"', 'msgpush', 6, 1, 'text',
+       NULL, '', 0, NULL, 'SOAP 1.1 规范要求该值带双引号，故默认值含引号。留空则不发送此请求头；若现场网关不接受引号，去掉即可。'
   FROM DUAL
  WHERE NOT EXISTS (SELECT 1 FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'MSGPUSH_SOAP_ACTION');
 
@@ -112,17 +112,18 @@ INSERT INTO "zing_doctor_db_prod"."sys_param"
      "status", "param_type", "options", "default_value", "required", "regex", "remark")
 SELECT (SELECT NVL(MAX("id"), 0) + 1 FROM "zing_doctor_db_prod"."sys_param"),
        'MSGPUSH_HEADER_XML', 'msgHeader 报文模板',
-       '<msgHeader>' || CHR(10)
+       '<?xml version="1.0" encoding="utf-8"?>' || CHR(10)
+       || '<root>' || CHR(10)
        || '<serverName>sendMessagesToCenterPlatform</serverName>' || CHR(10)
        || '<format>xml</format>' || CHR(10)
        || '<callOperator>#callOperator#</callOperator>' || CHR(10)
        || '<certificate>#certificate#</certificate>' || CHR(10)
        || '<applyDistrictCode>#districtCode#</applyDistrictCode>' || CHR(10)
        || '<execDistrictCode>#districtCode#</execDistrictCode>' || CHR(10)
-       || '</msgHeader>',
+       || '</root>',
        'msgpush', 8, 1, 'textarea',
        NULL, '', 0, NULL,
-       'msgHeader 片段（勿写 XML 声明，声明只在信封里）。占位符：#callOperator# #certificate# #districtCode#。按现场 WSDL 调整。'
+       'msgHeader 是独立 XML 文档（含自己的声明），由信封以 CDATA 嵌入。占位符：#callOperator# #certificate# #districtCode#。'
   FROM DUAL
  WHERE NOT EXISTS (SELECT 1 FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'MSGPUSH_HEADER_XML');
 
@@ -131,17 +132,18 @@ INSERT INTO "zing_doctor_db_prod"."sys_param"
      "status", "param_type", "options", "default_value", "required", "regex", "remark")
 SELECT (SELECT NVL(MAX("id"), 0) + 1 FROM "zing_doctor_db_prod"."sys_param"),
        'MSGPUSH_BODY_XML', 'msgBody 报文模板',
-       '<msgBody>' || CHR(10)
+       '<?xml version="1.0" encoding="UTF-8"?>' || CHR(10)
+       || '<root>' || CHR(10)
        || '<hipMessageNo>#hipMessageNo#</hipMessageNo>' || CHR(10)
        || '<hipAction>#hipAction#</hipAction>' || CHR(10)
        || '<hipToken>#hipToken#</hipToken>' || CHR(10)
        || '<mobile>#mobile#</mobile>' || CHR(10)
        || '<startTime>#startTime#</startTime>' || CHR(10)
        || '<content>#content#</content>' || CHR(10)
-       || '</msgBody>',
+       || '</root>',
        'msgpush', 9, 1, 'textarea',
        NULL, '', 0, NULL,
-       'msgBody 片段（勿写 XML 声明）。占位符：#hipMessageNo#（32位UUID，系统生成）#hipAction# #hipToken# #mobile# #startTime# #content# #patientName# #bedNo# #ruleName#。'
+       'msgBody 是独立 XML 文档（含自己的声明），由信封以 CDATA 嵌入。占位符：#hipMessageNo#（32位UUID，系统生成）#hipAction# #hipToken# #mobile# #startTime# #content# #patientName# #bedNo# #ruleName#。'
   FROM DUAL
  WHERE NOT EXISTS (SELECT 1 FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'MSGPUSH_BODY_XML');
 
@@ -217,7 +219,7 @@ INSERT INTO "zing_doctor_db_prod"."sys_param"
      "status", "param_type", "options", "default_value", "required", "regex", "remark")
 SELECT (SELECT NVL(MAX("id"), 0) + 1 FROM "zing_doctor_db_prod"."sys_param"),
        'MSGPUSH_SUCCESS_KEY', '返回成功标识', '', 'msgpush', 17, 1, 'text',
-       NULL, '', 0, NULL, '返回体中包含该串即判成功（如 <code>0</code>）；留空按 HTTP 2xx 判定。'
+       NULL, '', 0, NULL, '网关实测返回 JSON（如 {"code":"50002","message":"参数校验不通过"}），并非文档所写的 XML。留空按 HTTP 2xx 判定，但业务失败同样返回 200 —— 请在拿到成功返回后，把成功标志（如 "code":"0"）填到这里，判定才准确。'
   FROM DUAL
  WHERE NOT EXISTS (SELECT 1 FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'MSGPUSH_SUCCESS_KEY');
 
@@ -234,15 +236,19 @@ INSERT INTO "zing_doctor_db_prod"."sys_param"
     ("id", "param_key", "param_name", "param_value", "param_group", "sort_no",
      "status", "param_type", "options", "default_value", "required", "regex", "remark")
 SELECT (SELECT NVL(MAX("id"), 0) + 1 FROM "zing_doctor_db_prod"."sys_param"),
-       'MSGPUSH_ENVELOPE', '请求体模板（信封）',
+       'MSGPUSH_ENVELOPE', '请求体模板（SOAP 信封）',
        '<?xml version="1.0" encoding="utf-8"?>' || CHR(10)
-       || '<root>' || CHR(10)
-       || '#msgHeader#' || CHR(10)
-       || '#msgBody#' || CHR(10)
-       || '</root>',
+       || '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">' || CHR(10)
+       || '<soapenv:Body>' || CHR(10)
+       || '<sendMessagesToCenterPlatform>' || CHR(10)
+       || '<msgHeader><![CDATA[#msgHeader#]]></msgHeader>' || CHR(10)
+       || '<msgBody><![CDATA[#msgBody#]]></msgBody>' || CHR(10)
+       || '</sendMessagesToCenterPlatform>' || CHR(10)
+       || '</soapenv:Body>' || CHR(10)
+       || '</soapenv:Envelope>',
        'msgpush', 19, 1, 'textarea',
        NULL, '', 0, NULL,
-       '最终 HTTP 请求体。#msgHeader# / #msgBody# 原样嵌入上面两段；走 SOAP 就按现场 WSDL 在此套上 soap:Envelope。'
+       'SOAP 信封：把上面两段用 CDATA 作为 msgHeader / msgBody 两个入参传给方法 sendMessagesToCenterPlatform。现场 WSDL 若与此不同，只改本项即可。'
   FROM DUAL
  WHERE NOT EXISTS (SELECT 1 FROM "zing_doctor_db_prod"."sys_param" WHERE "param_key" = 'MSGPUSH_ENVELOPE');
 
