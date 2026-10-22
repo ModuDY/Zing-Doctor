@@ -1,6 +1,7 @@
 package com.zing.doctor.common;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.catalina.connector.ClientAbortException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -40,6 +41,18 @@ public class GlobalExceptionHandler {
     public Result<Void> handleMissingParam(MissingServletRequestParameterException e) {
         log.warn("缺少必填参数 {}: {}", e.getParameterName(), e.getMessage());
         return Result.fail(400, "缺少必填参数：" + e.getParameterName());
+    }
+
+    /**
+     * 客户端提前断开（刷新页面、关标签页、网关读超时）。
+     *
+     * <p>此时响应通道已关闭，兜底 handler 再写 JSON 会二次抛 Broken pipe，
+     * Spring 记成「Failure in @ExceptionHandler」并打整段堆栈，看起来像系统故障。
+     * 返回 void 表示已处理、不再写响应体。
+     */
+    @ExceptionHandler(ClientAbortException.class)
+    public void handleClientAbort(ClientAbortException e) {
+        log.debug("客户端已断开，跳过响应写入: {}", e.getMessage());
     }
 
     /**

@@ -95,4 +95,23 @@ class MySqlDialectInterceptorTest {
         String sql = "SELECT id, name FROM patient_info WHERE del_flag = 0 AND name LIKE ?";
         assertEquals(sql, MySqlDialectInterceptor.translate(sql));
     }
+
+    @Test
+    @DisplayName("CREATE TABLE AS SELECT（事实层物化）里的达梦写法必须整句翻译")
+    void translateCreateTableAsSelect() {
+        // 现场故障：CTAS 走 QualitySqlMapper.execute（@Update）→ Executor.update，
+        // 而拦截器原先只挂 query，DATEDIFF(DAY, …) 原样打到 MariaDB 报 1582。
+        String dm = "CREATE TABLE \"zing_doctor_db_prod\".\"quality_fact_x\" AS SELECT "
+                + "DATEDIFF(DAY, a.in_time, a.out_time) AS stay_days, "
+                + "DATEDIFF(MINUTE, a.in_time, b.check_time) AS first_min, "
+                + "CASE WHEN REGEXP_LIKE(TRIM(a.age), '^[0-9]{1,3}$') THEN CAST(TRIM(a.age) AS INT) END AS age_num, "
+                + "CAST(a.diag AS VARCHAR(2000)) AS diag "
+                + "FROM \"zing_icu_db_prod\".\"patient_info\" a";
+        String my = MySqlDialectInterceptor.translate(dm);
+        assertFalse(my.contains("DATEDIFF("), "仍残留达梦 DATEDIFF: " + my);
+        assertTrue(my.contains("TIMESTAMPDIFF(DAY, a.in_time, a.out_time)"), "实际： " + my);
+        assertTrue(my.contains("TIMESTAMPDIFF(MINUTE, a.in_time, b.check_time)"), "实际： " + my);
+        assertTrue(my.contains("(TRIM(a.age) REGEXP '^[0-9]{1,3}$')"), "实际： " + my);
+        assertTrue(my.contains("AS CHAR(2000)"), "实际： " + my);
+    }
 }

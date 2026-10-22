@@ -56,7 +56,13 @@ import java.util.regex.Pattern;
                 args = {MappedStatement.class, Object.class, RowBounds.class, ResultHandler.class}),
         @Signature(type = Executor.class, method = "query",
                 args = {MappedStatement.class, Object.class, RowBounds.class, ResultHandler.class,
-                        org.apache.ibatis.cache.CacheKey.class, BoundSql.class})
+                        org.apache.ibatis.cache.CacheKey.class, BoundSql.class}),
+        // DDL 也走 Executor.update：质控事实层的 CREATE TABLE ... AS SELECT 由
+        // QualitySqlMapper.execute（@Update）发出，若不拦 update，里面的达梦写法
+        // （DATEDIFF(DAY, a, b)、REGEXP_LIKE、CAST AS VARCHAR）会原样打到 MariaDB，
+        // 现场报 1582 Incorrect parameter count in the call to native function 'DATEDIFF'。
+        @Signature(type = Executor.class, method = "update",
+                args = {MappedStatement.class, Object.class})
 })
 public class MySqlDialectInterceptor implements Interceptor {
 
@@ -135,6 +141,11 @@ public class MySqlDialectInterceptor implements Interceptor {
         }
 
         String originalSql = boundSql.getSql();
+        // 普通 DML 不翻译：规则里的 \bOWNER\b → TABLE_SCHEMA 等是给数据字典查询用的，
+        // 套到业务 UPDATE/INSERT 上有误伤风险。质控事实层只在这里走 DDL。
+        if (args.length == 2 && !isDdl(originalSql)) {
+            return invocation.proceed();
+        }
         String mysqlSql = translate(originalSql);
 
         if (!mysqlSql.equals(originalSql)) {
@@ -213,6 +224,19 @@ public class MySqlDialectInterceptor implements Interceptor {
         s = CONCAT_LIKE_PREFIX.matcher(s).replaceAll("LIKE CONCAT(UPPER($1), '%')");
 
         return s;
+    }
+
+    /** 是否 DDL（只有这类走 update 的语句需要方言翻译）。 */
+    private static boolean isDdl(String sql) {
+        if (sql == null) {
+            return false;
+        }
+        String s = sql.trim().toUpperCase();
+        if (s.isEmpty()) {
+            return false;
+        }
+        return s.startsWith("CREATE") || s.startsWith("ALTER") || s.startsWith("DROP")
+                || s.startsWith("TRUNCATE") || s.startsWith("RENAME");
     }
 
     private static String compact(String sql) {

@@ -781,9 +781,11 @@ public class QualityEngine {
 
     private void dropIfExists(String table) {
         try {
-            sqlMapper.execute("DROP TABLE " + table);
+            // 必须带 IF EXISTS：首次物化时表不存在，裸 DROP 会让 MariaDB 返回 1051，
+            // 驱动把它打成 WARN（ErrorPacket），日志上看起来像故障，实际只是正常的「还没有表」。
+            sqlMapper.execute("DROP TABLE IF EXISTS " + table);
         } catch (Exception ignore) {
-            // 首次执行时表不存在，属正常
+            // 表不存在 / 权限不足都走到这里：随后的 CREATE TABLE 会给出真正的失败原因
         }
     }
 
