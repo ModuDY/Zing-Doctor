@@ -153,7 +153,7 @@ load_conf() {
       APP_HOME|WEB_PORT|BACKEND_PORT|WEB_MODE|NGINX_IMAGE|NGINX_CONTAINER) ;;
       SKIP_APT|APT_PKGS|JAVA_BIN|NGINX_BIN|SPRING_PROFILES_ACTIVE) ;;
       ICU_DATA_PROVIDER|SETUP_ICU_INDEX|ICU_LINK_TOKEN|EXTERNAL_LINK_SECRET) ;;
-      EXTERNAL_LINK_BASE_URL|QUALITY_CONFIG_WRITE_IP_WHITELIST) ;;
+      EXTERNAL_LINK_BASE_URL|QUALITY_CONFIG_WRITE_IP_WHITELIST|QUALITY_CONFIG_DEFAULT_OPERATOR) ;;
       *) warn "conf 里忽略不支持的配置项：$key（检查是否拼错）"; continue ;;
     esac
     # 环境变量/命令行已显式提供时不覆盖
@@ -222,6 +222,8 @@ ICU_LINK_TOKEN="${ICU_LINK_TOKEN:-zing-icu-link-token-2026}"
 EXTERNAL_LINK_SECRET="${EXTERNAL_LINK_SECRET:-zing-doctor-prod-secret-change-me}"
 EXTERNAL_LINK_BASE_URL="${EXTERNAL_LINK_BASE_URL:-}"
 QUALITY_CONFIG_WRITE_IP_WHITELIST="${QUALITY_CONFIG_WRITE_IP_WHITELIST:-}"
+# 质控配置变更的兜底操作人（留空 = 记 unknown，可用 systemd drop-in 覆盖）
+QUALITY_CONFIG_DEFAULT_OPERATOR="${QUALITY_CONFIG_DEFAULT_OPERATOR:-}"
 
 # 离线 / 受限环境开关（医院内网服务器常见：无外网、无可用 apt 源）
 #   SKIP_APT=yes        完全不调用 apt，直接用系统里已装好的组件
@@ -998,14 +1000,75 @@ chmod 600 "$ENV_FILE"
 info "已写入环境文件 $ENV_FILE（profile=$DB_PROFILE，权限 600）"
 
 # 非敏感外部配置（质控白名单等；与 install.sh 约定一致）
-cat > "$APP_HOME/config/application.yml" <<EOF
+# ⚠️ 刻意「不整文件重写」：现场会在这个文件里追加数据源 url 覆盖、日志级别等，
+#    整文件重写会一并抹掉；更常见的是白名单被写成空值，页面立刻退回
+#    「质控配置写接口未启用 / 只读预览」。规则改为：
+#      文件不存在 → 生成骨架；已存在 → 只补/改这两个键，conf 里没给值就保留文件原值。
+APP_YML="$APP_HOME/config/application.yml"
+mkdir -p "$APP_HOME/config"
+
+# 读已有 yml 里某键的值（去掉行尾空白与包裹引号）；没有则输出空
+yaml_get() {
+  [ -f "$APP_YML" ] || return 0
+  awk -v k="$1" '
+    $0 ~ "^[[:space:]]*" k "[[:space:]]*:" {
+      sub("^[[:space:]]*" k "[[:space:]]*:[[:space:]]*", "")
+      sub(/[[:space:]]+$/, "")
+      gsub(/^"|"$/, "")
+      print
+      exit
+    }' "$APP_YML"
+}
+
+# 设置某键：已存在则换值并保留原缩进，不存在则插到 quality: 下一行
+yaml_set() {
+  local key="$1" val="$2" tmp
+  [ -f "$APP_YML" ] || return 0
+  tmp="$(mktemp)" || return 0
+  if grep -qE "^[[:space:]]*${key}[[:space:]]*:" "$APP_YML"; then
+    awk -v k="$key" -v v="$val" '
+      $0 ~ "^[[:space:]]*" k "[[:space:]]*:" {
+        match($0, /^[[:space:]]*/)
+        printf "%s%s: %s\n", substr($0, 1, RLENGTH), k, v
+        next
+      }
+      { print }' "$APP_YML" > "$tmp"
+  else
+    awk -v k="$key" -v v="$val" '
+      { print }
+      /^[[:space:]]*quality[[:space:]]*:[[:space:]]*$/ && !done { print "    " k ": " v; done = 1 }
+      END { if (!done) printf "zing:\n  quality:\n    %s: %s\n", k, v }' "$APP_YML" > "$tmp"
+  fi
+  cat "$tmp" > "$APP_YML"
+  rm -f "$tmp"
+}
+
+if [ ! -f "$APP_YML" ]; then
+  cat > "$APP_YML" <<EOF
 # zing-doctor 后端外部配置（优先级高于 jar 内 application.yml）
 # 数据库连接走环境变量（见 $ENV_FILE），这里只放业务开关。
 zing:
   quality:
-    config-write-ip-whitelist: ${QUALITY_CONFIG_WRITE_IP_WHITELIST}
-    config-default-operator: \${QUALITY_CONFIG_DEFAULT_OPERATOR:}
+    config-write-ip-whitelist: "${QUALITY_CONFIG_WRITE_IP_WHITELIST}"
+    config-default-operator: "\${QUALITY_CONFIG_DEFAULT_OPERATOR:}"
 EOF
+  info "已生成外部配置 $APP_YML"
+else
+  cp -a "$APP_YML" "$APP_YML.bak"
+  WL_OLD="$(yaml_get config-write-ip-whitelist)"
+  if [ -n "$QUALITY_CONFIG_WRITE_IP_WHITELIST" ] && [ "$QUALITY_CONFIG_WRITE_IP_WHITELIST" != "$WL_OLD" ]; then
+    yaml_set config-write-ip-whitelist "\"$QUALITY_CONFIG_WRITE_IP_WHITELIST\""
+    info "白名单已按 conf 更新：${WL_OLD:-（空）} -> $QUALITY_CONFIG_WRITE_IP_WHITELIST"
+  elif [ -z "$WL_OLD" ]; then
+    warn "白名单为空：conf/db.conf 未配 QUALITY_CONFIG_WRITE_IP_WHITELIST，文件里也是空，质控配置页将只读"
+  else
+    info "白名单沿用 $APP_YML 现有值：$WL_OLD（conf 里没配就不动它）"
+  fi
+  if [ -n "$QUALITY_CONFIG_DEFAULT_OPERATOR" ]; then
+    yaml_set config-default-operator "\"$QUALITY_CONFIG_DEFAULT_OPERATOR\""
+    info "兜底操作人已写入：$QUALITY_CONFIG_DEFAULT_OPERATOR"
+  fi
+fi
 
 # ---------------- 6. systemd 服务 ----------------
 step "配置 systemd 服务（开机自启与崩溃拉起）"
