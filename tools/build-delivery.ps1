@@ -298,7 +298,9 @@ if (Test-Path $myDir) {
         # 59 按平台真实成功报文升级 58 的报文模板与配套参数（幂等，可重复执行）
         '59_fix_msgpush_template.sql',
         # 60 血管活性药分析页注册（原为 58 号，与 58_msg_push.sql 撞号一直未被登记）
-        '60_vasoactive_page.sql')
+        '60_vasoactive_page.sql',
+        # 61/62/63 消息推送修复：清示例授权码、成功标识改 code=00000、预警规则补全（幂等）
+        '61_fix_msgpush_certificate.sql', '62_msgpush_success_key.sql', '63_msgpush_alert.sql')
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine('-- ============================================================')
     [void]$sb.AppendLine('-- zing-doctor MySQL/MariaDB 一次性初始化脚本（打包时自动合成，勿手工编辑）')

@@ -745,6 +745,11 @@ step "导入建表与种子脚本（幂等，可重复执行）"
     59_fix_msgpush_template.sql
     # 60 血管活性药分析页注册（原为 58 号，与 58_msg_push.sql 撞号一直未被登记）
     60_vasoactive_page.sql
+    # 61/62/63 消息推送修复：清掉示例授权码、成功标识改为 code=00000、高风险预警规则补全
+    #   均为幂等 UPDATE/INSERT，须排在 58/59 之后（否则被 59 的模板覆盖回去）
+    61_fix_msgpush_certificate.sql
+    62_msgpush_success_key.sql
+    63_msgpush_alert.sql
     41_patient_summary_page.sql
     )
   # 清单自检：登记的脚本必须存在；目录里也不能有未登记的孤岛脚本

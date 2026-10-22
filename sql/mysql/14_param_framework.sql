@@ -9,7 +9,7 @@ USE `zing_doctor_db_prod`;
 
 -- ---- 以下为原达梦 PL/SQL 幂等块转换得到的 DDL ----
 CALL zing_add_column('sys_param', 'param_type', 'VARCHAR(20) DEFAULT ''text'' COMMENT ''参数类型：text/textarea/number/switch/select，页面据此渲染控件''');
-CALL zing_add_column('sys_param', 'options', 'VARCHAR(1000) COMMENT ''select 选项 JSON 数组：[{`label`:`显示名`,`value`:`存储值`}]''');
+CALL zing_add_column('sys_param', 'options', 'VARCHAR(1000) COMMENT ''select 选项 JSON 数组：[{"label":"显示名","value":"存储值"}]''');
 CALL zing_add_column('sys_param', 'default_value', 'VARCHAR(1000) COMMENT ''默认值（参数值为空时取用）''');
 CALL zing_add_column('sys_param', 'required', 'TINYINT DEFAULT 0 COMMENT ''是否必填：1 必填 / 0 选填''');
 CALL zing_add_column('sys_param', 'regex', 'VARCHAR(200) COMMENT ''校验正则（可选，保存时校验参数值）''');
@@ -126,7 +126,7 @@ INSERT INTO `sys_param`
     (`param_key`, `param_name`, `param_value`, `param_group`, `sort_no`,
      `status`, `param_type`, `options`, `default_value`, `required`, `remark`)
 SELECT 'AUTO_REGISTER_ENABLED', '外链工号自动注册', '0', 'external', 10, 1, 'switch',
-       '[{`label`:`开启`,`value`:`1`},{`label`:`关闭`,`value`:`0`}]', '0', 0,
+       '[{"label":"开启","value":"1"},{"label":"关闭","value":"0"}]', '0', 0,
        '开启后，第三方系统外链带来的工号在本系统不存在时自动注册账号。默认关闭：extToken 为固定明文，开启后任何持有外链者都可注册账号。'
   FROM DUAL
  WHERE NOT EXISTS (
@@ -136,7 +136,7 @@ INSERT INTO `sys_param`
     (`param_key`, `param_name`, `param_value`, `param_group`, `sort_no`,
      `status`, `param_type`, `options`, `default_value`, `required`, `remark`)
 SELECT 'AUTO_REGISTER_PASSWORD_RULE', '自动注册默认口令规则', 'WORK_NO', 'external', 20, 1, 'select',
-       '[{`label`:`口令同工号`,`value`:`WORK_NO`},{`label`:`固定初始口令`,`value`:`FIXED`}]', 'WORK_NO', 0,
+       '[{"label":"口令同工号","value":"WORK_NO"},{"label":"固定初始口令","value":"FIXED"}]', 'WORK_NO', 0,
        '自动注册账号的初始口令来源。选择「固定初始口令」时需同时配置 AUTO_REGISTER_FIXED_PASSWORD。'
   FROM DUAL
  WHERE NOT EXISTS (

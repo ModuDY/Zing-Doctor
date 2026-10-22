@@ -23,24 +23,64 @@ import sys
 SCHEMAS = ['zing_doctor_db_prod', 'zing_icu_db_prod']
 
 
+def _map_outside_strings(s, transform):
+    """只对单引号字符串（SQL 字面量）之外的片段应用 transform。
+
+    ⚠️ 必须跳过字面量：JSON 配置列（select_cols / options / dims …）的值是
+    以单引号包裹的 JSON 文本，里面的双引号是 JSON 语法，不是标识符限定符。
+    早期实现直接全局 re.sub，把 '{"label":"开启"}' 改成了 '{`label`:`开启`}'，
+    落库后 JSON 解析失败（前端下拉/后端 readList 直接炸），且因为是合法
+    VARCHAR 值，导入阶段不报错 —— 问题被推迟到运行期。
+    """
+    out, buf = [], []
+    i, n = 0, len(s)
+    while i < n:
+        if s[i] == "'":
+            out.append(transform(''.join(buf)))
+            buf = []
+            j = i + 1
+            while j < n:
+                if s[j] == "'":
+                    if j + 1 < n and s[j + 1] == "'":
+                        j += 2
+                        continue
+                    j += 1
+                    break
+                j += 1
+            out.append(s[i:j])
+            i = j
+            continue
+        buf.append(s[i])
+        i += 1
+    out.append(transform(''.join(buf)))
+    return ''.join(out)
+
+
 def strip_schema(s):
-    for sch in SCHEMAS:
-        s = s.replace(f'"{sch}".', '')
-        s = s.replace(f'`{sch}`.', '')
-    return s
+    def _strip(seg):
+        for sch in SCHEMAS:
+            seg = seg.replace(f'"{sch}".', '')
+            seg = seg.replace(f'`{sch}`.', '')
+        return seg
+    return _map_outside_strings(s, _strip)
 
 
 def quotes_to_backticks(s):
-    return re.sub(r'"(\w+)"', r'`\1`', s)
+    return _map_outside_strings(s, lambda seg: re.sub(r'"(\w+)"', r'`\1`', seg))
+
+
+def _convert_type_seg(seg):
+    seg = re.sub(r'\bVARCHAR2\s*\(', 'VARCHAR(', seg, flags=re.IGNORECASE)
+    seg = re.sub(r'\bCLOB\b', 'LONGTEXT', seg, flags=re.IGNORECASE)
+    seg = re.sub(r'\bBLOB\b', 'LONGBLOB', seg, flags=re.IGNORECASE)
+    seg = re.sub(r'\bNUMBER\s*\(', 'DECIMAL(', seg, flags=re.IGNORECASE)
+    seg = re.sub(r'\bNUMBER\b(?!\s*\()', 'DECIMAL(20,4)', seg, flags=re.IGNORECASE)
+    return seg
 
 
 def convert_type(line):
-    line = re.sub(r'\bVARCHAR2\s*\(', 'VARCHAR(', line, flags=re.IGNORECASE)
-    line = re.sub(r'\bCLOB\b', 'LONGTEXT', line, flags=re.IGNORECASE)
-    line = re.sub(r'\bBLOB\b', 'LONGBLOB', line, flags=re.IGNORECASE)
-    line = re.sub(r'\bNUMBER\s*\(', 'DECIMAL(', line, flags=re.IGNORECASE)
-    line = re.sub(r'\bNUMBER\b(?!\s*\()', 'DECIMAL(20,4)', line, flags=re.IGNORECASE)
-    return line
+    # 同样跳过字面量：提示文本里出现 "CLOB"/"NUMBER" 不该被换成 MySQL 类型名
+    return _map_outside_strings(line, _convert_type_seg)
 
 
 # ---------------------------------------------------------------------------
