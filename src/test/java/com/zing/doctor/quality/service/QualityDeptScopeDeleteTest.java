@@ -8,6 +8,7 @@ import com.zing.doctor.quality.engine.QualityEngine;
 import com.zing.doctor.quality.entity.QualityMetricResult;
 import com.zing.doctor.quality.mapper.QualityCalcRunMapper;
 import com.zing.doctor.quality.mapper.QualityCalcTraceMapper;
+import com.zing.doctor.quality.mapper.QualityCountRuleMapper;
 import com.zing.doctor.quality.mapper.QualityMetricPatientMapper;
 import com.zing.doctor.quality.mapper.QualityMetricResultMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -67,6 +68,9 @@ class QualityDeptScopeDeleteTest {
     private QualityCalcTraceMapper traceMapper;
     @Mock
     private QualityMetricPatientMapper patientMapper;
+    /** 默认无启用规则 → 批次退回全部指标，与本测试的原始断言一致。 */
+    @Mock
+    private QualityCountRuleMapper ruleMapper;
 
     private QualityCalcService service;
 
@@ -228,7 +232,7 @@ class QualityDeptScopeDeleteTest {
 
     private Map<String, Object> run(String departCode) {
         service = new QualityCalcService(props, dsl, engine, runMapper, resultMapper,
-                traceMapper, patientMapper);
+                traceMapper, patientMapper, ruleMapper);
         service.init();
         return service.recalc("MONTH", START, END, departCode, "MANUAL", "tester", false);
     }

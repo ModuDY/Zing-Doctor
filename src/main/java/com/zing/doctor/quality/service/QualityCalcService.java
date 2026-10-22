@@ -8,10 +8,12 @@ import com.zing.doctor.quality.engine.QualityDslLoader;
 import com.zing.doctor.quality.engine.QualityEngine;
 import com.zing.doctor.quality.entity.QualityCalcRun;
 import com.zing.doctor.quality.entity.QualityCalcTrace;
+import com.zing.doctor.quality.entity.QualityCountRule;
 import com.zing.doctor.quality.entity.QualityMetricPatient;
 import com.zing.doctor.quality.entity.QualityMetricResult;
 import com.zing.doctor.quality.mapper.QualityCalcRunMapper;
 import com.zing.doctor.quality.mapper.QualityCalcTraceMapper;
+import com.zing.doctor.quality.mapper.QualityCountRuleMapper;
 import com.zing.doctor.quality.mapper.QualityMetricPatientMapper;
 import com.zing.doctor.quality.mapper.QualityMetricResultMapper;
 import org.slf4j.Logger;
@@ -19,16 +21,20 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -80,6 +86,8 @@ public class QualityCalcService {
     private final QualityMetricResultMapper resultMapper;
     private final QualityCalcTraceMapper traceMapper;
     private final QualityMetricPatientMapper patientMapper;
+    /** 启用的业务规则（quality_count_rule），决定本批次实际要算哪些原子项。 */
+    private final QualityCountRuleMapper ruleMapper;
 
     private ExecutorService pool;
 
@@ -106,7 +114,8 @@ public class QualityCalcService {
 
     public QualityCalcService(QualityProperties props, QualityDslLoader dsl, QualityEngine engine,
                               QualityCalcRunMapper runMapper, QualityMetricResultMapper resultMapper,
-                              QualityCalcTraceMapper traceMapper, QualityMetricPatientMapper patientMapper) {
+                              QualityCalcTraceMapper traceMapper, QualityMetricPatientMapper patientMapper,
+                              QualityCountRuleMapper ruleMapper) {
         this.props = props;
         this.dsl = dsl;
         this.engine = engine;
@@ -114,6 +123,7 @@ public class QualityCalcService {
         this.resultMapper = resultMapper;
         this.traceMapper = traceMapper;
         this.patientMapper = patientMapper;
+        this.ruleMapper = ruleMapper;
     }
 
     @PostConstruct
@@ -473,9 +483,87 @@ public class QualityCalcService {
         run.setStartTime(LocalDateTime.now());
         run.setStatus("RUNNING");
         run.setOperator(operator);
-        run.setMetricTotal(dsl.sortedMetrics().size());
+        // 分母与真正要跑的条数保持一致：只算启用规则引用到的原子项时，
+        // 进度条不该显示 127（那会让「46/127」看起来像跑了一半就卡住）
+        run.setMetricTotal(scopedMetrics(dsl.sortedMetrics()).size());
         runMapper.insert(run);
         return run;
+    }
+
+    /**
+     * 本批次实际要算的指标：只算「启用中的业务规则」引用到的原子项。
+     *
+     * <p><b>为什么</b>：{@code quality_metric_def} 是配置层的全量原子项，而
+     * {@code quality_count_rule} 才是院方真正启用的指标。只启用 1 条规则时，
+     * 整批仍把一百多条原子项全跑一遍，页面上的进度就是「46 / 127」 ——
+     * 既慢，也让人以为系统在自己算一堆没人要的数。
+     *
+     * <p><b>三条退回全部指标的分支</b>：规则查询失败、一条启用规则都没有、
+     * 规则引用的 code 在指标配置里一个都找不到。宁可多算，也不能出现
+     * 「明明配了规则，看板却没数」。
+     *
+     * <p>派生指标（引用其它指标结果）要把被引用指标一并带上，否则
+     * {@code composeDerived} 拿不到基行，只会得到一条「被引用指标没有结果行」的报错。
+     */
+    private List<MetricDefinition> scopedMetrics(List<MetricDefinition> all) {
+        if (all == null || all.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<QualityCountRule> rules;
+        try {
+            // selectAll() 只返回 status=1（启用）的规则
+            rules = ruleMapper.selectAll();
+        } catch (Exception e) {
+            log.warn("[质控] 启用规则查询失败，本批次按全部 {} 条指标计算: {}", all.size(), e.getMessage());
+            return all;
+        }
+        if (rules == null || rules.isEmpty()) {
+            log.info("[质控] 没有启用的指标规则，本批次按全部 {} 条指标计算", all.size());
+            return all;
+        }
+
+        Set<String> need = new LinkedHashSet<>();
+        for (QualityCountRule r : rules) {
+            if (StringUtils.hasText(r.getNumeratorCode())) {
+                need.add(r.getNumeratorCode().trim());
+            }
+            if (StringUtils.hasText(r.getDenominatorCode())) {
+                need.add(r.getDenominatorCode().trim());
+            }
+        }
+
+        Map<String, MetricDefinition> byCode = new HashMap<>(Math.max(16, all.size() * 2));
+        for (MetricDefinition m : all) {
+            byCode.put(m.getCode(), m);
+        }
+        // 派生指标的被引用指标必须同批算出来（可能多层引用，故用队列做闭包）
+        ArrayDeque<String> queue = new ArrayDeque<>(need);
+        while (!queue.isEmpty()) {
+            MetricDefinition m = byCode.get(queue.poll());
+            if (m == null || !m.isDerived()) {
+                continue;
+            }
+            for (String ref : new String[]{m.getNumeratorMetric(), m.getDenominatorMetric()}) {
+                if (StringUtils.hasText(ref) && need.add(ref.trim())) {
+                    queue.add(ref.trim());
+                }
+            }
+        }
+
+        List<MetricDefinition> picked = new ArrayList<>(need.size());
+        for (MetricDefinition m : all) {
+            if (need.contains(m.getCode())) {
+                picked.add(m);
+            }
+        }
+        if (picked.isEmpty()) {
+            log.warn("[质控] 启用规则引用的原子项在指标配置里一个都找不到（{}），本批次退回全部 {} 条指标",
+                    need, all.size());
+            return all;
+        }
+        log.info("[质控] 本批次按启用规则收敛：规则 {} 条 → 指标 {} 条（配置共 {} 条）",
+                rules.size(), picked.size(), all.size());
+        return picked;
     }
 
     /**
@@ -497,9 +585,13 @@ public class QualityCalcService {
         List<QualityMetricPatient> patients = new ArrayList<>();
 
         String dept = deptFilter(departCode);
-        List<MetricDefinition> metrics = dsl.sortedMetrics();
+        List<MetricDefinition> allMetrics = dsl.sortedMetrics();
+        // 只算「启用中的指标规则」引用到的原子项：规则未配时退回全部指标
+        List<MetricDefinition> metrics = scopedMetrics(allMetrics);
+        // 收敛后删除范围必须跟着收窄 —— 否则整周期清空会把没重算的指标结果一起删掉
+        boolean scoped = metrics.size() < allMetrics.size();
         // 科室批次里被跳过的指标不参与计算，也就不进删除范围；targets 必须早于 try 定义，
-        // 因为 finally 里的 run.metricTotal 要用它（异常时它仍是「全部指标」）
+        // 因为 finally 里的 run.metricTotal 要用它（异常时它仍是本批次应算的全集）
         List<MetricDefinition> targets = metrics;
         int skipped = 0;
 
@@ -543,10 +635,27 @@ public class QualityCalcService {
             //  · 科室批次：有科室维度的指标只写该科室一行 → 只清该科室那一行；
             //    但占位类、dims 为空 / 非 depart_code 维度的指标仍按全院口径算，会写出
             //    ALL 乃至各科室行，这些指标必须按「指标 × 整周期」清，否则插入 ALL 行即冲突
+            //  · 按规则收敛的批次（只算少数几条）：绝不能整周期清空 —— 那会把没重算的
+            //    指标结果一起删掉却没人补，页面上表现为大片指标突然变「—」
             //
             // 位置刻意放在算完之后、插入之前：先删后算的话，中途失败（唯一键冲突、源库抖动、
             // 进程被杀）会留下「删了却没写回去」的空窗 —— 现场那次失败就让该科室 85 条结果凭空消失。
-            if (dept == null) {
+            if (scoped) {
+                List<String> fullScope = dept == null
+                        ? Collections.<String>emptyList()
+                        : fullScopeCodes(targets, dept);
+                Set<String> fullSet = new HashSet<>(fullScope);
+                for (MetricDefinition m : targets) {
+                    if (dept == null) {
+                        resultMapper.deleteByMetricPeriod(m.getCode(), run.getPeriodType(), start);
+                    } else if (!fullSet.contains(m.getCode())) {
+                        resultMapper.deleteByMetricPeriodDept(m.getCode(), run.getPeriodType(), start, dept);
+                    }
+                }
+                if (!fullScope.isEmpty()) {
+                    resultMapper.deleteByMetricCodes(run.getPeriodType(), start, fullScope);
+                }
+            } else if (dept == null) {
                 resultMapper.deleteByPeriodAllDept(run.getPeriodType(), start);
             } else {
                 resultMapper.deleteByPeriod(run.getPeriodType(), start, dept);
