@@ -11,7 +11,7 @@ spring:
       datasource:
         doctor:
           driver-class-name: com.mysql.cj.jdbc.Driver
-          url: jdbc:mysql://${MYSQL_DOCTOR_HOST:127.0.0.1}:${MYSQL_DOCTOR_PORT:3306}/zing_doctor_db_prod?useUnicode=true&characterEncoding=utf8mb4&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&sessionVariables=sql_mode='ANSI_QUOTES'
+          url: jdbc:mysql://${MYSQL_DOCTOR_HOST:127.0.0.1}:${MYSQL_DOCTOR_PORT:3306}/zing_doctor_db_prod?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&sessionVariables=sql_mode='ANSI_QUOTES'
           username: ${MYSQL_DOCTOR_USER:root}
           password: ${MYSQL_DOCTOR_PASSWORD:}
           hikari:
@@ -22,7 +22,7 @@ spring:
             connection-test-query: SELECT 1
         icu:
           driver-class-name: com.mysql.cj.jdbc.Driver
-          url: jdbc:mysql://${MYSQL_ICU_HOST:127.0.0.1}:${MYSQL_ICU_PORT:3306}/zing_icu_db_prod?useUnicode=true&characterEncoding=utf8mb4&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&sessionVariables=sql_mode='ANSI_QUOTES'
+          url: jdbc:mysql://${MYSQL_ICU_HOST:127.0.0.1}:${MYSQL_ICU_PORT:3306}/zing_icu_db_prod?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&sessionVariables=sql_mode='ANSI_QUOTES'
           username: ${MYSQL_ICU_USER:root}
           password: ${MYSQL_ICU_PASSWORD:}
           read-only: true

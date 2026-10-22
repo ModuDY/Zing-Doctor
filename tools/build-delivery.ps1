@@ -300,7 +300,9 @@ if (Test-Path $myDir) {
         # 60 血管活性药分析页注册（原为 58 号，与 58_msg_push.sql 撞号一直未被登记）
         '60_vasoactive_page.sql',
         # 61/62/63 消息推送修复：清示例授权码、成功标识改 code=00000、预警规则补全（幂等）
-        '61_fix_msgpush_certificate.sql', '62_msgpush_success_key.sql', '63_msgpush_alert.sql')
+        '61_fix_msgpush_certificate.sql', '62_msgpush_success_key.sql', '63_msgpush_alert.sql',
+        # 64 参数页乱码修复（双重编码还原）：必须排最后，修的是前面所有脚本种进去的数据
+        '64_fix_param_mojibake.sql')
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine('-- ============================================================')
     [void]$sb.AppendLine('-- zing-doctor MySQL/MariaDB 一次性初始化脚本（打包时自动合成，勿手工编辑）')

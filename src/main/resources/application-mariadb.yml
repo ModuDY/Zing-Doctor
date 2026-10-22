@@ -17,7 +17,7 @@ spring:
       datasource:
         doctor:
           driver-class-name: org.mariadb.jdbc.Driver
-          url: jdbc:mariadb://${MARIADB_DOCTOR_HOST:127.0.0.1}:${MARIADB_DOCTOR_PORT:3306}/zing_doctor_db_prod?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&sessionVariables=sql_mode='ANSI_QUOTES'
+          url: jdbc:mariadb://${MARIADB_DOCTOR_HOST:127.0.0.1}:${MARIADB_DOCTOR_PORT:3306}/zing_doctor_db_prod?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&sessionVariables=sql_mode='ANSI_QUOTES'
           username: ${MARIADB_DOCTOR_USER:zing}
           password: ${MARIADB_DOCTOR_PASSWORD:zing@2026}
           hikari:
@@ -28,7 +28,7 @@ spring:
             connection-test-query: SELECT 1
         icu:
           driver-class-name: org.mariadb.jdbc.Driver
-          url: jdbc:mariadb://${MARIADB_ICU_HOST:127.0.0.1}:${MARIADB_ICU_PORT:3306}/zing_icu_db_prod?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&sessionVariables=sql_mode='ANSI_QUOTES'
+          url: jdbc:mariadb://${MARIADB_ICU_HOST:127.0.0.1}:${MARIADB_ICU_PORT:3306}/zing_icu_db_prod?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&sessionVariables=sql_mode='ANSI_QUOTES'
           username: ${MARIADB_ICU_USER:zing}
           password: ${MARIADB_ICU_PASSWORD:zing@2026}
           read-only: true

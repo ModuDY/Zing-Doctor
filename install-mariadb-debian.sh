@@ -521,7 +521,13 @@ step "建库、建账号与授权"
 run_sql_file() {
   local file="$1"; local db="${2:-}"
   info "  执行 $(basename "$file")"
-  mariadb_admin "$db" < "$file"
+  # 强制在文件前注入 SET NAMES：本脚本是「一个文件一条连接」，而约三十个种子脚本
+  # （29~49 等）开头并没有自己的 SET NAMES。客户端默认字符集跟随 locale，在
+  # LANG=C（sudo / 无 locale 的服务器）下是 latin1 —— UTF-8 的中文会被按 latin1
+  # 逐字节解释后存进 utf8mb4 列，于是参数页显示成「æ, £ê€...」这种双重编码乱码。
+  # 放在 stdin 里而不是 --default-character-set：DB_CLI 为复合命令（docker exec）时
+  # 追加的参数会传给 docker 而不是 mysql。
+  { printf 'SET NAMES utf8mb4;\n'; cat "$file"; } | mariadb_admin "$db"
 }
 
 # ---------------- SQL 清单自检 ----------------
@@ -751,6 +757,10 @@ step "导入建表与种子脚本（幂等，可重复执行）"
     62_msgpush_success_key.sql
     63_msgpush_alert.sql
     41_patient_summary_page.sql
+    # 64 修复参数页乱码：早期逐文件导入时缺 SET NAMES，UTF-8 中文被按 latin1 存成
+    #   双重编码。判据严格（正常中文会得到 '?' 被排除），幂等，新库执行为空操作。
+    #   必须排最后：它修的是前面所有脚本种进去的数据。
+    64_fix_param_mojibake.sql
     )
   # 清单自检：登记的脚本必须存在；目录里也不能有未登记的孤岛脚本
   check_sql_manifest
@@ -770,8 +780,9 @@ step "导入建表与种子脚本（幂等，可重复执行）"
   # ICU 只读库性能索引（默认关闭：这是对医院生产库的变更，需 DBA 知情）
   if [ "$SETUP_ICU_INDEX" = "yes" ]; then
     info "在 ICU 库 $ICU_DB_HOST:$ICU_DB_PORT 准备幂等存储过程并执行索引脚本 ..."
-    mariadb_icu_admin < "$SQL_DIR/00c_idempotent_helpers_icu.sql"
-    mariadb_icu_admin < "$SQL_DIR/03_icu_indexes.sql"
+    # 同上：这两个文件开头没有 SET NAMES，统一在 stdin 前注入
+    { printf 'SET NAMES utf8mb4;\n'; cat "$SQL_DIR/00c_idempotent_helpers_icu.sql"; } | mariadb_icu_admin
+    { printf 'SET NAMES utf8mb4;\n'; cat "$SQL_DIR/03_icu_indexes.sql"; } | mariadb_icu_admin
     info "ICU 库性能索引已处理（幂等，已存在则跳过）"
   else
     warn "已跳过 ICU 库性能索引（SETUP_ICU_INDEX=no）。若应用查询 ICU 库较慢，"
