@@ -54,6 +54,11 @@
 #   优先级：命令行/环境变量 > conf/db.conf > 脚本默认值
 #
 # 幂等：可重复执行，建库/建表/加列/建索引均做存在性判断，不重复、不报错。
+#
+# SQL 重复初始化保护：执行台账记在 DOCTOR_DB 的 zing_sql_history（文件名 + 内容 MD5）。
+#   已执行过的脚本再次安装直接跳过，不再把参数设置、质控口径覆盖回出厂值；
+#   老库首次升级到本版本只登记基线、不重跑；全新库照常按顺序全量执行。
+#   排障需要强制重跑全部：./install-mariadb-debian.sh --force-sql
 # =====================================================================
 set -euo pipefail
 
@@ -108,7 +113,8 @@ CONFIG_ONLY="no"
 for _arg in "$@"; do
   case "$_arg" in
     --config-only|-c) CONFIG_ONLY="yes" ;;
-    -h|--help) sed -n '2,64p' "$0"; exit 0 ;;
+    --force-sql) FORCE_SQL="yes" ;;
+    -h|--help) sed -n '2,62p' "$0"; exit 0 ;;
     *) : ;;
   esac
 done
@@ -241,6 +247,10 @@ NGINX_BIN="${NGINX_BIN:-}"
 WEB_MODE="${WEB_MODE:-auto}"
 NGINX_IMAGE="${NGINX_IMAGE:-}"
 NGINX_CONTAINER="${NGINX_CONTAINER:-zing-doctor-frontend}"
+
+# SQL 执行台账：记录已执行过的 sql/mysql 脚本（文件名 + MD5），避免重复初始化
+SQL_HISTORY_TABLE="${SQL_HISTORY_TABLE:-zing_sql_history}"
+FORCE_SQL="${FORCE_SQL:-no}"
 
 # ---------------- 数据库来源判定 ----------------
 # 本机地址？（注意：仅 DB_HOST 判定「库是否在本机」，应用连库地址始终由 DB_HOST/DB_PORT 决定）
@@ -530,6 +540,125 @@ run_sql_file() {
   { printf 'SET NAMES utf8mb4;\n'; cat "$file"; } | mariadb_admin "$db"
 }
 
+# ---------------- SQL 执行台账（避免每次安装重复初始化） ----------------
+# 起因：MAIN_SQL 里的脚本虽写成「幂等」，但 02_seed 及部分种子用的是
+#   INSERT ... ON DUPLICATE KEY UPDATE —— 每次全量安装都会把参数设置页里调过的值、
+#   质控口径改回出厂值；而 64_fix_param_mojibake 这类修复脚本重跑也没有意义。
+# 方案：在 DOCTOR_DB 里维护一张台账，按「文件名 + 内容 MD5」判断是否已执行过：
+#   台账有该文件      → 跳过（文件内容变了只告警，不重跑）
+#   台账为空 + 库非空 → 老版本装的库：只登记基线，一条都不执行
+#   全新库            → 按顺序执行，成功后逐条登记
+#   FORCE_SQL=yes     → 忽略台账全部重跑（排障用，会覆盖已调参数）
+SQL_BASELINE="no"
+SQL_HISTORY_OK="no"
+SQL_RECORDS=""
+SQL_APPLIED_MAP=""
+SQL_CNT_RUN=0
+SQL_CNT_SKIP=0
+SQL_CNT_BASE=0
+
+# 台账里该脚本执行时的 MD5；没记录过输出 __NONE__
+sql_applied_checksum() {
+  printf '%s\n' "$SQL_APPLIED_MAP" | awk -F'|' -v k="$1" '
+    $1 == k { print $2; found = 1; exit }
+    END     { if (!found) print "__NONE__" }'
+}
+
+sql_history_flush() {
+  [ -n "$SQL_RECORDS" ] || return 0
+  if printf 'SET NAMES utf8mb4;\n%s' "$SQL_RECORDS" | mariadb_admin "$DOCTOR_DB" >/dev/null 2>&1; then
+    SQL_RECORDS=""
+  else
+    warn "写入 SQL 执行台账失败（不影响本次安装，但下次可能重复执行）"
+    SQL_RECORDS=""
+  fi
+}
+
+sql_record() {
+  local base="$1" sum="$2" by="$3" n
+  # 不用 VALUES(col) 形式：MySQL 8.4 已移除该语法，直接内联值两边都能跑
+  SQL_RECORDS="${SQL_RECORDS}INSERT INTO \`$SQL_HISTORY_TABLE\` (script, checksum, applied_by)
+  VALUES ('$base', '$sum', '$by')
+  ON DUPLICATE KEY UPDATE checksum = '$sum', applied_at = NOW(), applied_by = '$by';
+"
+  # 每 20 条落一次库：中途失败时最多丢一批，不会整轮重来
+  n="$(printf '%s' "$SQL_RECORDS" | grep -c '^INSERT' || true)"
+  [ "${n:-0}" -ge 20 ] && sql_history_flush
+  return 0
+}
+
+sql_history_init() {
+  local cnt pre exists
+  exists="$(admin_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$DOCTOR_DB' AND TABLE_NAME='$SQL_HISTORY_TABLE';" "$DOCTOR_DB" 2>/dev/null || true)"
+  if [ "${exists:-}" = "1" ]; then
+    SQL_HISTORY_OK="yes"
+  elif printf 'SET NAMES utf8mb4;\nCREATE TABLE IF NOT EXISTS `%s` (\n  `script` VARCHAR(191) NOT NULL COMMENT %s,\n  `checksum` CHAR(32) DEFAULT NULL COMMENT %s,\n  `applied_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `applied_by` VARCHAR(64) DEFAULT NULL COMMENT %s,\n  PRIMARY KEY (`script`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT=%s;\n' \
+      "$SQL_HISTORY_TABLE" "'脚本文件名'" "'执行时的内容 MD5'" "'installer / baseline / force'" "'安装脚本已执行的 SQL 台账'" \
+      | mariadb_admin "$DOCTOR_DB" >/dev/null 2>&1; then
+    SQL_HISTORY_OK="yes"
+    info "已创建 SQL 执行台账：$DOCTOR_DB.$SQL_HISTORY_TABLE"
+  else
+    warn "无法创建 SQL 执行台账（账号可能无建表权限）：本次退回全量执行，重复执行可能覆盖已调参数"
+    return 0
+  fi
+
+  cnt="$(admin_query "SELECT COUNT(*) FROM \`$DOCTOR_DB\`.\`$SQL_HISTORY_TABLE\`;" "$DOCTOR_DB" 2>/dev/null || true)"
+  if [ -z "$cnt" ]; then
+    SQL_HISTORY_OK="no"
+    warn "读取 SQL 执行台账失败：本次退回全量执行"
+    return 0
+  fi
+  SQL_APPLIED_MAP="$(admin_query "SELECT CONCAT(script, '|', IFNULL(checksum, '')) FROM \`$DOCTOR_DB\`.\`$SQL_HISTORY_TABLE\`;" "$DOCTOR_DB" 2>/dev/null || true)"
+
+  if [ "$cnt" = "0" ]; then
+    # 台账为空：区分「全新库」和「老版本装过、但没有台账」
+    pre="$(admin_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$DOCTOR_DB' AND TABLE_NAME IN ('sys_param','quality_metric_def','quality_fact_def');" "$DOCTOR_DB" 2>/dev/null || true)"
+    if [ -n "${pre:-}" ] && [ "$pre" != "0" ]; then
+      SQL_BASELINE="yes"
+      warn "检测到 $DOCTOR_DB 已初始化但没有执行台账（老版本安装）"
+      warn "  本次只登记基线、不重复执行 SQL；确需重跑请用 --force-sql，或删台账里对应行"
+    fi
+  fi
+}
+
+# 按台账执行：已执行过 → 跳过；老库基线 → 只登记；否则执行后登记
+run_sql_once() {
+  local file="$1" db="${2:-$DOCTOR_DB}" base sum stored
+  base="$(basename "$file")"
+  sum="$(md5sum "$file" 2>/dev/null | awk '{print $1}')"
+  sum="${sum:-unknown}"
+
+  if [ "$SQL_HISTORY_OK" != "yes" ]; then
+    info "  执行 $base"
+    { printf 'SET NAMES utf8mb4;\n'; cat "$file"; } | mariadb_admin "$db"
+    SQL_CNT_RUN=$((SQL_CNT_RUN + 1))
+    return 0
+  fi
+
+  stored="$(sql_applied_checksum "$base")"
+  if [ "$FORCE_SQL" != "yes" ] && [ "$stored" != "__NONE__" ]; then
+    # 内容变了也只告警不重跑：改过的脚本可能已带上现场数据修补，重跑反而危险
+    [ "$stored" = "$sum" ] || warn "  $base 内容与登记时不一致，仍按已执行跳过（强制重跑用 --force-sql）"
+    SQL_CNT_SKIP=$((SQL_CNT_SKIP + 1))
+    return 0
+  fi
+
+  if [ "$SQL_BASELINE" = "yes" ]; then
+    sql_record "$base" "$sum" "baseline"
+    SQL_CNT_BASE=$((SQL_CNT_BASE + 1))
+    return 0
+  fi
+
+  info "  执行 $base"
+  { printf 'SET NAMES utf8mb4;\n'; cat "$file"; } | mariadb_admin "$db"
+  if [ "$FORCE_SQL" = "yes" ]; then
+    sql_record "$base" "$sum" "force"
+  else
+    sql_record "$base" "$sum" "installer"
+  fi
+  SQL_CNT_RUN=$((SQL_CNT_RUN + 1))
+}
+
 # ---------------- SQL 清单自检 ----------------
 # 起因：23_external_link_params.sql 曾长期是「孤岛文件」—— 躺在 sql/mysql/ 下，
 # 但没被登记进任何清单，于是装完缺外链参数，日志里完全看不出问题。
@@ -659,7 +788,7 @@ SQL
   fi
 
   # ---------------- 4. 导入建表 + 种子脚本 ----------------
-step "导入建表与种子脚本（幂等，可重复执行）"
+step "导入建表与种子脚本（已执行过的自动跳过）"
   [ -d "$SQL_DIR" ] || { err "缺少 SQL 目录：$SQL_DIR（请确认在交付包根目录运行）"; exit 1; }
 
   info "初始化主库幂等存储过程 ..."
@@ -764,10 +893,19 @@ step "导入建表与种子脚本（幂等，可重复执行）"
     )
   # 清单自检：登记的脚本必须存在；目录里也不能有未登记的孤岛脚本
   check_sql_manifest
+  # 台账先行：判断本轮是「全新库」「已装过的库」还是「老库补基线」
+  sql_history_init
   for f in "${MAIN_SQL[@]}"; do
     [ -f "$SQL_DIR/$f" ] || { warn "缺少 $f，跳过"; continue; }
-    run_sql_file "$SQL_DIR/$f" "$DOCTOR_DB"
+    run_sql_once "$SQL_DIR/$f" "$DOCTOR_DB"
   done
+  sql_history_flush
+  info "SQL 执行统计：新执行 $SQL_CNT_RUN 个，跳过 $SQL_CNT_SKIP 个（台账已记录），仅登记基线 $SQL_CNT_BASE 个"
+  if [ "$SQL_CNT_BASE" -gt 0 ]; then
+    warn "本次为老库补基线：$SQL_CNT_BASE 个脚本登记为「已执行」但未真正执行"
+    warn "  其中若含本版本新增的脚本，需单独补跑：先 DELETE FROM $SQL_HISTORY_TABLE WHERE script='文件名'; 再重跑本脚本"
+  fi
+  info "执行明细：SELECT script, applied_at, applied_by FROM $DOCTOR_DB.$SQL_HISTORY_TABLE ORDER BY applied_at"
   info "主库表数量：$(admin_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$DOCTOR_DB';")"
   verify_quality_tables
   verify_msgpush_objects
@@ -881,7 +1019,12 @@ After=network.target
 Type=simple
 WorkingDirectory=$APP_HOME
 EnvironmentFile=$ENV_FILE
-ExecStart=$JAVA_BIN -Xms512m -Xmx1024m -jar $APP_HOME/app/zing-doctor.jar
+# Java 8 的默认 file.encoding 跟随 locale：systemd 启动的服务没有 LANG，
+# 进程 locale 是 POSIX/C，file.encoding 会退化成 ANSI_X3.4-1968(ASCII)，
+# 于是 stdout 里的中文（日志、启动横幅）全变成 '?'。显式给 UTF-8 即可。
+# C.UTF-8 是 glibc 内置的，不需要额外装语言包，Debian 10+ 都可用。
+Environment=LANG=C.UTF-8
+ExecStart=$JAVA_BIN -Dfile.encoding=UTF-8 -Xms512m -Xmx1024m -jar $APP_HOME/app/zing-doctor.jar
 Restart=on-failure
 RestartSec=5
 SuccessExitStatus=143

@@ -317,6 +317,12 @@ if (Test-Path $myDir) {
     [void]$sb.AppendLine('-- 注意：本文件不含建账号授权，账号授权按 docs 或安装脚本提示另行执行')
     [void]$sb.AppendLine('-- ============================================================')
     [void]$sb.AppendLine('')
+    # 客户端默认字符集跟随 locale：LANG=C（sudo / 未配 locale）下是 latin1，
+    # 中文种子数据会被按字节解释后存成双重编码（参数页显示「æ, £ê€...」）。
+    # install-mariadb-debian.sh 已在 stdin 前注入 SET NAMES，这里必须同样处理 ——
+    # 本文件正是「库在另一台机器」时唯一的分发方式，漏了这一行整库中文全乱。
+    [void]$sb.AppendLine('SET NAMES utf8mb4;')
+    [void]$sb.AppendLine('')
     foreach ($mf in $myOrder) {
         $mp = Join-Path $myDir $mf
         if (Test-Path $mp) {
