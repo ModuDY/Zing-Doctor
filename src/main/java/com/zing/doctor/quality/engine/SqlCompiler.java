@@ -241,9 +241,18 @@ public class SqlCompiler {
 
         String filter = StringUtils.hasText(deptValue) ? " WHERE " + dim + " = " + sqlLiteral(deptValue) : "";
 
+        // 物化路径传进来的是表名（quality_fact_xxx），不需要别名；
+        // 配置页试跑（trialMetric）为了不在生产库里留临时表，把事实层 SQL 直接
+        // 内联成派生表 —— MySQL/MariaDB 要求派生表必须有别名，缺了直接 1064
+        // （报错位置还会落在派生表内部的第一个语法点，看起来像别处的错）。
+        String src = factTable == null ? "" : factTable.trim();
+        if (src.startsWith("(")) {
+            src = src + " __fact";
+        }
+
         return "SELECT '" + m.getCode() + "' AS metric_code, " + dim + " AS depart_code, "
                 + numExpr + " AS num, " + denExpr + " AS den"
-                + " FROM " + factTable + filter
+                + " FROM " + src + filter
                 + " GROUP BY " + dim;
     }
 
