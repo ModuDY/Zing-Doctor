@@ -44,6 +44,7 @@ public class VasoactiveServiceImpl implements VasoactiveService {
 
     private final IcuPatientMapper icuPatientMapper;
     private final IcuPatientService icuPatientService;
+    private final DataItemConfigService dataItemConfigService;
 
     @Override
     public Map<String, Object> analysis(String patientId, int hours) {
