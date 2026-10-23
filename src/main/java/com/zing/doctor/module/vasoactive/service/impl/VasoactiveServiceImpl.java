@@ -3,6 +3,7 @@ package com.zing.doctor.module.vasoactive.service.impl;
 import com.zing.doctor.icu.dto.WorkbenchPatient;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.service.IcuPatientService;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import com.zing.doctor.module.vasoactive.service.VasoactiveService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -90,7 +91,9 @@ public class VasoactiveServiceImpl implements VasoactiveService {
         List<Map<String, Object>> rows = new ArrayList<>();
         try {
             List<Map<String, Object>> execs =
-                    icuPatientMapper.selectVasopressorExecuteByRange(inHospitalNo, start, end, "");
+                    icuPatientMapper.selectVasopressorExecuteByRange(inHospitalNo, start, end, "",
+                            dataItemConfigService.names(
+                                    DataItemConfigService.DOMAIN_DRUG, DataItemConfigService.DRUG_VASOPRESSOR_EXEC));
             if (execs == null || execs.isEmpty()) {
                 block.put("dataStatus", "EMPTY");
                 block.put("note", "窗口内无血管活性药执行记录");
@@ -151,7 +154,9 @@ public class VasoactiveServiceImpl implements VasoactiveService {
         block.put("dataStatus", "FOUND");
         List<Map<String, Object>> list = new ArrayList<>();
         try {
-            List<Map<String, Object>> advices = icuPatientMapper.selectCurrentVasopressorAdvice(inHospitalNo);
+            List<Map<String, Object>> advices = icuPatientMapper.selectCurrentVasopressorAdvice(inHospitalNo,
+                    dataItemConfigService.names(
+                            DataItemConfigService.DOMAIN_DRUG, DataItemConfigService.DRUG_VASOPRESSOR));
             if (advices == null || advices.isEmpty()) {
                 block.put("dataStatus", "EMPTY");
                 block.put("note", "当前无执行中的血管活性药开立医嘱");

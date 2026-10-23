@@ -20,6 +20,18 @@ public final class MsgPushKeys {
     public static final String KEY_DRY_RUN = "MSGPUSH_DRY_RUN";
     /** 集成平台接口地址 */
     public static final String KEY_URL = "MSGPUSH_URL";
+    /**
+     * 出站地址白名单（security-audit 2026-10：msgpush-url-repoint-credential-exfil）。
+     * 逗号分隔的 host 或 host:port；留空 = 不启用白名单，但私网/环回地址仍被拒绝。
+     * 建议配置为医院集成平台网关地址，使「改 URL 即外带凭证」的路径彻底关闭。
+     */
+    public static final String KEY_URL_WHITELIST = "MSGPUSH_URL_WHITELIST";
+    /**
+     * 允许「测试发送」真发的服务端开关（security-audit 2026-10：msgpush-test-force-real-no-authz）。
+     * 请求体的 forceReal 字段已废弃：真发与否只认本参数（默认演练），联调人员
+     * 需要真发时由管理员在参数页临时打开，发完关闭。
+     */
+    public static final String KEY_ALLOW_REAL_TEST = "MSGPUSH_ALLOW_REAL_TEST";
     /** 请求方法 POST / GET */
     public static final String KEY_METHOD = "MSGPUSH_METHOD";
     /** Content-Type */

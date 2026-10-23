@@ -17,6 +17,11 @@ public class MsgPushTestRequest {
     /** 短信内容；留空则用系统默认联调文案 */
     private String content;
 
-    /** 强制真发：勾选后即使「演练模式」开着也真发一条（现场联调最后一步用） */
+    /**
+     * @deprecated 安全修复（msgpush-test-force-real-no-authz）：本字段已废弃且不再生效，
+     * 真发与否只认服务端参数 MSGPUSH_ALLOW_REAL_TEST。保留字段仅为兼容旧前端请求体，
+     * 防止未知字段反序列化失败；下一版本移除。
+     */
+    @Deprecated
     private Boolean forceReal;
 }

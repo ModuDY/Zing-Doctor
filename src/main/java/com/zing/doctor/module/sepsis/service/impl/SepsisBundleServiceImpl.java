@@ -5,6 +5,7 @@ import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.module.antibiotic.service.AbxDrugRecognizer;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import com.zing.doctor.module.sepsis.dto.SepsisBundleView;
 import com.zing.doctor.module.sepsis.entity.SepsisBundleRecord;
 import com.zing.doctor.module.sepsis.mapper.SepsisBundleRecordMapper;
@@ -35,6 +36,10 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
     /** 抗菌药统一识别器：本模块的广谱/非抗菌药判定全部委托给它，避免维护第三份词表 */
     @Autowired
     private AbxDrugRecognizer abxDrugRecognizer;
+
+    /** 升压药/溶媒/液体的药名关键词按配置取（各院商品名写法不同） */
+    @Autowired
+    private DataItemConfigService dataItemConfigService;
 
     private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -368,8 +373,11 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
         // 获取血培养送检记录
         List<Map<String, Object>> bloodCultureList = icuPatientMapper.selectBloodCultureRecords(inHospitalNo);
 
+        List<String> solvents = dataItemConfigService.names(
+                DataItemConfigService.DOMAIN_DRUG, DataItemConfigService.DRUG_SOLVENT_EXCLUDE);
+
         // 获取抗菌药物医嘱
-        List<Map<String, Object>> antibioticList = icuPatientMapper.selectAntibioticAdvice(inHospitalNo);
+        List<Map<String, Object>> antibioticList = icuPatientMapper.selectAntibioticAdvice(inHospitalNo, solvents);
         // 抗菌药识别：白名单包含匹配（命中抗菌药通用名）+ 黑名单排除（双重保险）
         // 必须用白名单，不能纯黑名单排除：中药/营养药/解热镇痛药等非抗菌药有几千种，黑名单永远列不全
         // 白名单来自 config_abx_word(broad_spectrum)，已训练61个核心抗菌药通用名（含内置默认兜底）
@@ -379,10 +387,13 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
                 .collect(Collectors.toList());
 
         // 获取晶体液医嘱
-        List<Map<String, Object>> fluidList = icuPatientMapper.selectFluidAdvice(inHospitalNo);
+        List<Map<String, Object>> fluidList = icuPatientMapper.selectFluidAdvice(inHospitalNo,
+                dataItemConfigService.names(DataItemConfigService.DOMAIN_DRUG, DataItemConfigService.DRUG_FLUID));
 
-        // 获取血管升压药医嘱
-        List<Map<String, Object>> vasopressorList = icuPatientMapper.selectVasopressorAdvice(inHospitalNo);
+        // 获取血管升压药医嘱（集束化用的是 6 项口径，与「在用升压药」的 8 项不同，勿合并）
+        List<Map<String, Object>> vasopressorList = icuPatientMapper.selectVasopressorAdvice(inHospitalNo,
+                dataItemConfigService.names(
+                        DataItemConfigService.DOMAIN_DRUG, DataItemConfigService.DRUG_VASOPRESSOR_BUNDLE));
 
         // 获取细菌培养结果（致病菌）
         // 窗口 = [评估记录创建时间 - 14天, 评估记录创建时间]
@@ -397,7 +408,7 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
         // 抗菌药物【系统参考】专用：同样收窄到 14 天窗口。
         // 上面 antibioticList 保持全量——1H「抗菌药物前血培养」「应用广谱抗菌药物」判定依赖它，不能收窄。
         List<Map<String, Object>> refAntibioticList = icuPatientMapper.selectAntibioticAdvice(
-                inHospitalNo, refStart.format(DT_FMT), refEnd.format(DT_FMT));
+                inHospitalNo, refStart.format(DT_FMT), refEnd.format(DT_FMT), solvents);
         refAntibioticList = (refAntibioticList == null ? new ArrayList<Map<String, Object>>() : refAntibioticList)
                 .stream()
                 .filter(a -> isBroadSpectrum(str(a.get("name"))))

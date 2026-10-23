@@ -471,7 +471,9 @@ public class SofaServiceImpl implements SofaService {
             }
         }
         List<Map<String, Object>> rows = safe(icuPatientMapper.selectVasopressorExecuteByRange(
-                inHospitalNo, startTime, endTime, statusFilter));
+                inHospitalNo, startTime, endTime, statusFilter,
+                dataItemConfigService.names(
+                        DataItemConfigService.DOMAIN_DRUG, DataItemConfigService.DRUG_VASOPRESSOR_EXEC)));
         if (rows.isEmpty()) return r;
 
         // 批量取调速历史：拆成「窗口内调速」与「窗口开始前最后一次调速」两组。

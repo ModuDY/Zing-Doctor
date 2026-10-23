@@ -97,9 +97,12 @@ public class MsgPushServiceImpl implements MsgPushService {
         }
 
         String content = StringUtils.hasText(req.getContent()) ? req.getContent() : DEFAULT_TEST_CONTENT;
-        // 演练模式默认开（参数默认值即 1）：现场必须先看清报文再决定真发
+        // 安全修复（msgpush-test-force-real-no-authz）：真发与否只认服务端参数
+        // MSGPUSH_ALLOW_REAL_TEST，请求体的 forceReal 不再生效 —— 此前任意外链/登录主体
+        // 都能用 forceReal=true 绕过演练模式，以医院平台凭证向任意号码真发任意内容。
+        // 联调需要真发时由管理员在参数页临时打开该参数，发完关闭。
         boolean dryRun = sysParamService.bool(MsgPushKeys.KEY_DRY_RUN, true)
-                && !Boolean.TRUE.equals(req.getForceReal());
+                || !sysParamService.bool(MsgPushKeys.KEY_ALLOW_REAL_TEST, false);
 
         // 授权码（certificate）不做本地格式校验：形式上以平台分配的为准，
         // 现场按平台实际给的值填即可（填成与 hipToken 一样的值也放行），
@@ -193,7 +196,8 @@ public class MsgPushServiceImpl implements MsgPushService {
 
         MsgPushTestResult.Item item = new MsgPushTestResult.Item();
         item.setMobile(mobile);
-        item.setRequestBody(requestBody);
+        // 安全修复：回显与审计均使用脱敏报文 —— 凭证值不随响应/日志/审计表扩散
+        item.setRequestBody(maskCredentials(requestBody));
 
         MsgPushLog row = new MsgPushLog();
         row.setScene(scene);
@@ -206,7 +210,7 @@ public class MsgPushServiceImpl implements MsgPushService {
         row.setContent(abbrev(content, CONTENT_KEEP));
         row.setUrl(abbrev(url, 500));
         row.setDryRun(dryRun ? 1 : 0);
-        row.setRequestBody(abbrev(requestBody, REQUEST_KEEP));
+        row.setRequestBody(abbrev(maskCredentials(requestBody), REQUEST_KEEP));
         row.setOperator(operator);
         row.setCreateTime(LocalDateTime.now());
 
@@ -253,6 +257,11 @@ public class MsgPushServiceImpl implements MsgPushService {
     }
 
     private HttpResponse execute(String url, String requestBody) {
+        // 安全修复（msgpush-url-repoint-credential-exfil）：出站前校验目标。
+        // 此前 URL 完全来自 sys_param 且无任何约束，任一已鉴权主体改写 MSGPUSH_URL
+        // 即可让服务端把渲染了 hipToken/certificate 的报文 POST 到任意主机（SSRF + 凭证外带）。
+        assertUrlAllowed(url);
+
         String method = sysParamService.value(MsgPushKeys.KEY_METHOD);
         String contentType = sysParamService.value(MsgPushKeys.KEY_CONTENT_TYPE);
         String soapAction = sysParamService.value(MsgPushKeys.KEY_SOAP_ACTION);
@@ -271,6 +280,73 @@ public class MsgPushServiceImpl implements MsgPushService {
             httpReq.header(e.getKey(), e.getValue());
         }
         return httpReq.execute();
+    }
+
+    /**
+     * 出站目标校验（security-audit 2026-10：msgpush-url-repoint-credential-exfil）。
+     *
+     * <p>白名单来源：参数 MSGPUSH_URL_WHITELIST（逗号分隔的 host 或 host:port，留空表示
+     * 不启用白名单 —— 保持老现场行为不变，但私网/环回/链路本地地址一律拒绝）。
+     * 双重防线：
+     * <ol>
+     *   <li>协议必须是 http/https（防 file:/gopher: 等非常规协议）；</li>
+     *   <li>解析后的 IP 不得指向私网/环回/链路本地/保留段 —— 防止借推送通道探测内网
+     *       （169.254 云元数据、127.0.0.1、10/172.16/192.168 私段等）；白名单启用时
+     *       命中名单的 host 放行（医院网关本身就是内网地址，白名单优先于私网判定）。</li>
+     * </ol>
+     */
+    private void assertUrlAllowed(String url) {
+        if (!StringUtils.hasText(url)) {
+            throw new IllegalStateException("推送地址为空");
+        }
+        java.net.URI uri;
+        try {
+            uri = java.net.URI.create(url.trim());
+        } catch (Exception e) {
+            throw new IllegalStateException("推送地址不是合法 URL：" + url);
+        }
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(java.util.Locale.ROOT);
+        if (!"http".equals(scheme) && !"https".equals(scheme)) {
+            throw new IllegalStateException("推送地址协议必须是 http/https：" + url);
+        }
+        String host = uri.getHost();
+        if (!StringUtils.hasText(host)) {
+            throw new IllegalStateException("推送地址缺少主机名：" + url);
+        }
+
+        // 白名单启用时：host（或 host:port）精确命中即放行
+        String whitelist = sysParamService.value(MsgPushKeys.KEY_URL_WHITELIST);
+        if (StringUtils.hasText(whitelist)) {
+            int port = uri.getPort();
+            String hostPort = port > 0 ? host + ":" + port : host;
+            for (String raw : whitelist.split("[,，;；]")) {
+                String rule = raw.trim();
+                if (rule.isEmpty()) {
+                    continue;
+                }
+                if (rule.equalsIgnoreCase(host) || rule.equalsIgnoreCase(hostPort)) {
+                    return;
+                }
+            }
+            throw new IllegalStateException("推送地址不在 MSGPUSH_URL_WHITELIST 白名单内：" + host);
+        }
+
+        // 白名单未启用：仅拒绝明显危险的目标（私网/环回/链路本地），公网地址放行
+        if (isPrivateOrLocalAddress(host)) {
+            throw new IllegalStateException("推送地址指向内网/环回地址且未配置 MSGPUSH_URL_WHITELIST：" + host);
+        }
+    }
+
+    /** host 解析为 IP 后判断是否私网/环回/链路本地/任意本地地址 */
+    private static boolean isPrivateOrLocalAddress(String host) {
+        try {
+            InetAddress addr = InetAddress.getByName(host);
+            return addr.isLoopbackAddress() || addr.isSiteLocalAddress()
+                    || addr.isLinkLocalAddress() || addr.isAnyLocalAddress();
+        } catch (UnknownHostException e) {
+            // 解析失败的主机名按可疑处理：推送通道承载平台凭证，宁拦勿放
+            return true;
+        }
     }
 
     /**
@@ -522,6 +598,29 @@ public class MsgPushServiceImpl implements MsgPushService {
         String suffix = "…(已截断)";
         int keep = Math.max(0, max - suffix.length());
         return s.substring(0, Math.min(keep, s.length())) + suffix;
+    }
+
+    /**
+     * 报文脱敏（security-audit 2026-10：msgpush-url-repoint-credential-exfil）：
+     * 把 hipToken / certificate 两个平台凭证的<b>值</b>替换为等长占位。
+     *
+     * <p>用于测试发送的响应回显与 msg_push_log 审计留存 —— 报文模板本身需要现场
+     * 对照字段调试，但凭证值不需要：联调看的是「字段在不在、格式对不对」，
+     * 不是凭证原文。脱敏按渲染后的值做（与 sys_param 中的参数值精确比对），
+     * 不做正则猜测，避免误伤正文。
+     */
+    private String maskCredentials(String requestBody) {
+        if (!StringUtils.hasText(requestBody)) {
+            return requestBody;
+        }
+        String out = requestBody;
+        for (String key : new String[]{MsgPushKeys.KEY_HIP_TOKEN, MsgPushKeys.KEY_CERTIFICATE}) {
+            String value = sysParamService.value(key);
+            if (StringUtils.hasText(value) && out.contains(value)) {
+                out = out.replace(value, "***" + key + "-masked***");
+            }
+        }
+        return out;
     }
 
     private static String str(String s) {

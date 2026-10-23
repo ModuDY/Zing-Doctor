@@ -61,6 +61,29 @@ public class DataItemConfigService {
     /** 体温观察项名（item_name 包含） */
     public static final String DICT_TEMP_ITEM = "temp_item";
 
+    /** 药品名：医嘱、执行单里的药名关键词（厂家商品名差异大，一律按包含匹配） */
+    public static final String DOMAIN_DRUG = "DRUG";
+    /** 诊断名：{@code patient_info_diagnosis.diag_name} 关键词 */
+    public static final String DOMAIN_DIAG = "DIAG";
+
+    /** 在用/交班升压药（8 项，含血管加压素、垂体后叶、特利加压素） */
+    public static final String DRUG_VASOPRESSOR = "vasopressor";
+    /** 脓毒症集束化升压药（6 项，口径与改造前一致，勿与上面合并） */
+    public static final String DRUG_VASOPRESSOR_BUNDLE = "vasopressor_bundle";
+    /** 泵速执行单里的升压药（4 项，用于 SOFA 剂量还原） */
+    public static final String DRUG_VASOPRESSOR_EXEC = "vasopressor_exec";
+    /** 阿片类镇痛药（6 项） */
+    public static final String DRUG_OPIOID = "opioid";
+    /** 溶媒排除词：抗菌药医嘱里要把这些剔掉 */
+    public static final String DRUG_SOLVENT_EXCLUDE = "solvent_exclude";
+    /** 液体入量：脓毒症 30ml/kg 补液统计 */
+    public static final String DRUG_FLUID = "fluid";
+
+    /** 感染相关诊断（脓毒症/肺炎/腹腔感染/菌血症…） */
+    public static final String DIAG_INFECTION = "infection";
+    /** ARDS 诊断 */
+    public static final String DIAG_ARDS = "ards";
+
     public static final String MATCH_CODE = "CODE";
     public static final String MATCH_NAME_LIKE = "NAME_LIKE";
     public static final String MATCH_NAME_EXACT = "NAME_EXACT";
@@ -91,6 +114,11 @@ public class DataItemConfigService {
         list.add(domainMeta(DOMAIN_DICT, "术语字典", true,
                 "血气/培养报告名、标本名、氧合指数、体温项。影响：氧合指数与 ARDS 分级、"
                         + "SOFA/APACHE II、感染与抗菌药判断、体温曲线"));
+        list.add(domainMeta(DOMAIN_DRUG, "药品名", true,
+                "升压药、镇痛药、溶媒、液体。影响：脓毒症集束化、SOFA/驾驶舱升压药标记、"
+                        + "镇痛镇静、抗菌药医嘱"));
+        list.add(domainMeta(DOMAIN_DIAG, "诊断名", true,
+                "感染相关诊断、ARDS 诊断。影响：疑似感染列表、ARDS 患者名单"));
         return list;
     }
 
@@ -145,21 +173,6 @@ public class DataItemConfigService {
      * <p>呼吸机参数、尿量这类「一查就是整组编码」的取数用它，
      * 免得到 4 个调用点各抄一份默认值。
      */
-    /**
-     * 术语字典取值：{@code dict("gas_sample")}。未配置该键时回退内置默认。
-     *
-     * <p>返回空集合只有一种情况：键名写错了。调用方仍要能跑（SQL 里 foreach 为空会拼出
-     * {@code IN ()} 报错），所以这里保证非空。
-     */
-    public List<String> dict(String itemKey) {
-        List<String> v = values(DOMAIN_DICT, itemKey);
-        if (!v.isEmpty()) {
-            return v;
-        }
-        List<String> d = DataItemDefaults.ofKey(DOMAIN_DICT, itemKey);
-        return d.isEmpty() ? v : d;
-    }
-
     public List<String> codesOrBuiltin(String domain) {
         List<String> v = values(domain, null);
         if (!v.isEmpty()) {
@@ -167,6 +180,27 @@ public class DataItemConfigService {
         }
         List<String> builtin = DataItemDefaults.of(domain);
         return builtin.isEmpty() ? v : builtin;
+    }
+
+    /**
+     * 名称类取值：{@code names(DRUG, DRUG_VASOPRESSOR)}、{@code names(DIAG, DIAG_ARDS)}。
+     * 未配置该键时回退内置默认。
+     *
+     * <p>返回空集合只有一种情况：键名写错了。调用方仍要能跑（SQL 里 foreach 为空会拼出
+     * {@code IN ()} 或空条件，轻则报错重则全表命中），所以这里保证非空。
+     */
+    public List<String> names(String domain, String itemKey) {
+        List<String> v = values(domain, itemKey);
+        if (!v.isEmpty()) {
+            return v;
+        }
+        List<String> d = DataItemDefaults.ofKey(domain, itemKey);
+        return d.isEmpty() ? v : d;
+    }
+
+    /** 术语字典取值：等价于 {@code names(DICT, itemKey)} */
+    public List<String> dict(String itemKey) {
+        return names(DOMAIN_DICT, itemKey);
     }
 
     private Map<String, List<DataItemConfig>> load() {
@@ -337,6 +371,12 @@ public class DataItemConfigService {
                     ? icuPatientMapper.selectObserveItemCandidates(kw)
                     : icuPatientMapper.selectLisItemCandidates(kw, start);
         }
+        if (DOMAIN_DRUG.equals(dom)) {
+            return icuPatientMapper.selectDrugNameCandidates(kw);
+        }
+        if (DOMAIN_DIAG.equals(dom)) {
+            return icuPatientMapper.selectDiagNameCandidates(kw);
+        }
         return icuPatientMapper.selectObserveItemCandidates(kw);
     }
 
@@ -368,6 +408,13 @@ public class DataItemConfigService {
         if (DOMAIN_DICT.equals(dom)) {
             return probeDict(out, itemKey, v, start);
         }
+        if (DOMAIN_DRUG.equals(dom)) {
+            return probeList(out, icuPatientMapper.countAdviceByDrugName(v, start), "条医嘱");
+        }
+        if (DOMAIN_DIAG.equals(dom)) {
+            // 诊断表没有可靠的时间窗列（diag_time 存在空值），只给全量命中数
+            return probeList(out, icuPatientMapper.countDiagByName(v), "条诊断");
+        }
         if (DOMAIN_IO.equals(dom)) {
             out.put("count", icuPatientMapper.countIoByCode(v, start));
             out.put("samples", icuPatientMapper.selectIoSamples(v, start));
@@ -378,6 +425,14 @@ public class DataItemConfigService {
             out.put("count", icuPatientMapper.countObserveByCode(v, start));
             out.put("samples", icuPatientMapper.selectObserveSamples(v, start));
         }
+        return out;
+    }
+
+    /** 只统计不返样例的试跑结果（药名 / 诊断名这类没有「值」可看的对象） */
+    private Map<String, Object> probeList(Map<String, Object> out, int count, String unit) {
+        out.put("count", count);
+        out.put("unit", unit);
+        out.put("samples", Collections.emptyList());
         return out;
     }
 

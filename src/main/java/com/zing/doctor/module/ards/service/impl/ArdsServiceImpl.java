@@ -32,7 +32,8 @@ public class ArdsServiceImpl implements ArdsService {
     @Override
     public Map<String, Object> getArdsOverview(String departCode, String startTime, String endTime, String grade) {
         // 1. 查询ARDS患者列表（按出科时间范围）
-        List<Map<String, Object>> patients = icuPatientMapper.selectArdsPatients(departCode, startTime, endTime);
+        List<Map<String, Object>> patients = icuPatientMapper.selectArdsPatients(departCode, startTime, endTime,
+                dataItemConfigService.names(DataItemConfigService.DOMAIN_DIAG, DataItemConfigService.DIAG_ARDS));
         if (patients == null || patients.isEmpty()) {
             return buildEmptyResult();
         }
@@ -226,7 +227,8 @@ public class ArdsServiceImpl implements ArdsService {
 
     @Override
     public Map<String, Object> hospitalScreen(String startTime, String endTime, String departCode) {
-        List<Map<String, Object>> rows = icuPatientMapper.selectArdsHospitalScreen(startTime, endTime, departCode);
+        List<Map<String, Object>> rows = icuPatientMapper.selectArdsHospitalScreen(startTime, endTime, departCode,
+                dataItemConfigService.names(DataItemConfigService.DOMAIN_DIAG, DataItemConfigService.DIAG_ARDS));
         List<Map<String, Object>> patients = new ArrayList<>();
         int inDept = 0;
         Set<String> depts = new LinkedHashSet<>();

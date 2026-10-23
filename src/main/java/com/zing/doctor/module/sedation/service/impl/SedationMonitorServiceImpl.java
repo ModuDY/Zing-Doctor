@@ -1,6 +1,7 @@
 package com.zing.doctor.module.sedation.service.impl;
 
 import com.zing.doctor.icu.dto.WorkbenchPatient;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import com.zing.doctor.module.sedation.dto.SedationMonitorResponse;
 import com.zing.doctor.module.sedation.dto.SedationMonitorResponse.PatientHeader;
 import com.zing.doctor.module.sedation.dto.SedationMonitorResponse.Window;
@@ -32,6 +33,8 @@ public class SedationMonitorServiceImpl implements SedationMonitorService {
 
     private final SedationAssessMapper sedationAssessMapper;
     private final com.zing.doctor.icu.mapper.IcuPatientMapper icuPatientMapper;
+    /** 镇痛药名关键词按配置取（各院商品名写法不同） */
+    private final DataItemConfigService dataItemConfigService;
 
     /** 时间窗上下限（小时），与前端快捷项一致，自定义不得超过 30 天。 */
     private static final int DEFAULT_HOURS = 24;
@@ -194,6 +197,8 @@ public class SedationMonitorServiceImpl implements SedationMonitorService {
         }
         DateTimeFormatter iso = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
         return icuPatientMapper.selectOpioidExecuteByRange(
-                patient.getInHospitalNo(), start.format(iso), end.format(iso));
+                patient.getInHospitalNo(), start.format(iso), end.format(iso),
+                dataItemConfigService.names(
+                        DataItemConfigService.DOMAIN_DRUG, DataItemConfigService.DRUG_OPIOID));
     }
 }

@@ -216,11 +216,11 @@ public interface IcuPatientMapper {
             "         CASE WHEN pi.is_sepsis_shock = 1 THEN 1 ELSE 0 END AS shock_flag, ",
             "         CASE WHEN (SELECT COUNT(1) FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d ",
             "                     WHERE d.patient_id = pi.id AND d.del_flag = 0 AND d.status = 1 ",
-            "                       AND (d.diag_name LIKE '%脓毒%' OR d.diag_name LIKE '%感染%' ",
-            "                            OR d.diag_name LIKE '%肺炎%' OR d.diag_name LIKE '%腹腔%' ",
-            "                            OR d.diag_name LIKE '%腹膜炎%' OR d.diag_name LIKE '%血流%' ",
-            "                            OR d.diag_name LIKE '%菌血症%' OR d.diag_name LIKE '%尿路%' ",
-            "                            OR d.diag_name LIKE '%泌尿%' OR d.diag_name LIKE '%真菌%') ",
+            "                       AND (",
+            "                       <foreach collection='diagTerms' item='dt' separator=' OR '>",
+            "                         d.diag_name LIKE '%' || #{dt} || '%'",
+            "                       </foreach>",
+            "                       ) ",
             "                       AND ROWNUM &lt;= 1) &gt; 0 THEN 1 ELSE 0 END AS diag_flag, ",
             "         CASE WHEN (SELECT COUNT(1) FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li ",
             "                     WHERE li.in_hospital_no = pi.in_hospital_no AND li.del_flag = 0 ",
@@ -238,7 +238,8 @@ public interface IcuPatientMapper {
             "WHERE t.rn = 1 AND (t.shock_flag = 1 OR t.diag_flag = 1 OR t.pct_flag = 1) ",
             "ORDER BY t.in_depart_time DESC",
             "</script>"})
-    List<Map<String, Object>> selectSuspectPatients(@Param("departCode") String departCode);
+    List<Map<String, Object>> selectSuspectPatients(@Param("departCode") String departCode,
+                                                     @Param("diagTerms") List<String> diagTerms);
 
     // ==================================================================
     // 疑似感染列表批量取数（一次性按患者集合查完，禁止逐患者 N+1）
@@ -872,7 +873,7 @@ public interface IcuPatientMapper {
     /**
      * 查询患者晶体液医嘱（脓毒症集束化治疗液体复苏用）
      */
-    @Select("SELECT pa.id AS id, pa.in_hospital_no AS in_hospital_no, "
+    @Select("<script>SELECT pa.id AS id, pa.in_hospital_no AS in_hospital_no, "
             + "pa.name AS name, pa.freq_name AS freq_name, "
             + "pa.drug_method_name AS method_name, pa.start_time AS start_time, "
             + "pa.drug_one_dosage AS drug_one_dosage, "
@@ -880,16 +881,19 @@ public interface IcuPatientMapper {
             + "FROM \"zing_icu_db_prod\".\"patient_advice\" pa "
             + "WHERE pa.del_flag = 0 AND pa.status IN ('1','3') AND pa.type_code = 'drug' "
             + "AND pa.in_hospital_no = #{inHospitalNo} "
-            + "AND (pa.name LIKE '%氯化钠%' OR pa.name LIKE '%葡萄糖%' "
-            + "     OR pa.name LIKE '%乳酸钠林格%' OR pa.name LIKE '%林格%' "
-            + "     OR pa.name LIKE '%复方氯化钠%' OR pa.name LIKE '%灭菌注射用水%') "
-            + "ORDER BY pa.start_time ASC")
-    List<Map<String, Object>> selectFluidAdvice(@Param("inHospitalNo") String inHospitalNo);
+            + "AND ("
+            + "<foreach collection='fluids' item='fn' separator=' OR '>"
+            + "  pa.name LIKE '%' || #{fn} || '%'"
+            + "</foreach>"
+            + ") "
+            + "ORDER BY pa.start_time ASC</script>")
+    List<Map<String, Object>> selectFluidAdvice(@Param("inHospitalNo") String inHospitalNo,
+                                                @Param("fluids") List<String> fluids);
 
     /**
      * 查询患者去甲肾上腺素/血管升压药医嘱（脓毒症集束化治疗用）
      */
-    @Select("SELECT pa.id AS id, pa.in_hospital_no AS in_hospital_no, "
+    @Select("<script>SELECT pa.id AS id, pa.in_hospital_no AS in_hospital_no, "
             + "pa.name AS name, pa.freq_name AS freq_name, "
             + "pa.drug_method_name AS method_name, pa.start_time AS start_time, "
             + "pa.drug_one_dosage AS drug_one_dosage, "
@@ -897,25 +901,28 @@ public interface IcuPatientMapper {
             + "FROM \"zing_icu_db_prod\".\"patient_advice\" pa "
             + "WHERE pa.del_flag = 0 AND pa.status IN ('1','3') AND pa.type_code = 'drug' "
             + "AND pa.in_hospital_no = #{inHospitalNo} "
-            + "AND pa.start_time >= #{startTime} AND pa.start_time < #{endTime} "
-            + "AND (pa.name LIKE '%去甲肾上腺素%' OR pa.name LIKE '%多巴胺%' "
-            + "     OR pa.name LIKE '%肾上腺素%' OR pa.name LIKE '%间羟胺%' "
-            + "     OR pa.name LIKE '%多巴酚丁胺%' OR pa.name LIKE '%血管升压%') "
-            + "ORDER BY pa.start_time ASC")
+            + "AND pa.start_time &gt;= #{startTime} AND pa.start_time &lt; #{endTime} "
+            + "AND ("
+            + "<foreach collection='drugs' item='dn' separator=' OR '>"
+            + "  pa.name LIKE '%' || #{dn} || '%'"
+            + "</foreach>"
+            + ") "
+            + "ORDER BY pa.start_time ASC</script>")
     List<Map<String, Object>> selectVasopressorAdvice(@Param("inHospitalNo") String inHospitalNo,
                                                         @Param("startTime") String startTime,
-                                                        @Param("endTime") String endTime);
+                                                        @Param("endTime") String endTime,
+                                                        @Param("drugs") List<String> drugs);
 
     /** 重载：不限时间范围（脓毒症集束化治疗用） */
-    default List<Map<String, Object>> selectVasopressorAdvice(String inHospitalNo) {
-        return selectVasopressorAdvice(inHospitalNo, "1970-01-01 00:00:00", "2099-12-31 23:59:59");
+    default List<Map<String, Object>> selectVasopressorAdvice(String inHospitalNo, List<String> drugs) {
+        return selectVasopressorAdvice(inHospitalNo, "1970-01-01 00:00:00", "2099-12-31 23:59:59", drugs);
     }
 
     /**
      * 当前在用血管活性/升压药医嘱（status='1' 执行中），按住院号查询。
      * 和总览卡片 selectHandoverVasopressor 逻辑保持一致，确保里外显示一致。
      */
-    @Select("SELECT pa.id AS id, pa.in_hospital_no AS in_hospital_no, "
+    @Select("<script>SELECT pa.id AS id, pa.in_hospital_no AS in_hospital_no, "
             + "pa.name AS name, pa.freq_name AS freq_name, "
             + "pa.drug_method_name AS method_name, pa.start_time AS start_time, "
             + "pa.drug_one_dosage AS drug_one_dosage, "
@@ -923,12 +930,14 @@ public interface IcuPatientMapper {
             + "FROM \"zing_icu_db_prod\".\"patient_advice\" pa "
             + "WHERE pa.del_flag = 0 AND pa.status = '1' AND pa.type_code = 'drug' "
             + "AND pa.in_hospital_no = #{inHospitalNo} "
-            + "AND (pa.name LIKE '%去甲肾上腺素%' OR pa.name LIKE '%多巴胺%' "
-            + "  OR pa.name LIKE '%肾上腺素%' OR pa.name LIKE '%间羟胺%' "
-            + "  OR pa.name LIKE '%多巴酚丁胺%' OR pa.name LIKE '%血管加压素%' "
-            + "  OR pa.name LIKE '%垂体后叶%' OR pa.name LIKE '%特利加压素%') "
-            + "ORDER BY pa.start_time DESC")
-    List<Map<String, Object>> selectCurrentVasopressorAdvice(@Param("inHospitalNo") String inHospitalNo);
+            + "AND ("
+            + "<foreach collection='drugs' item='dn' separator=' OR '>"
+            + "  pa.name LIKE '%' || #{dn} || '%'"
+            + "</foreach>"
+            + ") "
+            + "ORDER BY pa.start_time DESC</script>")
+    List<Map<String, Object>> selectCurrentVasopressorAdvice(@Param("inHospitalNo") String inHospitalNo,
+                                                             @Param("drugs") List<String> drugs);
 
     /**
      * 查询患者诊断信息（脓毒症集束化治疗感染部位/并发症判断用）
@@ -948,7 +957,7 @@ public interface IcuPatientMapper {
      * 查询患者抗菌药物医嘱（脓毒症集束化治疗用，按开始时间排序）
      * 过滤条件：排除溶媒（氯化钠/葡萄糖/林格等），只保留抗菌药物
      */
-    @Select("SELECT * FROM ( "
+    @Select("<script>SELECT * FROM ( "
             + "  SELECT pa.group_id AS group_id, pa.in_hospital_no AS in_hospital_no, "
             + "  pa.name AS name, pa.freq_name AS freq_name, "
             + "  pa.drug_method_name AS method_name, pa.start_time AS start_time, "
@@ -957,20 +966,20 @@ public interface IcuPatientMapper {
             + "  FROM \"zing_icu_db_prod\".\"patient_advice\" pa "
             + "  WHERE pa.del_flag = 0 AND pa.status IN ('1','3') AND pa.type_code = 'drug' "
             + "  AND pa.in_hospital_no = #{inHospitalNo} "
-            + "  AND pa.start_time >= #{startTime} AND pa.start_time < #{endTime} "
-            + "  AND pa.name NOT LIKE '%氯化钠%' AND pa.name NOT LIKE '%葡萄糖%' "
-            + "  AND pa.name NOT LIKE '%林格%' AND pa.name NOT LIKE '%灭菌注射用水%' "
-            + "  AND pa.name NOT LIKE '%木糖醇%' AND pa.name NOT LIKE '%转化糖%' "
-            + "  AND pa.name NOT LIKE '%果糖%' AND pa.name NOT LIKE '%甘油果糖%' "
+            + "  AND pa.start_time &gt;= #{startTime} AND pa.start_time &lt; #{endTime} "
+            + "  <foreach collection='solvents' item='sv'>"
+            + "  AND pa.name NOT LIKE '%' || #{sv} || '%' "
+            + "  </foreach>"
             + ") WHERE rn = 1 "
-            + "ORDER BY start_time ASC")
+            + "ORDER BY start_time ASC</script>")
     List<Map<String, Object>> selectAntibioticAdvice(@Param("inHospitalNo") String inHospitalNo,
                                                        @Param("startTime") String startTime,
-                                                       @Param("endTime") String endTime);
+                                                       @Param("endTime") String endTime,
+                                                       @Param("solvents") List<String> solvents);
 
     /** 重载：不限时间范围（脓毒症集束化治疗用） */
-    default List<Map<String, Object>> selectAntibioticAdvice(String inHospitalNo) {
-        return selectAntibioticAdvice(inHospitalNo, "1970-01-01 00:00:00", "2099-12-31 23:59:59");
+    default List<Map<String, Object>> selectAntibioticAdvice(String inHospitalNo, List<String> solvents) {
+        return selectAntibioticAdvice(inHospitalNo, "1970-01-01 00:00:00", "2099-12-31 23:59:59", solvents);
     }
 
     /**
@@ -1519,24 +1528,26 @@ public interface IcuPatientMapper {
      * 当前在用血管活性/升压药医嘱（status='1' 执行中），Java 端按患者去重药名。
      * 业务数据来源：patient_advice + patient_info
      */
-    @Select("SELECT pi.id AS patient_id, pa.name AS name, pa.freq_name AS freq_name, "
+    @Select("<script>SELECT pi.id AS patient_id, pa.name AS name, pa.freq_name AS freq_name, "
             + "pa.drug_one_dosage AS dosage, pa.drug_one_dosage_unit AS dosage_unit, "
             + "pa.start_time AS start_time "
             + "FROM \"zing_icu_db_prod\".\"patient_advice\" pa "
             + "INNER JOIN \"zing_icu_db_prod\".\"patient_info\" pi "
             + "  ON pi.in_hospital_no = pa.in_hospital_no AND pi.del_flag = 0 AND pi.is_in_depart = 1 "
             + "WHERE pa.del_flag = 0 AND pa.status = '1' AND pa.type_code = 'drug' "
-            + "AND (pa.name LIKE '%去甲肾上腺素%' OR pa.name LIKE '%多巴胺%' "
-            + "  OR pa.name LIKE '%肾上腺素%' OR pa.name LIKE '%间羟胺%' "
-            + "  OR pa.name LIKE '%多巴酚丁胺%' OR pa.name LIKE '%血管加压素%' "
-            + "  OR pa.name LIKE '%垂体后叶%' OR pa.name LIKE '%特利加压素%') "
+            + "AND ("
+            + "<foreach collection='drugs' item='dn' separator=' OR '>"
+            + "  pa.name LIKE '%' || #{dn} || '%'"
+            + "</foreach>"
+            + ") "
             // departCode 为空串 = 全院，必须显式放行：这里原来只写 pi.depart_code = #{departCode}，
             // 空串匹配不到任何科室，导致「全院」视图下血管活性药查询恒返回 0 条 ——
             // 工作台的血管活性药标记全变成 false、驾驶舱危重数被低估。
             // 与 selectHandoverCrrtPatients / selectHandoverEcmoPatients 的空串处理保持一致。
             + "AND (#{departCode} = '' OR pi.depart_code = #{departCode}) "
-            + "ORDER BY pa.start_time DESC")
-    List<Map<String, Object>> selectHandoverVasopressor(@Param("departCode") String departCode);
+            + "ORDER BY pa.start_time DESC</script>")
+    List<Map<String, Object>> selectHandoverVasopressor(@Param("departCode") String departCode,
+                                                        @Param("drugs") List<String> drugs);
 
     /**
      * 本班（封板区间）出科患者人数（distinct 住院号），用于汇总条"本班出科"。
@@ -1557,21 +1568,26 @@ public interface IcuPatientMapper {
      * ARDS患者列表（基本信息）：is_ards=1 或 诊断包含急性呼吸窘迫综合征/ARDS。
      * 诊断时间限定在入科后、出科前。
      */
-    @Select("SELECT pi.id AS patient_id, pi.in_hospital_no, pi.name AS patient_name, "
+    @Select("<script>SELECT pi.id AS patient_id, pi.in_hospital_no, pi.name AS patient_name, "
             + "pi.bed_code, pi.gender, pi.height, pi.weight, "
             + "pi.in_depart_time, pi.out_depart_time, pi.is_ards "
             + "FROM \"zing_icu_db_prod\".\"patient_info\" pi "
             + "WHERE pi.del_flag = 0 "
             + "AND pi.depart_code = #{departCode} "
-            + "AND pi.out_depart_time >= #{startTime} "
-            + "AND pi.out_depart_time < #{endTime} "
+            + "AND pi.out_depart_time &gt;= #{startTime} "
+            + "AND pi.out_depart_time &lt; #{endTime} "
             + "AND EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" pid "
             + "  WHERE pid.in_hospital_no = pi.in_hospital_no AND pid.del_flag = 0 "
-            + "  AND (pid.diag_name LIKE '%急性呼吸窘迫综合征%' OR pid.diag_name LIKE '%ARDS%')) "
-            + "ORDER BY pi.out_depart_time DESC")
+            + "  AND ("
+            + "  <foreach collection='ardsTerms' item='at' separator=' OR '>"
+            + "    pid.diag_name LIKE '%' || #{at} || '%'"
+            + "  </foreach>"
+            + "  )) "
+            + "ORDER BY pi.out_depart_time DESC</script>")
     List<Map<String, Object>> selectArdsPatients(@Param("departCode") String departCode,
                                                     @Param("startTime") String startTime,
-                                                    @Param("endTime") String endTime);
+                                                    @Param("endTime") String endTime,
+                                                    @Param("ardsTerms") List<String> ardsTerms);
 
     /**
      * ARDS 全院筛查（管理视角，不限定科室）：诊断含「急性呼吸窘迫综合征 / ARDS」、
@@ -1583,23 +1599,28 @@ public interface IcuPatientMapper {
      *   <li>带出科室列，供全院视图按科室分组。</li>
      * </ul>
      */
-    @Select("SELECT * FROM ("
+    @Select("<script>SELECT * FROM ("
             + "SELECT pi.id AS patient_id, pi.in_hospital_no, pi.name AS patient_name, "
             + "pi.bed_code, pi.gender, pi.depart_code, pi.ward_name, "
             + "pi.in_depart_time, pi.out_depart_time, pi.is_ards "
             + "FROM \"zing_icu_db_prod\".\"patient_info\" pi "
             + "WHERE pi.del_flag = 0 "
             + "AND (#{departCode} IS NULL OR #{departCode} = 'ALL' OR pi.depart_code = #{departCode}) "
-            + "AND pi.in_depart_time < #{endTime} "
-            + "AND (pi.out_depart_time IS NULL OR pi.out_depart_time >= #{startTime}) "
+            + "AND pi.in_depart_time &lt; #{endTime} "
+            + "AND (pi.out_depart_time IS NULL OR pi.out_depart_time &gt;= #{startTime}) "
             + "AND EXISTS (SELECT 1 FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" pid "
             + "  WHERE pid.in_hospital_no = pi.in_hospital_no AND pid.del_flag = 0 "
-            + "  AND (pid.diag_name LIKE '%急性呼吸窘迫综合征%' OR pid.diag_name LIKE '%ARDS%')) "
+            + "  AND ("
+            + "  <foreach collection='ardsTerms' item='at' separator=' OR '>"
+            + "    pid.diag_name LIKE '%' || #{at} || '%'"
+            + "  </foreach>"
+            + "  )) "
             + "ORDER BY pi.in_depart_time DESC"
-            + ") WHERE ROWNUM <= 2000")
+            + ") WHERE ROWNUM &lt;= 2000</script>")
     List<Map<String, Object>> selectArdsHospitalScreen(@Param("startTime") String startTime,
                                                        @Param("endTime") String endTime,
-                                                       @Param("departCode") String departCode);
+                                                       @Param("departCode") String departCode,
+                                                       @Param("ardsTerms") List<String> ardsTerms);
 
     /**
      * 批量查询患者最新呼吸机参数（每个患者每个item取最新一条）。
@@ -1858,14 +1879,18 @@ public interface IcuPatientMapper {
             + "AND e.start_time &lt; #{endTime} "
             + "AND (e.end_time IS NULL OR e.end_time &gt;= #{startTime}) "
             + "${statusFilter} "
-            + "AND (d.drug_name LIKE '%去甲肾上腺素%' OR d.drug_name LIKE '%多巴胺%' "
-            + "  OR d.drug_name LIKE '%肾上腺素%' OR d.drug_name LIKE '%多巴酚丁胺%') "
+            + "AND ("
+            + "<foreach collection='drugs' item='dn' separator=' OR '>"
+            + "  d.drug_name LIKE '%' || #{dn} || '%'"
+            + "</foreach>"
+            + ") "
             + "ORDER BY e.start_time ASC"
             + "</script>")
     List<Map<String, Object>> selectVasopressorExecuteByRange(@Param("inHospitalNo") String inHospitalNo,
                                                               @Param("startTime") String startTime,
                                                               @Param("endTime") String endTime,
-                                                              @Param("statusFilter") String statusFilter);
+                                                              @Param("statusFilter") String statusFilter,
+                                                              @Param("drugs") List<String> drugs);
 
     /**
      * 阿片类镇痛药执行医嘱（与 {@link #selectVasopressorExecuteByRange} 同套路，
@@ -1889,14 +1914,17 @@ public interface IcuPatientMapper {
             + "WHERE e.del_flag = 0 AND e.in_hospital_no = #{inHospitalNo} "
             + "AND e.start_time &lt; #{endTime} "
             + "AND (e.end_time IS NULL OR e.end_time &gt;= #{startTime}) "
-            + "AND (d.drug_name LIKE '%芬太尼%' OR d.drug_name LIKE '%吗啡%' "
-            + "  OR d.drug_name LIKE '%地佐辛%' OR d.drug_name LIKE '%布托啡诺%' "
-            + "  OR d.drug_name LIKE '%纳布啡%' OR d.drug_name LIKE '%氢吗啡酮%') "
+            + "AND ("
+            + "<foreach collection='opioids' item='dn' separator=' OR '>"
+            + "  d.drug_name LIKE '%' || #{dn} || '%'"
+            + "</foreach>"
+            + ") "
             + "ORDER BY e.start_time ASC"
             + "</script>")
     List<Map<String, Object>> selectOpioidExecuteByRange(@Param("inHospitalNo") String inHospitalNo,
                                                          @Param("startTime") String startTime,
-                                                         @Param("endTime") String endTime);
+                                                         @Param("endTime") String endTime,
+                                                         @Param("opioids") List<String> opioids);
 
     /**
      * 批量取血管活性药调速历史（用于还原取数窗口内的最高泵速）。
@@ -1928,6 +1956,44 @@ public interface IcuPatientMapper {
     // 换院部署时现场不知道该填哪个编码，靠这两个能力自己找：
     // 候选 = 源库里真实存在的项目（按被多少患者使用倒序），试跑 = 填进去能命中多少条。
     // ==================================================================
+
+    /** 药品名候选：医嘱表里真实出现过的药名，按开具次数倒序（现场不用猜商品名怎么写） */
+    @Select("<script>SELECT * FROM ("
+            + " SELECT pa.name AS code, pa.name AS name, COUNT(*) AS cnt"
+            + " FROM \"zing_icu_db_prod\".\"patient_advice\" pa"
+            + " WHERE pa.del_flag = 0 AND pa.type_code = 'drug'"
+            + " <if test='keyword != null and keyword != \"\"'>"
+            + " AND pa.name LIKE '%'||#{keyword}||'%' "
+            + " </if>"
+            + " GROUP BY pa.name"
+            + " ORDER BY COUNT(*) DESC, pa.name ASC"
+            + ") WHERE ROWNUM &lt;= 200</script>")
+    List<Map<String, Object>> selectDrugNameCandidates(@Param("keyword") String keyword);
+
+    /** 诊断名候选：诊断表里真实出现过的名称，按出现次数倒序 */
+    @Select("<script>SELECT * FROM ("
+            + " SELECT d.diag_name AS code, d.diag_name AS name, COUNT(*) AS cnt"
+            + " FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d"
+            + " WHERE d.del_flag = 0"
+            + " <if test='keyword != null and keyword != \"\"'>"
+            + " AND d.diag_name LIKE '%'||#{keyword}||'%' "
+            + " </if>"
+            + " GROUP BY d.diag_name"
+            + " ORDER BY COUNT(*) DESC, d.diag_name ASC"
+            + ") WHERE ROWNUM &lt;= 200</script>")
+    List<Map<String, Object>> selectDiagNameCandidates(@Param("keyword") String keyword);
+
+    /** 试跑：时间窗内药名包含关键字的医嘱条数 */
+    @Select("SELECT COUNT(*) FROM \"zing_icu_db_prod\".\"patient_advice\" pa "
+            + "WHERE pa.del_flag = 0 AND pa.type_code = 'drug' "
+            + "AND pa.start_time >= #{startTime} "
+            + "AND pa.name LIKE '%'||#{keyword}||'%'")
+    int countAdviceByDrugName(@Param("keyword") String keyword, @Param("startTime") String startTime);
+
+    /** 试跑：诊断名包含关键字的诊断条数 */
+    @Select("SELECT COUNT(*) FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d "
+            + "WHERE d.del_flag = 0 AND d.diag_name LIKE '%'||#{keyword}||'%'")
+    int countDiagByName(@Param("keyword") String keyword);
 
     /** 观察项候选（监护 / 呼吸机）：按编码或名称模糊，按使用该项目的患者数倒序 */
     @Select("<script>SELECT * FROM ("

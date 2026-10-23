@@ -36,7 +36,12 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(qualityAccessInterceptor)
                 .addPathPatterns("/api/quality/**");
         registry.addInterceptor(qualityConfigWriteInterceptor)
-                .addPathPatterns("/api/quality/config/**");
+                // 安全修复（quality-write-endpoints-bypass-write-gate）：写闸从
+                // /api/quality/config/** 扩到 /api/quality/** —— QualityController 下
+                // 8 个写端点（/rules/config、/manual、/recalc、/monthly/rebuild 等）
+                // 此前在闸外，任意外链/登录主体可改质控上报口径与结果。
+                // 拦截器本身只拦非 GET/HEAD/OPTIONS，看板与配置回显不受影响。
+                .addPathPatterns("/api/quality/**");
         // 管理员写保护（security-audit 2026-10：clinical-config-write-no-authz / sys-param-save-missing-admin-authz）：
         // 覆盖全部「改配置即改临床/系统行为」的写端点；GET 放行，写请求要求直连登录管理员。
         // 拦截顺序在外链鉴权之后（写请求先通过通道鉴权，再判定管理员）。

@@ -233,3 +233,47 @@ INSERT INTO `zing_doctor_db_prod`.`config_data_item`
     (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
 SELECT 6400055,'DICT',NULL,NULL,'temp_item','体温观察项','NAME_LIKE','体温',NULL,6,'item_name，排除词「来源」写在 SQL 里' FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DICT' AND `item_key`='temp_item');
+
+-- ---------------------------------------------------------------------
+-- 药品名（domain=DRUG）：医嘱/执行单里的药名关键词，一律按「名称包含」匹配
+-- 四个升压药键看起来重复，其实是四处口径不同的历史实现，合并会改变已有指标结果：
+--   vasopressor         在用/交班/驾驶舱打标记（8 项）
+--   vasopressor_bundle  脓毒症集束化「3h 内使用升压药」判定（6 项）
+--   vasopressor_exec    泵速执行单 → SOFA 循环分剂量还原（4 项）
+-- ---------------------------------------------------------------------
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400060,'DRUG',NULL,NULL,'vasopressor','血管活性药（在用）','NAME_LIKE','去甲肾上腺素,多巴胺,肾上腺素,间羟胺,多巴酚丁胺,血管加压素,垂体后叶,特利加压素',NULL,1,'影响：交班、驾驶舱、工作台升压药标记' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DRUG' AND `item_key`='vasopressor');
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400061,'DRUG',NULL,NULL,'vasopressor_bundle','升压药（脓毒症集束化）','NAME_LIKE','去甲肾上腺素,多巴胺,肾上腺素,间羟胺,多巴酚丁胺,血管升压',NULL,2,'勿与 vasopressor 合并：集束化达标率按这套口径算' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DRUG' AND `item_key`='vasopressor_bundle');
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400062,'DRUG',NULL,NULL,'vasopressor_exec','升压药（泵速执行单）','NAME_LIKE','去甲肾上腺素,多巴胺,肾上腺素,多巴酚丁胺',NULL,3,'影响：SOFA 循环分剂量还原、血管活性药页' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DRUG' AND `item_key`='vasopressor_exec');
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400063,'DRUG',NULL,NULL,'opioid','阿片类镇痛药','NAME_LIKE','芬太尼,吗啡,地佐辛,布托啡诺,纳布啡,氢吗啡酮',NULL,4,'「芬太尼」已覆盖瑞芬太尼/舒芬太尼' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DRUG' AND `item_key`='opioid');
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400064,'DRUG',NULL,NULL,'solvent_exclude','溶媒排除词','NAME_LIKE','氯化钠,葡萄糖,林格,灭菌注射用水,木糖醇,转化糖,果糖,甘油果糖',NULL,5,'抗菌药医嘱里要把这些剔掉（排除匹配）' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DRUG' AND `item_key`='solvent_exclude');
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400065,'DRUG',NULL,NULL,'fluid','晶体液','NAME_LIKE','氯化钠,葡萄糖,乳酸钠林格,林格,复方氯化钠,灭菌注射用水',NULL,6,'脓毒症 30ml/kg 补液统计' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DRUG' AND `item_key`='fluid');
+
+-- ---------------------------------------------------------------------
+-- 诊断名（domain=DIAG）：patient_info_diagnosis.diag_name 关键词
+-- ---------------------------------------------------------------------
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400070,'DIAG',NULL,NULL,'infection','感染相关诊断','NAME_LIKE','脓毒,感染,肺炎,腹腔,腹膜炎,血流,菌血症,尿路,泌尿,真菌',NULL,1,'影响：疑似感染列表的「诊断命中」判定' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DIAG' AND `item_key`='infection');
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400071,'DIAG',NULL,NULL,'ards','ARDS 诊断','NAME_LIKE','急性呼吸窘迫综合征,ARDS',NULL,2,'影响：ARDS 患者名单与全院筛查' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DIAG' AND `item_key`='ards');

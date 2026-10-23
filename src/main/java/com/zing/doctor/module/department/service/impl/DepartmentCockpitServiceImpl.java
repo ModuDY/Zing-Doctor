@@ -407,7 +407,9 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
         java.util.Set<String> all = new java.util.HashSet<>();
         String dept = departCode == null ? "" : departCode;
         try {
-            List<Map<String, Object>> vaso = icuPatientMapper.selectHandoverVasopressor(dept);
+            List<Map<String, Object>> vaso = icuPatientMapper.selectHandoverVasopressor(dept,
+                    dataItemConfigService.names(
+                            DataItemConfigService.DOMAIN_DRUG, DataItemConfigService.DRUG_VASOPRESSOR));
             if (vaso != null) {
                 for (Map<String, Object> r : vaso) {
                     String pid = String.valueOf(r.get("patient_id"));

@@ -195,7 +195,9 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
 
         // 血管活性药 / CRRT / ECMO：直接复用工作台那批查询，保证两个页面数字一致
         try {
-            List<Map<String, Object>> vaso = icuPatientMapper.selectHandoverVasopressor(dept);
+            List<Map<String, Object>> vaso = icuPatientMapper.selectHandoverVasopressor(dept,
+                    dataItemConfigService.names(
+                            DataItemConfigService.DOMAIN_DRUG, DataItemConfigService.DRUG_VASOPRESSOR));
             Set<String> s = new HashSet<>();
             if (vaso != null) {
                 for (Map<String, Object> r : vaso) {
@@ -263,7 +265,9 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
 
         Set<String> vasoPatients = new HashSet<>();
         try {
-            List<Map<String, Object>> vaso = icuPatientMapper.selectHandoverVasopressor(dept);
+            List<Map<String, Object>> vaso = icuPatientMapper.selectHandoverVasopressor(dept,
+                    dataItemConfigService.names(
+                            DataItemConfigService.DOMAIN_DRUG, DataItemConfigService.DRUG_VASOPRESSOR));
             if (vaso != null) {
                 for (Map<String, Object> r : vaso) {
                     String pid = str(r.get("patient_id"));
@@ -369,7 +373,8 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
      */
     @Override
     public List<IcuPatientBrief> listSuspectInfections(String departCode) {
-        List<Map<String, Object>> rows = icuPatientMapper.selectSuspectPatients(departCode);
+        List<Map<String, Object>> rows = icuPatientMapper.selectSuspectPatients(departCode,
+                dataItemConfigService.names(DataItemConfigService.DOMAIN_DIAG, DataItemConfigService.DIAG_INFECTION));
         if (rows == null || rows.isEmpty()) {
             return Collections.emptyList();
         }

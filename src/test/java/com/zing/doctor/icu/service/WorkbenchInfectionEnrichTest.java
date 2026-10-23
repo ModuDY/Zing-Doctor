@@ -62,7 +62,7 @@ class WorkbenchInfectionEnrichTest {
     @Test
     @DisplayName("疑似患者回填感染字段，非疑似患者标记为「已查过、没有」")
     void enrichSuspectAndNonSuspect() {
-        when(mapper.selectSuspectPatients("D001")).thenReturn(Collections.singletonList(
+        when(mapper.selectSuspectPatients(anyString(), anyList())).thenReturn(Collections.singletonList(
                 suspectRow("P1", 0, 0, 1)));
         when(mapper.selectInfectionLabsByNos(anyList())).thenReturn(Collections.singletonList(
                 labRow("N1", "降钙素原", "1.6")));
@@ -88,7 +88,7 @@ class WorkbenchInfectionEnrichTest {
     @Test
     @DisplayName("PCT 只有 0.1 的患者不算疑似感染（与感染视图同一门槛）")
     void lowPctIsNotSuspect() {
-        when(mapper.selectSuspectPatients("D001")).thenReturn(Collections.singletonList(
+        when(mapper.selectSuspectPatients(anyString(), anyList())).thenReturn(Collections.singletonList(
                 suspectRow("P1", 0, 0, 1)));
         when(mapper.selectInfectionLabsByNos(anyList())).thenReturn(Collections.singletonList(
                 labRow("N1", "降钙素原", "0.1")));
@@ -103,7 +103,7 @@ class WorkbenchInfectionEnrichTest {
     @Test
     @DisplayName("ICU 库查询失败 → UNKNOWN，不能显示成「未发现感染证据」")
     void queryFailureIsUnknownNotNegative() {
-        when(mapper.selectSuspectPatients(anyString())).thenThrow(new RuntimeException("ICU 库不可用"));
+        when(mapper.selectSuspectPatients(anyString(), anyList())).thenThrow(new RuntimeException("ICU 库不可用"));
 
         List<WorkbenchPatient> patients = Collections.singletonList(patient("P1", "N1"));
         service.enrichInfection(patients, "D001");
@@ -114,7 +114,7 @@ class WorkbenchInfectionEnrichTest {
     @Test
     @DisplayName("科室里一个疑似都没有：也标记为已查过，而不是留空")
     void noSuspectAtAll() {
-        when(mapper.selectSuspectPatients("D001")).thenReturn(Collections.emptyList());
+        when(mapper.selectSuspectPatients(anyString(), anyList())).thenReturn(Collections.emptyList());
 
         List<WorkbenchPatient> patients = Collections.singletonList(patient("P1", "N1"));
         service.enrichInfection(patients, "D001");

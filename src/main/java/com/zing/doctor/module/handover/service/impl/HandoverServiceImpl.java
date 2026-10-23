@@ -131,7 +131,9 @@ public class HandoverServiceImpl implements HandoverService {
         String adviceShiftDate = s.length() >= 10 ? s.substring(0, 10) : s;
         List<Map<String, Object>> adviceIntakes = icuPatientMapper.selectHandoverAdviceIntake(dc, adviceShiftDate, s, e);
         List<Map<String, Object>> labs = icuPatientMapper.selectHandoverLabs(dc, s, e);
-        List<Map<String, Object>> vasos = icuPatientMapper.selectHandoverVasopressor(dc);
+        List<Map<String, Object>> vasos = icuPatientMapper.selectHandoverVasopressor(dc,
+                dataItemConfigService.names(
+                        DataItemConfigService.DOMAIN_DRUG, DataItemConfigService.DRUG_VASOPRESSOR));
         List<String> crrtPatients = icuPatientMapper.selectHandoverCrrtPatients(dc);
         java.util.Set<String> crrtSet = new java.util.HashSet<>(crrtPatients == null ? new ArrayList<>() : crrtPatients);
         Map<String, Object> discharge = icuPatientMapper.selectHandoverDischargeCount(s, e, dc);
@@ -379,7 +381,9 @@ public class HandoverServiceImpl implements HandoverService {
         detail.setIoSummary(ioSummary);
         detail.setOutputItemSummary(outputItemSummary);
         // 升压药：查当前执行中（status='1'），和总览卡片逻辑保持一致；按药名去重
-        List<Map<String, Object>> vasoAll = safe(icuPatientMapper.selectCurrentVasopressorAdvice(inHospitalNo));
+        List<Map<String, Object>> vasoAll = safe(icuPatientMapper.selectCurrentVasopressorAdvice(inHospitalNo,
+                dataItemConfigService.names(
+                        DataItemConfigService.DOMAIN_DRUG, DataItemConfigService.DRUG_VASOPRESSOR)));
         List<Map<String, Object>> vasoFiltered = new ArrayList<>();
         java.util.Set<String> vasoNames = new java.util.HashSet<>();
         for (Map<String, Object> v : vasoAll) {
@@ -391,7 +395,9 @@ public class HandoverServiceImpl implements HandoverService {
         }
         detail.setVasopressors(vasoFiltered);
         // 抗菌药：按班次时间范围过滤 + Java层白名单过滤（排除非抗菌药）
-        List<Map<String, Object>> abxAll = safe(icuPatientMapper.selectAntibioticAdvice(inHospitalNo, s, e));
+        List<Map<String, Object>> abxAll = safe(icuPatientMapper.selectAntibioticAdvice(inHospitalNo, s, e,
+                dataItemConfigService.names(
+                        DataItemConfigService.DOMAIN_DRUG, DataItemConfigService.DRUG_SOLVENT_EXCLUDE)));
         List<Map<String, Object>> abxFiltered = new ArrayList<>();
         for (Map<String, Object> abx : abxAll) {
             if (isBroadSpectrumAntibiotic(str(abx.get("name")))) {

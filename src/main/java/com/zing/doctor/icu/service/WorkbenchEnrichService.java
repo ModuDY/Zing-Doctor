@@ -512,7 +512,9 @@ public class WorkbenchEnrichService {
         try {
             // 1) 疑似集合与命中标志：复用「感染风险」视图同一个 SQL，口径不会漂移
             Map<String, boolean[]> suspectFlags = new HashMap<>();
-            List<Map<String, Object>> suspects = icuPatientMapper.selectSuspectPatients(departCode);
+            List<Map<String, Object>> suspects = icuPatientMapper.selectSuspectPatients(departCode,
+                    dataItemConfigService.names(
+                            DataItemConfigService.DOMAIN_DIAG, DataItemConfigService.DIAG_INFECTION));
             if (suspects != null) {
                 for (Map<String, Object> r : suspects) {
                     if (r == null) {

@@ -178,7 +178,7 @@ class DepartmentCockpitServiceTest {
         when(icuPatientService.countOrganSupport(anyString())).thenReturn(support);
         when(icuPatientMapper.selectAllDepartments()).thenReturn(Collections.emptyList());
         // 患者 A 同时上 ECMO、CRRT 和血管活性药；患者 B 上呼吸机
-        when(icuPatientMapper.selectHandoverVasopressor(anyString())).thenReturn(
+        when(icuPatientMapper.selectHandoverVasopressor(anyString(), any())).thenReturn(
                 Collections.singletonList(row("A")));
         when(icuPatientMapper.selectHandoverCrrtPatients(anyString())).thenReturn(Collections.singletonList("A"));
         when(icuPatientMapper.selectHandoverEcmoPatients(anyString())).thenReturn(Collections.singletonList("A"));
