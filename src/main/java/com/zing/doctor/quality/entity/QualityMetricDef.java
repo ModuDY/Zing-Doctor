@@ -1,6 +1,8 @@
 package com.zing.doctor.quality.entity;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -47,12 +49,21 @@ public class QualityMetricDef {
     private Integer scale;
 
     // ---- 口径三要素（页面可编辑） ----
+    //
+    // 这三个字段必须允许被「清空」，故显式声明 updateStrategy = IGNORED。
+    // MyBatis-Plus 默认 NOT_NULL：updateById 会跳过 null 字段 ——
+    // 页面把「额外条件 / 分母条件」删掉后传 null，SQL 里根本不带这一列，
+    // 库中旧值原样保留，于是关掉弹窗再打开，那条条件又出现了（现场就是这个问题）。
+    // 配置类字段的「改回空」是常态操作，不能当成「没改」处理。
 
     /** 分子过滤条件 */
+    @TableField(updateStrategy = FieldStrategy.IGNORED)
     private String exprWhere;
     /** 分子表达式：PT_COUNT 时布尔条件；SUM/AVG 时数值表达式；空则默认 1 */
+    @TableField(updateStrategy = FieldStrategy.IGNORED)
     private String exprNumerator;
     /** 分母过滤条件；为空时分母 = 同期全部对象 */
+    @TableField(updateStrategy = FieldStrategy.IGNORED)
     private String exprDenominatorWhere;
 
     /**

@@ -62,6 +62,13 @@ public class SysParamServiceImpl implements SysParamService {
             log.warn("系统参数保存失败：参数值未通过正则校验 key={} regex={}", param.getParamKey(), param.getRegex());
             return false;
         }
+        // 图片类参数（DOC_HOSPITAL_LOGO 院徽 / 侧边栏 logo）存的是 base64 dataURI。
+        // 列已放宽到 MEDIUMTEXT（见 sql/mysql/65），这里再挡一道：整张原图塞进来会让
+        // 每次 /sys-param/list 都拖几 MB，参数页与文书一起变慢；报清楚比让库抛 1406 好查。
+        if (value != null && value.length() > 3_000_000) {
+            throw new IllegalArgumentException("参数值过长（" + value.length()
+                    + " 字符），图片请先压缩到 512px 以内，或直接填写图片地址（如 /logo.png）");
+        }
 
         LocalDateTime now = LocalDateTime.now();
         boolean ok;

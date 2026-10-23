@@ -48,7 +48,7 @@
           <div class="card-kicker">ACTUAL</div>
           <div class="stat-label">实际死亡数</div>
           <div class="stat-value">{{ smrText.actual }}</div>
-          <div class="stat-sub">评过分的 {{ smr.patientCount }} 名患者 · 转归=死亡</div>
+          <div class="stat-sub">评过分的 {{ summary.smr.patientCount || 0 }} 名患者 · 转归=死亡</div>
         </div>
         <div class="stat-card">
           <div class="card-kicker">SMR</div>

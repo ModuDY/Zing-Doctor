@@ -27,6 +27,12 @@ public interface SysParamService {
     /** 质控每日批算的回溯天数（默认 3 天，见 QualityDailyTask） */
     String KEY_QUALITY_BACKFILL_DAYS = "QUALITY_BACKFILL_DAYS";
 
+    /** 评分文书院徽（图片 URL 或 base64 dataURI）：侧边栏 logo、登录页院徽共用 */
+    String KEY_DOC_HOSPITAL_LOGO = "DOC_HOSPITAL_LOGO";
+
+    /** 评分文书院名（多行文本）：登录页与文书抬头共用 */
+    String KEY_DOC_HOSPITAL_NAME = "DOC_HOSPITAL_NAME";
+
     /** 疑似感染列表「待决策」判定规则（见 AntibioticDecisionServiceImpl） */
     String KEY_ABX_PENDING_RULE = "ABX_PENDING_DECISION_RULE";
 

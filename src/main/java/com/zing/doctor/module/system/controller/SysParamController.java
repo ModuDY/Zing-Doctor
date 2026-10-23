@@ -7,7 +7,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 系统参数（参数设置页面）。
@@ -40,6 +42,29 @@ public class SysParamController {
             log.error("系统参数查询失败: key={}", key, e);
             return Result.fail("查询失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 未登录可读的品牌信息：院徽 + 院名（登录页用）。
+     *
+     * <p>为什么单开一个：{@code /api/**} 全部要令牌，登录页拿不到令牌，前端只能回退
+     * 内置 /logo.png —— 现场把院徽换成自己的图以后，登录页永远是默认图，看着像
+     * 「保存没成功」。
+     *
+     * <p>只放这两个键：{@code /sys-param/get} 是通用接口，匿名放开会把消息推送授权码、
+     * ICU 外链令牌这类参数一起露出去。
+     */
+    @GetMapping("/public/doc-header")
+    public Result<Map<String, String>> publicDocHeader() {
+        Map<String, String> data = new HashMap<>(4);
+        try {
+            data.put("logo", sysParamService.value(SysParamService.KEY_DOC_HOSPITAL_LOGO));
+            data.put("name", sysParamService.value(SysParamService.KEY_DOC_HOSPITAL_NAME));
+        } catch (Exception e) {
+            // 品牌参数属非关键增强：读不到就让前端用内置抬头，不能让登录页报错
+            log.warn("登录页品牌参数读取失败，前端将回退默认抬头", e);
+        }
+        return Result.ok(data);
     }
 
     /** 保存（id 为空新增，否则更新） */

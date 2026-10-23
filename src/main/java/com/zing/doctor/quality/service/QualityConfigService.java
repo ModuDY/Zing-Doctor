@@ -246,11 +246,15 @@ public class QualityConfigService {
         }
 
         QualityMetricDef row = isNew ? new QualityMetricDef() : existing;
+        // 版本号必须在 fillRow 之前算：row 与 existing 是同一个对象，
+        // fillRow 一执行旧口径就被覆盖，nextVersion 里的 caliberChanged 会永远判定
+        // 「口径没变」，expr_version 于是长年停在 1 —— 历史值无法按口径分段。
+        int exprVersion = nextVersion(existing, m);
         repo.fillRow(row, m);
         if (row.getSortNo() == null) {
             row.setSortNo(existing != null && existing.getSortNo() != null ? existing.getSortNo() : 9999);
         }
-        row.setExprVersion(nextVersion(existing, m));
+        row.setExprVersion(exprVersion);
         row.setStatus(1);
         row.setOperator(operator);
         row.setUpdateTime(now);

@@ -90,17 +90,48 @@ describe('useDocHeader', () => {
     expect(h.hospitalNames.value).toEqual(['第一行', '第二行'])
   })
 
-  it('未登录时不请求参数接口，直接用默认抬头', async () => {
+  it('未登录时走公开品牌接口，登录页也能显示上传的院徽', async () => {
     mocks.getToken.mockReturnValue(null)
+    mocks.get.mockResolvedValue({ logo: '/uploaded-logo.png', name: 'XX医院\nYY分院' })
     const m = await fresh()
     const h = m.useDocHeader()
     await h.load()
-    expect(mocks.get).not.toHaveBeenCalled()
+    expect(mocks.get).toHaveBeenCalledWith('/sys-param/public/doc-header', expect.anything())
+    // 不能再去调需要令牌的通用参数接口
+    expect(mocks.get).not.toHaveBeenCalledWith('/sys-param/get', expect.anything())
+    expect(h.logo.value).toBe('/uploaded-logo.png')
+    expect(h.hospitalNames.value).toEqual(['XX医院', 'YY分院'])
+  })
+
+  it('未登录且公开接口失败时回退内置默认', async () => {
+    mocks.getToken.mockReturnValue(null)
+    mocks.get.mockRejectedValue(new Error('network'))
+    const m = await fresh()
+    const h = m.useDocHeader()
+    await h.load()
     expect(h.logo.value).toBe('/logo.png')
     expect(h.hospitalNames.value).toEqual([
       '福州市第二总医院',
       '福州市第二医院',
       '福建省福州中西医结合医院'
     ])
+  })
+
+  it('失败结果不缓存：登录后再读能拿到真实抬头', async () => {
+    mocks.getToken.mockReturnValue(null)
+    mocks.get.mockRejectedValueOnce(new Error('network'))
+    const m = await fresh()
+    const first = m.useDocHeader()
+    await first.load()
+    expect(first.logo.value).toBe('/logo.png')
+
+    mocks.getToken.mockReturnValue('login-token')
+    mocks.get.mockReset()
+    mocks.get.mockImplementation((url, cfg) =>
+      Promise.resolve(cfg && cfg.params && cfg.params.key === 'DOC_HOSPITAL_LOGO' ? '/real.png' : null)
+    )
+    const second = m.useDocHeader()
+    await second.load()
+    expect(second.logo.value).toBe('/real.png')
   })
 })

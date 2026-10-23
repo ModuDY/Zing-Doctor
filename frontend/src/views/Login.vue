@@ -66,7 +66,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Link } from '@element-plus/icons-vue'
@@ -78,6 +78,10 @@ const route = useRoute()
 const router = useRouter()
 
 const { logo, hospitalNames, load: loadDocHeader } = useDocHeader()
+
+// 院徽与院名来自系统参数：不调 load() 就一直显示内置默认图 ——
+// 现场换了院徽后登录页始终是默认图的直接原因就是这里漏了一次加载。
+onMounted(loadDocHeader)
 
 const formRef = ref(null)
 const loading = ref(false)
@@ -186,10 +190,12 @@ async function submit() {
   padding: 34px 32px 26px;
 }
 
+/* 院徽按高度约束、宽度自适应：横版院徽（带院名）不会被压成一条 */
 .card-logo {
   display: block;
-  width: 76px;
   height: 76px;
+  width: auto;
+  max-width: 100%;
   object-fit: contain;
   margin: 0 auto 24px;
 }
