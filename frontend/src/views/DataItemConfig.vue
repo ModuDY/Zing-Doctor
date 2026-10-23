@@ -132,6 +132,7 @@
                   <option value="COAG">COAG 凝血</option>
                   <option value="RENAL">RENAL 肾功能与电解质</option>
                   <option value="INFECTION">INFECTION 感染指标</option>
+                <option value="PERFUSION">PERFUSION 组织灌注（乳酸）</option>
                 </select>
               </label>
               <label>
@@ -147,7 +148,7 @@
               <select v-model="form.matchType" class="ipt">
                 <option value="CODE">CODE 编码精确</option>
                 <option value="NAME_LIKE">NAME_LIKE 名称包含</option>
-                <option value="NAME_EXACT">NAME_EXACT 名称相等</option>
+                <option value="NAME_EXACT">NAME_EXACT 名称相等（仅检验项目面板生效）</option>
               </select>
             </label>
             <label class="grow">

@@ -240,6 +240,11 @@ WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `
 -- 老库补排除词（上面那条 INSERT 对已存在的行不生效）
 UPDATE `zing_doctor_db_prod`.`config_data_item` SET `exclude_value`='来源'
  WHERE `domain`='DICT' AND `item_key`='temp_item' AND (`exclude_value` IS NULL OR `exclude_value`='');
+-- 备注同步（只在仍是旧文案时改，不覆盖现场自己写的说明）
+UPDATE `zing_doctor_db_prod`.`config_data_item`
+   SET `remark`='item_name；排除词「来源」用于剔掉「体温来源」这类记录测量方式的项'
+ WHERE `domain`='DICT' AND `item_key`='temp_item'
+   AND `remark`='item_name，排除词「来源」写在 SQL 里';
 
 -- ---------------------------------------------------------------------
 -- 药品名（domain=DRUG）：医嘱/执行单里的药名关键词，一律按「名称包含」匹配

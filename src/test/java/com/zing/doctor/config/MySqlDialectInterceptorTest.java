@@ -1,7 +1,13 @@
 package com.zing.doctor.config;
 
+import com.zing.doctor.icu.mapper.IcuPatientMapper;
+import org.apache.ibatis.mapping.BoundSql;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -90,6 +96,16 @@ class MySqlDialectInterceptorTest {
     }
 
     @Test
+    @DisplayName("NOT LIKE '%' || ? || '%'（溶媒/体温排除词）也要翻译成 CONCAT")
+    void translateNotLikeConcat() {
+        assertEquals("AND pa.name NOT LIKE CONCAT('%', ?, '%')",
+                MySqlDialectInterceptor.translate("AND pa.name NOT LIKE '%' || ? || '%'"));
+        // 同一句里的两处 || 都要翻译，不能只翻第一处
+        assertEquals("(a LIKE CONCAT('%', ?, '%') OR b LIKE CONCAT('%', ?, '%'))",
+                MySqlDialectInterceptor.translate("(a LIKE '%' || ? || '%' OR b LIKE '%' || ? || '%')"));
+    }
+
+    @Test
     @DisplayName("不相关 SQL 原样返回（避免翻译器引入新问题）")
     void leaveOthersUntouched() {
         String sql = "SELECT id, name FROM patient_info WHERE del_flag = 0 AND name LIKE ?";
@@ -113,5 +129,27 @@ class MySqlDialectInterceptorTest {
         assertTrue(my.contains("TIMESTAMPDIFF(MINUTE, a.in_time, b.check_time)"), "实际： " + my);
         assertTrue(my.contains("(TRIM(a.age) REGEXP '^[0-9]{1,3}$')"), "实际： " + my);
         assertTrue(my.contains("AS CHAR(2000)"), "实际： " + my);
+    }
+
+    @Test
+    @DisplayName("相关子查询里的 ROWNUM <= 1 不能被当成外层分页（否则疑似感染列表只剩 1 人）")
+    void correlatedRownumMustNotBecomeOuterLimit() {
+        com.baomidou.mybatisplus.core.MybatisConfiguration cfg =
+                new com.baomidou.mybatisplus.core.MybatisConfiguration();
+        cfg.addMapper(IcuPatientMapper.class);
+        Map<String, Object> params = new HashMap<>();
+        params.put("departCode", null);
+        params.put("diagTerms", Collections.singletonList("感染"));
+        params.put("pctNames", Collections.singletonList("降钙素原"));
+        BoundSql boundSql = cfg.getMappedStatement(
+                "com.zing.doctor.icu.mapper.IcuPatientMapper.selectSuspectPatients").getBoundSql(params);
+
+        String mysql = MySqlDialectInterceptor.translate(boundSql.getSql());
+        // 达梦写法是 (SELECT COUNT(1) ... AND ROWNUM <= 1) > 0；
+        // 若拦截器把子查询里的 ROWNUM 当成「WHERE 内分页」，会把 LIMIT 1 追加到整条语句末尾，
+        // MariaDB 下疑似感染列表就只剩一个患者 —— 页面上看不出来，只会觉得「今天只收了 1 个」。
+        assertFalse(mysql.trim().toUpperCase().endsWith("LIMIT 1"),
+                "外层被追加了 LIMIT 1，疑似感染列表只会返回一个患者：\n" + mysql);
+        assertTrue(mysql.contains("t.rn = 1"), "外层筛选条件丢失：\n" + mysql);
     }
 }

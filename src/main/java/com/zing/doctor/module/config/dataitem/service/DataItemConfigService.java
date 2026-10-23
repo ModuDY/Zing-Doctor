@@ -201,7 +201,13 @@ public class DataItemConfigService {
             return v;
         }
         List<String> d = DataItemDefaults.ofKey(domain, itemKey);
-        return d.isEmpty() ? v : d;
+        if (d.isEmpty()) {
+            // 键名写错 / 新增键忘了加内置默认：调用方 SQL 的 foreach 会拼出空条件（AND ()），
+            // 报错点离这里很远。先在这里留一条日志，免得现场只看到一条 SQL 语法错。
+            log.warn("[数据项配置] 域 {} 的键 {} 既无配置也无内置默认，取数 SQL 可能拼出空条件", domain, itemKey);
+            return v;
+        }
+        return d;
     }
 
     /** 术语字典取值：等价于 {@code names(DICT, itemKey)} */
@@ -398,7 +404,7 @@ public class DataItemConfigService {
                     : icuPatientMapper.selectLisItemCandidates(kw, start);
         }
         if (DOMAIN_DRUG.equals(dom)) {
-            return icuPatientMapper.selectDrugNameCandidates(kw);
+            return icuPatientMapper.selectDrugNameCandidates(kw, start);
         }
         if (DOMAIN_DIAG.equals(dom)) {
             return icuPatientMapper.selectDiagNameCandidates(kw);

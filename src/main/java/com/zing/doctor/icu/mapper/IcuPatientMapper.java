@@ -197,9 +197,12 @@ public interface IcuPatientMapper {
      * 不去重会出现同一患者重复出现、检验/医嘱按住院号聚合时串到上一次住院。
      * 与工作台 {@link #selectInpatients} 同一口径（PARTITION BY in_hospital_no 取 in_depart_time 最新）。
      *
-     * <p>存在性判断写成 {@code (SELECT COUNT(1) ... AND ROWNUM <= 1) > 0} 而不是
-     * {@code EXISTS}：EXISTS 不能出现在 SELECT 列表里（达梦/Oracle 都不支持），
-     * 而命中标志必须在结果集中返回。加 ROWNUM 是为了找到第一条就停，避免全量 COUNT。
+     * <p><b>相关子查询里千万不要写 {@code AND ROWNUM <= 1}</b>。达梦下它只是「找到第一条就停」，
+     * 但 MySQL 方言拦截器是按「WHERE 子句内的分页」处理的：会把 ROWNUM 条件整段删掉，
+     * 再把 {@code LIMIT n} 追加到<b>整条语句</b>末尾 —— MariaDB 现场表现为疑似感染列表
+     * 只剩 1 个患者，而页面上完全看不出是 SQL 被改写（只会觉得「今天只收了 1 个」）。
+     * 现改为 {@code (SELECT COUNT(1) ...) > 0}，不加 ROWNUM；回归用例见
+     * {@code MySqlDialectInterceptorTest#correlatedRownumMustNotBecomeOuterLimit}。
      *
      * @param departCode 科室编码（{@code sys_depart.org_code}）；null / 空 / "ALL" 表示不限科室。
      *                   注意不要传 ward_name（病区名），与 org_code 不是同一套编码。
@@ -221,7 +224,7 @@ public interface IcuPatientMapper {
             "                         d.diag_name LIKE '%' || #{dt} || '%'",
             "                       </foreach>",
             "                       ) ",
-            "                       AND ROWNUM &lt;= 1) &gt; 0 THEN 1 ELSE 0 END AS diag_flag, ",
+            "                       ) &gt; 0 THEN 1 ELSE 0 END AS diag_flag, ",
             "         CASE WHEN (SELECT COUNT(1) FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li ",
             "                     WHERE li.in_hospital_no = pi.in_hospital_no AND li.del_flag = 0 ",
             "                       AND (",
@@ -231,7 +234,7 @@ public interface IcuPatientMapper {
             "                       ) ",
             "                       AND li.lis_item_result IS NOT NULL AND li.lis_item_result &lt;&gt; '' ",
             "                       AND li.check_time &gt;= SYSDATE - 7 ",
-            "                       AND ROWNUM &lt;= 1) &gt; 0 THEN 1 ELSE 0 END AS pct_flag, ",
+            "                       ) &gt; 0 THEN 1 ELSE 0 END AS pct_flag, ",
             "         ROW_NUMBER() OVER (PARTITION BY pi.in_hospital_no ORDER BY pi.in_depart_time DESC) AS rn ",
             "    FROM \"zing_icu_db_prod\".\"patient_info\" pi ",
             "   WHERE pi.is_in_depart = 1 AND pi.del_flag = 0 ",
@@ -1994,24 +1997,36 @@ public interface IcuPatientMapper {
     // 候选 = 源库里真实存在的项目（按被多少患者使用倒序），试跑 = 填进去能命中多少条。
     // ==================================================================
 
-    /** 药品名候选：医嘱表里真实出现过的药名，按开具次数倒序（现场不用猜商品名怎么写） */
+    /**
+     * 药品名候选：医嘱表里真实出现过的药名，按开具次数倒序（现场不用猜商品名怎么写）。
+     *
+     * <p>限定近 90 天：patient_advice 是全量医嘱表（历年几十万到上百万行），
+     * 不加时间窗做 GROUP BY，配置页点一次「候选值」就要扫全表。
+     */
     @Select("<script>SELECT * FROM ("
             + " SELECT pa.name AS code, pa.name AS name, COUNT(*) AS cnt"
             + " FROM \"zing_icu_db_prod\".\"patient_advice\" pa"
             + " WHERE pa.del_flag = 0 AND pa.type_code = 'drug'"
+            + " AND pa.start_time &gt;= #{startTime}"
             + " <if test='keyword != null and keyword != \"\"'>"
             + " AND pa.name LIKE '%'||#{keyword}||'%' "
             + " </if>"
             + " GROUP BY pa.name"
             + " ORDER BY COUNT(*) DESC, pa.name ASC"
             + ") WHERE ROWNUM &lt;= 200</script>")
-    List<Map<String, Object>> selectDrugNameCandidates(@Param("keyword") String keyword);
+    List<Map<String, Object>> selectDrugNameCandidates(@Param("keyword") String keyword,
+                                                       @Param("startTime") String startTime);
 
-    /** 诊断名候选：诊断表里真实出现过的名称，按出现次数倒序 */
+    /**
+     * 诊断名候选：诊断表里真实出现过的名称，按出现次数倒序。
+     *
+     * <p>只取 {@code status = 1}（有效诊断）：与疑似感染/ARDS 的取数口径一致。
+     * 否则候选里会冒出只在作废诊断行里出现的名称，现场照着配完仍然匹配不到，极难自查。
+     */
     @Select("<script>SELECT * FROM ("
             + " SELECT d.diag_name AS code, d.diag_name AS name, COUNT(*) AS cnt"
             + " FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d"
-            + " WHERE d.del_flag = 0"
+            + " WHERE d.del_flag = 0 AND d.status = 1"
             + " <if test='keyword != null and keyword != \"\"'>"
             + " AND d.diag_name LIKE '%'||#{keyword}||'%' "
             + " </if>"
@@ -2027,9 +2042,9 @@ public interface IcuPatientMapper {
             + "AND pa.name LIKE '%'||#{keyword}||'%'")
     int countAdviceByDrugName(@Param("keyword") String keyword, @Param("startTime") String startTime);
 
-    /** 试跑：诊断名包含关键字的诊断条数 */
+    /** 试跑：诊断名包含关键字的有效诊断条数（与取数口径一致：del_flag=0 AND status=1） */
     @Select("SELECT COUNT(*) FROM \"zing_icu_db_prod\".\"patient_info_diagnosis\" d "
-            + "WHERE d.del_flag = 0 AND d.diag_name LIKE '%'||#{keyword}||'%'")
+            + "WHERE d.del_flag = 0 AND d.status = 1 AND d.diag_name LIKE '%'||#{keyword}||'%'")
     int countDiagByName(@Param("keyword") String keyword);
 
     /** 观察项候选（监护 / 呼吸机）：按编码或名称模糊，按使用该项目的患者数倒序 */
