@@ -44,7 +44,9 @@ class SqlIcuPatientSuspectTest {
     @BeforeEach
     void setUp() {
         mapper = mock(IcuPatientMapper.class);
-        service = new SqlIcuPatientServiceImpl(mapper, mock(AbxDrugRecognizer.class));
+        service = new SqlIcuPatientServiceImpl(mapper,
+                mock(com.zing.doctor.module.config.dataitem.service.DataItemConfigService.class),
+                mock(AbxDrugRecognizer.class));
     }
 
     @Test

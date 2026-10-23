@@ -3,6 +3,7 @@ package com.zing.doctor.module.department.service.impl;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.service.IcuPatientService;
 import com.zing.doctor.module.apache2.mapper.Apache2ScoreRecordMapper;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import com.zing.doctor.module.department.dto.CockpitSnapshot;
 import com.zing.doctor.module.department.mapper.DepartmentCockpitMapper;
 import com.zing.doctor.module.department.service.DepartmentCockpitService;
@@ -55,6 +56,8 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
     private final Apache2ScoreRecordMapper apache2Mapper;
     private final QualityQueryService qualityQueryService;
     private final QualityCountRuleService countRuleService;
+    /** 呼吸机参数编码按配置取（换院编码不同），配置为空自动回退内置默认 */
+    private final DataItemConfigService dataItemConfigService;
 
     /** 质控侧「ICU床位使用率」规则的分子/分母原子项：按原子项定位规则，不硬编码 ruleId */
     private static final String OCCUPIED_DAYS_CODE = "quality_2";
@@ -436,7 +439,8 @@ public class DepartmentCockpitServiceImpl implements DepartmentCockpitService {
                 }
             }
             if (!pids.isEmpty()) {
-                List<Map<String, Object>> vent = icuPatientMapper.selectLatestVentilatorParams(pids);
+                List<Map<String, Object>> vent = icuPatientMapper.selectLatestVentilatorParams(
+                        pids, dataItemConfigService.codesOrBuiltin(DataItemConfigService.DOMAIN_VENT));
                 if (vent != null) {
                     for (Map<String, Object> r : vent) {
                         String pid = String.valueOf(r.get("patient_id"));

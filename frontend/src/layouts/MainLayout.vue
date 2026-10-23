@@ -163,6 +163,10 @@
           <MedicalIcon name="mapping" />
           <span class="nav-label">俯卧位映射配置</span>
         </router-link>
+        <router-link to="/page/data-item-config" class="nav-item" active-class="nav-active">
+          <MedicalIcon name="mapping" />
+          <span class="nav-label">数据项映射配置</span>
+        </router-link>
         <router-link to="/page/quality-config" class="nav-item" active-class="nav-active">
           <MedicalIcon name="tools" />
           <span class="nav-label">质控指标配置</span>
@@ -435,21 +439,32 @@ export default {
   z-index: 100;
 }
 
+/* 品牌区：院徽与系统名上下排，不再横着抢那 220px 的宽度。
+   原来是「40×40 固定方框 + 12px 圆角」并排显示文字：院徽形状差别很大
+   （圆形院徽 / 横版带院名 / 竖版），非方形图会被圆角切掉边角、横版图被压成
+   一小条，看着就是「挤、看不清」；宽度也不够「宽院徽 + 六个字标题」并排。
+   改为上下排后，院徽可以占满整行宽度，任何长宽比都保持原比例显示。 */
 .sidebar-logo {
-  padding: 20px 16px;
+  padding: 16px 14px 14px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   border-bottom: 1px solid #f5f5f4;
 }
 
 .logo-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  height: 44px;
+  width: auto;
+  max-width: 100%;
   object-fit: contain;
   display: block;
-  flex-shrink: 0;
+}
+
+.logo-text {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
 }
 
 .logo-title {
@@ -457,6 +472,10 @@ export default {
   font-weight: 600;
   color: #1c1917;
   line-height: 1.3;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sidebar-dept {

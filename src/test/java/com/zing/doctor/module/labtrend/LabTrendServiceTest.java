@@ -3,6 +3,7 @@ package com.zing.doctor.module.labtrend;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.service.IcuPatientService;
 import com.zing.doctor.icu.dto.WorkbenchPatient;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import com.zing.doctor.module.labtrend.dto.LabTrendResponse;
 import com.zing.doctor.module.labtrend.service.impl.LabTrendServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,13 +43,17 @@ class LabTrendServiceTest {
 
     private IcuPatientMapper icuPatientMapper;
     private IcuPatientService icuPatientService;
+    private DataItemConfigService dataItemConfigService;
     private LabTrendServiceImpl service;
 
     @BeforeEach
     void setUp() {
         icuPatientMapper = mock(IcuPatientMapper.class);
         icuPatientService = mock(IcuPatientService.class);
-        service = new LabTrendServiceImpl(icuPatientMapper, icuPatientService);
+        // 配置为空 → 走内置定义，正是这里要钉住的那套口径
+        dataItemConfigService = mock(DataItemConfigService.class);
+        when(dataItemConfigService.enabled(anyString())).thenReturn(Collections.emptyList());
+        service = new LabTrendServiceImpl(icuPatientMapper, icuPatientService, dataItemConfigService);
     }
 
     private void patientWith(String inHospitalNo) {

@@ -250,6 +250,12 @@ const routes = [
     meta: { title: 'ARDS 俯卧位数据映射配置' }
   },
   {
+    path: '/page/data-item-config',
+    name: 'dataItemConfig',
+    component: () => import('../views/DataItemConfig.vue'),
+    meta: { title: '数据项映射配置' }
+  },
+  {
     path: '/page/sedation-monitor',
     name: 'sedationMonitor',
     component: () => import('../views/SedationMonitor.vue'),

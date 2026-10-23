@@ -46,7 +46,8 @@ class VitalsServiceTest {
     void setUp() {
         icuPatientMapper = mock(IcuPatientMapper.class);
         icuPatientService = mock(IcuPatientService.class);
-        service = new VitalsServiceImpl(icuPatientMapper, icuPatientService);
+        service = new VitalsServiceImpl(icuPatientMapper, icuPatientService,
+                mock(com.zing.doctor.module.config.dataitem.service.DataItemConfigService.class));
     }
 
     private void patientWith() {

@@ -3,6 +3,8 @@ package com.zing.doctor.module.labtrend.service.impl;
 import com.zing.doctor.icu.dto.WorkbenchPatient;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.service.IcuPatientService;
+import com.zing.doctor.module.config.dataitem.entity.DataItemConfig;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import com.zing.doctor.module.labtrend.dto.LabTrendResponse;
 import com.zing.doctor.module.labtrend.service.LabTrendService;
 import lombok.RequiredArgsConstructor;
@@ -62,6 +64,8 @@ public class LabTrendServiceImpl implements LabTrendService {
 
     private final IcuPatientMapper icuPatientMapper;
     private final IcuPatientService icuPatientService;
+    /** 项目名关键字与排除词已抽到配置（domain=LAB），下面四个静态表只是兜底 */
+    private final DataItemConfigService dataItemConfigService;
 
     /**
      * 项目定义：{@code {项目名关键词, 展示名, 排除词(可选, 用 | 分隔)}}。
@@ -179,8 +183,23 @@ public class LabTrendServiceImpl implements LabTrendService {
         for (Map.Entry<String, String[][]> e : groups.entrySet()) {
             LabTrendResponse.Group g = new LabTrendResponse.Group();
             g.setName(e.getKey());
+            // 同显示名的多个关键字合并成一条曲线（一个项目多套命名时不能画成两条同名线）
+            Map<String, LabTrendResponse.Series> byName = new LinkedHashMap<>();
             for (String[] item : e.getValue()) {
-                g.getSeries().add(oneSeries(item, rows, queryFailed, resp));
+                String display = item[1] == null || item[1].isEmpty() ? item[0] : item[1];
+                LabTrendResponse.Series s = byName.get(display);
+                if (s == null) {
+                    s = new LabTrendResponse.Series();
+                    s.setName(display);
+                    byName.put(display, s);
+                    g.getSeries().add(s);
+                }
+                if (!queryFailed) {
+                    appendPoints(s, item, rows, resp);
+                }
+            }
+            for (LabTrendResponse.Series s : g.getSeries()) {
+                finalizeSeries(s, queryFailed);
             }
             resp.getGroups().add(g);
         }
@@ -189,9 +208,16 @@ public class LabTrendServiceImpl implements LabTrendService {
     }
 
     /**
-     * 面板类型 → 分组定义。未知 type 按肝功能兜底（前端只用 liver / coag / renal 三种）。
+     * 面板类型 → 分组定义：优先读配置表（/page/data-item-config 的「检验项目」Tab），
+     * 该面板没有任何配置时回退内置定义 —— 保证未建表的老现场行为完全不变。
      */
     private LinkedHashMap<String, String[][]> groupsOf(String type) {
+        LinkedHashMap<String, String[][]> fromConfig = groupsFromConfig(type);
+        return fromConfig != null ? fromConfig : builtinGroups(type);
+    }
+
+    /** 内置定义（配置表为空时的兜底，与 sql/66_config_data_item.sql 的 LAB 初始化数据同源）。 */
+    private LinkedHashMap<String, String[][]> builtinGroups(String type) {
         if ("coag".equals(type)) {
             return singleGroup("凝血功能", COAG);
         }
@@ -202,6 +228,68 @@ public class LabTrendServiceImpl implements LabTrendService {
             return singleGroup("感染指标", INFECTION);
         }
         return LIVER;
+    }
+
+    /**
+     * 从配置组装分组。
+     *
+     * <p>group_code 选面板（LIVER / COAG / RENAL / INFECTION），group_name 是面板内的分组标题
+     * （肝功能下面就有「肝细胞损伤 / 胆红素 / 合成功能 / 胆道 酶学」四个），sort_no 决定项目顺序。
+     *
+     * <p>一行一个关键字；同一项目配了多行（本院 LIS 里 ALT 同时叫「丙氨酸氨基转移酶」和
+     * 「谷丙转氨酶」）会按显示名合并成一条曲线，而不是在图上出现两条同名线。
+     */
+    private LinkedHashMap<String, String[][]> groupsFromConfig(String type) {
+        List<DataItemConfig> rows = dataItemConfigService.enabled(DataItemConfigService.DOMAIN_LAB);
+        if (rows == null || rows.isEmpty()) {
+            return null;
+        }
+        String groupCode = groupCodeOf(type);
+        LinkedHashMap<String, List<String[]>> tmp = new LinkedHashMap<>();
+        for (DataItemConfig row : rows) {
+            if (row == null || !groupCode.equalsIgnoreCase(trim(row.getGroupCode()))) {
+                continue;
+            }
+            String value = trim(row.getMatchValue());
+            if (value.isEmpty()) {
+                continue;
+            }
+            String display = trim(row.getItemName());
+            if (display.isEmpty()) {
+                display = value;
+            }
+            String groupName = trim(row.getGroupName());
+            if (groupName.isEmpty()) {
+                groupName = groupCode;
+            }
+            String excludes = trim(row.getExcludeValue());
+            String matchType = trim(row.getMatchType());
+            for (String one : DataItemConfigService.split(value)) {
+                tmp.computeIfAbsent(groupName, k -> new ArrayList<>())
+                        .add(new String[]{one, display, excludes, matchType});
+            }
+        }
+        if (tmp.isEmpty()) {
+            return null;
+        }
+        LinkedHashMap<String, String[][]> out = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String[]>> e : tmp.entrySet()) {
+            out.put(e.getKey(), e.getValue().toArray(new String[0][]));
+        }
+        return out;
+    }
+
+    private static String groupCodeOf(String type) {
+        if ("coag".equals(type)) {
+            return "COAG";
+        }
+        if ("renal".equals(type)) {
+            return "RENAL";
+        }
+        if ("infection".equals(type)) {
+            return "INFECTION";
+        }
+        return "LIVER";
     }
 
     private LinkedHashMap<String, String[][]> singleGroup(String name, String[][] items) {
@@ -232,18 +320,30 @@ public class LabTrendServiceImpl implements LabTrendService {
         return false;
     }
 
-    private LabTrendResponse.Series oneSeries(String[] item, List<Map<String, Object>> rows,
-                                              boolean queryFailed, LabTrendResponse resp) {
-        LabTrendResponse.Series s = new LabTrendResponse.Series();
-        s.setName(item[1]);
-        if (queryFailed) {
-            s.setDataStatus("UNKNOWN");
-            s.setNote("查询失败");
-            return s;
+    /**
+     * 项目名是否命中该定义。
+     *
+     * <p>NAME_EXACT 要求全等；CODE / NAME_LIKE（默认）按包含匹配 —— LIS 项目名普遍带
+     * {@code *} 异常标记前缀，全等匹配会一条都取不到。
+     */
+    private static boolean matches(String itemName, String[] item) {
+        String value = item[0];
+        if (value == null || value.isEmpty()) {
+            return false;
         }
+        String mode = item.length > 3 && item[3] != null && !item[3].isEmpty()
+                ? item[3] : DataItemConfigService.MATCH_NAME_LIKE;
+        if (DataItemConfigService.MATCH_NAME_EXACT.equals(mode)) {
+            return itemName.equals(value);
+        }
+        return itemName.contains(value);
+    }
+
+    private void appendPoints(LabTrendResponse.Series s, String[] item, List<Map<String, Object>> rows,
+                              LabTrendResponse resp) {
         for (Map<String, Object> r : rows) {
             String itemName = str(r.get("item_name"));
-            if (itemName == null || !itemName.contains(item[0]) || isExcluded(itemName, item)) {
+            if (itemName == null || !matches(itemName, item) || isExcluded(itemName, item)) {
                 continue;
             }
             Double v = parseDouble(r.get("item_value"));
@@ -270,13 +370,23 @@ public class LabTrendServiceImpl implements LabTrendService {
                 resp.getRecords().add(row);
             }
         }
-        if (!s.getPoints().isEmpty()) {
+    }
+
+    /** 曲线状态统一在全部关键字匹配完之后落定（多关键字合并成一条曲线时只能判一次）。 */
+    private static void finalizeSeries(LabTrendResponse.Series s, boolean queryFailed) {
+        if (queryFailed) {
+            s.setDataStatus("UNKNOWN");
+            s.setNote("查询失败");
+        } else if (!s.getPoints().isEmpty()) {
             s.setDataStatus("AVAILABLE");
         } else {
             s.setDataStatus("NO_RECORD");
             s.setNote("窗口内无记录");
         }
-        return s;
+    }
+
+    private static String trim(String s) {
+        return s == null ? "" : s.trim();
     }
 
     private static Double parseDouble(Object o) {

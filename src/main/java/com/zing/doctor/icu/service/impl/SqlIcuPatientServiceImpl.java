@@ -13,6 +13,7 @@ import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.service.IcuPatientService;
 import com.zing.doctor.icu.support.InfectionRules;
 import com.zing.doctor.module.antibiotic.service.AbxDrugRecognizer;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -58,6 +59,9 @@ import java.util.Set;
 public class SqlIcuPatientServiceImpl implements IcuPatientService {
 
     private final IcuPatientMapper icuPatientMapper;
+
+    /** 呼吸机参数编码按配置取；本类在 @DS("icu") 下，配置服务自带 @DS("doctor") 会自动切回 */
+    private final DataItemConfigService dataItemConfigService;
 
     /**
      * 抗菌药统一识别器（HIS 药品字典 + 词表白/黑名单）。
@@ -226,7 +230,8 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
                 }
             }
             if (!pids.isEmpty()) {
-                List<Map<String, Object>> vent = icuPatientMapper.selectLatestVentilatorParams(pids);
+                List<Map<String, Object>> vent = icuPatientMapper.selectLatestVentilatorParams(
+                        pids, dataItemConfigService.codesOrBuiltin(DataItemConfigService.DOMAIN_VENT));
                 Set<String> s = new HashSet<>();
                 if (vent != null) {
                     for (Map<String, Object> r : vent) {
@@ -292,7 +297,8 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
                 if (p.getPatientId() != null && !p.getPatientId().isEmpty()) pids.add(p.getPatientId());
             }
             if (!pids.isEmpty()) {
-                List<Map<String, Object>> vent = icuPatientMapper.selectLatestVentilatorParams(pids);
+                List<Map<String, Object>> vent = icuPatientMapper.selectLatestVentilatorParams(
+                        pids, dataItemConfigService.codesOrBuiltin(DataItemConfigService.DOMAIN_VENT));
                 if (vent != null) {
                     for (Map<String, Object> r : vent) {
                         String pid = str(r.get("patient_id"));

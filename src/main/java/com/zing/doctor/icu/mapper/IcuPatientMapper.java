@@ -482,15 +482,20 @@ public interface IcuPatientMapper {
             + "AND li.check_time >= SYSDATE - 14 ORDER BY li.check_time ASC")
     List<Map<String, Object>> selectAkiCreatinine(@Param("inHospitalNo") String inHospitalNo);
 
-    /** AKI：近6小时尿量，ii_nl为重症系统确认的尿量项目编码。 */
-    @Select("SELECT r.item_value AS item_value, r.item_unit AS item_unit, r.item_time AS item_time "
+    /** AKI：近6小时尿量，item_code 由调用方按配置传入（默认 ii_nl）。 */
+    @Select("<script>SELECT r.item_value AS item_value, r.item_unit AS item_unit, r.item_time AS item_time "
             + "FROM \"zing_icu_db_prod\".\"patient_io_module_item_record\" r "
             + "WHERE r.patient_id = #{patientId} AND r.del_flag = 0 AND r.status = 1 "
-            + "AND r.item_code = 'ii_nl' AND r.item_time >= #{startTime} "
-            + "AND r.item_time < #{endTime} ORDER BY r.item_time ASC")
+            + "AND r.item_code IN "
+            + "<foreach collection='codes' item='c' open='(' separator=',' close=')'>"
+            + "  #{c}"
+            + "</foreach> "
+            + "AND r.item_time &gt;= #{startTime} "
+            + "AND r.item_time &lt; #{endTime} ORDER BY r.item_time ASC</script>")
     List<Map<String, Object>> selectAkiUrine6h(@Param("patientId") String patientId,
                                                 @Param("startTime") String startTime,
-                                                @Param("endTime") String endTime);
+                                                @Param("endTime") String endTime,
+                                                @Param("codes") List<String> codes);
 
     /**
      * 查培养类报告头（患者摘要培养状态判断用）。
@@ -1564,7 +1569,9 @@ public interface IcuPatientMapper {
 
     /**
      * 批量查询患者最新呼吸机参数（每个患者每个item取最新一条）。
-     * item_code: oi_呼末潮气量, oi_peep, oi_FiO2(设置值), oi_呼吸频率(设置值), oi_呼末分钟通气量
+     *
+     * <p>item_code 由调用方传入（{@code DataItemConfigService#codesOrBuiltin("VENT")}），
+     * 换院时各院呼吸机观察项编码不同，不能再写死在这里。
      */
     @Select("<script>"
             + "SELECT patient_id, item_code, item_value, item_time FROM ("
@@ -1575,10 +1582,14 @@ public interface IcuPatientMapper {
             + "  <foreach collection='patientIds' item='pid' open='(' separator=',' close=')'>"
             + "    #{pid}"
             + "  </foreach>"
-            + "  AND r.item_code IN ('oi_呼末潮气量','oi_peep','oi_FiO2(设置值)','oi_呼吸频率(设置值)','oi_呼末分钟通气量') "
+            + "  AND r.item_code IN "
+            + "  <foreach collection='codes' item='c' open='(' separator=',' close=')'>"
+            + "    #{c}"
+            + "  </foreach>"
             + ") t WHERE rn = 1"
             + "</script>")
-    List<Map<String, Object>> selectLatestVentilatorParams(@Param("patientIds") List<String> patientIds);
+    List<Map<String, Object>> selectLatestVentilatorParams(@Param("patientIds") List<String> patientIds,
+                                                           @Param("codes") List<String> codes);
 
     /**
      * 查询患者氧合指数历史（动脉血血气分析→氧合指数），按时间升序。
@@ -1601,18 +1612,22 @@ public interface IcuPatientMapper {
     List<Map<String, Object>> selectOxygenationHistory(@Param("patientId") String patientId);
 
     /**
-     * 查询患者呼吸机参数趋势（最近N天），按时间升序。
+     * 查询患者呼吸机参数趋势（最近N天），按时间升序。item_code 由调用方按配置传入。
      */
-    @Select("SELECT r.item_code, r.item_value, r.item_time "
+    @Select("<script>SELECT r.item_code, r.item_value, r.item_time "
             + "FROM \"zing_icu_db_prod\".\"patient_observe_module_item_record\" r "
             + "WHERE r.patient_id = #{patientId} "
-            + "AND r.item_code IN ('oi_呼末潮气量','oi_peep','oi_FiO2(设置值)','oi_呼吸频率(设置值)','oi_呼末分钟通气量') "
-            + "AND r.item_time >= #{startTime} "
-            + "AND r.item_time < #{endTime} "
-            + "ORDER BY r.item_time ASC")
+            + "AND r.item_code IN "
+            + "<foreach collection='codes' item='c' open='(' separator=',' close=')'>"
+            + "  #{c}"
+            + "</foreach> "
+            + "AND r.item_time &gt;= #{startTime} "
+            + "AND r.item_time &lt; #{endTime} "
+            + "ORDER BY r.item_time ASC</script>")
     List<Map<String, Object>> selectVentilatorTrend(@Param("patientId") String patientId,
                                                       @Param("startTime") String startTime,
-                                                      @Param("endTime") String endTime);
+                                                      @Param("endTime") String endTime,
+                                                      @Param("codes") List<String> codes);
     /**
      * 患者在重症系统中的 GCS 评估文书记录（doc_code=Z_ICU_GCS），按评估时间倒序。
      * score_json_value 为 TEXT，CAST 成 VARCHAR 取出（GCS JSON 很小）；item1=E睁眼、item2=V言语、item3=M运动、item4=ET(插管/气切)。
@@ -1854,6 +1869,100 @@ public interface IcuPatientMapper {
             + "</script>")
     List<Map<String, Object>> selectVasopressorSpeedSteps(@Param("executeIds") List<String> executeIds,
                                                          @Param("endTime") String endTime);
+
+    // ==================================================================
+    // 数据项映射配置页（/page/data-item-config）：候选值 + 试跑命中
+    //
+    // 换院部署时现场不知道该填哪个编码，靠这两个能力自己找：
+    // 候选 = 源库里真实存在的项目（按被多少患者使用倒序），试跑 = 填进去能命中多少条。
+    // ==================================================================
+
+    /** 观察项候选（监护 / 呼吸机）：按编码或名称模糊，按使用该项目的患者数倒序 */
+    @Select("<script>SELECT * FROM ("
+            + " SELECT i.item_code AS code, i.item_name AS name, COUNT(*) AS cnt"
+            + " FROM \"zing_icu_db_prod\".\"patient_observe_module_item\" i"
+            + " WHERE i.del_flag = 0 AND i.status = 1 "
+            + " <if test='keyword != null and keyword != \"\"'>"
+            + " AND (i.item_code LIKE '%'||#{keyword}||'%' OR i.item_name LIKE '%'||#{keyword}||'%') "
+            + " </if>"
+            + " GROUP BY i.item_code, i.item_name"
+            + " ORDER BY COUNT(*) DESC, i.item_code ASC"
+            + ") WHERE ROWNUM &lt;= 200</script>")
+    List<Map<String, Object>> selectObserveItemCandidates(@Param("keyword") String keyword);
+
+    /** 出入量项目候选（patient_io_module_item） */
+    @Select("<script>SELECT * FROM ("
+            + " SELECT i.item_code AS code, i.item_name AS name, i.module_code AS module_code, COUNT(*) AS cnt"
+            + " FROM \"zing_icu_db_prod\".\"patient_io_module_item\" i"
+            + " WHERE i.del_flag = 0 AND i.status = 1 "
+            + " <if test='keyword != null and keyword != \"\"'>"
+            + " AND (i.item_code LIKE '%'||#{keyword}||'%' OR i.item_name LIKE '%'||#{keyword}||'%') "
+            + " </if>"
+            + " GROUP BY i.item_code, i.item_name, i.module_code"
+            + " ORDER BY COUNT(*) DESC, i.item_code ASC"
+            + ") WHERE ROWNUM &lt;= 200</script>")
+    List<Map<String, Object>> selectIoItemCandidates(@Param("keyword") String keyword);
+
+    /** 检验项目候选：名称模糊，取时间窗内出现次数倒序 */
+    @Select("<script>SELECT * FROM ("
+            + " SELECT li.lis_item_name AS name, COUNT(*) AS cnt"
+            + " FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li"
+            + " WHERE li.del_flag = 0 AND li.check_time &gt;= #{startTime} "
+            + " <if test='keyword != null and keyword != \"\"'>"
+            + " AND li.lis_item_name LIKE '%'||#{keyword}||'%' "
+            + " </if>"
+            + " GROUP BY li.lis_item_name"
+            + " ORDER BY COUNT(*) DESC, li.lis_item_name ASC"
+            + ") WHERE ROWNUM &lt;= 200</script>")
+    List<Map<String, Object>> selectLisItemCandidates(@Param("keyword") String keyword,
+                                                      @Param("startTime") String startTime);
+
+    /** 试跑：观察项编码在时间窗内的记录条数 */
+    @Select("SELECT COUNT(*) FROM \"zing_icu_db_prod\".\"patient_observe_module_item_record\" r "
+            + "WHERE r.item_code = #{code} AND r.del_flag = 0 AND r.item_time >= #{startTime}")
+    int countObserveByCode(@Param("code") String code, @Param("startTime") String startTime);
+
+    /** 试跑：观察项编码的最新 5 条样例 */
+    @Select("SELECT * FROM ("
+            + " SELECT r.item_code AS code, r.item_value AS value, r.item_time AS time"
+            + " FROM \"zing_icu_db_prod\".\"patient_observe_module_item_record\" r"
+            + " WHERE r.item_code = #{code} AND r.del_flag = 0 AND r.item_time >= #{startTime}"
+            + " ORDER BY r.item_time DESC"
+            + ") WHERE ROWNUM <= 5")
+    List<Map<String, Object>> selectObserveSamples(@Param("code") String code,
+                                                   @Param("startTime") String startTime);
+
+    /** 试跑：出入量编码在时间窗内的记录条数 */
+    @Select("SELECT COUNT(*) FROM \"zing_icu_db_prod\".\"patient_io_module_item_record\" r "
+            + "WHERE r.item_code = #{code} AND r.del_flag = 0 AND r.item_time >= #{startTime}")
+    int countIoByCode(@Param("code") String code, @Param("startTime") String startTime);
+
+    /** 试跑：出入量编码的最新 5 条样例 */
+    @Select("SELECT * FROM ("
+            + " SELECT r.item_code AS code, r.item_value AS value, r.item_time AS time"
+            + " FROM \"zing_icu_db_prod\".\"patient_io_module_item_record\" r"
+            + " WHERE r.item_code = #{code} AND r.del_flag = 0 AND r.item_time >= #{startTime}"
+            + " ORDER BY r.item_time DESC"
+            + ") WHERE ROWNUM <= 5")
+    List<Map<String, Object>> selectIoSamples(@Param("code") String code,
+                                              @Param("startTime") String startTime);
+
+    /** 试跑：检验项目名包含关键字在时间窗内的记录条数 */
+    @Select("SELECT COUNT(*) FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li "
+            + "WHERE li.del_flag = 0 AND li.check_time >= #{startTime}"
+            + " AND li.lis_item_name LIKE '%'||#{keyword}||'%'")
+    int countLisByKeyword(@Param("keyword") String keyword, @Param("startTime") String startTime);
+
+    /** 试跑：检验项目名包含关键字的最新 5 条样例 */
+    @Select("SELECT * FROM ("
+            + " SELECT li.lis_item_name AS name, li.lis_item_result AS value, li.check_time AS time"
+            + " FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li"
+            + " WHERE li.del_flag = 0 AND li.check_time >= #{startTime}"
+            + " AND li.lis_item_name LIKE '%'||#{keyword}||'%'"
+            + " ORDER BY li.check_time DESC"
+            + ") WHERE ROWNUM <= 5")
+    List<Map<String, Object>> selectLisSamples(@Param("keyword") String keyword,
+                                               @Param("startTime") String startTime);
 
 }
 

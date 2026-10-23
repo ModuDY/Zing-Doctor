@@ -82,6 +82,10 @@ public class WorkbenchEnrichService {
     @Autowired
     private com.zing.doctor.module.ards.prone.mapper.ArdsProneRecordMapper proneRecordMapper;
 
+    /** 尿量等项目编码按配置取（同上：字段注入，避免改变被单测依赖的构造签名） */
+    @Autowired
+    private com.zing.doctor.module.config.dataitem.service.DataItemConfigService dataItemConfigService;
+
     /**
      * 俯卧位超时阈值（小时）：常规单次俯卧位 12～16 小时，进行中的治疗起始超过 16 小时
      * 未记录结束时间即提醒评估复位/终止。改动需同步 PatientWorkbench 的提示文案。
@@ -1119,13 +1123,16 @@ public class WorkbenchEnrichService {
     /** 第一阶段 AKI 只读识别：体重缺失时不进行 mL/kg/h 诊断判定。 */
     public void enrichAki(List<WorkbenchPatient> patients) {
         if (patients == null || patients.isEmpty()) return;
+        // 尿量编码各院不同，走配置；配置不可用时兜底 ii_nl（codesOrBuiltin 内部已容错，不会抛）
+        List<String> urineCodes = dataItemConfigService.codesOrBuiltin(
+                com.zing.doctor.module.config.dataitem.service.DataItemConfigService.DOMAIN_IO);
         for (WorkbenchPatient p : patients) {
             WorkbenchPatient.AkiSummary aki = new WorkbenchPatient.AkiSummary();
             p.setAki(aki);
             try {
                 List<Map<String, Object>> cr = icuPatientMapper.selectAkiCreatinine(p.getInHospitalNo());
                 List<Map<String, Object>> urine = icuPatientMapper.selectAkiUrine6h(p.getPatientId(),
-                        LocalDateTime.now().minusHours(6).toString(), LocalDateTime.now().toString());
+                        LocalDateTime.now().minusHours(6).toString(), LocalDateTime.now().toString(), urineCodes);
                 BigDecimal base = null, latest = null; LocalDateTime baseTime = null, latestTime = null; int count = 0;
                 for (Map<String, Object> row : (cr == null ? Collections.<Map<String, Object>>emptyList() : cr)) {
                     BigDecimal v = InfectionRules.parseDecimalValue(row.get("result")); LocalDateTime t = akiTime(row.get("check_time"));

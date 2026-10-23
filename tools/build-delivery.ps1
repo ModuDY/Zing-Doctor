@@ -302,7 +302,11 @@ if (Test-Path $myDir) {
         # 61/62/63 消息推送修复：清示例授权码、成功标识改 code=00000、预警规则补全（幂等）
         '61_fix_msgpush_certificate.sql', '62_msgpush_success_key.sql', '63_msgpush_alert.sql',
         # 64 参数页乱码修复（双重编码还原）：必须排最后，修的是前面所有脚本种进去的数据
-        '64_fix_param_mojibake.sql')
+        '64_fix_param_mojibake.sql',
+        # 65 参数值列放宽为 MEDIUMTEXT（图片参数存 base64，VARCHAR(1000) 会被截断）
+        '65_param_value_mediumtext.sql',
+        # 66 数据项映射配置表：观察项编码 / LIS 项目名 → 程序内部键（换院部署只改这一处）
+        '66_config_data_item.sql')
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine('-- ============================================================')
     [void]$sb.AppendLine('-- zing-doctor MySQL/MariaDB 一次性初始化脚本（打包时自动合成，勿手工编辑）')

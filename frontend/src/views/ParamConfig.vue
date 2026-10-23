@@ -508,6 +508,7 @@ const LINK_PAGES = [
     { k: 'id', req: true, sample: '1024' },
     { k: 'scr', req: false, sample: 'print' } ] },
   { code: 'ards-prone-config', name: 'ARDS 俯卧位数据映射配置', desc: '采集项 → 监护/LIS 项目映射、候选值、试采核对', params: [] },
+  { code: 'data-item-config', name: '数据项映射配置', desc: '观察项编码 / LIS 项目名 → 程序内部键，换院部署只改这一处（所有取数页面共用）', params: [] },
   { code: 'sedation-monitor', name: '镇痛镇静监测', desc: '单患者镇痛镇静监测：RASS / CPOT 趋势与用药', params: [
     { k: 'patientId', req: true, sample: '10001' },
     { k: 'inHospitalNo', req: true, sample: '201152869' },
@@ -789,21 +790,64 @@ function onTypeChange(type) {
   }
 }
 
+/**
+ * 图片参数转 dataURI 前的最大边长。
+ * 院徽在文书上只有 60px、侧边栏 logo 也就 40px，512 已够 2x 屏；
+ * 不缩的话，一张手机拍的 3MB 照片转 base64 是 4MB，存进参数后
+ * 每次打开参数页/文书都要下载一遍，页面会明显变卡。
+ */
+const IMAGE_MAX_SIDE = 512
+
+/**
+ * 图片 → dataURI：等比缩到 maxSide 以内。
+ * 本来就小的图（≤200KB 且尺寸不超）直接按原文件转，避免多一次画布重采样。
+ * 带透明的格式（png/webp/gif/svg）仍输出 png，其余走 jpeg 0.85，避免体积爆炸。
+ */
+function fileToDataUrl(file, maxSide = IMAGE_MAX_SIDE) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('读取图片失败'))
+    reader.onload = () => {
+      const raw = String(reader.result || '')
+      const img = new Image()
+      img.onerror = () => reject(new Error('图片格式无法解析，请换一张'))
+      img.onload = () => {
+        const side = Math.max(img.width, img.height)
+        if (side <= maxSide && file.size <= 200 * 1024) {
+          resolve(raw)
+          return
+        }
+        const scale = Math.min(1, maxSide / side)
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(img.width * scale))
+        canvas.height = Math.max(1, Math.round(img.height * scale))
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        const keepAlpha = /png|webp|gif|svg/i.test(file.type)
+        resolve(keepAlpha ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.85))
+      }
+      img.src = raw
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
 /** 图片参数：选图后转 base64 dataURI 存入参数值；返回 false 阻止 el-upload 自动上传 */
 function beforeImageUpload(file) {
   if (!file.type || !file.type.startsWith('image/')) {
     ElMessage.warning('请选择图片文件')
     return false
   }
-  if (file.size > 2 * 1024 * 1024) {
-    ElMessage.warning('图片不能超过 2MB（参数以 base64 存储，过大会拖慢加载）')
+  // 上限放宽到 5MB：下方会等比缩小再转 base64，落库通常只有几十 KB
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.warning('图片不能超过 5MB')
     return false
   }
-  const reader = new FileReader()
-  reader.onload = () => {
-    form.paramValue = reader.result
-  }
-  reader.readAsDataURL(file)
+  fileToDataUrl(file)
+    .then((url) => {
+      form.paramValue = url
+    })
+    .catch((e) => ElMessage.error(e.message || '图片处理失败'))
   return false
 }
 

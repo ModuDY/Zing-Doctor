@@ -1,0 +1,350 @@
+package com.zing.doctor.module.config.dataitem.service;
+
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.zing.doctor.common.BizException;
+import com.zing.doctor.icu.mapper.IcuPatientMapper;
+import com.zing.doctor.module.config.dataitem.DataItemDefaults;
+import com.zing.doctor.module.config.dataitem.entity.DataItemConfig;
+import com.zing.doctor.module.config.dataitem.mapper.DataItemConfigMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 数据项映射配置服务：统一管理「程序内部键 → 本院实际编码/项目名」。
+ *
+ * <p>设计要点：
+ * <ol>
+ *   <li><b>一套配置服务所有页面</b>：同一批观察项编码被 13 个服务引用（生命体征、交班、
+ *       ARDS、SOFA、APACHE II、体液平衡…），按页面拆分会让同一个 {@code oi_tiwen}
+ *       在不同页面各配一遍，改一处漏一处、口径漂移。</li>
+ *   <li><b>读多写少，整表缓存</b>：取数在每次请求里调用，不能每次查库；保存/启停/删除后失效重载。</li>
+ *   <li><b>表不存在也能跑</b>：配置表缺失或查询异常时返回空集合，调用方回退内置常量，
+ *       行为与改造前完全一致 —— 避免「配置表没建好 = 全院指标全部没数据」。</li>
+ * </ol>
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+// 配置表在医生库。调用方多是 @DS("icu") 的 Service（生命体征、ARDS、驾驶舱…），
+// 不显式声明就会顺着当前数据源去 ICU 库查配置表 → 表不存在 → 静默回退内置常量，
+// 现场表现为「页面上改了配置却不生效」。候选值/试跑内部再走 IcuPatientMapper 的 @DS("icu")，嵌套切换正常。
+@DS("doctor")
+public class DataItemConfigService {
+
+    public static final String DOMAIN_VITAL = "VITAL";
+    public static final String DOMAIN_VENT = "VENT";
+    public static final String DOMAIN_IO = "IO";
+    public static final String DOMAIN_LAB = "LAB";
+
+    public static final String MATCH_CODE = "CODE";
+    public static final String MATCH_NAME_LIKE = "NAME_LIKE";
+    public static final String MATCH_NAME_EXACT = "NAME_EXACT";
+
+    private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    private final DataItemConfigMapper mapper;
+    private final IcuPatientMapper icuPatientMapper;
+
+    /** 全表启用项缓存：domain → 配置行。写操作后置空，下次读重建 */
+    private volatile Map<String, List<DataItemConfig>> cache;
+
+    // ------------------------------------------------------------------
+    // 读
+    // ------------------------------------------------------------------
+
+    /** 页面 Tab 元信息：domain / 名称 / 是否已接入取数 / 说明 */
+    public List<Map<String, Object>> domains() {
+        List<Map<String, Object>> list = new ArrayList<>();
+        list.add(domainMeta(DOMAIN_VITAL, "生命体征", true,
+                "心率、血压、体温等。影响：生命体征页、交班、ARDS、SOFA、APACHE II、工作台"));
+        list.add(domainMeta(DOMAIN_VENT, "呼吸机参数", true,
+                "潮气量、PEEP、FiO₂ 等。影响：ARDS 监测、驾驶舱通气计数、危重标签"));
+        list.add(domainMeta(DOMAIN_IO, "出入量", true,
+                "尿量等。影响：体液平衡、AKI 判定"));
+        list.add(domainMeta(DOMAIN_LAB, "检验项目", true,
+                "肝功、凝血、肾功电解质、感染指标。按项目名关键字匹配，一行一个关键字"));
+        return list;
+    }
+
+    private Map<String, Object> domainMeta(String code, String name, boolean wired, String note) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("domain", code);
+        m.put("name", name);
+        m.put("wired", wired);
+        m.put("note", note);
+        return m;
+    }
+
+    /** 后台列表（含停用项）：domain 空 = 全部 */
+    public List<DataItemConfig> list(String domain) {
+        try {
+            return mapper.selectForAdmin(StringUtils.hasText(domain) ? domain.trim() : null);
+        } catch (Exception e) {
+            log.warn("[数据项配置] 查询失败（是否未执行 sql/66_config_data_item.sql？）: {}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /** 某域的全部启用项（缓存）；表不可用时返回空集合，调用方回退内置常量 */
+    public List<DataItemConfig> enabled(String domain) {
+        if (!StringUtils.hasText(domain)) {
+            return Collections.emptyList();
+        }
+        Map<String, List<DataItemConfig>> c = cache;
+        if (c == null) {
+            c = load();
+            cache = c;
+        }
+        List<DataItemConfig> rows = c.get(domain);
+        return rows == null ? Collections.emptyList() : rows;
+    }
+
+    /** 某域某键的全部匹配值（多个编码/关键字），已按逗号/竖线拆开 */
+    public List<String> values(String domain, String itemKey) {
+        List<String> out = new ArrayList<>();
+        for (DataItemConfig row : enabled(domain)) {
+            if (itemKey != null && !itemKey.equals(row.getItemKey())) {
+                continue;
+            }
+            out.addAll(split(row.getMatchValue()));
+        }
+        return out;
+    }
+
+    /**
+     * 某域全部启用项的匹配值（不区分 item_key），配置为空时回退内置默认。
+     *
+     * <p>呼吸机参数、尿量这类「一查就是整组编码」的取数用它，
+     * 免得到 4 个调用点各抄一份默认值。
+     */
+    public List<String> codesOrBuiltin(String domain) {
+        List<String> v = values(domain, null);
+        if (!v.isEmpty()) {
+            return v;
+        }
+        List<String> builtin = DataItemDefaults.of(domain);
+        return builtin.isEmpty() ? v : builtin;
+    }
+
+    private Map<String, List<DataItemConfig>> load() {
+        Map<String, List<DataItemConfig>> map = new LinkedHashMap<>();
+        try {
+            List<DataItemConfig> all = mapper.selectEnabled();
+            if (all != null) {
+                for (DataItemConfig row : all) {
+                    if (row == null || !StringUtils.hasText(row.getDomain())) {
+                        continue;
+                    }
+                    map.computeIfAbsent(row.getDomain().trim(), k -> new ArrayList<>()).add(row);
+                }
+            }
+            log.info("[数据项配置] 已加载 {} 条启用配置，覆盖 {} 个域", all == null ? 0 : all.size(), map.size());
+        } catch (Exception e) {
+            // 表未建（现场用 --skip-db-init 升级时常见）：不抛异常，让业务回退内置常量
+            log.warn("[数据项配置] 配置表不可用，业务回退内置常量: {}", e.getMessage());
+        }
+        return map;
+    }
+
+    /** 写操作后调用：下次读重新加载 */
+    public void invalidate() {
+        cache = null;
+    }
+
+    // ------------------------------------------------------------------
+    // 写
+    // ------------------------------------------------------------------
+
+    public boolean save(DataItemConfig row) {
+        if (row == null) {
+            throw new BizException(400, "配置内容不能为空");
+        }
+        String domain = trim(row.getDomain());
+        String matchValue = trim(row.getMatchValue());
+        String itemKey = trim(row.getItemKey());
+        String itemName = trim(row.getItemName());
+        String matchType = trim(row.getMatchType());
+        if (!StringUtils.hasText(domain)) {
+            throw new BizException(400, "业务域不能为空");
+        }
+        if (!StringUtils.hasText(itemKey)) {
+            throw new BizException(400, "内部键不能为空（程序按它取值，如 hr / peep / alt）");
+        }
+        if (!StringUtils.hasText(itemName)) {
+            throw new BizException(400, "显示名不能为空");
+        }
+        if (!StringUtils.hasText(matchValue)) {
+            throw new BizException(400, "匹配值不能为空（本院实际的编码或项目名）");
+        }
+        if (!StringUtils.hasText(matchType)) {
+            matchType = MATCH_CODE;
+        }
+        if (!MATCH_CODE.equals(matchType) && !MATCH_NAME_LIKE.equals(matchType)
+                && !MATCH_NAME_EXACT.equals(matchType)) {
+            throw new BizException(400, "匹配方式只能是 CODE / NAME_LIKE / NAME_EXACT");
+        }
+        if (matchValue.length() > 500) {
+            throw new BizException(400, "匹配值过长（上限 500 字符）");
+        }
+
+        String groupCode = StringUtils.hasText(row.getGroupCode()) ? trim(row.getGroupCode()) : "";
+        int dup = mapper.countSame(domain, groupCode, itemKey, matchValue);
+        if (dup > 0 && (row.getId() == null || isDuplicateSelf(row.getId(), domain, groupCode, itemKey, matchValue))) {
+            throw new BizException(400, "该业务域下「" + itemKey + " → " + matchValue + "」已存在，请直接编辑原行");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        row.setDomain(domain);
+        row.setGroupCode(groupCode);
+        row.setItemKey(itemKey);
+        row.setItemName(itemName);
+        row.setMatchType(matchType);
+        row.setMatchValue(matchValue);
+        row.setExcludeValue(trim(row.getExcludeValue()));
+        row.setUnit(trim(row.getUnit()));
+        row.setSource(trim(row.getSource()));
+        row.setGroupName(trim(row.getGroupName()));
+        row.setRemark(trim(row.getRemark()));
+        if (row.getSortNo() == null) {
+            row.setSortNo(0);
+        }
+        if (row.getStatus() == null) {
+            row.setStatus(1);
+        }
+        row.setUpdateTime(now);
+
+        boolean ok;
+        if (row.getId() == null) {
+            row.setCreateTime(now);
+            ok = mapper.insert(row) > 0;
+        } else {
+            ok = mapper.updateById(row) > 0;
+        }
+        invalidate();
+        return ok;
+    }
+
+    /** 判重时排除自己（编辑时不改值也不算重复） */
+    private boolean isDuplicateSelf(Long id, String domain, String groupCode,
+                                    String itemKey, String matchValue) {
+        try {
+            DataItemConfig old = mapper.selectById(id);
+            if (old == null) {
+                return false;
+            }
+            String og = old.getGroupCode() == null ? "" : old.getGroupCode().trim();
+            return domain.equals(trim(old.getDomain()))
+                    && groupCode.equals(og)
+                    && itemKey.equals(trim(old.getItemKey()))
+                    && matchValue.equals(trim(old.getMatchValue()));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean setStatus(Long id, Integer status) {
+        if (id == null) {
+            throw new BizException(400, "配置 ID 不能为空");
+        }
+        DataItemConfig row = new DataItemConfig();
+        row.setId(id);
+        row.setStatus(status == null || status == 0 ? 0 : 1);
+        row.setUpdateTime(LocalDateTime.now());
+        boolean ok = mapper.updateById(row) > 0;
+        invalidate();
+        return ok;
+    }
+
+    public boolean remove(Long id) {
+        if (id == null) {
+            throw new BizException(400, "配置 ID 不能为空");
+        }
+        boolean ok = mapper.deleteById(id) > 0;
+        invalidate();
+        return ok;
+    }
+
+    // ------------------------------------------------------------------
+    // 现场辅助：候选值 / 试跑
+    // ------------------------------------------------------------------
+
+    /** 候选值：从 ICU 源库拉真实存在的项目（按使用人数倒序），现场不用猜编码 */
+    public List<Map<String, Object>> candidates(String domain, String keyword) {
+        String kw = StringUtils.hasText(keyword) ? keyword.trim() : null;
+        String dom = StringUtils.hasText(domain) ? domain.trim() : DOMAIN_VITAL;
+        String start = LocalDateTime.now().minusDays(90).format(DT);
+        if (DOMAIN_IO.equals(dom)) {
+            return icuPatientMapper.selectIoItemCandidates(kw);
+        }
+        if (DOMAIN_LAB.equals(dom)) {
+            return icuPatientMapper.selectLisItemCandidates(kw, start);
+        }
+        return icuPatientMapper.selectObserveItemCandidates(kw);
+    }
+
+    /**
+     * 试跑：按当前匹配方式在源库统计命中条数 + 返回最新 5 条样例。
+     *
+     * <p>现场填完编码最怕「保存成功但一条也取不到」，这个接口让人在配置页当场看到
+     * 「近 7 天命中 12,438 条 / 最新 36.8℃」，不用切到业务页面碰运气。
+     */
+    public Map<String, Object> probe(String domain, String value, Integer days) {
+        String dom = StringUtils.hasText(domain) ? domain.trim() : DOMAIN_VITAL;
+        String v = StringUtils.hasText(value) ? value.trim() : null;
+        if (!StringUtils.hasText(v)) {
+            throw new BizException(400, "请先填写匹配值");
+        }
+        int d = days == null ? 7 : Math.max(1, Math.min(days, 90));
+        String start = LocalDateTime.now().minusDays(d).format(DT);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("domain", dom);
+        out.put("value", v);
+        out.put("days", d);
+        out.put("startTime", start);
+        if (DOMAIN_IO.equals(dom)) {
+            out.put("count", icuPatientMapper.countIoByCode(v, start));
+            out.put("samples", icuPatientMapper.selectIoSamples(v, start));
+        } else if (DOMAIN_LAB.equals(dom)) {
+            out.put("count", icuPatientMapper.countLisByKeyword(v, start));
+            out.put("samples", icuPatientMapper.selectLisSamples(v, start));
+        } else {
+            out.put("count", icuPatientMapper.countObserveByCode(v, start));
+            out.put("samples", icuPatientMapper.selectObserveSamples(v, start));
+        }
+        return out;
+    }
+
+    // ------------------------------------------------------------------
+    // 工具
+    // ------------------------------------------------------------------
+
+    /** 匹配值拆分：逗号、中文逗号、竖线都算分隔符 */
+    public static List<String> split(String raw) {
+        List<String> out = new ArrayList<>();
+        if (!StringUtils.hasText(raw)) {
+            return out;
+        }
+        for (String s : raw.split("[,，|]")) {
+            String t = s.trim();
+            if (!t.isEmpty()) {
+                out.add(t);
+            }
+        }
+        return out;
+    }
+
+    private static String trim(String s) {
+        return s == null ? null : s.trim();
+    }
+}

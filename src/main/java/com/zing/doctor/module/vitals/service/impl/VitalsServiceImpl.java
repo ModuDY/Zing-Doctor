@@ -4,6 +4,8 @@ import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.service.IcuPatientService;
 import com.zing.doctor.icu.service.impl.SqlIcuPatientServiceImpl;
 import com.zing.doctor.icu.dto.WorkbenchPatient;
+import com.zing.doctor.module.config.dataitem.entity.DataItemConfig;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import com.zing.doctor.module.vitals.dto.VitalsResponse;
 import com.zing.doctor.module.vitals.service.VitalsService;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +16,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,11 @@ import java.util.Map;
  * </table>
  * 无创与有创血压是两套编码，按来源分列展示、不合并 —— 合并会让"无创测得的低血压"
  * 与"有创测得的正常值"相互抵消。
+ *
+ * <p><b>编码来源已改为可配置</b>：上面这些 {@code oi_*} 编码只是内置默认值，实际取数优先读
+ * 配置表 {@code config_data_item}（domain=VITAL，页面 /page/data-item-config）。
+ * 换医院时对方观察项编码不同，改配置即可，不必改代码重打包；配置为空或表不存在时
+ * 自动回退下面这份内置定义，行为与改造前完全一致。
  */
 @Slf4j
 @Service
@@ -43,20 +49,74 @@ public class VitalsServiceImpl implements VitalsService {
 
     private final IcuPatientMapper icuPatientMapper;
     private final IcuPatientService icuPatientService;
+    private final DataItemConfigService dataItemConfigService;
 
-    /** 指标定义：key / 名称 / 单位 / 来源 / 编码组 */
-    private static final Object[][] DEFS = {
-            {"hr", "心率", "次/分", "无创", new String[]{"oi_hr"}},
-            {"rr", "呼吸频率", "次/分", "无创", new String[]{"oi_hxpl"}},
-            {"spo2", "SpO₂", "%", "无创", new String[]{"oi_spo2"}},
-            {"sbp", "收缩压", "mmHg", "无创", new String[]{"oi_wcssy"}},
-            {"dbp", "舒张压", "mmHg", "无创", new String[]{"oi_wcszy"}},
-            {"map", "平均压", "mmHg", "无创", new String[]{"oi_pjy"}},
-            {"temp", "体温", "℃", "未标明", new String[]{"oi_tiwen"}},
-            {"sbp_inv", "收缩压（有创）", "mmHg", "有创", new String[]{"oi_ycssy"}},
-            {"dbp_inv", "舒张压（有创）", "mmHg", "有创", new String[]{"oi_ycszy"}},
-            {"map_inv", "平均压（有创）", "mmHg", "有创", new String[]{"oi_ycpjy"}},
-    };
+    /** 指标定义：key / 展示名 / 单位 / 来源 / 编码组 */
+    private static final class Def {
+        private final String key;
+        private final String name;
+        private final String unit;
+        private final String source;
+        private final List<String> codes = new ArrayList<>();
+
+        private Def(String key, String name, String unit, String source, String code) {
+            this.key = key;
+            this.name = name;
+            this.unit = unit;
+            this.source = source;
+            if (code != null) {
+                this.codes.add(code);
+            }
+        }
+    }
+
+    /** 内置默认定义（配置表为空时的回退，也是初始化数据 config_data_item 的来源） */
+    private static final List<Def> BUILTIN = new ArrayList<>();
+
+    static {
+        BUILTIN.add(new Def("hr", "心率", "次/分", "无创", "oi_hr"));
+        BUILTIN.add(new Def("rr", "呼吸频率", "次/分", "无创", "oi_hxpl"));
+        BUILTIN.add(new Def("spo2", "SpO₂", "%", "无创", "oi_spo2"));
+        BUILTIN.add(new Def("sbp", "收缩压", "mmHg", "无创", "oi_wcssy"));
+        BUILTIN.add(new Def("dbp", "舒张压", "mmHg", "无创", "oi_wcszy"));
+        BUILTIN.add(new Def("map", "平均压", "mmHg", "无创", "oi_pjy"));
+        BUILTIN.add(new Def("temp", "体温", "℃", "未标明", "oi_tiwen"));
+        BUILTIN.add(new Def("sbp_inv", "收缩压（有创）", "mmHg", "有创", "oi_ycssy"));
+        BUILTIN.add(new Def("dbp_inv", "舒张压（有创）", "mmHg", "有创", "oi_ycszy"));
+        BUILTIN.add(new Def("map_inv", "平均压（有创）", "mmHg", "有创", "oi_ycpjy"));
+    }
+
+    /**
+     * 取本次使用的指标定义：优先配置表，未配置则用内置。
+     *
+     * <p>同一 item_key 配了多行（例如心率在监护仪与呼吸机各一个编码）时合并成一条曲线，
+     * 否则图上会出现两条同名曲线，读数反而更乱。
+     */
+    private List<Def> defs() {
+        List<DataItemConfig> rows = dataItemConfigService.enabled(DataItemConfigService.DOMAIN_VITAL);
+        if (rows == null || rows.isEmpty()) {
+            return BUILTIN;
+        }
+        Map<String, Def> byKey = new LinkedHashMap<>();
+        for (DataItemConfig row : rows) {
+            if (row == null || row.getItemKey() == null) {
+                continue;
+            }
+            List<String> codes = DataItemConfigService.split(row.getMatchValue());
+            if (codes.isEmpty()) {
+                continue;
+            }
+            Def def = byKey.get(row.getItemKey());
+            if (def == null) {
+                def = new Def(row.getItemKey(),
+                        row.getItemName() == null ? row.getItemKey() : row.getItemName(),
+                        row.getUnit(), row.getSource(), null);
+                byKey.put(row.getItemKey(), def);
+            }
+            def.codes.addAll(codes);
+        }
+        return byKey.isEmpty() ? BUILTIN : new ArrayList<>(byKey.values());
+    }
 
     @Override
     public VitalsResponse trend(String patientId, int hours) {
@@ -76,9 +136,10 @@ public class VitalsServiceImpl implements VitalsService {
         }
 
         // 一次批量查全部编码组，Java 端分组（避免按指标 N+1）
+        List<Def> defs = defs();
         List<String> codes = new ArrayList<>();
-        for (Object[] def : DEFS) {
-            codes.addAll(Arrays.asList((String[]) def[4]));
+        for (Def def : defs) {
+            codes.addAll(def.codes);
         }
         List<Map<String, Object>> rows;
         try {
@@ -86,7 +147,7 @@ public class VitalsServiceImpl implements VitalsService {
                     start.format(ISO), end.format(ISO));
         } catch (Exception e) {
             log.warn("生命体征查询失败 patientId={}", patientId, e);
-            for (Object[] def : DEFS) {
+            for (Def def : defs) {
                 VitalsResponse.Series s = newSeries(def);
                 s.setDataStatus("UNKNOWN");
                 s.setNote("查询失败");
@@ -106,17 +167,17 @@ public class VitalsServiceImpl implements VitalsService {
 
         // 按指标分组
         Map<String, VitalsResponse.Series> byKey = new LinkedHashMap<>();
-        for (Object[] def : DEFS) {
+        for (Def def : defs) {
             VitalsResponse.Series s = newSeries(def);
-            byKey.put((String) def[0], s);
+            byKey.put(def.key, s);
         }
         for (Map<String, Object> r : rows) {
             String code = str(r.get("item_code"));
-            for (Object[] def : DEFS) {
-                if (!Arrays.asList((String[]) def[4]).contains(code)) {
+            for (Def def : defs) {
+                if (!def.codes.contains(code)) {
                     continue;
                 }
-                VitalsResponse.Series s = byKey.get(def[0]);
+                VitalsResponse.Series s = byKey.get(def.key);
                 Double v = parseDouble(r.get("item_value"));
                 if (v == null) {
                     continue; // 非数值（如"测不出"）不计入曲线，明细里仍保留
@@ -152,12 +213,12 @@ public class VitalsServiceImpl implements VitalsService {
         return resp;
     }
 
-    private VitalsResponse.Series newSeries(Object[] def) {
+    private VitalsResponse.Series newSeries(Def def) {
         VitalsResponse.Series s = new VitalsResponse.Series();
-        s.setKey((String) def[0]);
-        s.setName((String) def[1]);
-        s.setUnit((String) def[2]);
-        s.setSource((String) def[3]);
+        s.setKey(def.key);
+        s.setName(def.name);
+        s.setUnit(def.unit);
+        s.setSource(def.source);
         return s;
     }
 

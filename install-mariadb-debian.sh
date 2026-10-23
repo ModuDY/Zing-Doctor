@@ -39,6 +39,8 @@
 #   最后统一体检并给出「缺什么、怎么补」。常用开关：
 #     SKIP_APT=yes                            完全不调用 apt
 #     DB_CLI='docker exec -i <容器名> mysql'   用容器内客户端（宿主机不装客户端）
+#     SKIP_DB_INIT=yes                        库与账号已就绪时跳过建库/建账号/授权（后期更新用）
+#     DB_TIMEOUT=60                           单次数据库操作超时秒数（卡住时自动中止并继续）
 #     WEB_MODE=docker|nginx|auto|none          前端托管方式；无宿主 nginx 但有 nginx 镜像时
 #                                              auto 会自动改用容器跑前端（--network host）
 #     JAVA_BIN=/path/to/java  NGINX_BIN=/path/to/nginx
@@ -51,6 +53,7 @@
 #   ./install-mariadb-debian.sh                 完整安装 / 升级（读 conf/db.conf）
 #   ./install-mariadb-debian.sh --config-only   只按 conf/db.conf 重写运行环境并重启后端
 #                                               （不动数据库、不导 SQL、不更新前端）
+#   ./install-mariadb-debian.sh --skip-db-init  后期更新：库与账号已存在，跳过建库/建号/授权
 #   优先级：命令行/环境变量 > conf/db.conf > 脚本默认值
 #
 # 幂等：可重复执行，建库/建表/加列/建索引均做存在性判断，不重复、不报错。
@@ -114,7 +117,8 @@ for _arg in "$@"; do
   case "$_arg" in
     --config-only|-c) CONFIG_ONLY="yes" ;;
     --force-sql) FORCE_SQL="yes" ;;
-    -h|--help) sed -n '2,62p' "$0"; exit 0 ;;
+    --skip-db-init) SKIP_DB_INIT="yes" ;;
+    -h|--help) sed -n '2,65p' "$0"; exit 0 ;;
     *) : ;;
   esac
 done
@@ -154,6 +158,7 @@ load_conf() {
       SKIP_APT|APT_PKGS|JAVA_BIN|NGINX_BIN|SPRING_PROFILES_ACTIVE) ;;
       ICU_DATA_PROVIDER|SETUP_ICU_INDEX|ICU_LINK_TOKEN|EXTERNAL_LINK_SECRET) ;;
       EXTERNAL_LINK_BASE_URL|QUALITY_CONFIG_WRITE_IP_WHITELIST|QUALITY_CONFIG_DEFAULT_OPERATOR) ;;
+      DB_TIMEOUT|SQL_TIMEOUT|SKIP_DB_INIT) ;;
       *) warn "conf 里忽略不支持的配置项：$key（检查是否拼错）"; continue ;;
     esac
     # 环境变量/命令行已显式提供时不覆盖
@@ -254,11 +259,41 @@ NGINX_CONTAINER="${NGINX_CONTAINER:-zing-doctor-frontend}"
 SQL_HISTORY_TABLE="${SQL_HISTORY_TABLE:-zing_sql_history}"
 FORCE_SQL="${FORCE_SQL:-no}"
 
+# 单次数据库操作的超时（秒）。不加超时的话，DDL 一旦撞上元数据锁就会一直等 ——
+# MariaDB 的 lock_wait_timeout 默认 31536000 秒（一年），现象就是「卡在这里不动」，
+# 没有报错、没有超时、日志也不动。查询/建库/台账这类短操作用 DB_TIMEOUT；
+# 导 SQL 脚本本身就是分钟级，用 SQL_TIMEOUT（默认 30 分钟）兜底。
+DB_TIMEOUT="${DB_TIMEOUT:-60}"
+SQL_TIMEOUT="${SQL_TIMEOUT:-1800}"
+# 后期更新专用：库与账号都已存在、不想再跑建库/建号/授权时置 yes
+SKIP_DB_INIT="${SKIP_DB_INIT:-no}"
+
 # ---------------- 数据库来源判定 ----------------
 # 本机地址？（注意：仅 DB_HOST 判定「库是否在本机」，应用连库地址始终由 DB_HOST/DB_PORT 决定）
 host_is_local() { case "$1" in 127.0.0.1|localhost|::1) return 0;; *) return 1;; esac; }
 
 have(){ command -v "$1" >/dev/null 2>&1; }
+
+# 有 timeout(1) 就加上限，没有就原样跑（极简环境可能没装 coreutils 的 timeout）
+TIMEOUT_BIN="$(command -v timeout 2>/dev/null || true)"
+
+# 短操作：查询、建库建号、台账读写 —— 正常都是秒级，等一分钟还没回来说明在等锁
+db_exec() {
+  if [ -n "${TIMEOUT_BIN:-}" ]; then
+    "$TIMEOUT_BIN" "$DB_TIMEOUT" "$@"
+  else
+    "$@"
+  fi
+}
+
+# 长操作：导入 SQL 脚本本身可能跑几分钟，给足时间但仍有上限，避免真挂住时无限等
+db_exec_sql() {
+  if [ -n "${TIMEOUT_BIN:-}" ]; then
+    "$TIMEOUT_BIN" "$SQL_TIMEOUT" "$@"
+  else
+    "$@"
+  fi
+}
 
 # DB_CLI 是复合命令（含空格，如 'docker exec -i zing-mysql mysql'、
 # 'docker run --rm -i mariadb:10.5 mysql -h10.0.0.9 -uroot -pxxx'）时，
@@ -315,9 +350,20 @@ mariadb_admin() {
   local db="${1:-}"
   admin_conn_args
   if [ "${#ADMIN_CONN[@]}" -gt 0 ]; then
-    $DB_CLI "${ADMIN_CONN[@]}" ${db:+"$db"}
+    db_exec $DB_CLI "${ADMIN_CONN[@]}" ${db:+"$db"}
   else
-    $DB_CLI ${db:+"$db"}
+    db_exec $DB_CLI ${db:+"$db"}
+  fi
+}
+
+# 同上，但用于导入 SQL 脚本（分钟级，用 SQL_TIMEOUT 而不是 60 秒）
+mariadb_admin_sql() {
+  local db="${1:-}"
+  admin_conn_args
+  if [ "${#ADMIN_CONN[@]}" -gt 0 ]; then
+    db_exec_sql $DB_CLI "${ADMIN_CONN[@]}" ${db:+"$db"}
+  else
+    db_exec_sql $DB_CLI ${db:+"$db"}
   fi
 }
 # ICU 库管理员连接（可能与主库不同机）
@@ -340,9 +386,9 @@ admin_query() {
   local sql="$1"; local db="${2:-}"
   admin_conn_args
   if [ "${#ADMIN_CONN[@]}" -gt 0 ]; then
-    $DB_CLI "${ADMIN_CONN[@]}" -N ${db:+"$db"} -e "$sql"
+    db_exec $DB_CLI "${ADMIN_CONN[@]}" -N ${db:+"$db"} -e "$sql"
   else
-    $DB_CLI -N ${db:+"$db"} -e "$sql"
+    db_exec $DB_CLI -N ${db:+"$db"} -e "$sql"
   fi
 }
 
@@ -539,7 +585,7 @@ run_sql_file() {
   # 逐字节解释后存进 utf8mb4 列，于是参数页显示成「æ, £ê€...」这种双重编码乱码。
   # 放在 stdin 里而不是 --default-character-set：DB_CLI 为复合命令（docker exec）时
   # 追加的参数会传给 docker 而不是 mysql。
-  { printf 'SET NAMES utf8mb4;\n'; cat "$file"; } | mariadb_admin "$db"
+  { printf 'SET NAMES utf8mb4;\n'; cat "$file"; } | mariadb_admin_sql "$db"
 }
 
 # ---------------- SQL 执行台账（避免每次安装重复初始化） ----------------
@@ -589,6 +635,88 @@ sql_record() {
   return 0
 }
 
+# ---- 合并执行：把本轮要跑的脚本拼成一份，只开一次连接 ----
+# 起因：MAIN_SQL 有 60 多个文件，原来每个文件都调一次客户端。DB_CLI 写成
+#   'docker run --rm -i <镜像> mysql ...' 时，每一次调用都要启动一个容器（1~3 秒），
+#   首次安装光启动容器就要几分钟；合并成一次连接后只剩一次。
+# 前提：这些脚本本身都声明为幂等，合并只改「连接次数」，不改执行顺序与语义。
+SQL_BATCH_FILE=""
+SQL_BATCH_FILES=()
+SQL_BATCH_NAMES=()
+SQL_BATCH_SUMS=()
+SQL_BATCH_BYS=()
+# 中途出错退出时别把合并文件留在 /tmp；空串时直接跳过，不依赖 rm 对空操作数的处理
+trap '[ -z "${SQL_BATCH_FILE:-}" ] || rm -f "$SQL_BATCH_FILE"' EXIT
+
+# 入队：追加文件内容到合并文件；by 为空表示「没有台账，无需登记」
+sql_batch_add() {
+  local file="$1" base="$2" sum="$3" by="$4"
+  if [ -z "$SQL_BATCH_FILE" ]; then
+    SQL_BATCH_FILE="$(mktemp "${TMPDIR:-/tmp}/zing-sqlbatch-XXXXXX" 2>/dev/null || true)"
+    if [ -z "$SQL_BATCH_FILE" ]; then
+      # 连临时文件都建不出来（只读 /tmp、配额满）：退回单条执行，
+      # 不能因为「优化」把安装卡死
+      info "  执行 $base"
+      { printf 'SET NAMES utf8mb4;\n'; cat "$file"; } | mariadb_admin_sql "$DOCTOR_DB"
+      [ -z "$by" ] || sql_record "$base" "$sum" "$by"
+      SQL_CNT_RUN=$((SQL_CNT_RUN + 1))
+      return 0
+    fi
+    printf 'SET NAMES utf8mb4;\n' > "$SQL_BATCH_FILE"
+  fi
+  # 每个文件前重置定界符：存过程脚本用 DELIMITER $$，万一某份没还原成 ;
+  # 合并后会把下一个文件的解析带偏（分开执行时这种状态不会跨文件泄漏）
+  printf '\nDELIMITER ;\n' >> "$SQL_BATCH_FILE"
+  cat "$file" >> "$SQL_BATCH_FILE" 2>/dev/null || true
+  printf '\n' >> "$SQL_BATCH_FILE"
+  SQL_BATCH_FILES+=("$file")
+  SQL_BATCH_NAMES+=("$base")
+  SQL_BATCH_SUMS+=("$sum")
+  SQL_BATCH_BYS+=("$by")
+  return 0
+}
+
+sql_batch_flush() {
+  [ -n "$SQL_BATCH_FILE" ] || return 0
+  local n="${#SQL_BATCH_NAMES[@]}" i f
+  if [ "$n" -eq 0 ]; then
+    rm -f "$SQL_BATCH_FILE"; SQL_BATCH_FILE=""
+    return 0
+  fi
+  if [ "$n" -eq 1 ]; then
+    info "  执行 ${SQL_BATCH_NAMES[0]}"
+  else
+    info "  执行 $n 个脚本（合并为一次连接）：${SQL_BATCH_NAMES[*]}"
+  fi
+
+  if mariadb_admin_sql "$DOCTOR_DB" < "$SQL_BATCH_FILE"; then
+    for ((i = 0; i < n; i++)); do
+      [ -z "${SQL_BATCH_BYS[i]}" ] || sql_record "${SQL_BATCH_NAMES[i]}" "${SQL_BATCH_SUMS[i]}" "${SQL_BATCH_BYS[i]}"
+    done
+    SQL_CNT_RUN=$((SQL_CNT_RUN + n))
+    rm -f "$SQL_BATCH_FILE"; SQL_BATCH_FILE=""
+    SQL_BATCH_FILES=(); SQL_BATCH_NAMES=(); SQL_BATCH_SUMS=(); SQL_BATCH_BYS=()
+    return 0
+  fi
+
+  # 合并失败：逐个重跑以定位是哪一份出错。脚本都幂等，重跑安全；
+  # 每成功一个立刻落账，避免后面失败退出时前面的记录一起丢掉。
+  warn "合并执行失败，改为逐条执行以定位出错脚本（已成功的照常记入台账）"
+  rm -f "$SQL_BATCH_FILE"; SQL_BATCH_FILE=""
+  for ((i = 0; i < n; i++)); do
+    f="${SQL_BATCH_FILES[i]}"
+    info "  执行 ${SQL_BATCH_NAMES[i]}"
+    { printf 'SET NAMES utf8mb4;\n'; cat "$f"; } | mariadb_admin_sql "$DOCTOR_DB"
+    if [ -n "${SQL_BATCH_BYS[i]}" ]; then
+      sql_record "${SQL_BATCH_NAMES[i]}" "${SQL_BATCH_SUMS[i]}" "${SQL_BATCH_BYS[i]}"
+      sql_history_flush
+    fi
+    SQL_CNT_RUN=$((SQL_CNT_RUN + 1))
+  done
+  SQL_BATCH_FILES=(); SQL_BATCH_NAMES=(); SQL_BATCH_SUMS=(); SQL_BATCH_BYS=()
+  return 0
+}
+
 sql_history_init() {
   local cnt pre exists
   exists="$(admin_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$DOCTOR_DB' AND TABLE_NAME='$SQL_HISTORY_TABLE';" "$DOCTOR_DB" 2>/dev/null || true)"
@@ -623,17 +751,18 @@ sql_history_init() {
   fi
 }
 
-# 按台账执行：已执行过 → 跳过；老库基线 → 只登记；否则执行后登记
+# 按台账决定「跳过 / 只登记基线 / 入队待执行」：
+# 真正执行在 sql_batch_flush 里合并完成（不是每个文件一次连接）。
+# 注：合并只针对 DOCTOR_DB，调用方也只有这一个库。
 run_sql_once() {
-  local file="$1" db="${2:-$DOCTOR_DB}" base sum stored
+  local file="$1" base sum stored by=""
   base="$(basename "$file")"
   sum="$(md5sum "$file" 2>/dev/null | awk '{print $1}')"
   sum="${sum:-unknown}"
 
   if [ "$SQL_HISTORY_OK" != "yes" ]; then
-    info "  执行 $base"
-    { printf 'SET NAMES utf8mb4;\n'; cat "$file"; } | mariadb_admin "$db"
-    SQL_CNT_RUN=$((SQL_CNT_RUN + 1))
+    # 没有台账：照旧全跑，只是改为合并执行（by 为空 = 不记账）
+    sql_batch_add "$file" "$base" "$sum" ""
     return 0
   fi
 
@@ -651,14 +780,9 @@ run_sql_once() {
     return 0
   fi
 
-  info "  执行 $base"
-  { printf 'SET NAMES utf8mb4;\n'; cat "$file"; } | mariadb_admin "$db"
-  if [ "$FORCE_SQL" = "yes" ]; then
-    sql_record "$base" "$sum" "force"
-  else
-    sql_record "$base" "$sum" "installer"
-  fi
-  SQL_CNT_RUN=$((SQL_CNT_RUN + 1))
+  if [ "$FORCE_SQL" = "yes" ]; then by="force"; else by="installer"; fi
+  sql_batch_add "$file" "$base" "$sum" "$by"
+  return 0
 }
 
 # ---------------- SQL 清单自检 ----------------
@@ -704,15 +828,18 @@ check_sql_manifest() {
 # 漏建表和已建表在日志里长得一样。quality_fact_def 缺失时后端静默回退 yaml，
 # 页面不报错，直到调用 /api/quality/config/facts 才 500。这里显式复查。
 verify_quality_tables() {
-  local missing=""
-  local t cnt
-  for t in quality_metric_def quality_fact_def quality_def_history; do
-    cnt="$(admin_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$DOCTOR_DB' AND TABLE_NAME='$t';" "$DOCTOR_DB" 2>/dev/null || echo 0)"
-    if [ "$cnt" = "0" ] || [ -z "$cnt" ]; then
-      missing="$missing $t"
-    fi
-  done
-  if [ -n "$missing" ]; then
+  local missing
+  # 一次连接查出「缺哪几张」，不再 3 次独立查询：
+  # DB_CLI 写成 docker run 时，每次查询都要启动一个容器，这类校验积少成多。
+  # GROUP_CONCAT 保证永远返回一行（不缺则是 'OK'），免得「查询失败」和「都不缺」同样输出为空。
+  missing="$(admin_query "SELECT IFNULL(GROUP_CONCAT(t.n), 'OK') FROM (SELECT 'quality_metric_def' AS n UNION ALL SELECT 'quality_fact_def' UNION ALL SELECT 'quality_def_history') t WHERE NOT EXISTS (SELECT 1 FROM information_schema.TABLES i WHERE i.TABLE_SCHEMA='$DOCTOR_DB' AND i.TABLE_NAME=t.n);" "$DOCTOR_DB" 2>/dev/null || true)"
+  if [ -z "$missing" ]; then
+    err "配置真源表校验查询失败（读不到 information_schema）"
+    err "  请确认数据库连接与账号权限；确认无误后重跑本脚本"
+    exit 1
+  fi
+  if [ "$missing" != "OK" ]; then
+    missing=" $(printf '%s' "$missing" | tr ',' ' ')"
     err "配置真源表缺失:$missing"
     err "  缺 quality_fact_def → 质控配置页「事实层」Tab 500「无效的表或视图名[quality_fact_def]」"
     err "  缺 quality_def_history → 配置变更历史 Tab 不可用，且保存配置时无法留痕"
@@ -728,10 +855,21 @@ verify_quality_tables() {
 # 而「缺 msgpush 分组」的表现是参数设置页左侧根本没有这一项 —— 页面不报错、
 # 后端日志也没线索，现场只能从「我明明部署了新包」开始猜。这里显式复查并中止。
 verify_msgpush_objects() {
-  local no_table no_group param_cnt
-  no_table="$(admin_query "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$DOCTOR_DB' AND TABLE_NAME='msg_push_log';" "$DOCTOR_DB" 2>/dev/null || echo 1)"
-  no_group="$(admin_query "SELECT COUNT(*) FROM sys_param_group WHERE group_code='msgpush';" "$DOCTOR_DB" 2>/dev/null || echo 1)"
-  param_cnt="$(admin_query "SELECT COUNT(*) FROM sys_param WHERE param_group='msgpush';" "$DOCTOR_DB" 2>/dev/null || echo 0)"
+  local row no_table no_group param_cnt
+  # 三个计数一次连接查完（原来 3 次），结果是一行三列、以 TAB 分隔
+  row="$(admin_query "SELECT (SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='$DOCTOR_DB' AND TABLE_NAME='msg_push_log'), (SELECT COUNT(*) FROM \`$DOCTOR_DB\`.\`sys_param_group\` WHERE group_code='msgpush'), (SELECT COUNT(*) FROM \`$DOCTOR_DB\`.\`sys_param\` WHERE param_group='msgpush');" "$DOCTOR_DB" 2>/dev/null || true)"
+  if [ -z "$row" ]; then
+    err "消息推送对象校验查询失败（读不到 msg_push_log / sys_param_group / sys_param）"
+    err "  若刚升级过，先执行 sql/mysql/58_msg_push.sql（幂等），再重跑本脚本"
+    exit 1
+  fi
+  no_table="$(printf '%s' "$row" | cut -f1)"
+  no_group="$(printf '%s' "$row" | cut -f2)"
+  param_cnt="$(printf '%s' "$row" | cut -f3)"
+  # 取不到列时 cut 给空串，下面 -lt 会报「integer expression expected」，先归零
+  case "$param_cnt" in ''|*[!0-9]*) param_cnt=0 ;; esac
+  case "$no_table" in ''|*[!0-9]*) no_table=0 ;; esac
+  case "$no_group" in ''|*[!0-9]*) no_group=0 ;; esac
 
   # 三个值都是「查到了几行」，所以判定是 =0（没查到才是缺），不是 !=0
   if [ "$no_table" = "0" ] || [ "$no_group" = "0" ] || [ "${param_cnt:-0}" -lt 30 ]; then
@@ -757,6 +895,10 @@ elif [ -z "$DB_CLI" ]; then
   warn "  也可以把一次性的 sql/mysql/install-all.sql 拷到库服务器执行；"
   suggest_db_cli
 else
+  if [ "$SKIP_DB_INIT" = "yes" ]; then
+    info "跳过建库、建账号与授权（SKIP_DB_INIT=yes）：沿用已存在的库与账号"
+    info "  若刚改过 conf/db.conf 里的账号密码，需去掉该开关重跑一次，库侧密码才会同步"
+  else
   info "创建数据库与应用账号 ..."
   # ICU 若单独给了只读账号，一并建号授权（不存在才建，幂等）
   ICU_ACL_SQL=""
@@ -766,7 +908,12 @@ GRANT SELECT ON \`$ICU_DB\`.* TO '$ICU_DB_USER'@'%';"
   fi
   # 授权/建号失败不再中止：远程库常由 DBA 管理，账号可能已存在或无授权权限，
   # 那种情况提示人工确认即可，不该把后面的部署也一起挡掉。
+  #
+  # SET SESSION lock_wait_timeout：这一句是「卡住」的解药。这些 DDL 拿不到元数据锁时，
+  # MariaDB 默认会等 lock_wait_timeout = 31536000 秒（一年）—— 现场看到的就是
+  # 「停在『建库、建账号与授权』不动，没有报错、日志也不再输出」。改成 20 秒即报错返回。
   if mariadb_admin <<SQL
+SET SESSION lock_wait_timeout = 20;
 CREATE DATABASE IF NOT EXISTS \`$DOCTOR_DB\`
   DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 CREATE DATABASE IF NOT EXISTS \`$ICU_DB\`
@@ -785,9 +932,18 @@ SQL
   then
     info "数据库与账号就绪（主库 $DOCTOR_DB 全权，ICU 库 $ICU_DB 只读）"
   else
-    warn "建库/建账号/授权未全部成功（账号可能已存在，或当前管理员无授权权限）"
+    db_init_rc=$?
+    if [ "$db_init_rc" -eq 124 ]; then
+      warn "建库/建账号/授权超时（${DB_TIMEOUT} 秒未返回），本次跳过，继续后面的步骤"
+      warn "  多半是数据库端在等锁（应用正在批算或有长事务）。另开一个窗口看谁在等："
+      warn "    $DB_CLI -e 'SHOW FULL PROCESSLIST' | grep -iE 'Waiting|lock'"
+      warn "  等批算结束再重跑本脚本即可；库与账号已就绪的更新场景建议直接加 --skip-db-init"
+    else
+      warn "建库/建账号/授权未全部成功（账号可能已存在，或当前管理员无授权权限）"
+    fi
     warn "  若库由 DBA 管理，请让其确认：账号 $APP_DB_USER 对主库 $DOCTOR_DB 有 ALL、对 ICU 库 $ICU_DB 有 SELECT"
   fi
+  fi   # 结束 SKIP_DB_INIT 判断
 
   # ---------------- 4. 导入建表 + 种子脚本 ----------------
 step "导入建表与种子脚本（已执行过的自动跳过）"
@@ -887,11 +1043,18 @@ step "导入建表与种子脚本（已执行过的自动跳过）"
     61_fix_msgpush_certificate.sql
     62_msgpush_success_key.sql
     63_msgpush_alert.sql
+    # 66 数据项映射配置表：观察项编码 / LIS 项目名 → 程序内部键
+    #    换院部署只改这一处（页面上改，不必改代码重打包）；表为空时业务回退内置常量
+    66_config_data_item.sql
     41_patient_summary_page.sql
     # 64 修复参数页乱码：早期逐文件导入时缺 SET NAMES，UTF-8 中文被按 latin1 存成
     #   双重编码。判据严格（正常中文会得到 '?' 被排除），幂等，新库执行为空操作。
     #   必须排最后：它修的是前面所有脚本种进去的数据。
     64_fix_param_mojibake.sql
+    # 65 参数值列放宽：院徽/侧边栏 logo 这类图片参数存的是 base64 dataURI，
+    #   VARCHAR(1000) 必然被截断（严格模式直接 1406），上传后图片加载不出来。
+    #   纯 DDL，查 information_schema 判重，幂等。
+    65_param_value_mediumtext.sql
     )
   # 清单自检：登记的脚本必须存在；目录里也不能有未登记的孤岛脚本
   check_sql_manifest
@@ -901,6 +1064,8 @@ step "导入建表与种子脚本（已执行过的自动跳过）"
     [ -f "$SQL_DIR/$f" ] || { warn "缺少 $f，跳过"; continue; }
     run_sql_once "$SQL_DIR/$f" "$DOCTOR_DB"
   done
+  # 上面只是按台账排好队，这里一次性提交（一次连接，而不是 60 多次）
+  sql_batch_flush
   sql_history_flush
   info "SQL 执行统计：新执行 $SQL_CNT_RUN 个，跳过 $SQL_CNT_SKIP 个（台账已记录），仅登记基线 $SQL_CNT_BASE 个"
   if [ "$SQL_CNT_BASE" -gt 0 ]; then

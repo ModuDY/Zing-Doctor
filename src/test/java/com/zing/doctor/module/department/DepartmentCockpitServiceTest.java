@@ -3,6 +3,7 @@ package com.zing.doctor.module.department;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.service.IcuPatientService;
 import com.zing.doctor.module.apache2.mapper.Apache2ScoreRecordMapper;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import com.zing.doctor.module.department.dto.CockpitSnapshot;
 import com.zing.doctor.module.department.mapper.DepartmentCockpitMapper;
 import com.zing.doctor.module.department.service.impl.DepartmentCockpitServiceImpl;
@@ -58,6 +59,7 @@ class DepartmentCockpitServiceTest {
     private Apache2ScoreRecordMapper apache2Mapper;
     private QualityQueryService qualityQueryService;
     private QualityCountRuleService countRuleService;
+    private DataItemConfigService dataItemConfigService;
     private DepartmentCockpitServiceImpl service;
 
     private static final String DAY_FMT = "yyyy-MM-dd";
@@ -72,8 +74,9 @@ class DepartmentCockpitServiceTest {
         apache2Mapper = mock(Apache2ScoreRecordMapper.class);
         qualityQueryService = mock(QualityQueryService.class);
         countRuleService = mock(QualityCountRuleService.class);
+        dataItemConfigService = mock(DataItemConfigService.class);
         service = new DepartmentCockpitServiceImpl(cockpitMapper, icuPatientMapper, icuPatientService,
-                sofaMapper, apache2Mapper, qualityQueryService, countRuleService);
+                sofaMapper, apache2Mapper, qualityQueryService, countRuleService, dataItemConfigService);
         // 默认取不到床位使用率规则：该块应落 PENDING（提示未配置），不能造一个 0%
         when(countRuleService.list(anyString(), anyString(), anyString(), eq(false)))
                 .thenReturn(Collections.emptyList());
@@ -181,7 +184,7 @@ class DepartmentCockpitServiceTest {
         when(icuPatientMapper.selectHandoverEcmoPatients(anyString())).thenReturn(Collections.singletonList("A"));
         when(icuPatientMapper.selectInpatients(anyString())).thenReturn(
                 Arrays.asList(row("A"), row("B")));
-        when(icuPatientMapper.selectLatestVentilatorParams(any())).thenReturn(
+        when(icuPatientMapper.selectLatestVentilatorParams(any(), any())).thenReturn(
                 Collections.singletonList(row("B")));
 
         CockpitSnapshot s = service.snapshot("20010231", 30);

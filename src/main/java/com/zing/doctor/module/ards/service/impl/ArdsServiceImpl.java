@@ -2,6 +2,7 @@ package com.zing.doctor.module.ards.service.impl;
 
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.module.ards.service.ArdsService;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,10 @@ public class ArdsServiceImpl implements ArdsService {
     @Autowired
     private IcuPatientMapper icuPatientMapper;
 
+    /** 呼吸机参数编码按配置取（换院编码不同），配置为空自动回退内置默认 */
+    @Autowired
+    private DataItemConfigService dataItemConfigService;
+
     private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Override
@@ -40,7 +45,8 @@ public class ArdsServiceImpl implements ArdsService {
         // 2. 批量查询最新呼吸机参数
         Map<String, Map<String, Object>> ventMap = new HashMap<>();
         if (!patientIds.isEmpty()) {
-            List<Map<String, Object>> ventList = icuPatientMapper.selectLatestVentilatorParams(patientIds);
+            List<Map<String, Object>> ventList = icuPatientMapper.selectLatestVentilatorParams(
+                    patientIds, dataItemConfigService.codesOrBuiltin(DataItemConfigService.DOMAIN_VENT));
             if (ventList != null) {
                 for (Map<String, Object> v : ventList) {
                     String pid = str(v.get("patient_id"));
@@ -194,7 +200,8 @@ public class ArdsServiceImpl implements ArdsService {
 
     @Override
     public List<Map<String, Object>> getVentilatorTrend(String patientId, String startTime, String endTime) {
-        List<Map<String, Object>> list = icuPatientMapper.selectVentilatorTrend(patientId, startTime, endTime);
+        List<Map<String, Object>> list = icuPatientMapper.selectVentilatorTrend(patientId, startTime, endTime,
+                dataItemConfigService.codesOrBuiltin(DataItemConfigService.DOMAIN_VENT));
         return list != null ? list : new ArrayList<>();
     }
 
