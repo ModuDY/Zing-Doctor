@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.zing.doctor.icu.dto.WorkbenchPatient;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.icu.support.InfectionRules;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import com.zing.doctor.module.apache2.entity.Apache2ScoreRecord;
 import com.zing.doctor.module.apache2.mapper.Apache2ScoreRecordMapper;
 import com.zing.doctor.module.antibiotic.entity.AntibioticReassessment;
@@ -85,6 +86,18 @@ public class WorkbenchEnrichService {
     /** 尿量等项目编码按配置取（同上：字段注入，避免改变被单测依赖的构造签名） */
     @Autowired
     private com.zing.doctor.module.config.dataitem.service.DataItemConfigService dataItemConfigService;
+
+    /** 体温观察项名（默认「体温」），本院叫法不同改配置即可；排除词仍写在 SQL 里 */
+    private List<String> tempNames() {
+        return dataItemConfigService.dict(
+                com.zing.doctor.module.config.dataitem.service.DataItemConfigService.DICT_TEMP_ITEM);
+    }
+
+    /** 培养/药敏明细项目名（默认「培养」「药敏」） */
+    private List<String> cultureNames() {
+        return dataItemConfigService.dict(
+                com.zing.doctor.module.config.dataitem.service.DataItemConfigService.DICT_CULTURE_ITEM);
+    }
 
     /**
      * 俯卧位超时阈值（小时）：常规单次俯卧位 12～16 小时，进行中的治疗起始超过 16 小时
@@ -542,10 +555,12 @@ public class WorkbenchEnrichService {
                     ? Collections.emptyMap()
                     : groupRows(icuPatientMapper.selectInfectionLabsByNos(suspectNos), "in_hospital_no");
             Map<String, String> tempMap = toValueMap(
-                    icuPatientMapper.selectLatestTemperatureByPatientIds(suspectIds), "patient_id", "item_value");
+                    icuPatientMapper.selectLatestTemperatureByPatientIds(suspectIds, tempNames()),
+                    "patient_id", "item_value");
             Map<String, List<Map<String, Object>>> microMap = suspectNos.isEmpty()
                     ? Collections.emptyMap()
-                    : groupRows(icuPatientMapper.selectMicrobiologyByNos(suspectNos), "in_hospital_no");
+                    : groupRows(icuPatientMapper.selectMicrobiologyByNos(suspectNos, cultureNames()),
+                    "in_hospital_no");
             Map<String, List<Map<String, Object>>> abxMap = suspectNos.isEmpty()
                     ? Collections.emptyMap()
                     : groupRows(icuPatientMapper.selectCurrentAbxAdviceByNos(suspectNos), "in_hospital_no");
@@ -930,7 +945,8 @@ public class WorkbenchEnrichService {
             }
             try {
                 // 1. 查报告头判断是否送检
-                List<Map<String, Object>> headers = icuPatientMapper.selectCultureReportHeaders(p.getInHospitalNo());
+                List<Map<String, Object>> headers = icuPatientMapper.selectCultureReportHeaders(
+                        p.getInHospitalNo(), dataItemConfigService.dict(DataItemConfigService.DICT_CULTURE_REPORT));
                 if (headers == null || headers.isEmpty()) {
                     culture.setDataStatus("NOT_SENT");
                     continue;
@@ -941,7 +957,8 @@ public class WorkbenchEnrichService {
                 culture.setReportTime(str(latest.get("report_time")));
 
                 // 2. 查明细判断是否出报告
-                List<Map<String, Object>> details = icuPatientMapper.selectMicrobiology(p.getInHospitalNo());
+                List<Map<String, Object>> details = icuPatientMapper.selectMicrobiology(
+                        p.getInHospitalNo(), cultureNames());
                 if (details == null || details.isEmpty()) {
                     culture.setDataStatus("PENDING");
                     continue;
@@ -1085,7 +1102,8 @@ public class WorkbenchEnrichService {
                 continue;
             }
             try {
-                List<Map<String, Object>> rows = icuPatientMapper.selectTemperatureTrend(p.getPatientId());
+                List<Map<String, Object>> rows = icuPatientMapper.selectTemperatureTrend(
+                        p.getPatientId(), tempNames());
                 if (rows == null || rows.isEmpty()) {
                     trend.setDataStatus("EMPTY");
                     continue;

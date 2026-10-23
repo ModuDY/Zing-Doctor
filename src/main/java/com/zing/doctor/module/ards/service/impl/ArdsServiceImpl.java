@@ -102,7 +102,7 @@ public class ArdsServiceImpl implements ArdsService {
             // 氧合指数（取最新血气）
             BigDecimal latestOi = null;
             try {
-                List<Map<String, Object>> oiList = icuPatientMapper.selectOxygenationHistory(pid);
+                List<Map<String, Object>> oiList = oxygenationHistory(pid);
                 if (oiList != null && !oiList.isEmpty()) {
                     Map<String, Object> last = oiList.get(oiList.size() - 1);
                     Object oiVal = last.get("oxygenation_index");
@@ -207,8 +207,21 @@ public class ArdsServiceImpl implements ArdsService {
 
     @Override
     public List<Map<String, Object>> getOxygenationHistory(String patientId) {
-        List<Map<String, Object>> list = icuPatientMapper.selectOxygenationHistory(patientId);
+        List<Map<String, Object>> list = oxygenationHistory(patientId);
         return list != null ? list : new ArrayList<>();
+    }
+
+    /**
+     * 氧合指数取数：报告名 / 标本名 / 项目名都走术语字典。
+     *
+     * <p>三件套任一不匹配就是「静默返回空」——ARDS 分级丢掉 PaO₂/FiO₂ 后只剩
+     * 「未分级」，页面上看不出是配置问题，所以集中在一处取值，便于核对。
+     */
+    private List<Map<String, Object>> oxygenationHistory(String patientId) {
+        return icuPatientMapper.selectOxygenationHistory(patientId,
+                dataItemConfigService.dict(DataItemConfigService.DICT_GAS_SAMPLE),
+                dataItemConfigService.dict(DataItemConfigService.DICT_GAS_REPORT),
+                dataItemConfigService.dict(DataItemConfigService.DICT_OXYGEN_INDEX));
     }
 
     @Override

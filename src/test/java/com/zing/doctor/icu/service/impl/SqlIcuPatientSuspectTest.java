@@ -129,14 +129,16 @@ class SqlIcuPatientSuspectTest {
         verify(mapper, times(1)).selectSuspectPatients("D001");
         verify(mapper, times(1)).selectDiagnosesByPatientIds(anyList());
         verify(mapper, times(1)).selectInfectionLabsByNos(anyList());
-        verify(mapper, times(1)).selectLatestTemperatureByPatientIds(anyList());
-        verify(mapper, times(1)).selectMicrobiologyByNos(anyList());
+        verify(mapper, times(1)).selectLatestTemperatureByPatientIds(anyList(), anyList());
+        verify(mapper, times(1)).selectMicrobiologyByNos(anyList(), anyList());
         verify(mapper, times(1)).selectCurrentAbxAdviceByNos(anyList());
         // 逐患者查询一条都不许出现
         verify(mapper, never()).selectDiagnoses(org.mockito.ArgumentMatchers.anyString());
         verify(mapper, never()).selectRecentLabs(org.mockito.ArgumentMatchers.anyString());
-        verify(mapper, never()).selectLatestTemperature(org.mockito.ArgumentMatchers.anyString());
-        verify(mapper, never()).selectMicrobiology(org.mockito.ArgumentMatchers.anyString());
+        verify(mapper, never()).selectLatestTemperature(
+                org.mockito.ArgumentMatchers.anyString(), anyList());
+        verify(mapper, never()).selectMicrobiology(
+                org.mockito.ArgumentMatchers.anyString(), anyList());
         verify(mapper, never()).selectCurrentAbxAdvice(org.mockito.ArgumentMatchers.anyString());
     }
 

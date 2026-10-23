@@ -15,6 +15,7 @@ import com.zing.doctor.module.antibiotic.mapper.AdviceLogMapper;
 import com.zing.doctor.module.antibiotic.mapper.DecisionRecordMapper;
 import com.zing.doctor.module.antibiotic.service.AntibioticDecisionService;
 import com.zing.doctor.module.antibiotic.service.AntibioticReassessmentService;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import com.zing.doctor.module.system.service.SysParamService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +56,10 @@ public class AntibioticDecisionServiceImpl implements AntibioticDecisionService 
      */
     @Autowired
     private com.zing.doctor.icu.mapper.IcuPatientMapper icuPatientMapper;
+
+    /** 培养/药敏项目名按术语字典取（各院 LIS 叫法不同），同上用字段注入 */
+    @Autowired
+    private DataItemConfigService dataItemConfigService;
 
     @Override
     public List<IcuPatientBrief> listSuspectPatients(String departCode) {
@@ -406,7 +411,8 @@ public class AntibioticDecisionServiceImpl implements AntibioticDecisionService 
 
             // 1) 药敏结论：药名 → 结论（敏感/耐药/中介），取最新一条（明细按 check_time 倒序）
             Map<String, String> sensitivity = new java.util.LinkedHashMap<>();
-            List<Map<String, Object>> micro = icuPatientMapper.selectMicrobiology(no);
+            List<Map<String, Object>> micro = icuPatientMapper.selectMicrobiology(no,
+                    dataItemConfigService.dict(DataItemConfigService.DICT_CULTURE_ITEM));
             if (micro != null) {
                 for (Map<String, Object> r : micro) {
                     String itemName = str(r.get("item_name"));

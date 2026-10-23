@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.zing.doctor.common.OperatorContext;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import com.zing.doctor.module.apache2.entity.Apache2Config;
 import com.zing.doctor.module.apache2.entity.Apache2ScoreRecord;
 import com.zing.doctor.module.apache2.mapper.Apache2ConfigMapper;
@@ -37,6 +38,18 @@ public class Apache2ServiceImpl implements Apache2Service {
 
     @Autowired
     private IcuPatientMapper icuPatientMapper;
+
+    /** 血气报告名 / 标本名按术语字典取（各院 LIS 叫法不同） */
+    @Autowired
+    private DataItemConfigService dataItemConfigService;
+
+    /** 血气取数：报告名与标本名走配置，避免换院后 PAO₂/PH 全部取不到而静默降级 */
+    private List<Map<String, Object>> loadBloodGasRecords(String patientId, List<String> itemNames,
+                                                          String startTime, String endTime) {
+        return icuPatientMapper.selectBloodGasRecords(patientId, itemNames, startTime, endTime,
+                dataItemConfigService.dict(DataItemConfigService.DICT_GAS_SAMPLE),
+                dataItemConfigService.dict(DataItemConfigService.DICT_GAS_REPORT));
+    }
 
     @Override
     public Map<String, Object> getOverview(String departCode, String startTime, String endTime) {
@@ -259,7 +272,7 @@ public class Apache2ServiceImpl implements Apache2Service {
             }
 
             // 血气分析：PH值、氧分压PaO2、二氧化碳分压PaCO2（同一管血气按采集时间配对）
-            List<Map<String, Object>> bloodGasRecords = icuPatientMapper.selectBloodGasRecords(
+            List<Map<String, Object>> bloodGasRecords = loadBloodGasRecords(
                     patientId, Arrays.asList("PH值", "氧分压", "二氧化碳分压"), startTime, endTime);
             // 按血气采集时间(毫秒)分组，同一管血的PaO2/PaCO2/PH配对
             Map<Long, Map<String, Double>> bgByTime = new TreeMap<>();
@@ -1082,7 +1095,7 @@ public class Apache2ServiceImpl implements Apache2Service {
             } else if (bloodGasMetrics.contains(metricKey)) {
                 // 血气分析：通过lis_item_name查询（PH值/氧分压）
                 String itemName = "ph".equals(metricKey) ? "PH值" : "氧分压";
-                List<Map<String, Object>> records = icuPatientMapper.selectBloodGasRecords(
+                List<Map<String, Object>> records = loadBloodGasRecords(
                         patientId, Arrays.asList(itemName), startTime, endTime);
                 for (Map<String, Object> rec : records) {
                     String valueStr = (String) rec.get("item_value");
@@ -1121,7 +1134,7 @@ public class Apache2ServiceImpl implements Apache2Service {
         if (patientId == null || patientId.trim().isEmpty()) return out;
         try {
             List<Map<String, Object>> observeRecords = icuPatientMapper.selectObserveRecords(patientId, startTime, endTime);
-            List<Map<String, Object>> bloodGasRecords = icuPatientMapper.selectBloodGasRecords(
+            List<Map<String, Object>> bloodGasRecords = loadBloodGasRecords(
                     patientId, Arrays.asList("PH值", "氧分压", "二氧化碳分压"), startTime, endTime);
             // 与评分取数同源同口径（含“最差一管”的选中时间），供趋势图高亮
             Map<String, Object> oxygen = buildOxygenData(

@@ -207,7 +207,7 @@
             <div v-if="probe.error" class="err">试跑失败：{{ probe.error }}</div>
             <template v-else>
               <div class="probe-sum">
-                近 <b>{{ probe.result.days }}</b> 天命中 <b>{{ probe.result.count }}</b> 条
+                近 <b>{{ probe.result.days }}</b> 天命中 <b>{{ probe.result.count }}</b> {{ probe.result.unit || '条' }}
                 <span v-if="probe.result.count === 0" class="err">　→ 这个值取不到数据，检查编码/项目名是否正确</span>
               </div>
               <table v-if="probe.result.samples && probe.result.samples.length" class="lst small">
@@ -432,7 +432,7 @@ async function openCandidates() {
   cand.loading = true
   cand.error = ''
   try {
-    const list = await fetchDataItemCandidates(domain.value, cand.keyword.trim())
+    const list = await fetchDataItemCandidates(domain.value, form.itemKey.trim(), cand.keyword.trim())
     cand.list = Array.isArray(list) ? list : []
   } catch (e) {
     cand.list = []
@@ -460,7 +460,7 @@ async function runProbe() {
   probe.error = ''
   probe.result = null
   try {
-    probe.result = await probeDataItem(domain.value, v, 7)
+    probe.result = await probeDataItem(domain.value, form.itemKey.trim(), v, 7)
   } catch (e) {
     probe.error = e.message || '未知错误'
   } finally {

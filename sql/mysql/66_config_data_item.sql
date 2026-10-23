@@ -203,3 +203,33 @@ INSERT INTO `zing_doctor_db_prod`.`config_data_item`
     (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
 SELECT 6400042,'LAB','INFECTION','感染指标','il6','IL-6 白介素6','NAME_LIKE','白介素6',NULL,4,'' FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='LAB' AND `item_key`='il6' AND `match_value`='白介素6');
+
+-- ---------------------------------------------------------------------
+-- 术语字典（domain=DICT）：LIS 报告名 / 标本名 / 项目名 / 观察项名
+-- 这些是检验与护理系统实施时配的「名称」，不是本项目定义的业务键，换院就可能换一套写法。
+-- culture_item 一行两个值（培养、药敏），与改造前 `LIKE '%培养%' OR LIKE '%药敏%'` 等价。
+-- ---------------------------------------------------------------------
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400050,'DICT',NULL,NULL,'gas_sample','动脉血标本','NAME_EXACT','动脉血',NULL,1,'lis_short_name，ARDS/APACHE II 血气取数' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DICT' AND `item_key`='gas_sample');
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400051,'DICT',NULL,NULL,'gas_report','血气分析报告','NAME_LIKE','血气分析',NULL,2,'lis_name，如「动脉血气分析」也能命中' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DICT' AND `item_key`='gas_report');
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400052,'DICT',NULL,NULL,'oxygen_index','氧合指数','NAME_EXACT','氧合指数',NULL,3,'lis_item_name，ARDS 分级与 SOFA 呼吸项' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DICT' AND `item_key`='oxygen_index');
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400053,'DICT',NULL,NULL,'culture_item','培养/药敏明细','NAME_LIKE','培养,药敏',NULL,4,'lis_item_name，感染判断与抗菌药决策' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DICT' AND `item_key`='culture_item');
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400054,'DICT',NULL,NULL,'culture_report','培养报告名','NAME_LIKE','培养',NULL,5,'lis_name，只区分「是否送检」' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DICT' AND `item_key`='culture_report');
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400055,'DICT',NULL,NULL,'temp_item','体温观察项','NAME_LIKE','体温',NULL,6,'item_name，排除词「来源」写在 SQL 里' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DICT' AND `item_key`='temp_item');

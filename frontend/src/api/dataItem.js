@@ -39,19 +39,22 @@ export function deleteDataItem(id) {
   return request.post('/config/data-item/delete', null, { params: { id }, silentError: true })
 }
 
-/** 候选值：从 ICU 源库拉真实存在的项目（按使用人数倒序），现场不用猜编码 */
-export function fetchDataItemCandidates(domain, keyword) {
+/**
+ * 候选值：从 ICU 源库拉真实存在的项目（按使用人数倒序），现场不用猜编码。
+ * itemKey 只有 DICT（术语字典）用得上：体温查观察项字典，其余查 LIS 项目名。
+ */
+export function fetchDataItemCandidates(domain, itemKey, keyword) {
   return request.get('/config/data-item/candidates', {
-    params: { domain, keyword },
+    params: { domain, itemKey, keyword },
     silentError: true,
     timeout: 60000
   })
 }
 
 /** 试跑：按匹配值统计源库命中条数并返回最新样例 */
-export function probeDataItem(domain, value, days = 7) {
+export function probeDataItem(domain, itemKey, value, days = 7) {
   return request.get('/config/data-item/probe', {
-    params: { domain, value, days },
+    params: { domain, itemKey, value, days },
     silentError: true,
     timeout: 60000
   })

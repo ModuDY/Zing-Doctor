@@ -306,10 +306,15 @@ public interface IcuPatientMapper {
             + "  <foreach collection='patientIds' item='pid' open='(' separator=',' close=')'>"
             + "    #{pid}"
             + "  </foreach>"
-            + "  AND i.item_name LIKE '%体温%' AND i.item_name NOT LIKE '%来源%' "
+            + "  AND ("
+            + "  <foreach collection='tempNames' item='tn' separator=' OR '>"
+            + "    i.item_name LIKE '%' || #{tn} || '%'"
+            + "  </foreach>"
+            + "  ) AND i.item_name NOT LIKE '%来源%' "
             + ") t WHERE t.rn = 1"
             + "</script>")
-    List<Map<String, Object>> selectLatestTemperatureByPatientIds(@Param("patientIds") List<String> patientIds);
+    List<Map<String, Object>> selectLatestTemperatureByPatientIds(@Param("patientIds") List<String> patientIds,
+                                                                  @Param("tempNames") List<String> tempNames);
 
     /**
      * 批量微生物培养/药敏（只取风险增强需要的三列，近 100 条/患者由调用方按住院号截取）。
@@ -325,10 +330,15 @@ public interface IcuPatientMapper {
             + "  #{no}"
             + "</foreach>"
             + "AND li.lis_item_result IS NOT NULL AND li.lis_item_result &lt;&gt; '' "
-            + "AND (li.lis_item_name LIKE '%培养%' OR li.lis_item_name LIKE '%药敏%') "
+            + "AND ("
+            + "<foreach collection='cultureNames' item='cn' separator=' OR '>"
+            + "  li.lis_item_name LIKE '%' || #{cn} || '%'"
+            + "</foreach>"
+            + ") "
             + "ORDER BY li.check_time DESC"
             + "</script>")
-    List<Map<String, Object>> selectMicrobiologyByNos(@Param("inHospitalNos") List<String> inHospitalNos);
+    List<Map<String, Object>> selectMicrobiologyByNos(@Param("inHospitalNos") List<String> inHospitalNos,
+                                                      @Param("cultureNames") List<String> cultureNames);
 
     /**
      * 批量当前抗菌药医嘱（按住院号，用于列表展示"抗菌药开始时间"）。
@@ -502,29 +512,39 @@ public interface IcuPatientMapper {
      * 用于区分「未送检」和「已送检未出报告」：有报告头=已送检，无报告头=未送检。
      * 识别口径：patient_info_lis.lis_name 含「培养」。
      */
-    @Select("SELECT l.lis_code AS lis_code, l.lis_name AS report_name, "
+    @Select("<script>SELECT l.lis_code AS lis_code, l.lis_name AS report_name, "
             + "l.lis_short_name AS speciman, "
             + "l.report_time AS report_time, l.sample_time AS sample_time "
             + "FROM \"zing_icu_db_prod\".\"patient_info_lis\" l "
             + "WHERE l.in_hospital_no = #{inHospitalNo} AND l.del_flag = 0 "
-            + "AND l.lis_name LIKE '%培养%' "
-            + "ORDER BY l.sample_time DESC")
-    List<Map<String, Object>> selectCultureReportHeaders(@Param("inHospitalNo") String inHospitalNo);
+            + "AND ("
+            + "<foreach collection='reportNames' item='rn' separator=' OR '>"
+            + "  l.lis_name LIKE '%' || #{rn} || '%'"
+            + "</foreach>"
+            + ") "
+            + "ORDER BY l.sample_time DESC</script>")
+    List<Map<String, Object>> selectCultureReportHeaders(@Param("inHospitalNo") String inHospitalNo,
+                                                         @Param("reportNames") List<String> reportNames);
 
     /** 患者最新体温（观察项记录 JOIN 患者级观察项配置，按 item_name 匹配体温；ROWNUM 取最新 1 条） */
-    @Select("SELECT * FROM ( "
+    @Select("<script>SELECT * FROM ( "
             + "  SELECT r.item_value AS item_value, r.item_time AS item_time "
             + "  FROM \"zing_icu_db_prod\".\"patient_observe_module_item_record\" r "
             + "  INNER JOIN \"zing_icu_db_prod\".\"patient_observe_module_item\" i "
             + "    ON i.patient_id = r.patient_id AND i.item_code = r.item_code AND i.del_flag = 0 AND i.status = 1 "
             + "  WHERE r.patient_id = #{patientId} AND r.del_flag = 0 AND r.status = 1 "
-            + "    AND i.item_name LIKE '%体温%' AND i.item_name NOT LIKE '%来源%' "
+            + "    AND ("
+            + "<foreach collection='tempNames' item='tn' separator=' OR '>"
+            + "  i.item_name LIKE '%' || #{tn} || '%'"
+            + "</foreach>"
+            + ") AND i.item_name NOT LIKE '%来源%' "
             + "  ORDER BY r.item_time DESC "
-            + ") WHERE ROWNUM <= 1")
-    Map<String, Object> selectLatestTemperature(@Param("patientId") String patientId);
+            + ") WHERE ROWNUM &lt;= 1</script>")
+    Map<String, Object> selectLatestTemperature(@Param("patientId") String patientId,
+                                                @Param("tempNames") List<String> tempNames);
 
     /** 患者当前时间往前 24 小时的体温记录，按采样时间升序返回。 */
-    @Select("SELECT * FROM ( "
+    @Select("<script>SELECT * FROM ( "
             + "  SELECT * FROM ( "
             + "    SELECT r.item_time AS item_time, r.item_value AS item_value "
             + "    FROM \"zing_icu_db_prod\".\"patient_observe_module_item_record\" r "
@@ -532,12 +552,17 @@ public interface IcuPatientMapper {
             + "      ON i.patient_id = r.patient_id AND i.item_code = r.item_code "
             + "     AND i.del_flag = 0 AND i.status = 1 "
             + "    WHERE r.patient_id = #{patientId} AND r.del_flag = 0 AND r.status = 1 "
-            + "      AND i.item_name LIKE '%体温%' AND i.item_name NOT LIKE '%来源%' "
-            + "      AND r.item_time >= SYSDATE - 1 AND r.item_time <= SYSDATE "
+            + "      AND ("
+            + "<foreach collection='tempNames' item='tn' separator=' OR '>"
+            + "  i.item_name LIKE '%' || #{tn} || '%'"
+            + "</foreach>"
+            + ") AND i.item_name NOT LIKE '%来源%' "
+            + "      AND r.item_time >= SYSDATE - 1 AND r.item_time &lt;= SYSDATE "
             + "    ORDER BY r.item_time DESC "
-            + "  ) WHERE ROWNUM <= 200 "
-            + ") ORDER BY item_time ASC")
-    List<Map<String, Object>> selectTemperatureTrend(@Param("patientId") String patientId);
+            + "  ) WHERE ROWNUM &lt;= 200 "
+            + ") ORDER BY item_time ASC</script>")
+    List<Map<String, Object>> selectTemperatureTrend(@Param("patientId") String patientId,
+                                                     @Param("tempNames") List<String> tempNames);
 
     /** 患者执行中/未执行医嘱（抗菌药在 Java 端按关键词过滤；取最新 100 条） */
     @Select("SELECT * FROM ( "
@@ -573,7 +598,7 @@ public interface IcuPatientMapper {
      * 识别方式：明细项目名含 培养/药敏/涂片/镜检/鉴定；结果值即检出菌名或药敏结论。
      * LEFT JOIN patient_info_lis 尽力带出报告头（标本类型/报告名），关联键 lis_code。
      */
-    @Select("SELECT * FROM ( "
+    @Select("<script>SELECT * FROM ( "
             + "  SELECT li.lis_item_name AS item_name, li.lis_item_result AS result, "
             + "  li.lis_item_unit AS unit, li.lis_item_alarm_flag AS alarm_flag, "
             + "  li.check_time AS check_time, li.lis_code AS lis_code, "
@@ -583,13 +608,15 @@ public interface IcuPatientMapper {
             + "  LEFT JOIN \"zing_icu_db_prod\".\"patient_info_lis\" l "
             + "    ON l.lis_code = li.lis_code AND l.del_flag = 0 "
             + "  WHERE li.in_hospital_no = #{inHospitalNo} AND li.del_flag = 0 "
-            + "  AND (li.lis_item_name LIKE '%培养%' OR li.lis_item_name LIKE '%药敏%' "
-            + "       "
-            + "       "
-            + "       ) "
+            + "  AND ("
+            + "<foreach collection='cultureNames' item='cn' separator=' OR '>"
+            + "  li.lis_item_name LIKE '%' || #{cn} || '%'"
+            + "</foreach>"
+            + ") "
             + "  ORDER BY li.check_time DESC "
-            + ") WHERE ROWNUM <= 100")
-    List<Map<String, Object>> selectMicrobiology(@Param("inHospitalNo") String inHospitalNo);
+            + ") WHERE ROWNUM &lt;= 100</script>")
+    List<Map<String, Object>> selectMicrobiology(@Param("inHospitalNo") String inHospitalNo,
+                                                 @Param("cultureNames") List<String> cultureNames);
 
     /**
      * 患者 CRRT（持续肾脏替代治疗）记录。
@@ -1059,8 +1086,13 @@ public interface IcuPatientMapper {
             + "  ON pi.in_hospital_no = item.in_hospital_no AND pi.del_flag = 0 "
             + "WHERE pi.id = #{patientId} "
             + "AND lis.del_flag = 0 "
-            + "AND lis.lis_short_name = '动脉血' "
-            + "AND lis.lis_name LIKE '%血气分析%' "
+            + "AND lis.lis_short_name IN "
+            + "<foreach collection='sampleNames' item='sn' open='(' separator=',' close=')'>#{sn}</foreach> "
+            + "AND ("
+            + "<foreach collection='reportNames' item='rn' separator=' OR '>"
+            + "  lis.lis_name LIKE '%' || #{rn} || '%'"
+            + "</foreach>"
+            + ") "
             + "AND item.lis_item_result IS NOT NULL AND item.lis_item_result &lt;&gt; '' "
             + "AND item.check_time &gt;= #{startTime} AND item.check_time &lt; #{endTime} "
             + "AND item.lis_item_name IN "
@@ -1072,7 +1104,9 @@ public interface IcuPatientMapper {
     List<Map<String, Object>> selectBloodGasRecords(@Param("patientId") String patientId,
                                                      @Param("itemNames") List<String> itemNames,
                                                      @Param("startTime") String startTime,
-                                                     @Param("endTime") String endTime);
+                                                     @Param("endTime") String endTime,
+                                                     @Param("sampleNames") List<String> sampleNames,
+                                                     @Param("reportNames") List<String> reportNames);
 
     /**
      * 查询患者出入量项目数据（脓毒症集束化治疗"3小时后评估"用）
@@ -1595,7 +1629,7 @@ public interface IcuPatientMapper {
      * 查询患者氧合指数历史（动脉血血气分析→氧合指数），按时间升序。
      * patient_info_lis 无 patient_id 字段，通过 patient_info_lis_item.in_hospital_no 关联 patient_info。
      */
-    @Select("SELECT pi.id AS patient_id, item.check_time AS check_time, "
+    @Select("<script>SELECT pi.id AS patient_id, item.check_time AS check_time, "
             + "CAST(item.lis_item_result AS DECIMAL(10,2)) AS oxygenation_index "
             + "FROM \"zing_icu_db_prod\".\"patient_info_lis\" lis "
             + "INNER JOIN \"zing_icu_db_prod\".\"patient_info_lis_item\" item "
@@ -1604,12 +1638,21 @@ public interface IcuPatientMapper {
             + "  ON pi.in_hospital_no = item.in_hospital_no AND pi.del_flag = 0 "
             + "WHERE pi.id = #{patientId} "
             + "AND lis.del_flag = 0 "
-            + "AND lis.lis_short_name = '动脉血' "
-            + "AND lis.lis_name LIKE '%血气分析%' "
-            + "AND item.lis_item_name = '氧合指数' "
-            + "AND item.lis_item_result IS NOT NULL AND item.lis_item_result <> '' "
-            + "ORDER BY item.check_time ASC")
-    List<Map<String, Object>> selectOxygenationHistory(@Param("patientId") String patientId);
+            + "AND lis.lis_short_name IN "
+            + "<foreach collection='sampleNames' item='sn' open='(' separator=',' close=')'>#{sn}</foreach> "
+            + "AND ("
+            + "<foreach collection='reportNames' item='rn' separator=' OR '>"
+            + "  lis.lis_name LIKE '%' || #{rn} || '%'"
+            + "</foreach>"
+            + ") "
+            + "AND item.lis_item_name IN "
+            + "<foreach collection='itemNames' item='nm' open='(' separator=',' close=')'>#{nm}</foreach> "
+            + "AND item.lis_item_result IS NOT NULL AND item.lis_item_result &lt;&gt; '' "
+            + "ORDER BY item.check_time ASC</script>")
+    List<Map<String, Object>> selectOxygenationHistory(@Param("patientId") String patientId,
+                                                       @Param("sampleNames") List<String> sampleNames,
+                                                       @Param("reportNames") List<String> reportNames,
+                                                       @Param("itemNames") List<String> itemNames);
 
     /**
      * 查询患者呼吸机参数趋势（最近N天），按时间升序。item_code 由调用方按配置传入。
@@ -1758,7 +1801,7 @@ public interface IcuPatientMapper {
      * 指定取数范围内的氧合指数（PaO2/FiO2，ICU 血气报告中已计算好）。
      * 与 {@link #selectOxygenationHistory(String)} 同源，仅增加 check_time 范围过滤。
      */
-    @Select("SELECT item.check_time AS check_time, "
+    @Select("<script>SELECT item.check_time AS check_time, "
             + "CAST(item.lis_item_result AS DECIMAL(10,2)) AS oxygenation_index "
             + "FROM \"zing_icu_db_prod\".\"patient_info_lis\" lis "
             + "INNER JOIN \"zing_icu_db_prod\".\"patient_info_lis_item\" item "
@@ -1767,15 +1810,24 @@ public interface IcuPatientMapper {
             + "  ON pi.in_hospital_no = item.in_hospital_no AND pi.del_flag = 0 "
             + "WHERE pi.id = #{patientId} "
             + "AND lis.del_flag = 0 "
-            + "AND lis.lis_short_name = '动脉血' "
-            + "AND lis.lis_name LIKE '%血气分析%' "
-            + "AND item.lis_item_name = '氧合指数' "
-            + "AND item.lis_item_result IS NOT NULL AND item.lis_item_result <> '' "
-            + "AND item.check_time >= #{startTime} AND item.check_time < #{endTime} "
-            + "ORDER BY item.check_time ASC")
+            + "AND lis.lis_short_name IN "
+            + "<foreach collection='sampleNames' item='sn' open='(' separator=',' close=')'>#{sn}</foreach> "
+            + "AND ("
+            + "<foreach collection='reportNames' item='rn' separator=' OR '>"
+            + "  lis.lis_name LIKE '%' || #{rn} || '%'"
+            + "</foreach>"
+            + ") "
+            + "AND item.lis_item_name IN "
+            + "<foreach collection='itemNames' item='nm' open='(' separator=',' close=')'>#{nm}</foreach> "
+            + "AND item.lis_item_result IS NOT NULL AND item.lis_item_result &lt;&gt; '' "
+            + "AND item.check_time &gt;= #{startTime} AND item.check_time &lt; #{endTime} "
+            + "ORDER BY item.check_time ASC</script>")
     List<Map<String, Object>> selectOxygenationHistoryByRange(@Param("patientId") String patientId,
                                                               @Param("startTime") String startTime,
-                                                              @Param("endTime") String endTime);
+                                                              @Param("endTime") String endTime,
+                                                              @Param("sampleNames") List<String> sampleNames,
+                                                              @Param("reportNames") List<String> reportNames,
+                                                              @Param("itemNames") List<String> itemNames);
 
     /**
      * 取数窗口内在用的血管活性药执行记录（SOFA 循环项剂量还原用）。
@@ -1946,6 +1998,24 @@ public interface IcuPatientMapper {
             + ") WHERE ROWNUM <= 5")
     List<Map<String, Object>> selectIoSamples(@Param("code") String code,
                                               @Param("startTime") String startTime);
+
+    /** 试跑：检验报告名（lis_name）包含关键字在时间窗内的报告数 */
+    @Select("SELECT COUNT(*) FROM \"zing_icu_db_prod\".\"patient_info_lis\" l "
+            + "WHERE l.del_flag = 0 AND l.sample_time >= #{startTime} "
+            + "AND l.lis_name LIKE '%'||#{keyword}||'%'")
+    int countLisReportByKeyword(@Param("keyword") String keyword, @Param("startTime") String startTime);
+
+    /** 试跑：检验标本名（lis_short_name）包含关键字在时间窗内的报告数 */
+    @Select("SELECT COUNT(*) FROM \"zing_icu_db_prod\".\"patient_info_lis\" l "
+            + "WHERE l.del_flag = 0 AND l.sample_time >= #{startTime} "
+            + "AND l.lis_short_name LIKE '%'||#{keyword}||'%'")
+    int countLisSpecimenByKeyword(@Param("keyword") String keyword, @Param("startTime") String startTime);
+
+    /** 试跑：观察项字典里名称包含关键字的项目行数（体温这类按名称找的项） */
+    @Select("SELECT COUNT(*) FROM \"zing_icu_db_prod\".\"patient_observe_module_item\" i "
+            + "WHERE i.del_flag = 0 AND i.status = 1 "
+            + "AND i.item_name LIKE '%'||#{keyword}||'%'")
+    int countObserveItemByName(@Param("keyword") String keyword);
 
     /** 试跑：检验项目名包含关键字在时间窗内的记录条数 */
     @Select("SELECT COUNT(*) FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li "

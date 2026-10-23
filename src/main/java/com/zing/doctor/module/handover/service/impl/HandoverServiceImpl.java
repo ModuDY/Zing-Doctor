@@ -3,6 +3,7 @@ package com.zing.doctor.module.handover.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zing.doctor.common.BizException;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import com.zing.doctor.module.antibiotic.service.AbxDrugRecognizer;
 import com.zing.doctor.module.handover.dto.HandoverOverview;
 import com.zing.doctor.module.handover.dto.HandoverPatientCard;
@@ -57,6 +58,10 @@ public class HandoverServiceImpl implements HandoverService {
     /** 抗菌药统一识别器（词表 + HIS 药品字典），替代原方法内硬编码的 61 个通用名数组 */
     @Autowired
     private AbxDrugRecognizer abxDrugRecognizer;
+
+    /** 培养/药敏项目名按术语字典取（各院 LIS 叫法不同） */
+    @Autowired
+    private DataItemConfigService dataItemConfigService;
 
     private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final Pattern NUM_PATTERN = Pattern.compile("-?\\d+(\\.\\d+)?");
@@ -397,7 +402,8 @@ public class HandoverServiceImpl implements HandoverService {
         detail.setCrrt(icuPatientMapper.selectCrrtRecord(pid));
         detail.setDiagnoses(safe(icuPatientMapper.selectDiagnosis(inHospitalNo)));
         // 微生物：Java层按班次时间范围过滤
-        List<Map<String, Object>> microAll = safe(icuPatientMapper.selectMicrobiology(inHospitalNo));
+        List<Map<String, Object>> microAll = safe(icuPatientMapper.selectMicrobiology(inHospitalNo,
+                dataItemConfigService.dict(DataItemConfigService.DICT_CULTURE_ITEM)));
         List<Map<String, Object>> microFiltered = new ArrayList<>();
         for (Map<String, Object> m : microAll) {
             String ct = fmtObj(m.get("check_time"));

@@ -45,6 +45,21 @@ public class DataItemConfigService {
     public static final String DOMAIN_VENT = "VENT";
     public static final String DOMAIN_IO = "IO";
     public static final String DOMAIN_LAB = "LAB";
+    /** 术语字典：LIS 报告名 / 标本名 / 项目名 / 观察项名（厂商实施时配的名称，院院不同） */
+    public static final String DOMAIN_DICT = "DICT";
+
+    /** 血气标本名（lis_short_name）：动脉血 / 动血 / 动脉 */
+    public static final String DICT_GAS_SAMPLE = "gas_sample";
+    /** 血气报告名（lis_name 包含）：血气分析 / 动脉血气分析 */
+    public static final String DICT_GAS_REPORT = "gas_report";
+    /** 氧合指数项目名（lis_item_name） */
+    public static final String DICT_OXYGEN_INDEX = "oxygen_index";
+    /** 培养/药敏明细项目名（lis_item_name 包含） */
+    public static final String DICT_CULTURE_ITEM = "culture_item";
+    /** 培养类报告名（lis_name 包含） */
+    public static final String DICT_CULTURE_REPORT = "culture_report";
+    /** 体温观察项名（item_name 包含） */
+    public static final String DICT_TEMP_ITEM = "temp_item";
 
     public static final String MATCH_CODE = "CODE";
     public static final String MATCH_NAME_LIKE = "NAME_LIKE";
@@ -73,6 +88,9 @@ public class DataItemConfigService {
                 "尿量等。影响：体液平衡、AKI 判定"));
         list.add(domainMeta(DOMAIN_LAB, "检验项目", true,
                 "肝功、凝血、肾功电解质、感染指标。按项目名关键字匹配，一行一个关键字"));
+        list.add(domainMeta(DOMAIN_DICT, "术语字典", true,
+                "血气/培养报告名、标本名、氧合指数、体温项。影响：氧合指数与 ARDS 分级、"
+                        + "SOFA/APACHE II、感染与抗菌药判断、体温曲线"));
         return list;
     }
 
@@ -127,6 +145,21 @@ public class DataItemConfigService {
      * <p>呼吸机参数、尿量这类「一查就是整组编码」的取数用它，
      * 免得到 4 个调用点各抄一份默认值。
      */
+    /**
+     * 术语字典取值：{@code dict("gas_sample")}。未配置该键时回退内置默认。
+     *
+     * <p>返回空集合只有一种情况：键名写错了。调用方仍要能跑（SQL 里 foreach 为空会拼出
+     * {@code IN ()} 报错），所以这里保证非空。
+     */
+    public List<String> dict(String itemKey) {
+        List<String> v = values(DOMAIN_DICT, itemKey);
+        if (!v.isEmpty()) {
+            return v;
+        }
+        List<String> d = DataItemDefaults.ofKey(DOMAIN_DICT, itemKey);
+        return d.isEmpty() ? v : d;
+    }
+
     public List<String> codesOrBuiltin(String domain) {
         List<String> v = values(domain, null);
         if (!v.isEmpty()) {
@@ -280,6 +313,16 @@ public class DataItemConfigService {
 
     /** 候选值：从 ICU 源库拉真实存在的项目（按使用人数倒序），现场不用猜编码 */
     public List<Map<String, Object>> candidates(String domain, String keyword) {
+        return candidates(domain, null, keyword);
+    }
+
+    /**
+     * 候选值（带 itemKey）。
+     *
+     * <p>DICT 域的候选来源取决于键：体温是观察项字典，其余都是 LIS 项目名。
+     * 分不清就会给现场列出「体温」这个词在观察项里的 3 行记录，看着对、其实用不上。
+     */
+    public List<Map<String, Object>> candidates(String domain, String itemKey, String keyword) {
         String kw = StringUtils.hasText(keyword) ? keyword.trim() : null;
         String dom = StringUtils.hasText(domain) ? domain.trim() : DOMAIN_VITAL;
         String start = LocalDateTime.now().minusDays(90).format(DT);
@@ -288,6 +331,11 @@ public class DataItemConfigService {
         }
         if (DOMAIN_LAB.equals(dom)) {
             return icuPatientMapper.selectLisItemCandidates(kw, start);
+        }
+        if (DOMAIN_DICT.equals(dom)) {
+            return DICT_TEMP_ITEM.equals(itemKey)
+                    ? icuPatientMapper.selectObserveItemCandidates(kw)
+                    : icuPatientMapper.selectLisItemCandidates(kw, start);
         }
         return icuPatientMapper.selectObserveItemCandidates(kw);
     }
@@ -299,6 +347,11 @@ public class DataItemConfigService {
      * 「近 7 天命中 12,438 条 / 最新 36.8℃」，不用切到业务页面碰运气。
      */
     public Map<String, Object> probe(String domain, String value, Integer days) {
+        return probe(domain, null, value, days);
+    }
+
+    /** 试跑（带 itemKey）：DICT 域按不同键去不同表统计 */
+    public Map<String, Object> probe(String domain, String itemKey, String value, Integer days) {
         String dom = StringUtils.hasText(domain) ? domain.trim() : DOMAIN_VITAL;
         String v = StringUtils.hasText(value) ? value.trim() : null;
         if (!StringUtils.hasText(v)) {
@@ -312,6 +365,9 @@ public class DataItemConfigService {
         out.put("value", v);
         out.put("days", d);
         out.put("startTime", start);
+        if (DOMAIN_DICT.equals(dom)) {
+            return probeDict(out, itemKey, v, start);
+        }
         if (DOMAIN_IO.equals(dom)) {
             out.put("count", icuPatientMapper.countIoByCode(v, start));
             out.put("samples", icuPatientMapper.selectIoSamples(v, start));
@@ -321,6 +377,36 @@ public class DataItemConfigService {
         } else {
             out.put("count", icuPatientMapper.countObserveByCode(v, start));
             out.put("samples", icuPatientMapper.selectObserveSamples(v, start));
+        }
+        return out;
+    }
+
+    /**
+     * 术语字典试跑：不同键落在不同的表 / 列上，命中数含义也不同。
+     *
+     * <p>「血气分析」按报告名统计得到的是报告份数，「动脉血」按标本统计也是报告份数，
+     * 「氧合指数」按项目名统计是检验明细条数 —— 三个数不能横向比较，页面文案要分开看。
+     */
+    private Map<String, Object> probeDict(Map<String, Object> out, String itemKey, String v, String start) {
+        String key = StringUtils.hasText(itemKey) ? itemKey.trim() : DICT_CULTURE_ITEM;
+        out.put("itemKey", key);
+        if (DICT_TEMP_ITEM.equals(key)) {
+            // 观察项字典是「每患者一份配置」，这里统计的是字典行数，不是体温条数
+            out.put("count", icuPatientMapper.countObserveItemByName(v));
+            out.put("unit", "条观察项定义");
+        } else if (DICT_GAS_SAMPLE.equals(key)) {
+            out.put("count", icuPatientMapper.countLisSpecimenByKeyword(v, start));
+            out.put("unit", "份报告");
+        } else if (DICT_GAS_REPORT.equals(key) || DICT_CULTURE_REPORT.equals(key)) {
+            out.put("count", icuPatientMapper.countLisReportByKeyword(v, start));
+            out.put("unit", "份报告");
+        } else {
+            out.put("count", icuPatientMapper.countLisByKeyword(v, start));
+            out.put("samples", icuPatientMapper.selectLisSamples(v, start));
+            out.put("unit", "条明细");
+        }
+        if (!out.containsKey("samples")) {
+            out.put("samples", Collections.emptyList());
         }
         return out;
     }

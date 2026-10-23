@@ -92,9 +92,10 @@ public class DataItemController {
     /** 候选值：从 ICU 源库拉真实存在的项目，现场不用猜编码 */
     @GetMapping("/candidates")
     public Result<List<Map<String, Object>>> candidates(@RequestParam(required = false) String domain,
+                                                        @RequestParam(required = false) String itemKey,
                                                         @RequestParam(required = false) String keyword) {
         try {
-            return Result.ok(service.candidates(domain, keyword));
+            return Result.ok(service.candidates(domain, itemKey, keyword));
         } catch (Exception e) {
             log.error("[数据项配置] 候选值查询失败 domain={}", domain, e);
             return Result.fail("候选值查询失败: " + e.getMessage());
@@ -104,10 +105,11 @@ public class DataItemController {
     /** 试跑：按匹配值统计源库命中条数并返回最新样例 */
     @GetMapping("/probe")
     public Result<Map<String, Object>> probe(@RequestParam(required = false) String domain,
+                                             @RequestParam(required = false) String itemKey,
                                              @RequestParam String value,
                                              @RequestParam(required = false) Integer days) {
         try {
-            return Result.ok(service.probe(domain, value, days));
+            return Result.ok(service.probe(domain, itemKey, value, days));
         } catch (BizException e) {
             return Result.fail(e.getCode(), e.getMessage());
         } catch (Exception e) {

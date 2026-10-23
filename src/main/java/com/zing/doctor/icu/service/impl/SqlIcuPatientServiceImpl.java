@@ -409,11 +409,13 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
                 ? Collections.emptyMap()
                 : groupRows(icuPatientMapper.selectInfectionLabsByNos(inHospitalNos), "in_hospital_no");
         Map<String, String> tempMap =
-                toValueMap(icuPatientMapper.selectLatestTemperatureByPatientIds(patientIds),
+                toValueMap(icuPatientMapper.selectLatestTemperatureByPatientIds(patientIds,
+                                dataItemConfigService.dict(DataItemConfigService.DICT_TEMP_ITEM)),
                         "patient_id", "item_value");
         Map<String, List<Map<String, Object>>> microMap = inHospitalNos.isEmpty()
                 ? Collections.emptyMap()
-                : groupRows(icuPatientMapper.selectMicrobiologyByNos(inHospitalNos), "in_hospital_no");
+                : groupRows(icuPatientMapper.selectMicrobiologyByNos(inHospitalNos,
+                        dataItemConfigService.dict(DataItemConfigService.DICT_CULTURE_ITEM)), "in_hospital_no");
         Map<String, List<Map<String, Object>>> abxMap = inHospitalNos.isEmpty()
                 ? Collections.emptyMap()
                 : groupRows(icuPatientMapper.selectCurrentAbxAdviceByNos(inHospitalNos), "in_hospital_no");
@@ -828,7 +830,8 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
     }
 
     private String loadTemperature(String patientId) {
-        Map<String, Object> row = icuPatientMapper.selectLatestTemperature(patientId);
+        Map<String, Object> row = icuPatientMapper.selectLatestTemperature(patientId,
+                dataItemConfigService.dict(DataItemConfigService.DICT_TEMP_ITEM));
         return row == null ? null : str(row.get("item_value"));
     }
 
@@ -998,7 +1001,8 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
         if (StrUtil.isBlank(inHospitalNo)) {
             return Collections.emptyList();
         }
-        return icuPatientMapper.selectMicrobiology(inHospitalNo);
+        return icuPatientMapper.selectMicrobiology(inHospitalNo,
+                dataItemConfigService.dict(DataItemConfigService.DICT_CULTURE_ITEM));
     }
 
     /** 是否为药敏结论行：项目名含药敏，或结果为 S/I/R / 敏感 / 中介 / 耐药 */

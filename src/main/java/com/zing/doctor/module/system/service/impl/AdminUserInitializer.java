@@ -55,7 +55,10 @@ public class AdminUserInitializer implements ApplicationRunner {
             user.setCreateTime(LocalDateTime.now());
             user.setUpdateTime(LocalDateTime.now());
             sysUserMapper.insert(user);
-            log.info("已初始化管理员账号：{} / {}（建议首次登录后修改口令）", adminUsername, adminPassword);
+            // 安全修复（admin-password-logged）：日志不再输出明文口令。
+            // 口令来源是环境变量/配置，落库的只有散列；运维需要知道口令时看部署配置即可，
+            // 写进日志会随 logs/backend.log 长期留存并被日志查看页/宿主机挂载扩散。
+            log.info("已初始化管理员账号：{}（口令取自部署配置 ADMIN_PASSWORD，请首次登录后立即修改）", adminUsername);
         } catch (Exception e) {
             log.warn("初始化管理员账号失败，请先执行 sql/13_auth.sql 建表；当前无法直连登录，外链访问不受影响。原因：{}",
                     e.getMessage());

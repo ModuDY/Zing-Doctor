@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zing.doctor.common.BizException;
 import com.zing.doctor.common.OperatorContext;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import com.zing.doctor.module.sofa.dto.SofaAssessmentView;
 import com.zing.doctor.module.sofa.entity.SofaConfig;
 import com.zing.doctor.module.sofa.entity.SofaScoreRecord;
@@ -56,6 +57,10 @@ public class SofaServiceImpl implements SofaService {
 
     @Autowired
     private SofaConfigMapper configMapper;
+
+    /** 血气报告名 / 标本名 / 氧合指数项目名按术语字典取（各院 LIS 叫法不同） */
+    @Autowired
+    private DataItemConfigService dataItemConfigService;
 
     private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -113,7 +118,7 @@ public class SofaServiceImpl implements SofaService {
 
         // ---------------- 取数（窗口内最差值） ----------------
         // 呼吸：氧合指数（PaO2/FiO2）取最低
-        List<Map<String, Object>> oxyRows = safe(icuPatientMapper.selectOxygenationHistoryByRange(
+        List<Map<String, Object>> oxyRows = safe(oxygenationHistoryByRange(
                 patientId, startTime, endTime));
         Double pf = minOf(oxyRows, "oxygenation_index");
         String pfTime = timeOfMin(oxyRows, "oxygenation_index", "check_time");
@@ -1342,7 +1347,7 @@ public class SofaServiceImpl implements SofaService {
         switch (metricKey.trim()) {
             // 呼吸：氧合指数 PaO2/FiO2
             case "resp":
-                for (Map<String, Object> r : safe(icuPatientMapper.selectOxygenationHistoryByRange(
+                for (Map<String, Object> r : safe(oxygenationHistoryByRange(
                         patientId, startTime, endTime))) {
                     Double v = toDouble(r.get("oxygenation_index"));
                     if (v != null) out.add(trendPoint(toStr(r.get("check_time")), v));
@@ -1572,6 +1577,20 @@ public class SofaServiceImpl implements SofaService {
 
     private static <T> List<T> safe(List<T> list) {
         return list == null ? new ArrayList<>() : list;
+    }
+
+    /**
+     * 窗口内氧合指数：报告名 / 标本名 / 项目名三件套走术语字典。
+     *
+     * <p>三件套任一不匹配就静默返回空，SOFA 呼吸项会退化成「无数据」而不是报错，
+     * 所以取值集中在这里，出问题时只改配置表、不改代码。
+     */
+    private List<Map<String, Object>> oxygenationHistoryByRange(String patientId,
+                                                                String startTime, String endTime) {
+        return icuPatientMapper.selectOxygenationHistoryByRange(patientId, startTime, endTime,
+                dataItemConfigService.dict(DataItemConfigService.DICT_GAS_SAMPLE),
+                dataItemConfigService.dict(DataItemConfigService.DICT_GAS_REPORT),
+                dataItemConfigService.dict(DataItemConfigService.DICT_OXYGEN_INDEX));
     }
 
     private Double minOf(List<Map<String, Object>> rows, String key) {

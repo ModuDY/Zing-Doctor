@@ -4,6 +4,7 @@ import com.zing.doctor.icu.dto.WorkbenchPatient;
 import com.zing.doctor.icu.mapper.IcuPatientMapper;
 import com.zing.doctor.module.antibiotic.mapper.AntibioticReassessmentMapper;
 import com.zing.doctor.module.apache2.mapper.Apache2ScoreRecordMapper;
+import com.zing.doctor.module.config.dataitem.service.DataItemConfigService;
 import com.zing.doctor.module.sofa.mapper.SofaScoreRecordMapper;
 import com.zing.doctor.module.system.service.SysParamService;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -50,6 +53,10 @@ class WorkbenchInfectionEnrichTest {
                 mock(Apache2ScoreRecordMapper.class), mapper,
                 mock(AntibioticReassessmentMapper.class),
                 mock(SysParamService.class));
+        // 术语字典是字段注入（不进构造器），单测里显式塞一个 mock，否则体温/培养取数为 NPE
+        DataItemConfigService dict = mock(DataItemConfigService.class);
+        when(dict.dict(anyString())).thenReturn(Collections.singletonList("体温"));
+        ReflectionTestUtils.setField(service, "dataItemConfigService", dict);
     }
 
     @Test

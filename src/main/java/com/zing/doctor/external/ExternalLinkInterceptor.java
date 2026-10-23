@@ -51,6 +51,8 @@ public class ExternalLinkInterceptor implements HandlerInterceptor {
 
     private final ExternalUserAutoRegister autoRegister;
 
+    private final ExternalIcuTokenProvider icuTokenProvider;
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
@@ -228,7 +230,10 @@ public class ExternalLinkInterceptor implements HandlerInterceptor {
     }
 
     private ExternalLinkContext verifyIcuPlain(String pageCode, String token, Map<String, String> params) {
-        String expected = properties.getIcuToken();
+        // 安全修复（icu-static-token-no-expiry-no-replay）：改读统一真源（sys_param 优先、
+        // 配置文件兜底），与 /entry 侧一致 —— 参数页轮换 token 后 API 通道立即生效，
+        // 已泄露旧 token 不再因「只读配置」而绕过轮换继续可用。
+        String expected = icuTokenProvider.current();
         if (StrUtil.isBlank(expected) || !SignatureUtil.constantTimeEquals(expected, token)) {
             throw new BizException(401, "ICU 外链 token 校验失败");
         }
