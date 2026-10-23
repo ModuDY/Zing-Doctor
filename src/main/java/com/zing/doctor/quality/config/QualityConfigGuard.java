@@ -49,7 +49,6 @@ public class QualityConfigGuard {
     private static final int OPERATOR_MAX_LEN = 64;
 
     private final QualityProperties properties;
-    private final com.zing.doctor.module.system.service.SysParamService sysParamService;
 
     /**
      * 启动时把写保护状态打到日志。
@@ -80,8 +79,12 @@ public class QualityConfigGuard {
      * @return {@code null} 表示放行；非空为<b>拒绝原因</b>（可直接回给前端展示）
      */
     public String denyReason(String clientIp, String token) {
-        // 内网/开发环境总开关：true 时跳过一切写权限检查，生产前必须关
-        if (sysParamService.bool("QUALITY_CONFIG_WRITE_OPEN", properties.isConfigWriteOpen())) {
+        // 安全修复（quality-config-write-bypass-via-sys-param）：
+        // 删除 sys_param QUALITY_CONFIG_WRITE_OPEN 短路分支。该参数此前可被任一已认证
+        // 主体经 /api/sys-param/save 写入，使 fail-closed 写闸整体失效（原第一分支：
+        // sysParamService.bool("QUALITY_CONFIG_WRITE_OPEN", ...) 为真即 return null）。
+        // 总开关只认配置文件 zing.quality.config-write-open，临时放开请改配置并重启。
+        if (properties.isConfigWriteOpen()) {
             return null;
         }
         boolean hasToken = StringUtils.hasText(properties.getConfigWriteToken());

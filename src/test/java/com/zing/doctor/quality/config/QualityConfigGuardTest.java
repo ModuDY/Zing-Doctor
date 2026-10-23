@@ -2,7 +2,6 @@ package com.zing.doctor.quality.config;
 
 import com.zing.doctor.external.ExternalLinkContext;
 import com.zing.doctor.external.ExternalLinkInterceptor;
-import com.zing.doctor.module.system.service.SysParamService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,15 +31,12 @@ import static org.mockito.Mockito.when;
 class QualityConfigGuardTest {
 
     private QualityProperties props;
-    private SysParamService sysParam;
     private QualityConfigGuard guard;
 
     @BeforeEach
     void setUp() {
         props = new QualityProperties();
-        sysParam = mock(SysParamService.class);
-        when(sysParam.bool(anyString(), anyBoolean())).thenAnswer(inv -> (Boolean) inv.getArgument(1));
-        guard = new QualityConfigGuard(props, sysParam);
+        guard = new QualityConfigGuard(props);
     }
 
     @Test
@@ -156,14 +152,15 @@ class QualityConfigGuardTest {
     }
 
     @Test
-    @DisplayName("总开关 configWriteOpen=true 时跳过一切写保护检查（内网/开发环境用）")
+    @DisplayName("配置文件总开关 configWriteOpen=true 时跳过一切写保护检查（内网/开发环境用）")
     void openSwitchBypassesAll() {
         // 默认 fail-closed
         assertNotNull(guard.denyReason("1.2.3.4", "no-token"));
 
-        // sys_param 里开关打开
-        when(sysParam.bool(org.mockito.ArgumentMatchers.eq("QUALITY_CONFIG_WRITE_OPEN"), org.mockito.ArgumentMatchers.anyBoolean())).thenReturn(true);
-        assertNull(guard.denyReason("1.2.3.4", "no-token"), "开关打开后任何 IP/无 token 都应放行");
+        // 安全修复（quality-config-write-bypass-via-sys-param）：sys_param 短路分支已删除，
+        // 总开关只认配置文件 properties.isConfigWriteOpen()。参数表现写入同名键不再生效。
+        props.setConfigWriteOpen(true);
+        assertNull(guard.denyReason("1.2.3.4", "no-token"), "配置文件开关打开后任何 IP/无 token 都应放行");
     }
 
 }

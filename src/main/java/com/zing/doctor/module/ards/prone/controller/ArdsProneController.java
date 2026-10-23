@@ -1,6 +1,11 @@
 package com.zing.doctor.module.ards.prone.controller;
 
+import com.zing.doctor.common.BizException;
 import com.zing.doctor.common.Result;
+import com.zing.doctor.icu.dto.WorkbenchPatient;
+import com.zing.doctor.icu.service.DepartScopeAsserts;
+import com.zing.doctor.icu.service.IcuPatientService;
+import com.zing.doctor.icu.service.UserDepartScopeService;
 import com.zing.doctor.module.ards.prone.dict.ArdsProneDict;
 import com.zing.doctor.module.ards.prone.dto.ArdsProneCellSaveItem;
 import com.zing.doctor.module.ards.prone.dto.ArdsProneRecordView;
@@ -20,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +35,11 @@ import java.util.Map;
  *
  * <p>归档不在此处：复用现有 {@code /api/archive/push?biz=ARDS_PRONE&id=xxx}，
  * 与 APACHE II、SOFA 评分走同一归档接口与传参，仅 doc_code 不同。
+ *
+ * <p><b>科室收敛（security-audit 2026-10：patient-endpoint-no-depart-scope）</b>：
+ * 列表端点收敛 departCode，患者级/记录级端点按患者所属科室过
+ * {@link UserDepartScopeService#resolveQueryDepart} —— 普通直连账号仅能访问其授权科室
+ * （越权 403 / 未选科室 400）；管理员全院；外链维持既有语义。
  */
 @Slf4j
 @RestController
@@ -37,6 +48,44 @@ public class ArdsProneController {
 
     @Autowired
     private ArdsProneService ardsProneService;
+
+    @Autowired
+    private IcuPatientService icuPatientService;
+
+    @Autowired
+    private UserDepartScopeService departScopeService;
+
+    /** 患者级科室收敛：按 patientId 取患者所属科室后过 resolveQueryDepart */
+    private void assertPatientAccess(HttpServletRequest request, String patientId) {
+        WorkbenchPatient patient = icuPatientService.getWorkbenchPatientAny(patientId);
+        if (patient == null) {
+            throw new BizException(404, "患者不存在：" + patientId);
+        }
+        DepartScopeAsserts.assertPatientDepart(departScopeService, request, patient);
+    }
+
+    /** 患者级科室收敛：按住院号定位患者后过 resolveQueryDepart */
+    private void assertPatientAccessByNo(HttpServletRequest request, String inHospitalNo) {
+        String patientId = icuPatientService.resolvePatientIdByInHospitalNo(inHospitalNo);
+        if (patientId == null) {
+            throw new BizException(404, "患者不存在：" + inHospitalNo);
+        }
+        assertPatientAccess(request, patientId);
+    }
+
+    /** 记录级科室收敛：按记录所属患者收敛，防止按 id 跨科室读写 */
+    private void assertRecordAccess(HttpServletRequest request, Long recordId) {
+        ArdsProneRecordView view = ardsProneService.get(recordId);
+        if (view == null || view.getRecord() == null) {
+            throw new BizException(404, "记录不存在：" + recordId);
+        }
+        ArdsProneRecord r = view.getRecord();
+        if (r.getPatientId() != null) {
+            assertPatientAccess(request, r.getPatientId());
+        } else if (r.getInHospitalNo() != null) {
+            assertPatientAccessByNo(request, r.getInHospitalNo());
+        }
+    }
 
     /** 参数字典（37 项）：填写页、打印文书、回传文书共用同一份 */
     @GetMapping("/dict")
@@ -172,9 +221,17 @@ public class ArdsProneController {
     /** 记录列表：按住院号或科室 */
     @GetMapping("/list")
     public Result<List<ArdsProneRecord>> list(@RequestParam(required = false) String inHospitalNo,
-                                              @RequestParam(required = false) String departCode) {
+                                              @RequestParam(required = false) String departCode,
+                                              HttpServletRequest request) {
         try {
-            return Result.ok(ardsProneService.list(inHospitalNo, departCode));
+            if (org.springframework.util.StringUtils.hasText(inHospitalNo)) {
+                // 按住院号查：先收敛到该患者所属科室
+                assertPatientAccessByNo(request, inHospitalNo);
+                return Result.ok(ardsProneService.list(inHospitalNo, departCode));
+            }
+            // 按科室查：把请求的 departCode 收敛成账号实际可查的科室
+            String allowed = DepartScopeAsserts.scopeDepart(departScopeService, request, departCode);
+            return Result.ok(ardsProneService.list(inHospitalNo, allowed));
         } catch (Exception e) {
             log.error("ARDS 俯卧位记录列表失败: inHospitalNo={}, departCode={}", inHospitalNo, departCode, e);
             return Result.fail("查询失败: " + e.getMessage());
@@ -183,8 +240,9 @@ public class ArdsProneController {
 
     /** 填写页视图 */
     @GetMapping("/get")
-    public Result<ArdsProneRecordView> get(@RequestParam Long id) {
+    public Result<ArdsProneRecordView> get(@RequestParam Long id, HttpServletRequest request) {
         try {
+            assertRecordAccess(request, id);
             ArdsProneRecordView view = ardsProneService.get(id);
             if (view == null) {
                 return Result.fail("记录不存在");
@@ -221,8 +279,10 @@ public class ArdsProneController {
     @GetMapping("/patient/lookup")
     public Result<Map<String, Object>> lookupPatient(@RequestParam String inHospitalNo,
                                                      @RequestParam(required = false) String inHospitalSerialNo,
-                                                     @RequestParam(required = false) String inDepartTime) {
+                                                     @RequestParam(required = false) String inDepartTime,
+                                                     HttpServletRequest request) {
         try {
+            assertPatientAccessByNo(request, inHospitalNo);
             return Result.ok(ardsProneService.lookupPatient(inHospitalNo, inHospitalSerialNo, inDepartTime));
         } catch (Exception e) {
             log.error("ARDS 俯卧位患者解析失败: inHospitalNo={}", inHospitalNo, e);
@@ -232,8 +292,15 @@ public class ArdsProneController {
 
     /** 保存记录头（患者信息、并发症、终止指征、签名等） */
     @PostMapping("/record/save")
-    public Result<ArdsProneRecord> saveRecord(@RequestBody ArdsProneRecord record) {
+    public Result<ArdsProneRecord> saveRecord(@RequestBody ArdsProneRecord record, HttpServletRequest request) {
         try {
+            if (record != null && record.getPatientId() != null) {
+                assertPatientAccess(request, record.getPatientId());
+            } else if (record != null && record.getInHospitalNo() != null) {
+                assertPatientAccessByNo(request, record.getInHospitalNo());
+            } else if (record != null && record.getId() != null) {
+                assertRecordAccess(request, record.getId());
+            }
             return Result.ok(ardsProneService.saveRecord(record));
         } catch (Exception e) {
             log.error("ARDS 俯卧位记录保存失败: id={}", record == null ? null : record.getId(), e);
@@ -244,8 +311,10 @@ public class ArdsProneController {
     /** 批量保存单元格值（覆盖自动值须填原因，全程留痕） */
     @PostMapping("/cells/save")
     public Result<Integer> saveCells(@RequestParam Long recordId,
-                                     @RequestBody List<ArdsProneCellSaveItem> items) {
+                                     @RequestBody List<ArdsProneCellSaveItem> items,
+                                     HttpServletRequest request) {
         try {
+            assertRecordAccess(request, recordId);
             return Result.ok(ardsProneService.saveCells(recordId, items));
         } catch (Exception e) {
             log.error("ARDS 俯卧位单元格保存失败: recordId={}", recordId, e);
@@ -277,8 +346,10 @@ public class ArdsProneController {
 
     /** 补传文书 PDF（与记录主体保存解耦） */
     @PostMapping("/record/{id}/pdf")
-    public Result<Boolean> attachPdf(@PathVariable Long id, @RequestBody Map<String, String> body) {
+    public Result<Boolean> attachPdf(@PathVariable Long id, @RequestBody Map<String, String> body,
+                                     HttpServletRequest request) {
         try {
+            assertRecordAccess(request, id);
             String pdfData = body == null ? null : body.get("pdfData");
             String pdfName = body == null ? null : body.get("pdfName");
             boolean ok = ardsProneService.attachPdf(id, pdfData, pdfName);
@@ -291,8 +362,9 @@ public class ArdsProneController {
 
     /** 逻辑删除记录 */
     @PostMapping("/record/delete")
-    public Result<Boolean> delete(@RequestParam Long id) {
+    public Result<Boolean> delete(@RequestParam Long id, HttpServletRequest request) {
         try {
+            assertRecordAccess(request, id);
             boolean ok = ardsProneService.delete(id);
             return ok ? Result.ok(true) : Result.fail("记录不存在");
         } catch (Exception e) {

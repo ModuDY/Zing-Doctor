@@ -1,6 +1,5 @@
 package com.zing.doctor.quality.config;
 
-import com.zing.doctor.module.system.service.SysParamService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -36,11 +35,7 @@ import javax.annotation.PostConstruct;
 @RequiredArgsConstructor
 public class QualityAccessGuard {
 
-    /** 临时放行开关（内网联调/演示用，置 true 时跳过全部访问控制） */
-    public static final String PARAM_OPEN = "QUALITY_ACCESS_OPEN";
-
     private final QualityProperties properties;
-    private final SysParamService sysParamService;
 
     /**
      * 启动时把访问控制状态打到日志。
@@ -76,9 +71,11 @@ public class QualityAccessGuard {
         if (!properties.isAccessControlEnabled()) {
             return null;
         }
-        if (sysParamService.bool(PARAM_OPEN, false)) {
-            return null;
-        }
+        // 安全修复（quality-config-write-bypass-via-sys-param 同族）：
+        // 删除 sys_param QUALITY_ACCESS_OPEN 临时放行分支 —— 该参数可被任一已认证主体
+        // 经 /api/sys-param/save 写入，使已启用的访问控制整体失效（原分支：
+        // sysParamService.bool(PARAM_OPEN, false) 为真即 return null）。
+        // 临时放开请改配置文件 zing.quality.access-control-enabled 并重启。
         String white = properties.getAccessIpWhitelist();
         if (!StringUtils.hasText(white)) {
             return "质控数据访问控制已启用，但未配置授权白名单";

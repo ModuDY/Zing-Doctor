@@ -129,12 +129,20 @@ public class UserDepartScopeService {
     }
 
     /**
-     * 是否管理员名单成员。
+     * 是否管理员名单成员（公开入口）：供写保护拦截器、日志查看等统一复用。
+     *
+     * <p>安全修复（sys-param-save-missing-admin-authz）：全仓缺少角色体系，
+     * 此前只有日志查看接入了管理员判定。本方法把 {@link #isSuperUser} 暴露为
+     * 统一口径，AdminWriteInterceptor 据此拦截配置类写请求。
      *
      * <p>名单用系统参数维护（页面可改），读不到时回退 {@code application.yml} 的默认值。
      * 之所以用名单而不是角色表：本库没有 sys_role / sys_user_role，短期也不打算为此
      * 引入一整套权限体系；名单写在这里有据可查，将来换成按角色判定不影响调用方。
      */
+    public boolean isAdmin(String username) {
+        return StrUtil.isNotBlank(username) && isSuperUser(username);
+    }
+
     private boolean isSuperUser(String username) {
         String cfg = sysParamService.value(KEY_SUPER_USERS);
         if (StrUtil.isBlank(cfg)) {

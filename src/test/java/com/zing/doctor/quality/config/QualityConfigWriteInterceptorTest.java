@@ -97,10 +97,6 @@ class QualityConfigWriteInterceptorTest {
     }
 
     private static QualityConfigWriteInterceptor interceptor(QualityProperties props) {
-        com.zing.doctor.module.system.service.SysParamService sp =
-            org.mockito.Mockito.mock(com.zing.doctor.module.system.service.SysParamService.class);
-        org.mockito.Mockito.when(sp.bool(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
-            .thenAnswer(inv -> (Boolean) inv.getArgument(1));
-        return new QualityConfigWriteInterceptor(new QualityConfigGuard(props, sp));
+        return new QualityConfigWriteInterceptor(new QualityConfigGuard(props));
     }
 }

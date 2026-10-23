@@ -1,12 +1,18 @@
 package com.zing.doctor.module.apache2.controller;
 
+import com.zing.doctor.common.BizException;
 import com.zing.doctor.common.Result;
+import com.zing.doctor.icu.dto.WorkbenchPatient;
+import com.zing.doctor.icu.service.DepartScopeAsserts;
+import com.zing.doctor.icu.service.IcuPatientService;
+import com.zing.doctor.icu.service.UserDepartScopeService;
 import com.zing.doctor.module.apache2.entity.Apache2ScoreRecord;
 import com.zing.doctor.module.apache2.service.Apache2Service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.OutputStream;
 import java.net.URLEncoder;
@@ -16,6 +22,11 @@ import java.util.Map;
 
 /**
  * APACHE II 评分 Controller
+ *
+ * <p><b>科室收敛（security-audit 2026-10：patient-endpoint-no-depart-scope）</b>：
+ * 总览端点按请求的 departCode 过 {@link UserDepartScopeService#resolveQueryDepart}，
+ * 患者级/记录级端点按患者所属科室收敛 —— 普通直连账号仅能访问其授权科室
+ * （越权 403 / 未选科室 400）；管理员全院；外链维持既有语义。
  */
 @Slf4j
 @RestController
@@ -25,6 +36,44 @@ public class Apache2Controller {
     @Autowired
     private Apache2Service apache2Service;
 
+    @Autowired
+    private IcuPatientService icuPatientService;
+
+    @Autowired
+    private UserDepartScopeService departScopeService;
+
+    /** 患者级科室收敛：按 patientId 取患者所属科室后过 resolveQueryDepart */
+    private void assertPatientAccess(HttpServletRequest request, String patientId) {
+        WorkbenchPatient patient = icuPatientService.getWorkbenchPatientAny(patientId);
+        if (patient == null) {
+            throw new BizException(404, "患者不存在：" + patientId);
+        }
+        DepartScopeAsserts.assertPatientDepart(departScopeService, request, patient);
+    }
+
+    /** 患者级科室收敛：按住院号定位患者后过 resolveQueryDepart */
+    private void assertPatientAccessByNo(HttpServletRequest request, String inHospitalNo) {
+        String patientId = icuPatientService.resolvePatientIdByInHospitalNo(inHospitalNo);
+        if (patientId == null) {
+            throw new BizException(404, "患者不存在：" + inHospitalNo);
+        }
+        assertPatientAccess(request, patientId);
+    }
+
+    /** 评分记录科室收敛：按记录所属患者收敛，防止按 id 跨科室读写 */
+    private void assertRecordAccess(HttpServletRequest request, Long recordId) {
+        // 注意：getRecordPdf 只查 id/pdfData/pdfName，不含患者字段，不能用于科室判定
+        Apache2ScoreRecord r = apache2Service.getRecordById(recordId);
+        if (r == null) {
+            throw new BizException(404, "记录不存在：" + recordId);
+        }
+        if (r.getPatientId() != null) {
+            assertPatientAccess(request, r.getPatientId());
+        } else if (r.getInHospitalNo() != null) {
+            assertPatientAccessByNo(request, r.getInHospitalNo());
+        }
+    }
+
     /**
      * 主任总览：统计数据 + 患者评分列表
      */
@@ -32,9 +81,12 @@ public class Apache2Controller {
     public Result<Map<String, Object>> getOverview(
             @RequestParam String departCode,
             @RequestParam String startTime,
-            @RequestParam String endTime) {
+            @RequestParam String endTime,
+            HttpServletRequest request) {
         try {
-            Map<String, Object> result = apache2Service.getOverview(departCode, startTime, endTime);
+            // 科室收敛：普通账号必须指定其授权科室，越权 403
+            String allowed = DepartScopeAsserts.scopeDepart(departScopeService, request, departCode);
+            Map<String, Object> result = apache2Service.getOverview(allowed, startTime, endTime);
             return Result.ok(result);
         } catch (Exception e) {
             log.error("获取APACHE II总览失败: departCode={}, startTime={}, endTime={}", departCode, startTime, endTime, e);
@@ -46,8 +98,10 @@ public class Apache2Controller {
      * 患者评分记录列表
      */
     @GetMapping("/patient/{inHospitalNo}/records")
-    public Result<List<Apache2ScoreRecord>> getPatientRecords(@PathVariable String inHospitalNo) {
+    public Result<List<Apache2ScoreRecord>> getPatientRecords(@PathVariable String inHospitalNo,
+                                                              HttpServletRequest request) {
         try {
+            assertPatientAccessByNo(request, inHospitalNo);
             List<Apache2ScoreRecord> list = apache2Service.getPatientRecords(inHospitalNo);
             return Result.ok(list);
         } catch (Exception e) {
@@ -60,8 +114,9 @@ public class Apache2Controller {
      * 单条评分记录详情
      */
     @GetMapping("/record/{id}")
-    public Result<Apache2ScoreRecord> getRecordById(@PathVariable Long id) {
+    public Result<Apache2ScoreRecord> getRecordById(@PathVariable Long id, HttpServletRequest request) {
         try {
+            assertRecordAccess(request, id);
             Apache2ScoreRecord record = apache2Service.getRecordById(id);
             return Result.ok(record);
         } catch (Exception e) {
@@ -76,8 +131,10 @@ public class Apache2Controller {
     @GetMapping("/record/{id}/pdf")
     public void downloadRecordPdf(@PathVariable Long id,
                                   @RequestParam(defaultValue = "inline") String disposition,
+                                  HttpServletRequest request,
                                   HttpServletResponse response) {
         try {
+            assertRecordAccess(request, id);
             Apache2ScoreRecord rec = apache2Service.getRecordPdf(id);
             if (rec == null || rec.getPdfData() == null || rec.getPdfData().isEmpty()) {
                 response.setStatus(404);
@@ -96,6 +153,9 @@ public class Apache2Controller {
                 os.write(bytes);
                 os.flush();
             }
+        } catch (BizException e) {
+            // 越权/参数类异常交给全局处理器，保证返回明确的 403/400 而非笼统 500
+            throw e;
         } catch (Exception e) {
             log.error("输出评分PDF失败: id={}", id, e);
             response.setStatus(500);
@@ -106,8 +166,10 @@ public class Apache2Controller {
      * 评分主体保存后，单独补传评分文书 PDF 大字段（解耦：大字段慢/失败不影响评分落库）
      */
     @PostMapping("/record/{id}/pdf")
-    public Result<Boolean> attachRecordPdf(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+    public Result<Boolean> attachRecordPdf(@PathVariable Long id, @RequestBody Map<String, Object> body,
+                                           HttpServletRequest request) {
         try {
+            assertRecordAccess(request, id);
             Object data = body == null ? null : body.get("pdfData");
             Object name = body == null ? null : body.get("pdfName");
             String pdfData = data == null ? null : data.toString();
@@ -127,8 +189,10 @@ public class Apache2Controller {
     public Result<Map<String, Object>> autoFetchPhysiologyData(
             @PathVariable String patientId,
             @RequestParam String startTime,
-            @RequestParam String endTime) {
+            @RequestParam String endTime,
+            HttpServletRequest request) {
         try {
+            assertPatientAccess(request, patientId);
             Map<String, Object> result = apache2Service.autoFetchPhysiologyData(patientId, startTime, endTime);
             return Result.ok(result);
         } catch (Exception e) {
@@ -155,8 +219,14 @@ public class Apache2Controller {
      * 保存评分记录
      */
     @PostMapping("/save")
-    public Result<Apache2ScoreRecord> saveScore(@RequestBody Apache2ScoreRecord record) {
+    public Result<Apache2ScoreRecord> saveScore(@RequestBody Apache2ScoreRecord record,
+                                                HttpServletRequest request) {
         try {
+            if (record != null && record.getPatientId() != null) {
+                assertPatientAccess(request, record.getPatientId());
+            } else if (record != null && record.getInHospitalNo() != null) {
+                assertPatientAccessByNo(request, record.getInHospitalNo());
+            }
             Apache2ScoreRecord saved = apache2Service.saveScore(record);
             return Result.ok(saved);
         } catch (Exception e) {
@@ -169,8 +239,10 @@ public class Apache2Controller {
      * 删除评分记录（逻辑删除）
      */
     @DeleteMapping("/record/{id}")
-    public Result<Boolean> deleteScore(@PathVariable Long id, @RequestParam(required = false) String operator) {
+    public Result<Boolean> deleteScore(@PathVariable Long id, @RequestParam(required = false) String operator,
+                                       HttpServletRequest request) {
         try {
+            assertRecordAccess(request, id);
             boolean success = apache2Service.deleteScore(id, operator);
             return Result.ok(success);
         } catch (Exception e) {
@@ -197,8 +269,10 @@ public class Apache2Controller {
      * 根据住院号获取患者基本信息
      */
     @GetMapping("/patient-info/{inHospitalNo}")
-    public Result<Map<String, Object>> getPatientInfo(@PathVariable String inHospitalNo) {
+    public Result<Map<String, Object>> getPatientInfo(@PathVariable String inHospitalNo,
+                                                      HttpServletRequest request) {
         try {
+            assertPatientAccessByNo(request, inHospitalNo);
             Map<String, Object> info = apache2Service.getPatientInfo(inHospitalNo);
             return Result.ok(info);
         } catch (Exception e) {
@@ -215,8 +289,10 @@ public class Apache2Controller {
             @PathVariable String patientId,
             @RequestParam String metricKey,
             @RequestParam String startTime,
-            @RequestParam String endTime) {
+            @RequestParam String endTime,
+            HttpServletRequest request) {
         try {
+            assertPatientAccess(request, patientId);
             List<Map<String, Object>> trend = apache2Service.getMetricTrend(patientId, metricKey, startTime, endTime);
             return Result.ok(trend);
         } catch (Exception e) {
@@ -232,8 +308,10 @@ public class Apache2Controller {
     @GetMapping("/oxygen-trend/{patientId}")
     public Result<Map<String, Object>> getOxygenTrend(@PathVariable String patientId,
                                                       @RequestParam String startTime,
-                                                      @RequestParam String endTime) {
+                                                      @RequestParam String endTime,
+                                                      HttpServletRequest request) {
         try {
+            assertPatientAccess(request, patientId);
             return Result.ok(apache2Service.getOxygenTrend(patientId, startTime, endTime));
         } catch (Exception e) {
             log.error("获取氧合趋势失败: patientId={}", patientId, e);
@@ -245,8 +323,10 @@ public class Apache2Controller {
      * 拉取患者在重症系统已评估的 GCS 记录（Z_ICU_GCS，供评分时同步选择）
      */
     @GetMapping("/patient/{patientId}/gcs-records")
-    public Result<List<Map<String, Object>>> listSystemGcs(@PathVariable String patientId) {
+    public Result<List<Map<String, Object>>> listSystemGcs(@PathVariable String patientId,
+                                                           HttpServletRequest request) {
         try {
+            assertPatientAccess(request, patientId);
             return Result.ok(apache2Service.listSystemGcs(patientId));
         } catch (Exception e) {
             log.error("获取重症系统GCS记录失败: patientId={}", patientId, e);

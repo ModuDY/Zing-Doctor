@@ -1,6 +1,11 @@
 package com.zing.doctor.module.antibiotic.controller;
 
+import com.zing.doctor.common.BizException;
 import com.zing.doctor.common.Result;
+import com.zing.doctor.icu.dto.WorkbenchPatient;
+import com.zing.doctor.icu.service.DepartScopeAsserts;
+import com.zing.doctor.icu.service.IcuPatientService;
+import com.zing.doctor.icu.service.UserDepartScopeService;
 import com.zing.doctor.module.antibiotic.dto.DddDrugRank;
 import com.zing.doctor.module.antibiotic.dto.DddOverviewView;
 import com.zing.doctor.module.antibiotic.dto.DddPatientDetail;
@@ -11,11 +16,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 
 /**
  * 第三维度：抗菌药物使用强度（DDD）分析 Controller。
+ *
+ * <p><b>科室收敛（security-audit 2026-10：patient-endpoint-no-depart-scope）</b>：
+ * 总览/患者列表按请求的 departCode 过 {@link UserDepartScopeService#resolveQueryDepart}，
+ * 患者明细按患者所属科室收敛；配置类端点（/config/*）由 AdminWriteInterceptor 保护，不在此处重复。
  */
 @Slf4j
 @RestController
@@ -25,6 +35,21 @@ public class DddController {
 
     private final DddStatsService dddStatsService;
     private final DddConfigService dddConfigService;
+    private final IcuPatientService icuPatientService;
+    private final UserDepartScopeService departScopeService;
+
+    /** 患者级科室收敛：按住院号定位患者后过 resolveQueryDepart */
+    private void assertPatientAccessByNo(HttpServletRequest request, String inHospitalNo) {
+        String patientId = icuPatientService.resolvePatientIdByInHospitalNo(inHospitalNo);
+        if (patientId == null) {
+            throw new BizException(404, "患者不存在：" + inHospitalNo);
+        }
+        WorkbenchPatient patient = icuPatientService.getWorkbenchPatientAny(patientId);
+        if (patient == null) {
+            throw new BizException(404, "患者不存在：" + inHospitalNo);
+        }
+        DepartScopeAsserts.assertPatientDepart(departScopeService, request, patient);
+    }
 
     // ==================================================================
     // 统计分析接口
@@ -45,10 +70,13 @@ public class DddController {
     public Result<DddOverviewView> overview(
             @RequestParam String startTime,
             @RequestParam String endTime,
-            @RequestParam(required = false, defaultValue = "") String departCode) {
+            @RequestParam(required = false, defaultValue = "") String departCode,
+            HttpServletRequest request) {
         log.info("[DDD] 总览仪表盘统计: {} ~ {}, departCode={}", startTime, endTime, departCode);
         try {
-            DddOverviewView view = dddStatsService.getOverview(startTime, endTime, departCode);
+            // 科室收敛：普通账号必须指定其授权科室，越权 403
+            String allowed = DepartScopeAsserts.scopeDepart(departScopeService, request, departCode);
+            DddOverviewView view = dddStatsService.getOverview(startTime, endTime, allowed);
             return Result.ok(view);
         } catch (Exception e) {
             log.error("[DDD] 总览仪表盘统计失败", e);
@@ -90,10 +118,13 @@ public class DddController {
     public Result<List<DddPatientDetail>> patients(
             @RequestParam String startTime,
             @RequestParam String endTime,
-            @RequestParam(required = false, defaultValue = "") String departCode) {
+            @RequestParam(required = false, defaultValue = "") String departCode,
+            HttpServletRequest request) {
         log.info("[DDD] 患者明细统计: {} ~ {}, departCode={}", startTime, endTime, departCode);
         try {
-            List<DddPatientDetail> details = dddStatsService.getPatientDetails(startTime, endTime, departCode);
+            // 科室收敛：服务端实际拉全院后按科室过滤，边界必须在这里定死
+            String allowed = DepartScopeAsserts.scopeDepart(departScopeService, request, departCode);
+            List<DddPatientDetail> details = dddStatsService.getPatientDetails(startTime, endTime, allowed);
             return Result.ok(details);
         } catch (Exception e) {
             log.error("[DDD] 患者明细统计失败", e);
@@ -105,9 +136,11 @@ public class DddController {
     public Result<DddPatientDetail> patientDetail(
             @PathVariable String inHospitalNo,
             @RequestParam String startTime,
-            @RequestParam String endTime) {
+            @RequestParam String endTime,
+            HttpServletRequest request) {
         log.info("[DDD] 患者明细: inHospitalNo={}, {} ~ {}", inHospitalNo, startTime, endTime);
         try {
+            assertPatientAccessByNo(request, inHospitalNo);
             DddPatientDetail detail = dddStatsService.getPatientDetail(inHospitalNo, startTime, endTime);
             return Result.ok(detail);
         } catch (Exception e) {

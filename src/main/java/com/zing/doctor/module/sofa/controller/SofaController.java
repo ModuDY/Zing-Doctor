@@ -1,6 +1,9 @@
 package com.zing.doctor.module.sofa.controller;
 
 import com.zing.doctor.common.Result;
+import com.zing.doctor.icu.service.DepartScopeAsserts;
+import com.zing.doctor.icu.service.IcuPatientService;
+import com.zing.doctor.icu.service.UserDepartScopeService;
 import com.zing.doctor.module.sofa.dto.SofaAssessmentView;
 import com.zing.doctor.module.sofa.entity.SofaScoreRecord;
 import com.zing.doctor.module.sofa.service.SofaService;
@@ -8,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
@@ -19,6 +23,11 @@ import java.util.Map;
  *
  * <p>所有 /api 请求需携带外链鉴权请求头（由 ExternalLinkInterceptor 校验）。
  * 取数窗口 startTime/endTime 缺省时按「过去 24 小时」处理。
+ *
+ * <p><b>科室收敛（security-audit 2026-10：patient-endpoint-no-depart-scope）</b>：
+ * 患者级与总览端点统一过 {@link UserDepartScopeService#resolveQueryDepart} ——
+ * 普通直连账号仅能访问其授权科室（越权 403 / 未选科室 400）；
+ * 管理员全院；外链维持既有语义。配置类端点由 AdminWriteInterceptor 保护。
  */
 @Slf4j
 @RestController
@@ -28,7 +37,47 @@ public class SofaController {
     @Autowired
     private SofaService sofaService;
 
+    @Autowired
+    private IcuPatientService icuPatientService;
+
+    @Autowired
+    private UserDepartScopeService departScopeService;
+
     private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    /**
+     * 患者级科室收敛：按 patientId 取患者所属科室后过 resolveQueryDepart，越权抛 403/400。
+     */
+    private void assertPatientAccess(HttpServletRequest request, String patientId) {
+        com.zing.doctor.icu.dto.WorkbenchPatient patient = icuPatientService.getWorkbenchPatientAny(patientId);
+        if (patient == null) {
+            throw new com.zing.doctor.common.BizException(404, "患者不存在：" + patientId);
+        }
+        DepartScopeAsserts.assertPatientDepart(departScopeService, request, patient);
+    }
+
+    /**
+     * 患者级科室收敛：按住院号定位患者后过 resolveQueryDepart。
+     */
+    private void assertPatientAccessByNo(HttpServletRequest request, String inHospitalNo) {
+        String patientId = icuPatientService.resolvePatientIdByInHospitalNo(inHospitalNo);
+        if (patientId == null) {
+            throw new com.zing.doctor.common.BizException(404, "患者不存在：" + inHospitalNo);
+        }
+        assertPatientAccess(request, patientId);
+    }
+
+    /** 评分记录科室收敛：按记录所属患者收敛，防止按 id 跨科室读写 */
+    private void assertRecordAccess(HttpServletRequest request, Long recordId) {
+        SofaScoreRecord r = sofaService.getRecordPdf(recordId);
+        if (r == null) {
+            throw new com.zing.doctor.common.BizException(404, "记录不存在：" + recordId);
+        }
+        if (r.getPatientId() == null) {
+            return; // 无患者关联的历史数据，按记录科室兜底跳过
+        }
+        assertPatientAccess(request, r.getPatientId());
+    }
 
     /**
      * 单患者 SOFA 评估（自动取数 + 计分）。
@@ -36,8 +85,10 @@ public class SofaController {
     @GetMapping("/assessment/{patientId}")
     public Result<SofaAssessmentView> assessment(@PathVariable String patientId,
                                                  @RequestParam(required = false) String startTime,
-                                                 @RequestParam(required = false) String endTime) {
+                                                 @RequestParam(required = false) String endTime,
+                                                 HttpServletRequest request) {
         try {
+            assertPatientAccess(request, patientId);
             String[] range = normalizeRange(startTime, endTime);
             return Result.ok(sofaService.getAssessment(patientId, range[0], range[1]));
         } catch (Exception e) {
@@ -52,8 +103,10 @@ public class SofaController {
     @GetMapping("/assessment/by-no")
     public Result<SofaAssessmentView> assessmentByNo(@RequestParam("inHospitalNo") String inHospitalNo,
                                                      @RequestParam(required = false) String startTime,
-                                                     @RequestParam(required = false) String endTime) {
+                                                     @RequestParam(required = false) String endTime,
+                                                     HttpServletRequest request) {
         try {
+            assertPatientAccessByNo(request, inHospitalNo);
             String[] range = normalizeRange(startTime, endTime);
             return Result.ok(sofaService.getAssessmentByInHospitalNo(inHospitalNo, range[0], range[1]));
         } catch (Exception e) {
@@ -68,8 +121,12 @@ public class SofaController {
     @PostMapping("/record")
     public Result<SofaScoreRecord> saveRecord(@RequestBody SofaScoreRecord record,
                                               @RequestParam(required = false) String startTime,
-                                              @RequestParam(required = false) String endTime) {
+                                              @RequestParam(required = false) String endTime,
+                                              HttpServletRequest request) {
         try {
+            if (record != null && record.getPatientId() != null) {
+                assertPatientAccess(request, record.getPatientId());
+            }
             String[] range = normalizeRange(startTime, endTime);
             return Result.ok(sofaService.saveRecord(record, range[0], range[1]));
         } catch (Exception e) {
@@ -82,8 +139,10 @@ public class SofaController {
      * 患者历史评分（倒序）。
      */
     @GetMapping("/records")
-    public Result<List<SofaScoreRecord>> records(@RequestParam("inHospitalNo") String inHospitalNo) {
+    public Result<List<SofaScoreRecord>> records(@RequestParam("inHospitalNo") String inHospitalNo,
+                                                 HttpServletRequest request) {
         try {
+            assertPatientAccessByNo(request, inHospitalNo);
             return Result.ok(sofaService.listByPatient(inHospitalNo));
         } catch (Exception e) {
             log.error("SOFA 历史查询失败: inHospitalNo={}", inHospitalNo, e);
@@ -95,8 +154,9 @@ public class SofaController {
      * 逻辑删除一条评分记录。
      */
     @PostMapping("/record/delete")
-    public Result<Boolean> deleteRecord(@RequestParam Long id) {
+    public Result<Boolean> deleteRecord(@RequestParam Long id, HttpServletRequest request) {
         try {
+            assertRecordAccess(request, id);
             boolean ok = sofaService.deleteRecord(id);
             return ok ? Result.ok(true) : Result.fail("记录不存在");
         } catch (Exception e) {
@@ -111,10 +171,13 @@ public class SofaController {
     @GetMapping("/overview")
     public Result<Map<String, Object>> overview(@RequestParam(required = false) String departCode,
                                                 @RequestParam(required = false) String startTime,
-                                                @RequestParam(required = false) String endTime) {
+                                                @RequestParam(required = false) String endTime,
+                                                HttpServletRequest request) {
         try {
+            // 科室收敛：普通账号必须显式指定其授权科室；空白/ALL → 400（不再默认全院）
+            String allowed = DepartScopeAsserts.scopeDepart(departScopeService, request, departCode);
             String[] range = normalizeRange(startTime, endTime);
-            return Result.ok(sofaService.getOverview(departCode, range[0], range[1]));
+            return Result.ok(sofaService.getOverview(allowed, range[0], range[1]));
         } catch (Exception e) {
             log.error("SOFA 总览失败: departCode={}", departCode, e);
             return Result.fail("获取失败: " + e.getMessage());
@@ -138,8 +201,9 @@ public class SofaController {
      * 取某条评分记录的文书 PDF（Base64 + 文件名），供在线预览/下载。
      */
     @GetMapping("/record/{id}/pdf")
-    public Result<Map<String, Object>> getRecordPdf(@PathVariable Long id) {
+    public Result<Map<String, Object>> getRecordPdf(@PathVariable Long id, HttpServletRequest request) {
         try {
+            assertRecordAccess(request, id);
             SofaScoreRecord r = sofaService.getRecordPdf(id);
             if (r == null) return Result.fail("记录不存在");
             Map<String, Object> m = new LinkedHashMap<>();
@@ -158,8 +222,10 @@ public class SofaController {
      * <p>请求体：{@code {"pdfData":"<Base64，不含 data: 前缀>","pdfName":"xxx.pdf"}}
      */
     @PostMapping("/record/{id}/pdf")
-    public Result<Boolean> attachPdf(@PathVariable Long id, @RequestBody Map<String, String> body) {
+    public Result<Boolean> attachPdf(@PathVariable Long id, @RequestBody Map<String, String> body,
+                                     HttpServletRequest request) {
         try {
+            assertRecordAccess(request, id);
             String pdfData = body == null ? null : body.get("pdfData");
             String pdfName = body == null ? null : body.get("pdfName");
             boolean ok = sofaService.attachPdf(id, pdfData, pdfName);
@@ -179,8 +245,10 @@ public class SofaController {
     public Result<List<Map<String, Object>>> metricTrend(@PathVariable String patientId,
                                                          @RequestParam String metricKey,
                                                          @RequestParam(required = false) String startTime,
-                                                         @RequestParam(required = false) String endTime) {
+                                                         @RequestParam(required = false) String endTime,
+                                                         HttpServletRequest request) {
         try {
+            assertPatientAccess(request, patientId);
             String[] range = normalizeRange(startTime, endTime);
             return Result.ok(sofaService.getMetricTrend(patientId, metricKey, range[0], range[1]));
         } catch (Exception e) {
@@ -194,8 +262,10 @@ public class SofaController {
      * <p>返回按评估时间倒序的 E/V/M 记录（含插管/未评全记录，由前端决定是否可带入）。
      */
     @GetMapping("/patient/{patientId}/gcs-records")
-    public Result<List<Map<String, Object>>> gcsRecords(@PathVariable String patientId) {
+    public Result<List<Map<String, Object>>> gcsRecords(@PathVariable String patientId,
+                                                        HttpServletRequest request) {
         try {
+            assertPatientAccess(request, patientId);
             return Result.ok(sofaService.listSystemGcs(patientId));
         } catch (Exception e) {
             log.error("SOFA 获取重症系统GCS记录失败: patientId={}", patientId, e);

@@ -1,6 +1,8 @@
 package com.zing.doctor.module.system.service.impl;
 
 import cn.hutool.jwt.JWT;
+import cn.hutool.jwt.JWTHeader;
+import cn.hutool.jwt.signers.JWTSignerUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zing.doctor.common.BizException;
 import com.zing.doctor.module.system.entity.SysUser;
@@ -66,10 +68,11 @@ public class AuthServiceImpl implements AuthService {
         sysUserMapper.updateById(upd);
 
         long expireAt = System.currentTimeMillis() + expireHours * 3600 * 1000L;
+        // 安全修复（jwt-alg-none-accepted）：签发侧同样固定 HS256，不依赖库默认行为
         String token = JWT.create()
                 .setPayload("username", user.getUsername())
                 .setPayload("exp", expireAt)
-                .setKey(jwtSecret.getBytes(StandardCharsets.UTF_8))
+                .setSigner(JWTSignerUtil.hs256(jwtSecret.getBytes(StandardCharsets.UTF_8)))
                 .sign();
 
         Map<String, Object> data = new LinkedHashMap<>();
@@ -87,7 +90,17 @@ public class AuthServiceImpl implements AuthService {
             return null;
         }
         try {
-            JWT jwt = JWT.of(token.trim()).setKey(jwtSecret.getBytes(StandardCharsets.UTF_8));
+            JWT jwt = JWT.of(token.trim());
+            // 安全修复（jwt-alg-none-accepted）：固定校验算法。
+            // 1) 先拒绝 header.alg 缺失 / "none" / 任何非 HS256 值 ——
+            //    hutool 5.8.27 对 alg=none 返回 NoneJWTSigner，其 verify 对空签名返回 true，
+            //    造成「无需密钥即可伪造任意账号」的认证绕过；
+            // 2) 再用 setSigner 强制以服务端密钥按 HS256 验签，令牌头不再决定算法。
+            Object alg = jwt.getHeader(JWTHeader.ALGORITHM);
+            if (!(alg instanceof String) || !"HS256".equalsIgnoreCase((String) alg)) {
+                return null;
+            }
+            jwt.setSigner(JWTSignerUtil.hs256(jwtSecret.getBytes(StandardCharsets.UTF_8)));
             if (!jwt.verify()) {
                 return null;
             }
