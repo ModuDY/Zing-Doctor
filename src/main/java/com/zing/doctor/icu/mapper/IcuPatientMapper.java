@@ -224,7 +224,11 @@ public interface IcuPatientMapper {
             "                       AND ROWNUM &lt;= 1) &gt; 0 THEN 1 ELSE 0 END AS diag_flag, ",
             "         CASE WHEN (SELECT COUNT(1) FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li ",
             "                     WHERE li.in_hospital_no = pi.in_hospital_no AND li.del_flag = 0 ",
-            "                       AND li.lis_item_name LIKE '%降钙素原%' ",
+            "                       AND (",
+            "                       <foreach collection='pctNames' item='pn' separator=' OR '>",
+            "                         li.lis_item_name LIKE '%' || #{pn} || '%'",
+            "                       </foreach>",
+            "                       ) ",
             "                       AND li.lis_item_result IS NOT NULL AND li.lis_item_result &lt;&gt; '' ",
             "                       AND li.check_time &gt;= SYSDATE - 7 ",
             "                       AND ROWNUM &lt;= 1) &gt; 0 THEN 1 ELSE 0 END AS pct_flag, ",
@@ -239,7 +243,8 @@ public interface IcuPatientMapper {
             "ORDER BY t.in_depart_time DESC",
             "</script>"})
     List<Map<String, Object>> selectSuspectPatients(@Param("departCode") String departCode,
-                                                     @Param("diagTerms") List<String> diagTerms);
+                                                     @Param("diagTerms") List<String> diagTerms,
+                                                     @Param("pctNames") List<String> pctNames);
 
     // ==================================================================
     // 疑似感染列表批量取数（一次性按患者集合查完，禁止逐患者 N+1）
@@ -284,12 +289,21 @@ public interface IcuPatientMapper {
             + "</foreach>"
             + "AND li.lis_item_result IS NOT NULL AND li.lis_item_result &lt;&gt; '' "
             + "AND li.check_time &gt;= SYSDATE - 7 "
-            + "AND (li.lis_item_name LIKE '%降钙素原%' "
-            + "  OR (li.lis_item_name LIKE '%白细胞%' AND li.lis_item_name NOT LIKE '%尿%' "
+            + "AND ("
+            + "<foreach collection='pctNames' item='pn' separator=' OR '>"
+            + "  li.lis_item_name LIKE '%' || #{pn} || '%'"
+            + "</foreach>"
+            + "  OR ("
+            + "<foreach collection='wbcNames' item='wn' separator=' OR '>"
+            + "  li.lis_item_name LIKE '%' || #{wn} || '%'"
+            + "</foreach>"
+            + "      AND li.lis_item_name NOT LIKE '%尿%' "
             + "      AND li.lis_item_name NOT LIKE '%分类%')) "
             + "ORDER BY li.check_time DESC"
             + "</script>")
-    List<Map<String, Object>> selectInfectionLabsByNos(@Param("inHospitalNos") List<String> inHospitalNos);
+    List<Map<String, Object>> selectInfectionLabsByNos(@Param("inHospitalNos") List<String> inHospitalNos,
+                                                       @Param("pctNames") List<String> pctNames,
+                                                       @Param("wbcNames") List<String> wbcNames);
 
     /**
      * 批量最新体温（按 patient_id 取最近一条）。
@@ -311,11 +325,15 @@ public interface IcuPatientMapper {
             + "  <foreach collection='tempNames' item='tn' separator=' OR '>"
             + "    i.item_name LIKE '%' || #{tn} || '%'"
             + "  </foreach>"
-            + "  ) AND i.item_name NOT LIKE '%来源%' "
+            + "  ) "
+            + "  <foreach collection='tempExcludes' item='te'>"
+            + "   AND i.item_name NOT LIKE '%' || #{te} || '%' "
+            + "  </foreach>"
             + ") t WHERE t.rn = 1"
             + "</script>")
     List<Map<String, Object>> selectLatestTemperatureByPatientIds(@Param("patientIds") List<String> patientIds,
-                                                                  @Param("tempNames") List<String> tempNames);
+                                                                 @Param("tempNames") List<String> tempNames,
+                                                                 @Param("tempExcludes") List<String> tempExcludes);
 
     /**
      * 批量微生物培养/药敏（只取风险增强需要的三列，近 100 条/患者由调用方按住院号截取）。
@@ -484,14 +502,19 @@ public interface IcuPatientMapper {
                                                            @Param("keywords") List<String> keywords);
 
     /** AKI：近14天肌酐，名称允许带*等前缀；单患者查询，避免全院 GROUP BY。 */
-    @Select("SELECT li.lis_item_name AS item_name, li.lis_item_result AS result, "
+    @Select("<script>SELECT li.lis_item_name AS item_name, li.lis_item_result AS result, "
             + "li.lis_item_unit AS unit, li.check_time AS check_time "
             + "FROM \"zing_icu_db_prod\".\"patient_info_lis_item\" li "
             + "WHERE li.in_hospital_no = #{inHospitalNo} AND li.del_flag = 0 "
-            + "AND li.lis_item_result IS NOT NULL AND li.lis_item_result <> '' "
-            + "AND li.lis_item_name LIKE '%肌酐%' "
-            + "AND li.check_time >= SYSDATE - 14 ORDER BY li.check_time ASC")
-    List<Map<String, Object>> selectAkiCreatinine(@Param("inHospitalNo") String inHospitalNo);
+            + "AND li.lis_item_result IS NOT NULL AND li.lis_item_result &lt;&gt; '' "
+            + "AND ("
+            + "<foreach collection='crNames' item='cn' separator=' OR '>"
+            + "  li.lis_item_name LIKE '%' || #{cn} || '%'"
+            + "</foreach>"
+            + ") "
+            + "AND li.check_time &gt;= SYSDATE - 14 ORDER BY li.check_time ASC</script>")
+    List<Map<String, Object>> selectAkiCreatinine(@Param("inHospitalNo") String inHospitalNo,
+                                                  @Param("crNames") List<String> crNames);
 
     /** AKI：近6小时尿量，item_code 由调用方按配置传入（默认 ii_nl）。 */
     @Select("<script>SELECT r.item_value AS item_value, r.item_unit AS item_unit, r.item_time AS item_time "
@@ -538,11 +561,15 @@ public interface IcuPatientMapper {
             + "<foreach collection='tempNames' item='tn' separator=' OR '>"
             + "  i.item_name LIKE '%' || #{tn} || '%'"
             + "</foreach>"
-            + ") AND i.item_name NOT LIKE '%来源%' "
+            + ") "
+            + "<foreach collection='tempExcludes' item='te'>"
+            + "  AND i.item_name NOT LIKE '%' || #{te} || '%' "
+            + "</foreach>"
             + "  ORDER BY r.item_time DESC "
             + ") WHERE ROWNUM &lt;= 1</script>")
     Map<String, Object> selectLatestTemperature(@Param("patientId") String patientId,
-                                                @Param("tempNames") List<String> tempNames);
+                                                @Param("tempNames") List<String> tempNames,
+                                                @Param("tempExcludes") List<String> tempExcludes);
 
     /** 患者当前时间往前 24 小时的体温记录，按采样时间升序返回。 */
     @Select("<script>SELECT * FROM ( "
@@ -557,13 +584,17 @@ public interface IcuPatientMapper {
             + "<foreach collection='tempNames' item='tn' separator=' OR '>"
             + "  i.item_name LIKE '%' || #{tn} || '%'"
             + "</foreach>"
-            + ") AND i.item_name NOT LIKE '%来源%' "
+            + ") "
+            + "<foreach collection='tempExcludes' item='te'>"
+            + "  AND i.item_name NOT LIKE '%' || #{te} || '%' "
+            + "</foreach>"
             + "      AND r.item_time >= SYSDATE - 1 AND r.item_time &lt;= SYSDATE "
             + "    ORDER BY r.item_time DESC "
             + "  ) WHERE ROWNUM &lt;= 200 "
             + ") ORDER BY item_time ASC</script>")
     List<Map<String, Object>> selectTemperatureTrend(@Param("patientId") String patientId,
-                                                     @Param("tempNames") List<String> tempNames);
+                                                     @Param("tempNames") List<String> tempNames,
+                                                     @Param("tempExcludes") List<String> tempExcludes);
 
     /** 患者执行中/未执行医嘱（抗菌药在 Java 端按关键词过滤；取最新 100 条） */
     @Select("SELECT * FROM ( "
@@ -855,7 +886,7 @@ public interface IcuPatientMapper {
      * 查询患者乳酸检验结果（脓毒症集束化治疗用）
      * 精确匹配"乳酸"项目，排除"乳酸脱氢酶"等非乳酸项目
      */
-    @Select("SELECT li.id AS id, li.in_hospital_no AS in_hospital_no, "
+    @Select("<script>SELECT li.id AS id, li.in_hospital_no AS in_hospital_no, "
             + "li.lis_item_name AS lis_item_name, li.lis_item_result AS result, "
             + "li.lis_item_unit AS unit, li.check_time AS check_time, "
             + "l.lis_short_name AS specimen_type "
@@ -864,11 +895,17 @@ public interface IcuPatientMapper {
             + "    ON l.lis_code = li.lis_code AND l.del_flag = 0 "
             + "WHERE li.del_flag = 0 AND li.status = 1 "
             + "AND li.in_hospital_no = #{inHospitalNo} "
-            + "AND (li.lis_item_name LIKE '%乳酸%' OR li.lis_item_short_name LIKE '%乳酸%') "
+            + "AND ("
+            + "<foreach collection='lacNames' item='ln' separator=' OR '>"
+            + "  li.lis_item_name LIKE '%' || #{ln} || '%' "
+            + "  OR li.lis_item_short_name LIKE '%' || #{ln} || '%'"
+            + "</foreach>"
+            + ") "
             + "AND li.lis_item_name NOT LIKE '%脱氢酶%' "
-            + "AND li.lis_item_result IS NOT NULL AND li.lis_item_result <> '' "
-            + "ORDER BY li.check_time ASC")
-    List<Map<String, Object>> selectLactateResults(@Param("inHospitalNo") String inHospitalNo);
+            + "AND li.lis_item_result IS NOT NULL AND li.lis_item_result &lt;&gt; '' "
+            + "ORDER BY li.check_time ASC</script>")
+    List<Map<String, Object>> selectLactateResults(@Param("inHospitalNo") String inHospitalNo,
+                                                   @Param("lacNames") List<String> lacNames);
 
     /**
      * 查询患者晶体液医嘱（脓毒症集束化治疗液体复苏用）

@@ -85,18 +85,37 @@ public class WorkbenchEnrichService {
 
     /** 尿量等项目编码按配置取（同上：字段注入，避免改变被单测依赖的构造签名） */
     @Autowired
-    private com.zing.doctor.module.config.dataitem.service.DataItemConfigService dataItemConfigService;
+    private DataItemConfigService dataItemConfigService;
 
-    /** 体温观察项名（默认「体温」），本院叫法不同改配置即可；排除词仍写在 SQL 里 */
+    /** 体温观察项名（默认「体温」），本院叫法不同改配置即可 */
     private List<String> tempNames() {
-        return dataItemConfigService.dict(
-                com.zing.doctor.module.config.dataitem.service.DataItemConfigService.DICT_TEMP_ITEM);
+        return dataItemConfigService.dict(DataItemConfigService.DICT_TEMP_ITEM);
+    }
+
+    /** 体温项排除词（默认「来源」）：「体温来源」这类记录测量方式的项要剔掉，否则取到的不是数字 */
+    private List<String> tempExcludes() {
+        return dataItemConfigService.excludes(
+                DataItemConfigService.DOMAIN_DICT, DataItemConfigService.DICT_TEMP_ITEM);
     }
 
     /** 培养/药敏明细项目名（默认「培养」「药敏」） */
     private List<String> cultureNames() {
-        return dataItemConfigService.dict(
-                com.zing.doctor.module.config.dataitem.service.DataItemConfigService.DICT_CULTURE_ITEM);
+        return dataItemConfigService.dict(DataItemConfigService.DICT_CULTURE_ITEM);
+    }
+
+    /** 降钙素原项目名 */
+    private List<String> pctNames() {
+        return dataItemConfigService.names(DataItemConfigService.DOMAIN_LAB, DataItemConfigService.LAB_PCT);
+    }
+
+    /** 白细胞项目名（只取血常规口径，排除词仍在 SQL 里） */
+    private List<String> wbcNames() {
+        return dataItemConfigService.names(DataItemConfigService.DOMAIN_LAB, DataItemConfigService.LAB_WBC);
+    }
+
+    /** 肌酐项目名（AKI 判定用） */
+    private List<String> crNames() {
+        return dataItemConfigService.names(DataItemConfigService.DOMAIN_LAB, DataItemConfigService.LAB_CREATININE);
     }
 
     /**
@@ -514,7 +533,8 @@ public class WorkbenchEnrichService {
             Map<String, boolean[]> suspectFlags = new HashMap<>();
             List<Map<String, Object>> suspects = icuPatientMapper.selectSuspectPatients(departCode,
                     dataItemConfigService.names(
-                            DataItemConfigService.DOMAIN_DIAG, DataItemConfigService.DIAG_INFECTION));
+                            DataItemConfigService.DOMAIN_DIAG, DataItemConfigService.DIAG_INFECTION),
+                    pctNames());
             if (suspects != null) {
                 for (Map<String, Object> r : suspects) {
                     if (r == null) {
@@ -555,9 +575,11 @@ public class WorkbenchEnrichService {
                     groupRows(icuPatientMapper.selectDiagnosesByPatientIds(suspectIds), "patient_id");
             Map<String, List<Map<String, Object>>> labMap = suspectNos.isEmpty()
                     ? Collections.emptyMap()
-                    : groupRows(icuPatientMapper.selectInfectionLabsByNos(suspectNos), "in_hospital_no");
+                    : groupRows(icuPatientMapper.selectInfectionLabsByNos(suspectNos, pctNames(), wbcNames()),
+                    "in_hospital_no");
             Map<String, String> tempMap = toValueMap(
-                    icuPatientMapper.selectLatestTemperatureByPatientIds(suspectIds, tempNames()),
+                    icuPatientMapper.selectLatestTemperatureByPatientIds(
+                            suspectIds, tempNames(), tempExcludes()),
                     "patient_id", "item_value");
             Map<String, List<Map<String, Object>>> microMap = suspectNos.isEmpty()
                     ? Collections.emptyMap()
@@ -1105,7 +1127,7 @@ public class WorkbenchEnrichService {
             }
             try {
                 List<Map<String, Object>> rows = icuPatientMapper.selectTemperatureTrend(
-                        p.getPatientId(), tempNames());
+                        p.getPatientId(), tempNames(), tempExcludes());
                 if (rows == null || rows.isEmpty()) {
                     trend.setDataStatus("EMPTY");
                     continue;
@@ -1144,13 +1166,13 @@ public class WorkbenchEnrichService {
     public void enrichAki(List<WorkbenchPatient> patients) {
         if (patients == null || patients.isEmpty()) return;
         // 尿量编码各院不同，走配置；配置不可用时兜底 ii_nl（codesOrBuiltin 内部已容错，不会抛）
-        List<String> urineCodes = dataItemConfigService.codesOrBuiltin(
-                com.zing.doctor.module.config.dataitem.service.DataItemConfigService.DOMAIN_IO);
+        List<String> urineCodes = dataItemConfigService.codesOrBuiltin(DataItemConfigService.DOMAIN_IO);
         for (WorkbenchPatient p : patients) {
             WorkbenchPatient.AkiSummary aki = new WorkbenchPatient.AkiSummary();
             p.setAki(aki);
             try {
-                List<Map<String, Object>> cr = icuPatientMapper.selectAkiCreatinine(p.getInHospitalNo());
+                List<Map<String, Object>> cr = icuPatientMapper.selectAkiCreatinine(
+                        p.getInHospitalNo(), crNames());
                 List<Map<String, Object>> urine = icuPatientMapper.selectAkiUrine6h(p.getPatientId(),
                         LocalDateTime.now().minusHours(6).toString(), LocalDateTime.now().toString(), urineCodes);
                 BigDecimal base = null, latest = null; LocalDateTime baseTime = null, latestTime = null; int count = 0;

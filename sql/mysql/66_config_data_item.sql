@@ -203,6 +203,10 @@ INSERT INTO `zing_doctor_db_prod`.`config_data_item`
     (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
 SELECT 6400042,'LAB','INFECTION','感染指标','il6','IL-6 白介素6','NAME_LIKE','白介素6',NULL,4,'' FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='LAB' AND `item_key`='il6' AND `match_value`='白介素6');
+INSERT INTO `zing_doctor_db_prod`.`config_data_item`
+    (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
+SELECT 6400043,'LAB','PERFUSION','组织灌注','lac','Lac 乳酸','NAME_LIKE','乳酸',NULL,1,'影响：SOFA 循环分、脓毒症乳酸清除率；排除词「脱氢酶」属统计口径，写在 SQL 里不开放' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='LAB' AND `item_key`='lac' AND `match_value`='乳酸');
 
 -- ---------------------------------------------------------------------
 -- 术语字典（domain=DICT）：LIS 报告名 / 标本名 / 项目名 / 观察项名
@@ -231,8 +235,11 @@ SELECT 6400054,'DICT',NULL,NULL,'culture_report','培养报告名','NAME_LIKE','
 WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DICT' AND `item_key`='culture_report');
 INSERT INTO `zing_doctor_db_prod`.`config_data_item`
     (`id`,`domain`,`group_code`,`group_name`,`item_key`,`item_name`,`match_type`,`match_value`,`exclude_value`,`sort_no`,`remark`)
-SELECT 6400055,'DICT',NULL,NULL,'temp_item','体温观察项','NAME_LIKE','体温',NULL,6,'item_name，排除词「来源」写在 SQL 里' FROM DUAL
+SELECT 6400055,'DICT',NULL,NULL,'temp_item','体温观察项','NAME_LIKE','体温','来源',6,'item_name；排除词「来源」用于剔掉「体温来源」这类记录测量方式的项' FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `zing_doctor_db_prod`.`config_data_item` WHERE `domain`='DICT' AND `item_key`='temp_item');
+-- 老库补排除词（上面那条 INSERT 对已存在的行不生效）
+UPDATE `zing_doctor_db_prod`.`config_data_item` SET `exclude_value`='来源'
+ WHERE `domain`='DICT' AND `item_key`='temp_item' AND (`exclude_value` IS NULL OR `exclude_value`='');
 
 -- ---------------------------------------------------------------------
 -- 药品名（domain=DRUG）：医嘱/执行单里的药名关键词，一律按「名称包含」匹配

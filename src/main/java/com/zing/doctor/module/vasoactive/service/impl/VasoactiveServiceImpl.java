@@ -225,7 +225,9 @@ public class VasoactiveServiceImpl implements VasoactiveService {
         block.put("dataStatus", "FOUND");
         List<Map<String, Object>> points = new ArrayList<>();
         try {
-            List<Map<String, Object>> rows = icuPatientMapper.selectLactateResults(inHospitalNo);
+            List<Map<String, Object>> rows = icuPatientMapper.selectLactateResults(inHospitalNo,
+                    dataItemConfigService.names(
+                            DataItemConfigService.DOMAIN_LAB, DataItemConfigService.LAB_LACTATE));
             if (rows != null) {
                 for (Map<String, Object> r : rows) {
                     LocalDateTime t = parseTime(str(r.get("check_time")));

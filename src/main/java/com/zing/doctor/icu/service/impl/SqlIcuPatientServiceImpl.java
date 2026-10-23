@@ -374,7 +374,8 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
     @Override
     public List<IcuPatientBrief> listSuspectInfections(String departCode) {
         List<Map<String, Object>> rows = icuPatientMapper.selectSuspectPatients(departCode,
-                dataItemConfigService.names(DataItemConfigService.DOMAIN_DIAG, DataItemConfigService.DIAG_INFECTION));
+                dataItemConfigService.names(DataItemConfigService.DOMAIN_DIAG, DataItemConfigService.DIAG_INFECTION),
+                dataItemConfigService.names(DataItemConfigService.DOMAIN_LAB, DataItemConfigService.LAB_PCT));
         if (rows == null || rows.isEmpty()) {
             return Collections.emptyList();
         }
@@ -412,10 +413,15 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
                 groupRows(icuPatientMapper.selectDiagnosesByPatientIds(patientIds), "patient_id");
         Map<String, List<Map<String, Object>>> labMap = inHospitalNos.isEmpty()
                 ? Collections.emptyMap()
-                : groupRows(icuPatientMapper.selectInfectionLabsByNos(inHospitalNos), "in_hospital_no");
+                : groupRows(icuPatientMapper.selectInfectionLabsByNos(inHospitalNos,
+                        dataItemConfigService.names(DataItemConfigService.DOMAIN_LAB, DataItemConfigService.LAB_PCT),
+                        dataItemConfigService.names(DataItemConfigService.DOMAIN_LAB, DataItemConfigService.LAB_WBC)),
+                        "in_hospital_no");
         Map<String, String> tempMap =
                 toValueMap(icuPatientMapper.selectLatestTemperatureByPatientIds(patientIds,
-                                dataItemConfigService.dict(DataItemConfigService.DICT_TEMP_ITEM)),
+                                dataItemConfigService.dict(DataItemConfigService.DICT_TEMP_ITEM),
+                                dataItemConfigService.excludes(
+                                        DataItemConfigService.DOMAIN_DICT, DataItemConfigService.DICT_TEMP_ITEM)),
                         "patient_id", "item_value");
         Map<String, List<Map<String, Object>>> microMap = inHospitalNos.isEmpty()
                 ? Collections.emptyMap()
@@ -836,7 +842,9 @@ public class SqlIcuPatientServiceImpl implements IcuPatientService {
 
     private String loadTemperature(String patientId) {
         Map<String, Object> row = icuPatientMapper.selectLatestTemperature(patientId,
-                dataItemConfigService.dict(DataItemConfigService.DICT_TEMP_ITEM));
+                dataItemConfigService.dict(DataItemConfigService.DICT_TEMP_ITEM),
+                dataItemConfigService.excludes(
+                        DataItemConfigService.DOMAIN_DICT, DataItemConfigService.DICT_TEMP_ITEM));
         return row == null ? null : str(row.get("item_value"));
     }
 

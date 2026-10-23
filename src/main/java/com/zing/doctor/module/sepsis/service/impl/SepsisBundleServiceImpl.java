@@ -368,7 +368,9 @@ public class SepsisBundleServiceImpl implements SepsisBundleService {
         }
 
         // 获取乳酸检验结果
-        List<Map<String, Object>> lactateList = icuPatientMapper.selectLactateResults(inHospitalNo);
+        List<Map<String, Object>> lactateList = icuPatientMapper.selectLactateResults(inHospitalNo,
+                dataItemConfigService.names(
+                        DataItemConfigService.DOMAIN_LAB, DataItemConfigService.LAB_LACTATE));
 
         // 获取血培养送检记录
         List<Map<String, Object>> bloodCultureList = icuPatientMapper.selectBloodCultureRecords(inHospitalNo);

@@ -49,6 +49,15 @@ public final class DataItemDefaults {
     /** 诊断名关键词（{@code patient_info_diagnosis.diag_name}）。 */
     private static final Map<String, List<String>> DIAG;
 
+    /**
+     * 检验项目名：只覆盖「单点取数」用到的几个键（乳酸/肌酐/降钙素原/白细胞）。
+     *
+     * <p>LAB 域的肝功/凝血/电解质面板走 {@code codesOrBuiltin} 整组取数，
+     * 那边一个都没配时页面本来就该空着；但乳酸、肌酐这几处是单条 SQL 里的
+     * {@code foreach}，列表为空会拼出 {@code AND ()} 直接报语法错，所以必须有兜底。
+     */
+    private static final Map<String, List<String>> LAB;
+
     static {
         Map<String, List<String>> m = new LinkedHashMap<>();
         m.put(DataItemConfigService.DICT_GAS_SAMPLE, Collections.singletonList("动脉血"));
@@ -80,6 +89,13 @@ public final class DataItemDefaults {
                 "脓毒", "感染", "肺炎", "腹腔", "腹膜炎", "血流", "菌血症", "尿路", "泌尿", "真菌"));
         g.put(DataItemConfigService.DIAG_ARDS, Arrays.asList("急性呼吸窘迫综合征", "ARDS"));
         DIAG = Collections.unmodifiableMap(g);
+
+        Map<String, List<String>> l = new LinkedHashMap<>();
+        l.put(DataItemConfigService.LAB_LACTATE, Collections.singletonList("乳酸"));
+        l.put(DataItemConfigService.LAB_CREATININE, Collections.singletonList("肌酐"));
+        l.put(DataItemConfigService.LAB_PCT, Collections.singletonList("降钙素原"));
+        l.put(DataItemConfigService.LAB_WBC, Collections.singletonList("白细胞"));
+        LAB = Collections.unmodifiableMap(l);
     }
 
     public static List<String> of(String domain) {
@@ -104,10 +120,26 @@ public final class DataItemDefaults {
             table = DRUG;
         } else if (DataItemConfigService.DOMAIN_DIAG.equals(domain)) {
             table = DIAG;
+        } else if (DataItemConfigService.DOMAIN_LAB.equals(domain)) {
+            table = LAB;
         } else {
             return Collections.emptyList();
         }
         List<String> v = table.get(itemKey);
         return v == null ? Collections.emptyList() : v;
+    }
+
+    /**
+     * 键级默认排除词：配置里 exclude_value 为空时的回退。
+     *
+     * <p>目前只有体温项需要：观察项字典里除了「体温」，还有「体温来源」这种
+     * 记录测量方式的项，按名称包含匹配会一起命中，取到的值不是数字。
+     */
+    public static List<String> ofExcludeKey(String domain, String itemKey) {
+        if (DataItemConfigService.DOMAIN_DICT.equals(domain)
+                && DataItemConfigService.DICT_TEMP_ITEM.equals(itemKey)) {
+            return Collections.singletonList("来源");
+        }
+        return Collections.emptyList();
     }
 }

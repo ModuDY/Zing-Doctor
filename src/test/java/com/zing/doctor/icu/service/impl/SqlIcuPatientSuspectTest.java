@@ -53,10 +53,10 @@ class SqlIcuPatientSuspectTest {
     @Test
     @DisplayName("只靠 PCT 入列：0.12 不算疑似感染，1.2 才算")
     void pctThresholdFiltersPctOnlyPatients() {
-        when(mapper.selectSuspectPatients(anyString(), anyList())).thenReturn(Arrays.asList(
+        when(mapper.selectSuspectPatients(anyString(), anyList(), anyList())).thenReturn(Arrays.asList(
                 patientRow("P1", "N1", 0, 0, 1),
                 patientRow("P2", "N2", 0, 0, 1)));
-        when(mapper.selectInfectionLabsByNos(anyList())).thenReturn(Arrays.asList(
+        when(mapper.selectInfectionLabsByNos(anyList(), anyList(), anyList())).thenReturn(Arrays.asList(
                 labRow("N1", "降钙素原", "0.12"),
                 labRow("N2", "降钙素原", "1.2")));
 
@@ -70,9 +70,9 @@ class SqlIcuPatientSuspectTest {
     @Test
     @DisplayName("感染诊断命中：即使 PCT 只有 0.05 也保留（入列依据是诊断，不是 PCT）")
     void diagnosisHitKeepsLowPctPatient() {
-        when(mapper.selectSuspectPatients(anyString(), anyList())).thenReturn(Collections.singletonList(
+        when(mapper.selectSuspectPatients(anyString(), anyList(), anyList())).thenReturn(Collections.singletonList(
                 patientRow("P1", "N1", 0, 1, 1)));
-        when(mapper.selectInfectionLabsByNos(anyList())).thenReturn(Collections.singletonList(
+        when(mapper.selectInfectionLabsByNos(anyList(), anyList(), anyList())).thenReturn(Collections.singletonList(
                 labRow("N1", "降钙素原", "0.05")));
         when(mapper.selectDiagnosesByPatientIds(anyList())).thenReturn(Collections.singletonList(
                 diagRow("P1", "重症肺炎")));
@@ -86,7 +86,7 @@ class SqlIcuPatientSuspectTest {
     @Test
     @DisplayName("主表脓毒性休克标记命中：诊断没写「脓毒性休克」也算休克，风险为高")
     void shockFlagFromPatientInfoIsRespected() {
-        when(mapper.selectSuspectPatients(anyString(), anyList())).thenReturn(Collections.singletonList(
+        when(mapper.selectSuspectPatients(anyString(), anyList(), anyList())).thenReturn(Collections.singletonList(
                 patientRow("P1", "N1", 1, 0, 0)));
         when(mapper.selectDiagnosesByPatientIds(anyList())).thenReturn(Collections.singletonList(
                 diagRow("P1", "重症肺炎")));
@@ -105,7 +105,7 @@ class SqlIcuPatientSuspectTest {
         Map<String, Object> row = patientRow("P1", "N1", 0, 1, 0);
         row.put("mdr_bacteria", "3,5");
         row.put("resistant_bacteria", "念珠菌");
-        when(mapper.selectSuspectPatients(anyString(), anyList())).thenReturn(Collections.singletonList(row));
+        when(mapper.selectSuspectPatients(anyString(), anyList(), anyList())).thenReturn(Collections.singletonList(row));
 
         List<IcuPatientBrief> list = service.listSuspectInfections("D001");
 
@@ -122,22 +122,22 @@ class SqlIcuPatientSuspectTest {
         for (int i = 0; i < 30; i++) {
             rows.add(patientRow("P" + i, "N" + i, 0, 1, 0));
         }
-        when(mapper.selectSuspectPatients(anyString(), anyList())).thenReturn(rows);
+        when(mapper.selectSuspectPatients(anyString(), anyList(), anyList())).thenReturn(rows);
 
         List<IcuPatientBrief> list = service.listSuspectInfections("D001");
 
         assertEquals(30, list.size());
-        verify(mapper, times(1)).selectSuspectPatients(anyString(), anyList());
+        verify(mapper, times(1)).selectSuspectPatients(anyString(), anyList(), anyList());
         verify(mapper, times(1)).selectDiagnosesByPatientIds(anyList());
-        verify(mapper, times(1)).selectInfectionLabsByNos(anyList());
-        verify(mapper, times(1)).selectLatestTemperatureByPatientIds(anyList(), anyList());
+        verify(mapper, times(1)).selectInfectionLabsByNos(anyList(), anyList(), anyList());
+        verify(mapper, times(1)).selectLatestTemperatureByPatientIds(anyList(), anyList(), anyList());
         verify(mapper, times(1)).selectMicrobiologyByNos(anyList(), anyList());
         verify(mapper, times(1)).selectCurrentAbxAdviceByNos(anyList());
         // 逐患者查询一条都不许出现
         verify(mapper, never()).selectDiagnoses(org.mockito.ArgumentMatchers.anyString());
         verify(mapper, never()).selectRecentLabs(org.mockito.ArgumentMatchers.anyString());
         verify(mapper, never()).selectLatestTemperature(
-                org.mockito.ArgumentMatchers.anyString(), anyList());
+                org.mockito.ArgumentMatchers.anyString(), anyList(), anyList());
         verify(mapper, never()).selectMicrobiology(
                 org.mockito.ArgumentMatchers.anyString(), anyList());
         verify(mapper, never()).selectCurrentAbxAdvice(org.mockito.ArgumentMatchers.anyString());
@@ -146,9 +146,9 @@ class SqlIcuPatientSuspectTest {
     @Test
     @DisplayName("PCT 带单位 / 比较符也要解析出数值")
     void pctValueParsing() {
-        when(mapper.selectSuspectPatients(anyString(), anyList())).thenReturn(Collections.singletonList(
+        when(mapper.selectSuspectPatients(anyString(), anyList(), anyList())).thenReturn(Collections.singletonList(
                 patientRow("P1", "N1", 0, 0, 1)));
-        when(mapper.selectInfectionLabsByNos(anyList())).thenReturn(Collections.singletonList(
+        when(mapper.selectInfectionLabsByNos(anyList(), anyList(), anyList())).thenReturn(Collections.singletonList(
                 labRow("N1", "降钙素原", "2.35 ng/mL")));
 
         List<IcuPatientBrief> list = service.listSuspectInfections("D001");

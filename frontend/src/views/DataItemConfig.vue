@@ -59,7 +59,7 @@
             <th class="w90">来源</th>
             <th class="w110">匹配方式</th>
             <th>匹配值</th>
-            <th v-if="isLab" class="w160">排除词</th>
+            <th v-if="hasExclude" class="w160">排除词</th>
             <th class="w70">状态</th>
             <th class="w150">操作</th>
           </tr>
@@ -73,7 +73,7 @@
             <td>{{ r.source || '—' }}</td>
             <td>{{ matchText(r.matchType) }}</td>
             <td class="mono">{{ r.matchValue }}</td>
-            <td v-if="isLab" class="dim small">{{ r.excludeValue || '—' }}</td>
+            <td v-if="hasExclude" class="dim small">{{ r.excludeValue || '—' }}</td>
             <td>
               <span class="tag" :class="r.status === 1 ? 'ok' : 'pending'">
                 {{ r.status === 1 ? '启用' : '停用' }}
@@ -266,6 +266,8 @@ const probe = reactive({ loading: false, result: null, error: '' })
 
 const currentDomain = computed(() => domains.value.find(d => d.domain === domain.value) || {})
 const isLab = computed(() => domain.value === 'LAB')
+// 排除词目前只有 LAB（项目名口径）和 DICT（体温项要剔掉「体温来源」）在用
+const hasExclude = computed(() => isLab.value || domain.value === 'DICT')
 const enabledCount = computed(() => rows.value.filter(r => r.status === 1).length)
 
 const filtered = computed(() => {

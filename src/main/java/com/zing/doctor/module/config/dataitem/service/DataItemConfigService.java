@@ -45,6 +45,12 @@ public class DataItemConfigService {
     public static final String DOMAIN_VENT = "VENT";
     public static final String DOMAIN_IO = "IO";
     public static final String DOMAIN_LAB = "LAB";
+
+    /** 单点取数用到的检验项目键（乳酸、肌酐、降钙素原、白细胞） */
+    public static final String LAB_LACTATE = "lac";
+    public static final String LAB_CREATININE = "cr";
+    public static final String LAB_PCT = "pct";
+    public static final String LAB_WBC = "wbc";
     /** 术语字典：LIS 报告名 / 标本名 / 项目名 / 观察项名（厂商实施时配的名称，院院不同） */
     public static final String DOMAIN_DICT = "DICT";
 
@@ -201,6 +207,26 @@ public class DataItemConfigService {
     /** 术语字典取值：等价于 {@code names(DICT, itemKey)} */
     public List<String> dict(String itemKey) {
         return names(DOMAIN_DICT, itemKey);
+    }
+
+    /**
+     * 某域某键的排除词（{@code exclude_value}，已按逗号/竖线拆开）。
+     *
+     * <p>与 {@link #names} 不同，这里**允许返回空集合**：没有排除词是完全正常的，
+     * 调用方 SQL 里用 {@code <foreach>} 不写 open/close，空集合正好拼出空串。
+     */
+    public List<String> excludes(String domain, String itemKey) {
+        List<String> out = new ArrayList<>();
+        for (DataItemConfig row : enabled(domain)) {
+            if (itemKey != null && !itemKey.equals(row.getItemKey())) {
+                continue;
+            }
+            out.addAll(split(row.getExcludeValue()));
+        }
+        if (!out.isEmpty()) {
+            return out;
+        }
+        return DataItemDefaults.ofExcludeKey(domain, itemKey);
     }
 
     private Map<String, List<DataItemConfig>> load() {
